@@ -16,6 +16,23 @@ import java.time.LocalDateTime;
 @Table(name = "suppliers")
 public class Supplier {
 
+    @Override
+    public String toString() {
+        return "Supplier{" +
+                "supplierId=" + supplierId +
+                ", organization=" + organization +
+                ", name='" + name + '\'' +
+                ", legalName='" + legalName + '\'' +
+                ", siret='" + siret + '\'' +
+                ", vatNumber='" + vatNumber + '\'' +
+                ", email='" + email + '\'' +
+                ", phone='" + phone + '\'' +
+                ", address='" + address + '\'' +
+                ", createdAt=" + createdAt +
+                ", updatedAt=" + updatedAt +
+                '}';
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long supplierId;
