@@ -6,4 +6,12 @@ import org.springframework.web.multipart.MultipartFile;
 public interface OcrClient {
 
     OcrAnalysisResponse analyze(MultipartFile file);
+
+    default String getEngineName() {
+        return "unknown";
+    }
+
+    default String getEngineVersion() {
+        return null;
+    }
 }

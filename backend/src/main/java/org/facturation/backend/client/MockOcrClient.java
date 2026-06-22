@@ -2,12 +2,14 @@ package org.facturation.backend.client;
 
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
 import org.facturation.backend.dto.response.OcrFieldResponse;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
 @Component
+@ConditionalOnProperty(name = "ocr.engine", havingValue = "mock")
 public class MockOcrClient implements OcrClient {
 
     @Override
@@ -54,5 +56,15 @@ public class MockOcrClient implements OcrClient {
                 totalTtcField
         ));
         return response;
+    }
+
+    @Override
+    public String getEngineName() {
+        return "mock-ocr";
+    }
+
+    @Override
+    public String getEngineVersion() {
+        return "1.0";
     }
 }
