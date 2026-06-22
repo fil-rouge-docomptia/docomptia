@@ -1,6 +1,9 @@
 package org.facturation.backend.service;
 
+import org.facturation.backend.dto.response.InvoiceDetailsResponse;
+import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.model.Invoice;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Optional;
@@ -12,4 +15,8 @@ public interface InvoiceService {
     Optional<Invoice> findById(Long id);
 
     Invoice save(Invoice invoice);
+
+    InvoiceUploadResponse uploadAndAnalyze(MultipartFile file, Long supplierId);
+
+    Optional<InvoiceDetailsResponse> findDetailsById(Long id);
 }
