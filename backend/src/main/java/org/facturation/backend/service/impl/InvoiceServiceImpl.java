@@ -95,104 +95,28 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional
     public InvoiceUploadResponse uploadAndAnalyze(MultipartFile file, Long supplierId) {
-        Supplier supplier = supplierRepository.findById(supplierId)
-                .orElseThrow(() -> new IllegalArgumentException("Supplier not found"));
+        Supplier supplier = findSupplierById(supplierId);
+        Organization organization = findDefaultOrganization();
+        User user = findDefaultUser();
+        InvoiceStatus depositedStatus = findInvoiceStatusByCode("DEPOSEE");
+        InvoiceStatus ocrInProgressStatus = findInvoiceStatusByCode("OCR_EN_COURS");
+        InvoiceStatus extractedStatus = findInvoiceStatusByCode("EXTRAITE");
 
-        System.out.println("Im here "+supplier);
-
-        Organization organization = organizationRepository.findById(1L)
-                .orElseThrow(() -> new IllegalStateException("Default organization not found"));
-
-        User user = userRepository.findById(1L)
-                .orElseThrow(() -> new IllegalStateException("Default user not found"));
-
-        InvoiceStatus depositedStatus = invoiceStatusRepository.findByCode("DEPOSEE")
-                .orElseThrow(() -> new IllegalStateException("Invoice status DEPOSEE not found"));
-
-        InvoiceStatus ocrInProgressStatus = invoiceStatusRepository.findByCode("OCR_EN_COURS")
-                .orElseThrow(() -> new IllegalStateException("Invoice status OCR_EN_COURS not found"));
-
-        InvoiceStatus extractedStatus = invoiceStatusRepository.findByCode("EXTRAITE")
-                .orElseThrow(() -> new IllegalStateException("Invoice status EXTRAITE not found"));
-
-        OcrAnalysisResponse ocrAnalysis = ocrClient.analyze(file);
-        String invoiceNumber = extractNormalizedValue(ocrAnalysis, "invoiceNumber", "INV-" + System.currentTimeMillis());
-        BigDecimal totalHt = toBigDecimal(extractNormalizedValue(ocrAnalysis, "totalHt", "0.00"));
-        BigDecimal totalTva = toBigDecimal(extractNormalizedValue(ocrAnalysis, "totalTva", "0.00"));
-        BigDecimal totalTtc = toBigDecimal(extractNormalizedValue(ocrAnalysis, "totalTtc", "0.00"));
-
-        Invoice invoice = new Invoice();
-        invoice.setOrganization(organization);
-        invoice.setSupplier(supplier);
-        invoice.setCreatedByUser(user);
-        invoice.setInvoiceStatus(depositedStatus);
-        invoice.setInvoiceNumber(invoiceNumber);
-        invoice.setInvoiceDate(LocalDate.now());
-        invoice.setCurrencyCode("EUR");
-        invoice.setTotalHt(totalHt);
-        invoice.setTotalTva(totalTva);
-        invoice.setTotalTtc(totalTtc);
-        invoice.setDescription("Invoice uploaded for OCR analysis");
-        invoice.setCreatedAt(LocalDateTime.now());
-        invoice.setUpdatedAt(LocalDateTime.now());
-        System.out.println("here1 ");
+        OcrAnalysisResponse ocrAnalysis = analyzeInvoice(file);
+        Invoice invoice = createInvoice(organization, supplier, user, depositedStatus, ocrAnalysis);
         invoice = invoiceRepository.save(invoice);
-        System.out.println("here2 ");
-
         saveStatusHistory(invoice, depositedStatus, user, "Invoice uploaded");
 
-        Path storedFilePath = storeFile(file, invoice.getInvoiceId());
-        InvoiceFile invoiceFile = new InvoiceFile();
-        invoiceFile.setInvoice(invoice);
-        invoiceFile.setOriginalFileName(file.getOriginalFilename() == null ? "invoice-file" : file.getOriginalFilename());
-        invoiceFile.setStoredFileName(storedFilePath.getFileName().toString());
-        invoiceFile.setFilePath(storedFilePath.toString());
-        invoiceFile.setMimeType(file.getContentType() == null ? "application/octet-stream" : file.getContentType());
-        invoiceFile.setFileSize(file.getSize());
-        invoiceFile.setUploadedAt(LocalDateTime.now());
-        invoiceFileRepository.save(invoiceFile);
+        InvoiceFile invoiceFile = saveInvoiceFile(invoice, file);
 
-        invoice.setInvoiceStatus(ocrInProgressStatus);
-        invoice.setUpdatedAt(LocalDateTime.now());
-        invoiceRepository.save(invoice);
-        saveStatusHistory(invoice, ocrInProgressStatus, user, "OCR analysis started");
+        updateInvoiceStatus(invoice, ocrInProgressStatus, user, "OCR analysis started");
 
-        OcrExtraction ocrExtraction = new OcrExtraction();
-        ocrExtraction.setInvoice(invoice);
-        ocrExtraction.setStatus(ocrAnalysis.getStatus());
-        ocrExtraction.setEngineName("mock-ocr");
-        ocrExtraction.setEngineVersion("1.0");
-        ocrExtraction.setRawText(ocrAnalysis.getRawText());
-        ocrExtraction.setConfidenceScore(toBigDecimal(ocrAnalysis.getConfidenceScore()));
-        ocrExtraction.setProcessedAt(LocalDateTime.now());
-        ocrExtraction.setCreatedAt(LocalDateTime.now());
-        ocrExtraction = ocrExtractionRepository.save(ocrExtraction);
+        OcrExtraction ocrExtraction = saveOcrExtraction(invoice, ocrAnalysis);
+        saveOcrExtractionFields(ocrExtraction, ocrAnalysis);
 
-        for (OcrFieldResponse field : ocrAnalysis.getFields()) {
-            OcrExtractionField extractionField = new OcrExtractionField();
-            extractionField.setOcrExtraction(ocrExtraction);
-            extractionField.setFieldName(field.getFieldName());
-            extractionField.setRawValue(field.getRawValue());
-            extractionField.setNormalizedValue(field.getNormalizedValue());
-            extractionField.setConfidenceScore(toBigDecimal(field.getConfidenceScore()));
-            extractionField.setCorrected(false);
-            extractionField.setCreatedAt(LocalDateTime.now());
-            extractionField.setUpdatedAt(LocalDateTime.now());
-            ocrExtractionFieldRepository.save(extractionField);
-        }
+        updateInvoiceStatus(invoice, extractedStatus, user, "OCR analysis completed");
 
-        invoice.setInvoiceStatus(extractedStatus);
-        invoice.setUpdatedAt(LocalDateTime.now());
-        invoiceRepository.save(invoice);
-        saveStatusHistory(invoice, extractedStatus, user, "OCR analysis completed");
-
-        InvoiceUploadResponse response = new InvoiceUploadResponse();
-        response.setInvoiceId(invoice.getInvoiceId());
-        response.setInvoiceNumber(invoice.getInvoiceNumber());
-        response.setStatus(invoice.getInvoiceStatus().getCode());
-        response.setFilePath(invoiceFile.getFilePath());
-        response.setOcrAnalysis(ocrAnalysis);
-        return response;
+        return buildInvoiceUploadResponse(invoice, invoiceFile, ocrAnalysis);
     }
 
     @Override
@@ -242,6 +166,137 @@ public class InvoiceServiceImpl implements InvoiceService {
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to store uploaded file", exception);
         }
+    }
+
+    private Supplier findSupplierById(Long supplierId) {
+        return supplierRepository.findById(supplierId)
+                .orElseThrow(() -> new IllegalArgumentException("Supplier not found"));
+    }
+
+    private Organization findDefaultOrganization() {
+        return organizationRepository.findById(1L)
+                .orElseThrow(() -> new IllegalStateException("Default organization not found"));
+    }
+
+    private User findDefaultUser() {
+        return userRepository.findById(1L)
+                .orElseThrow(() -> new IllegalStateException("Default user not found"));
+    }
+
+    private InvoiceStatus findInvoiceStatusByCode(String code) {
+        return invoiceStatusRepository.findByCode(code)
+                .orElseThrow(() -> new IllegalStateException("Invoice status " + code + " not found"));
+    }
+
+    private OcrAnalysisResponse analyzeInvoice(MultipartFile file) {
+        return ocrClient.analyze(file);
+    }
+
+    private Invoice createInvoice(
+            Organization organization,
+            Supplier supplier,
+            User user,
+            InvoiceStatus invoiceStatus,
+            OcrAnalysisResponse ocrAnalysis
+    ) {
+        Invoice invoice = new Invoice();
+        invoice.setOrganization(organization);
+        invoice.setSupplier(supplier);
+        invoice.setCreatedByUser(user);
+        invoice.setInvoiceStatus(invoiceStatus);
+        invoice.setInvoiceNumber(extractInvoiceNumber(ocrAnalysis));
+        invoice.setInvoiceDate(LocalDate.now());
+        invoice.setCurrencyCode("EUR");
+        invoice.setTotalHt(extractAmount(ocrAnalysis, "totalHt"));
+        invoice.setTotalTva(extractAmount(ocrAnalysis, "totalTva"));
+        invoice.setTotalTtc(extractAmount(ocrAnalysis, "totalTtc"));
+        invoice.setDescription("Invoice uploaded for OCR analysis");
+        invoice.setCreatedAt(LocalDateTime.now());
+        invoice.setUpdatedAt(LocalDateTime.now());
+        return invoice;
+    }
+
+    private String extractInvoiceNumber(OcrAnalysisResponse ocrAnalysis) {
+        return extractNormalizedValue(ocrAnalysis, "invoiceNumber", "INV-" + System.currentTimeMillis());
+    }
+
+    private BigDecimal extractAmount(OcrAnalysisResponse ocrAnalysis, String fieldName) {
+        return toBigDecimal(extractNormalizedValue(ocrAnalysis, fieldName, "0.00"));
+    }
+
+    private InvoiceFile saveInvoiceFile(Invoice invoice, MultipartFile file) {
+        Path storedFilePath = storeFile(file, invoice.getInvoiceId());
+
+        InvoiceFile invoiceFile = new InvoiceFile();
+        invoiceFile.setInvoice(invoice);
+        invoiceFile.setOriginalFileName(resolveOriginalFileName(file));
+        invoiceFile.setStoredFileName(storedFilePath.getFileName().toString());
+        invoiceFile.setFilePath(storedFilePath.toString());
+        invoiceFile.setMimeType(resolveMimeType(file));
+        invoiceFile.setFileSize(file.getSize());
+        invoiceFile.setUploadedAt(LocalDateTime.now());
+        return invoiceFileRepository.save(invoiceFile);
+    }
+
+    private String resolveOriginalFileName(MultipartFile file) {
+        return file.getOriginalFilename() == null ? "invoice-file" : file.getOriginalFilename();
+    }
+
+    private String resolveMimeType(MultipartFile file) {
+        return file.getContentType() == null ? "application/octet-stream" : file.getContentType();
+    }
+
+    private void updateInvoiceStatus(Invoice invoice, InvoiceStatus status, User user, String comment) {
+        invoice.setInvoiceStatus(status);
+        invoice.setUpdatedAt(LocalDateTime.now());
+        invoiceRepository.save(invoice);
+        saveStatusHistory(invoice, status, user, comment);
+    }
+
+    private OcrExtraction saveOcrExtraction(Invoice invoice, OcrAnalysisResponse ocrAnalysis) {
+        OcrExtraction ocrExtraction = new OcrExtraction();
+        ocrExtraction.setInvoice(invoice);
+        ocrExtraction.setStatus(ocrAnalysis.getStatus());
+        ocrExtraction.setEngineName("mock-ocr");
+        ocrExtraction.setEngineVersion("1.0");
+        ocrExtraction.setRawText(ocrAnalysis.getRawText());
+        ocrExtraction.setConfidenceScore(toBigDecimal(ocrAnalysis.getConfidenceScore()));
+        ocrExtraction.setProcessedAt(LocalDateTime.now());
+        ocrExtraction.setCreatedAt(LocalDateTime.now());
+        return ocrExtractionRepository.save(ocrExtraction);
+    }
+
+    private void saveOcrExtractionFields(OcrExtraction ocrExtraction, OcrAnalysisResponse ocrAnalysis) {
+        for (OcrFieldResponse field : ocrAnalysis.getFields()) {
+            ocrExtractionFieldRepository.save(createOcrExtractionField(ocrExtraction, field));
+        }
+    }
+
+    private OcrExtractionField createOcrExtractionField(OcrExtraction ocrExtraction, OcrFieldResponse field) {
+        OcrExtractionField extractionField = new OcrExtractionField();
+        extractionField.setOcrExtraction(ocrExtraction);
+        extractionField.setFieldName(field.getFieldName());
+        extractionField.setRawValue(field.getRawValue());
+        extractionField.setNormalizedValue(field.getNormalizedValue());
+        extractionField.setConfidenceScore(toBigDecimal(field.getConfidenceScore()));
+        extractionField.setCorrected(false);
+        extractionField.setCreatedAt(LocalDateTime.now());
+        extractionField.setUpdatedAt(LocalDateTime.now());
+        return extractionField;
+    }
+
+    private InvoiceUploadResponse buildInvoiceUploadResponse(
+            Invoice invoice,
+            InvoiceFile invoiceFile,
+            OcrAnalysisResponse ocrAnalysis
+    ) {
+        InvoiceUploadResponse response = new InvoiceUploadResponse();
+        response.setInvoiceId(invoice.getInvoiceId());
+        response.setInvoiceNumber(invoice.getInvoiceNumber());
+        response.setStatus(invoice.getInvoiceStatus().getCode());
+        response.setFilePath(invoiceFile.getFilePath());
+        response.setOcrAnalysis(ocrAnalysis);
+        return response;
     }
 
     private String extractNormalizedValue(OcrAnalysisResponse response, String fieldName, String fallback) {
