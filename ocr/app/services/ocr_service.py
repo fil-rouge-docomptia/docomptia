@@ -7,6 +7,10 @@ import pytesseract
 from pdf2image import convert_from_bytes
 from PIL import Image
 
+AMOUNT_PATTERN = r"(?:\d{1,3}(?:[\s.,]\d{3})+|\d+)"
+DECIMAL_AMOUNT_PATTERN = rf"{AMOUNT_PATTERN}[,.]\d{{2}}"
+CURRENCY_PATTERN = r"(?:€|EUR)"
+
 
 def analyze_document(filename: str, content: bytes) -> dict:
     raw_text = extract_text(filename, content)
@@ -15,7 +19,7 @@ def analyze_document(filename: str, content: bytes) -> dict:
         build_field("supplierName", extract_supplier(raw_text), "0.70"),
         build_field("invoiceNumber", extract_invoice_number(raw_text), "0.75"),
         build_field("totalHt", extract_amount(raw_text, ["HT", "hors taxe"]), "0.70"),
-        build_field("totalTva", extract_amount(raw_text, ["TVA", "taxe"]), "0.70"),
+        build_field("totalTva", extract_amount(raw_text, ["TVA", "taxe"], allow_fallback=False), "0.70"),
         build_field("totalTtc", extract_amount(raw_text, ["TTC", "total"]), "0.75"),
     ]
 
@@ -71,14 +75,21 @@ def extract_invoice_number(raw_text: str) -> str | None:
     return None
 
 
-def extract_amount(raw_text: str, labels: list[str]) -> str | None:
+def extract_amount(raw_text: str, labels: list[str], allow_fallback: bool = True) -> str | None:
     for label in labels:
-        pattern = rf"{re.escape(label)}[^\d]{{0,20}}([0-9\s]+(?:[,.][0-9]{{2}})?)"
+        pattern = (
+            rf"{re.escape(label)}[^\n\r]{{0,40}}?"
+            rf"(?:({DECIMAL_AMOUNT_PATTERN})\s*(?:{CURRENCY_PATTERN})?"
+            rf"|({AMOUNT_PATTERN})\s*{CURRENCY_PATTERN})"
+        )
         match = re.search(pattern, raw_text, flags=re.IGNORECASE)
         if match:
-            return normalize_amount(match.group(1))
+            return normalize_amount(match.group(1) or match.group(2))
 
-    amounts = re.findall(r"([0-9\s]+[,.][0-9]{2})", raw_text)
+    if not allow_fallback:
+        return None
+
+    amounts = re.findall(DECIMAL_AMOUNT_PATTERN, raw_text)
     if amounts:
         return normalize_amount(amounts[-1])
 
@@ -86,7 +97,15 @@ def extract_amount(raw_text: str, labels: list[str]) -> str | None:
 
 
 def normalize_amount(value: str) -> str:
-    cleaned = value.replace(" ", "").replace(",", ".")
+    cleaned = value.replace(" ", "").replace("\u00a0", "")
+    if "," in cleaned and "." in cleaned:
+        decimal_separator = "," if cleaned.rfind(",") > cleaned.rfind(".") else "."
+        thousands_separator = "." if decimal_separator == "," else ","
+        cleaned = cleaned.replace(thousands_separator, "")
+        cleaned = cleaned.replace(decimal_separator, ".")
+    else:
+        cleaned = cleaned.replace(",", ".")
+
     try:
         return str(Decimal(cleaned).quantize(Decimal("0.01")))
     except InvalidOperation:

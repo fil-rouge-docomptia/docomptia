@@ -31,6 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -38,6 +39,9 @@ import java.util.Optional;
 
 @Service
 public class InvoiceServiceImpl implements InvoiceService {
+
+    private static final BigDecimal MAX_PERSISTED_AMOUNT = new BigDecimal("9999999999.99");
+    private static final int AMOUNT_SCALE = 2;
 
     private final InvoiceRepository invoiceRepository;
     private final SupplierRepository supplierRepository;
@@ -206,7 +210,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     private BigDecimal extractAmount(OcrAnalysisResponse ocrAnalysis, String fieldName) {
-        return toBigDecimal(extractNormalizedValue(ocrAnalysis, fieldName, "0.00"));
+        return toPersistableAmount(extractNormalizedValue(ocrAnalysis, fieldName, "0.00"));
     }
 
     private InvoiceFile saveInvoiceFile(Invoice invoice, MultipartFile file) {
@@ -289,7 +293,19 @@ public class InvoiceServiceImpl implements InvoiceService {
         if (value == null || value.isBlank()) {
             return BigDecimal.ZERO;
         }
-        return new BigDecimal(value);
+        try {
+            return new BigDecimal(value);
+        } catch (NumberFormatException exception) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private BigDecimal toPersistableAmount(String value) {
+        BigDecimal amount = toBigDecimal(value).setScale(AMOUNT_SCALE, RoundingMode.HALF_UP);
+        if (amount.abs().compareTo(MAX_PERSISTED_AMOUNT) > 0) {
+            return BigDecimal.ZERO.setScale(AMOUNT_SCALE);
+        }
+        return amount;
     }
 
     private OcrAnalysisResponse toOcrAnalysisResponse(OcrExtraction ocrExtraction) {
