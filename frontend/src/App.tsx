@@ -1,5 +1,7 @@
+import InvoiceUploadPage from './pages/InvoiceUploadPage'
+
 function App() {
-  return <div id="root-layout" />
+  return <InvoiceUploadPage />
 }
 
 export default App

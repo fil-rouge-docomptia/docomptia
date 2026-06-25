@@ -24,6 +24,8 @@ server:
   forward-headers-strategy: framework
 
 app:
+  cors:
+    allowed-origins: http://localhost:5173
   ocr:
     mock: true
     base-url: http://localhost:8000
