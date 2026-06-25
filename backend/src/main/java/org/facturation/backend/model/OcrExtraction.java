@@ -32,7 +32,7 @@ public class OcrExtraction {
 
     private String engineVersion;
 
-    @Column(length = 10000)
+    @Column(columnDefinition = "TEXT")
     private String rawText;
 
     private BigDecimal confidenceScore;
