@@ -22,23 +22,20 @@ import org.facturation.backend.repository.OcrExtractionRepository;
 import org.facturation.backend.repository.OrganizationRepository;
 import org.facturation.backend.repository.SupplierRepository;
 import org.facturation.backend.repository.UserRepository;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import org.facturation.backend.service.storage.InvoiceFileStorageService;
+import org.facturation.backend.service.storage.StoredInvoiceFile;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.math.BigDecimal;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -48,9 +45,6 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class InvoiceServiceImplTest {
-
-    @TempDir
-    private Path tempDir;
 
     @Mock
     private InvoiceRepository invoiceRepository;
@@ -82,21 +76,11 @@ class InvoiceServiceImplTest {
     @Mock
     private OcrClient ocrClient;
 
+    @Mock
+    private InvoiceFileStorageService invoiceFileStorageService;
+
     @InjectMocks
     private InvoiceServiceImpl invoiceService;
-
-    private String previousTempDirectory;
-
-    @BeforeEach
-    void setUp() {
-        previousTempDirectory = System.getProperty("java.io.tmpdir");
-        System.setProperty("java.io.tmpdir", tempDir.toString());
-    }
-
-    @AfterEach
-    void tearDown() {
-        System.setProperty("java.io.tmpdir", previousTempDirectory);
-    }
 
     @Test
     void uploadAndAnalyzeSavesInvoiceOcrDataAndReturnsResponse() {
@@ -128,6 +112,13 @@ class InvoiceServiceImplTest {
             }
             return invoice;
         });
+        when(invoiceFileStorageService.store(file, 10L)).thenReturn(new StoredInvoiceFile(
+                "invoice.pdf",
+                "stored-invoice.pdf",
+                "/tmp/facturation-files/stored-invoice.pdf",
+                "application/pdf",
+                file.getSize()
+        ));
         when(invoiceFileRepository.save(any(InvoiceFile.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(ocrExtractionRepository.save(any(OcrExtraction.class))).thenAnswer(invocation -> {
             OcrExtraction extraction = invocation.getArgument(0);
@@ -140,12 +131,12 @@ class InvoiceServiceImplTest {
         assertEquals(10L, response.getInvoiceId());
         assertEquals("INV-2026-001", response.getInvoiceNumber());
         assertEquals("EXTRAITE", response.getStatus());
-        assertNotNull(response.getFilePath());
-        assertTrue(response.getFilePath().contains("invoice.pdf"));
+        assertEquals("/tmp/facturation-files/stored-invoice.pdf", response.getFilePath());
         assertSame(ocrAnalysis, response.getOcrAnalysis());
 
         verify(invoiceRepository, times(3)).save(any(Invoice.class));
         verify(invoiceStatusHistoryRepository, times(3)).save(any());
+        verify(invoiceFileStorageService).store(file, 10L);
         verify(invoiceFileRepository).save(any(InvoiceFile.class));
         verify(ocrExtractionRepository).save(any(OcrExtraction.class));
         verify(ocrExtractionFieldRepository, times(5)).save(any(OcrExtractionField.class));
