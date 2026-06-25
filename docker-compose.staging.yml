@@ -10,6 +10,9 @@ services:
   ocr:
     restart: unless-stopped
 
+  ollama:
+    restart: unless-stopped
+
   postgres:
     restart: unless-stopped
 

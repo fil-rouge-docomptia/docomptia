@@ -16,6 +16,8 @@ docker-compose.prod.yml
 - `postgres`
 - `minio`
 - `minio-init`
+- `ollama`
+- `ollama-init`
 - `ocr`
 - `backend`
 - `frontend`
@@ -23,7 +25,7 @@ docker-compose.prod.yml
 Il definit aussi:
 
 - le reseau Docker `facturation`
-- les volumes `postgres_data` et `minio_data`
+- les volumes `postgres_data`, `minio_data` et `ollama_data`
 - les healthchecks de PostgreSQL, MinIO et OCR
 - les variables communes de connexion entre services
 
@@ -51,6 +53,7 @@ Caracteristiques:
 | frontend | Vite avec hot reload |
 | backend | Maven `spring-boot:run` |
 | ocr | Uvicorn `--reload` |
+| ollama | Modele LLM local expose en dev |
 | postgres | Port expose localement |
 | minio | API et console exposees |
 
@@ -60,10 +63,13 @@ Ports par defaut:
 Frontend:      http://localhost:5173
 Backend:       http://localhost:8080
 OCR:           http://localhost:8000
+Ollama:        http://localhost:11434
 MinIO API:     http://localhost:9000
 MinIO Console: http://localhost:9001
 PostgreSQL:    localhost:5432
 ```
+
+Le service `ollama-init` tente de telecharger `OLLAMA_MODEL` dans le volume `ollama_data` au premier demarrage. Si le telechargement echoue, le stack continue de demarrer et l'OCR utilise son fallback regex jusqu'a ce que le modele soit disponible.
 
 ## Staging
 

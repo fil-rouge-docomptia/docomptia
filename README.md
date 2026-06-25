@@ -11,6 +11,7 @@ Application MVP de facturation electronique composee d'un frontend React, d'un b
 | Database | PostgreSQL |
 | Stockage fichiers | MinIO, API S3 |
 | OCR | FastAPI, Tesseract |
+| Extraction structuree | Ollama, Qwen2.5 |
 | Reverse proxy | Nginx |
 | Orchestration locale | Docker Compose |
 
@@ -24,6 +25,7 @@ flowchart LR
     backend -->|S3 API| minio[(MinIO)]
     backend -->|HTTP multipart| ocr[OCR FastAPI]
     ocr --> tesseract[Tesseract]
+    ocr --> ollama[Ollama / Qwen2.5]
 ```
 
 Documentation detaillee:
@@ -65,6 +67,7 @@ Services disponibles en developpement:
 | Frontend | http://localhost:5173 |
 | Backend | http://localhost:8080 |
 | OCR | http://localhost:8000 |
+| Ollama | http://localhost:11434 |
 | MinIO API | http://localhost:9000 |
 | MinIO Console | http://localhost:9001 |
 | PostgreSQL | localhost:5432 |
@@ -145,5 +148,7 @@ docker compose --env-file env/.env.dev \
 ## Notes MVP
 
 - Les profils Docker utilisent `spring.jpa.hibernate.ddl-auto=update` pour accelerer le developpement MVP.
+- Le service OCR utilise Tesseract pour le texte brut et Ollama/Qwen2.5 pour structurer les champs quand `OCR_LLM_ENABLED=true`.
+- Le premier demarrage peut etre plus long car Docker tente de telecharger le modele `OLLAMA_MODEL`. Si le telechargement echoue, l'OCR garde son fallback regex.
 - Avant un usage production reel, remplacer `ddl-auto=update` par des migrations versionnees, par exemple Flyway ou Liquibase.
 - Les secrets de staging/prod ne doivent pas rester dans Git avec des valeurs reelles.

@@ -18,6 +18,10 @@ services:
     ports:
       - "${OCR_PORT:-8000}:8000"
 
+  ollama:
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+
   backend:
     build:
       context: ./backend
@@ -27,7 +31,7 @@ services:
       SPRING_PROFILES_ACTIVE: dev
     volumes:
       - ./backend:/app
-      - backend_maven_cache:/root/.m2
+      - ${HOME}/.m2:/root/.m2
     ports:
       - "${BACKEND_PORT:-8080}:8080"
 
@@ -45,5 +49,4 @@ services:
       - "${FRONTEND_PORT:-5173}:5173"
 
 volumes:
-  backend_maven_cache:
   frontend_node_modules:

@@ -92,6 +92,17 @@ docker compose --env-file env/.env.dev \
   build frontend
 ```
 
+Ollama uniquement:
+
+```bash
+docker compose --env-file env/.env.dev \
+  -f docker-compose.yml \
+  -f docker-compose.dev.yml \
+  up -d ollama ollama-init
+```
+
+Le premier demarrage tente de telecharger `OLLAMA_MODEL` dans le volume Docker `ollama_data`. Si le registre Ollama est inaccessible depuis Docker, le stack continue de tourner avec le fallback regex.
+
 ## Smoke Test Interne
 
 Demarrer le stack commun sans ports publics:
@@ -136,6 +147,7 @@ POSTGRES_PORT=5433
 MINIO_API_PORT=9002
 MINIO_CONSOLE_PORT=9003
 OCR_PORT=8001
+OLLAMA_PORT=11435
 ```
 
 ## Probleme Frequent: Donnees Corrompues En Dev

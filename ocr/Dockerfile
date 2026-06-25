@@ -5,10 +5,12 @@ ENV PYTHONUNBUFFERED=1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        ca-certificates \
         poppler-utils \
         tesseract-ocr \
         tesseract-ocr-eng \
         tesseract-ocr-fra \
+    && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
