@@ -10,6 +10,9 @@ services:
   ocr:
     restart: always
 
+  ollama:
+    restart: always
+
   postgres:
     restart: always
 

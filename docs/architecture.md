@@ -17,6 +17,7 @@ flowchart TB
         backend[Backend Spring Boot Java 25]
         ocr[OCR FastAPI]
         tesseract[Tesseract OCR]
+        ollama[Ollama / Qwen2.5]
     end
 
     subgraph data[Donnees]
@@ -37,6 +38,7 @@ flowchart TB
     minio --> bucket
     backend -->|HTTP multipart| ocr
     ocr --> tesseract
+    ocr --> ollama
 ```
 
 En developpement, les ports des services sont exposes directement. En staging et prod, l'entree recommandee est le reverse proxy Nginx.
@@ -51,6 +53,8 @@ En developpement, les ports des services sont exposes directement. En staging et
 | `minio` | Stockage objet S3-compatible | `minio/minio:latest` |
 | `minio-init` | Creation du bucket | `minio/mc:latest` |
 | `ocr` | Extraction OCR | `ocr/Dockerfile` ou `ocr/Dockerfile.dev` |
+| `ollama` | Structuration LLM locale | `ollama/ollama:latest` |
+| `ollama-init` | Telechargement du modele LLM | `ollama/ollama:latest` |
 | `reverse-proxy` | Routage HTTP staging/prod | `nginx:1.27-alpine` |
 
 ## Reseau Docker
@@ -64,6 +68,8 @@ flowchart LR
         minio
         minioInit[minio-init]
         ocr
+        ollama
+        ollamaInit[ollama-init]
         reverseProxy[reverse-proxy]
     end
 
@@ -73,6 +79,8 @@ flowchart LR
     backend --> minio
     backend --> ocr
     minioInit --> minio
+    ocr --> ollama
+    ollamaInit --> ollama
 ```
 
 Les services utilisent les noms DNS internes Docker:
@@ -81,6 +89,7 @@ Les services utilisent les noms DNS internes Docker:
 postgres:5432
 minio:9000
 ocr:8000
+ollama:11434
 backend:8080
 frontend:80
 ```
@@ -100,6 +109,7 @@ sequenceDiagram
     F->>B: POST /api/v1/invoices/upload
     B->>O: Envoie le fichier en multipart
     O->>O: Tesseract extrait le texte
+    O->>O: Ollama structure les champs facture
     O-->>B: JSON OCR compatible DTO backend
     B->>DB: Cree la facture et les donnees OCR
     B->>S: Stocke le fichier original
@@ -116,10 +126,15 @@ sequenceDiagram
     participant M as minio
     participant MI as minio-init
     participant O as ocr
+    participant L as ollama
+    participant LI as ollama-init
     participant B as backend
 
     P->>P: healthcheck pg_isready
     M->>M: healthcheck /minio/health/live
+    L->>L: healthcheck ollama list
+    L-->>LI: Ollama healthy
+    LI->>L: Pull OLLAMA_MODEL
     O->>O: healthcheck /health
     M-->>MI: MinIO healthy
     MI->>M: Cree le bucket invoice-files
@@ -153,5 +168,5 @@ Le frontend de production est servi par Nginx depuis les fichiers statiques gene
 
 - `ddl-auto=update` est acceptable pour le MVP, mais pas pour une production durable.
 - Les secrets prod doivent etre fournis via `.env.prod` non versionne.
-- Le service OCR actuel fournit une extraction heuristique simple. Il faudra l'enrichir avec une vraie logique de parsing facture.
+- Le service OCR utilise un LLM local pour structurer les champs, avec fallback regex pour preserver le flux MVP.
 - Le stockage MinIO est local au compose. Pour une production externe, remplacer l'endpoint S3 et les credentials.
