@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: backend
+  datasource:
+    url: jdbc:h2:mem:facturation;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 25MB
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    defer-datasource-initialization: true
+    open-in-view: false
+  sql:
+    init:
+      mode: embedded
+
+server:
+  port: 8080
+  forward-headers-strategy: framework
+
+app:
+  ocr:
+    mock: true
+    base-url: http://localhost:8000
+  storage:
+    type: local
+    local-dir:
+    s3:
+      endpoint: http://localhost:9000
+      access-key: minioadmin
+      secret-key: minioadmin
+      bucket: invoice-files

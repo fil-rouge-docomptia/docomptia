@@ -1,0 +1,112 @@
+name: facturation-electronique
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-facturation}
+      POSTGRES_USER: ${POSTGRES_USER:-facturation}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-facturation}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - facturation
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - facturation
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-invoice-files}
+    volumes:
+      - ./docker/minio/init-buckets.sh:/init-buckets.sh:ro
+    entrypoint: ["/bin/sh", "/init-buckets.sh"]
+    restart: "no"
+    networks:
+      - facturation
+
+  ocr:
+    build:
+      context: ./ocr
+      dockerfile: Dockerfile
+    environment:
+      OCR_LANGUAGES: ${OCR_LANGUAGES:-fra+eng}
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - facturation
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-facturation}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-facturation}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-facturation}
+      APP_OCR_MOCK: "false"
+      APP_OCR_BASE_URL: http://ocr:8000
+      APP_STORAGE_TYPE: s3
+      APP_STORAGE_S3_ENDPOINT: http://minio:9000
+      APP_STORAGE_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      APP_STORAGE_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      APP_STORAGE_S3_BUCKET: ${MINIO_BUCKET:-invoice-files}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      ocr:
+        condition: service_healthy
+    expose:
+      - "8080"
+    networks:
+      - facturation
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+    expose:
+      - "80"
+    networks:
+      - facturation
+
+networks:
+  facturation:
+
+volumes:
+  postgres_data:
+  minio_data:

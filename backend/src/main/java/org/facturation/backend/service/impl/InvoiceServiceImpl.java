@@ -24,23 +24,24 @@ import org.facturation.backend.repository.OrganizationRepository;
 import org.facturation.backend.repository.SupplierRepository;
 import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.InvoiceService;
+import org.facturation.backend.service.storage.InvoiceFileStorageService;
+import org.facturation.backend.service.storage.StoredInvoiceFile;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 public class InvoiceServiceImpl implements InvoiceService {
+
+    private static final BigDecimal MAX_PERSISTED_AMOUNT = new BigDecimal("9999999999.99");
+    private static final int AMOUNT_SCALE = 2;
 
     private final InvoiceRepository invoiceRepository;
     private final SupplierRepository supplierRepository;
@@ -52,6 +53,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final OcrExtractionRepository ocrExtractionRepository;
     private final OcrExtractionFieldRepository ocrExtractionFieldRepository;
     private final OcrClient ocrClient;
+    private final InvoiceFileStorageService invoiceFileStorageService;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
@@ -63,7 +65,8 @@ public class InvoiceServiceImpl implements InvoiceService {
             InvoiceStatusHistoryRepository invoiceStatusHistoryRepository,
             OcrExtractionRepository ocrExtractionRepository,
             OcrExtractionFieldRepository ocrExtractionFieldRepository,
-            OcrClient ocrClient
+            OcrClient ocrClient,
+            InvoiceFileStorageService invoiceFileStorageService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.supplierRepository = supplierRepository;
@@ -75,6 +78,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.ocrExtractionRepository = ocrExtractionRepository;
         this.ocrExtractionFieldRepository = ocrExtractionFieldRepository;
         this.ocrClient = ocrClient;
+        this.invoiceFileStorageService = invoiceFileStorageService;
     }
 
     @Override
@@ -153,21 +157,6 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoiceStatusHistoryRepository.save(history);
     }
 
-    private Path storeFile(MultipartFile file, Long invoiceId) {
-        String originalName = file.getOriginalFilename() == null ? "invoice-file" : file.getOriginalFilename();
-        String storedFileName = invoiceId + "-" + UUID.randomUUID() + "-" + originalName;
-        Path directory = Path.of(System.getProperty("java.io.tmpdir"), "facturation-files");
-        Path target = directory.resolve(storedFileName);
-
-        try {
-            Files.createDirectories(directory);
-            Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
-            return target;
-        } catch (IOException exception) {
-            throw new IllegalStateException("Unable to store uploaded file", exception);
-        }
-    }
-
     private Supplier findSupplierById(Long supplierId) {
         return supplierRepository.findById(supplierId)
                 .orElseThrow(() -> new IllegalArgumentException("Supplier not found"));
@@ -221,29 +210,21 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     private BigDecimal extractAmount(OcrAnalysisResponse ocrAnalysis, String fieldName) {
-        return toBigDecimal(extractNormalizedValue(ocrAnalysis, fieldName, "0.00"));
+        return toPersistableAmount(extractNormalizedValue(ocrAnalysis, fieldName, "0.00"));
     }
 
     private InvoiceFile saveInvoiceFile(Invoice invoice, MultipartFile file) {
-        Path storedFilePath = storeFile(file, invoice.getInvoiceId());
+        StoredInvoiceFile storedFile = invoiceFileStorageService.store(file, invoice.getInvoiceId());
 
         InvoiceFile invoiceFile = new InvoiceFile();
         invoiceFile.setInvoice(invoice);
-        invoiceFile.setOriginalFileName(resolveOriginalFileName(file));
-        invoiceFile.setStoredFileName(storedFilePath.getFileName().toString());
-        invoiceFile.setFilePath(storedFilePath.toString());
-        invoiceFile.setMimeType(resolveMimeType(file));
-        invoiceFile.setFileSize(file.getSize());
+        invoiceFile.setOriginalFileName(storedFile.originalFileName());
+        invoiceFile.setStoredFileName(storedFile.storedFileName());
+        invoiceFile.setFilePath(storedFile.filePath());
+        invoiceFile.setMimeType(storedFile.mimeType());
+        invoiceFile.setFileSize(storedFile.fileSize());
         invoiceFile.setUploadedAt(LocalDateTime.now());
         return invoiceFileRepository.save(invoiceFile);
-    }
-
-    private String resolveOriginalFileName(MultipartFile file) {
-        return file.getOriginalFilename() == null ? "invoice-file" : file.getOriginalFilename();
-    }
-
-    private String resolveMimeType(MultipartFile file) {
-        return file.getContentType() == null ? "application/octet-stream" : file.getContentType();
     }
 
     private void updateInvoiceStatus(Invoice invoice, InvoiceStatus status, User user, String comment) {
@@ -303,12 +284,28 @@ public class InvoiceServiceImpl implements InvoiceService {
         return response.getFields().stream()
                 .filter(field -> fieldName.equals(field.getFieldName()))
                 .map(OcrFieldResponse::getNormalizedValue)
+                .filter(value -> value != null && !value.isBlank())
                 .findFirst()
                 .orElse(fallback);
     }
 
     private BigDecimal toBigDecimal(String value) {
-        return new BigDecimal(value);
+        if (value == null || value.isBlank()) {
+            return BigDecimal.ZERO;
+        }
+        try {
+            return new BigDecimal(value);
+        } catch (NumberFormatException exception) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private BigDecimal toPersistableAmount(String value) {
+        BigDecimal amount = toBigDecimal(value).setScale(AMOUNT_SCALE, RoundingMode.HALF_UP);
+        if (amount.abs().compareTo(MAX_PERSISTED_AMOUNT) > 0) {
+            return BigDecimal.ZERO.setScale(AMOUNT_SCALE);
+        }
+        return amount;
     }
 
     private OcrAnalysisResponse toOcrAnalysisResponse(OcrExtraction ocrExtraction) {
