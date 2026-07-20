@@ -9,11 +9,20 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "suppliers")
+@Table(
+        name = "suppliers",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_suppliers_organization_name",
+                        columnNames = {"organization_id", "name"}
+                )
+        }
+)
 public class Supplier {
 
     @Override

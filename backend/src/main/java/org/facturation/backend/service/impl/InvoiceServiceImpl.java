@@ -99,7 +99,6 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional
     public InvoiceUploadResponse uploadAndAnalyze(MultipartFile file, Long supplierId) {
-        Supplier supplier = findSupplierById(supplierId);
         Organization organization = findDefaultOrganization();
         User user = findDefaultUser();
         InvoiceStatus depositedStatus = findInvoiceStatusByCode("DEPOSEE");
@@ -107,6 +106,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         InvoiceStatus extractedStatus = findInvoiceStatusByCode("EXTRAITE");
 
         OcrAnalysisResponse ocrAnalysis = analyzeInvoice(file);
+        Supplier supplier = resolveSupplier(supplierId, organization, ocrAnalysis);
         Invoice invoice = createInvoice(organization, supplier, user, depositedStatus, ocrAnalysis);
         invoice = invoiceRepository.save(invoice);
         saveStatusHistory(invoice, depositedStatus, user, "Invoice uploaded");
@@ -160,6 +160,28 @@ public class InvoiceServiceImpl implements InvoiceService {
     private Supplier findSupplierById(Long supplierId) {
         return supplierRepository.findById(supplierId)
                 .orElseThrow(() -> new IllegalArgumentException("Supplier not found"));
+    }
+
+    private Supplier resolveSupplier(Long supplierId, Organization organization, OcrAnalysisResponse ocrAnalysis) {
+        if (supplierId != null) {
+            return findSupplierById(supplierId);
+        }
+
+        String supplierName = extractNormalizedValue(ocrAnalysis, "supplierName", "Fournisseur a verifier");
+        return supplierRepository.findByOrganizationOrganizationIdAndNameIgnoreCase(
+                        organization.getOrganizationId(),
+                        supplierName
+                ).orElseGet(() -> createSupplierToVerify(organization, supplierName));
+    }
+
+    private Supplier createSupplierToVerify(Organization organization, String supplierName) {
+        Supplier supplier = new Supplier();
+        supplier.setOrganization(organization);
+        supplier.setName(supplierName);
+        supplier.setLegalName(supplierName);
+        supplier.setCreatedAt(LocalDateTime.now());
+        supplier.setUpdatedAt(LocalDateTime.now());
+        return supplierRepository.save(supplier);
     }
 
     private Organization findDefaultOrganization() {

@@ -11,7 +11,7 @@ const acceptedMimeTypes = ['application/pdf', 'image/png', 'image/jpeg']
 
 export default function InvoiceUploadPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [supplierId, setSupplierId] = useState('1')
+  const [supplierId, setSupplierId] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [uploadResponse, setUploadResponse] = useState<InvoiceUploadResponse | null>(null)
@@ -39,11 +39,6 @@ export default function InvoiceUploadPage() {
 
     if (!selectedFile) {
       setErrorMessage('Selectionne un fichier avant de lancer l analyse.')
-      return
-    }
-
-    if (!supplierId.trim()) {
-      setErrorMessage('Le supplierId est obligatoire pour appeler l API actuelle.')
       return
     }
 
