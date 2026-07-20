@@ -4,6 +4,9 @@ public class InvoiceDetailsResponse {
 
     private Long invoiceId;
     private String invoiceNumber;
+    private String commandReference;
+    private String invoiceDate;
+    private String dueDate;
     private String status;
     private String supplierName;
     private String currencyCode;
@@ -27,6 +30,30 @@ public class InvoiceDetailsResponse {
 
     public void setInvoiceNumber(String invoiceNumber) {
         this.invoiceNumber = invoiceNumber;
+    }
+
+    public String getCommandReference() {
+        return commandReference;
+    }
+
+    public void setCommandReference(String commandReference) {
+        this.commandReference = commandReference;
+    }
+
+    public String getInvoiceDate() {
+        return invoiceDate;
+    }
+
+    public void setInvoiceDate(String invoiceDate) {
+        this.invoiceDate = invoiceDate;
+    }
+
+    public String getDueDate() {
+        return dueDate;
+    }
+
+    public void setDueDate(String dueDate) {
+        this.dueDate = dueDate;
     }
 
     public String getStatus() {
