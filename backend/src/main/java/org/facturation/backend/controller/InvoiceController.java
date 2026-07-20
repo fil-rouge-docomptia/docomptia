@@ -25,7 +25,7 @@ public class InvoiceController {
     @PostMapping("/upload")
     public ResponseEntity<InvoiceUploadResponse> uploadInvoice(
             @RequestParam("file") MultipartFile file,
-            @RequestParam("supplierId") Long supplierId
+            @RequestParam(value = "supplierId", required = false) Long supplierId
     ) {
         return ResponseEntity.ok(invoiceService.uploadAndAnalyze(file, supplierId));
     }
