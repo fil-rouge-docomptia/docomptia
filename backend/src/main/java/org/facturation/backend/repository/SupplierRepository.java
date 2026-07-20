@@ -8,4 +8,6 @@ import java.util.Optional;
 public interface SupplierRepository extends JpaRepository<Supplier, Long> {
 
     Optional<Supplier> findByOrganizationOrganizationIdAndNameIgnoreCase(Long organizationId, String name);
+
+    Optional<Supplier> findByOrganizationOrganizationIdAndLegalNameIgnoreCase(Long organizationId, String legalName);
 }

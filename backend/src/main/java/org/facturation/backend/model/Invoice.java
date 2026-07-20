@@ -41,6 +41,8 @@ public class Invoice {
     @Column(nullable = false)
     private String invoiceNumber;
 
+    private String commandReference;
+
     @Column(nullable = false)
     private LocalDate invoiceDate;
 
@@ -110,6 +112,14 @@ public class Invoice {
 
     public void setInvoiceNumber(String invoiceNumber) {
         this.invoiceNumber = invoiceNumber;
+    }
+
+    public String getCommandReference() {
+        return commandReference;
+    }
+
+    public void setCommandReference(String commandReference) {
+        this.commandReference = commandReference;
     }
 
     public LocalDate getInvoiceDate() {

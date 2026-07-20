@@ -34,6 +34,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Optional;
 
@@ -42,6 +44,11 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     private static final BigDecimal MAX_PERSISTED_AMOUNT = new BigDecimal("9999999999.99");
     private static final int AMOUNT_SCALE = 2;
+    private static final List<DateTimeFormatter> DATE_FORMATTERS = List.of(
+            DateTimeFormatter.ofPattern("d/M/yyyy"),
+            DateTimeFormatter.ofPattern("d-M-yyyy"),
+            DateTimeFormatter.ISO_LOCAL_DATE
+    );
 
     private final InvoiceRepository invoiceRepository;
     private final SupplierRepository supplierRepository;
@@ -130,6 +137,9 @@ public class InvoiceServiceImpl implements InvoiceService {
             InvoiceDetailsResponse response = new InvoiceDetailsResponse();
             response.setInvoiceId(invoice.getInvoiceId());
             response.setInvoiceNumber(invoice.getInvoiceNumber());
+            response.setCommandReference(invoice.getCommandReference());
+            response.setInvoiceDate(invoice.getInvoiceDate() == null ? null : invoice.getInvoiceDate().toString());
+            response.setDueDate(invoice.getDueDate() == null ? null : invoice.getDueDate().toString());
             response.setStatus(invoice.getInvoiceStatus().getCode());
             response.setSupplierName(invoice.getSupplier().getName());
             response.setCurrencyCode(invoice.getCurrencyCode());
@@ -168,10 +178,16 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
 
         String supplierName = extractNormalizedValue(ocrAnalysis, "supplierName", "Fournisseur a verifier");
-        return supplierRepository.findByOrganizationOrganizationIdAndNameIgnoreCase(
+        Supplier supplier = supplierRepository.findByOrganizationOrganizationIdAndNameIgnoreCase(
                         organization.getOrganizationId(),
                         supplierName
-                ).orElseGet(() -> createSupplierToVerify(organization, supplierName));
+                )
+                .or(() -> supplierRepository.findByOrganizationOrganizationIdAndLegalNameIgnoreCase(
+                        organization.getOrganizationId(),
+                        supplierName
+                ))
+                .orElseGet(() -> createSupplierToVerify(organization, supplierName));
+        return updateSupplierFromOcrIfNeeded(supplier, ocrAnalysis);
     }
 
     private Supplier createSupplierToVerify(Organization organization, String supplierName) {
@@ -180,6 +196,29 @@ public class InvoiceServiceImpl implements InvoiceService {
         supplier.setName(supplierName);
         supplier.setLegalName(supplierName);
         supplier.setCreatedAt(LocalDateTime.now());
+        supplier.setUpdatedAt(LocalDateTime.now());
+        return supplierRepository.save(supplier);
+    }
+
+    private Supplier updateSupplierFromOcrIfNeeded(Supplier supplier, OcrAnalysisResponse ocrAnalysis) {
+        boolean updated = false;
+
+        Optional<String> siret = extractOptionalNormalizedValue(ocrAnalysis, "siret");
+        if (isBlank(supplier.getSiret()) && siret.isPresent()) {
+            supplier.setSiret(siret.get());
+            updated = true;
+        }
+
+        Optional<String> vatNumber = extractOptionalNormalizedValue(ocrAnalysis, "vatNumber");
+        if (isBlank(supplier.getVatNumber()) && vatNumber.isPresent()) {
+            supplier.setVatNumber(vatNumber.get());
+            updated = true;
+        }
+
+        if (!updated) {
+            return supplier;
+        }
+
         supplier.setUpdatedAt(LocalDateTime.now());
         return supplierRepository.save(supplier);
     }
@@ -216,7 +255,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice.setCreatedByUser(user);
         invoice.setInvoiceStatus(invoiceStatus);
         invoice.setInvoiceNumber(extractInvoiceNumber(ocrAnalysis));
-        invoice.setInvoiceDate(LocalDate.now());
+        invoice.setCommandReference(extractOptionalNormalizedValue(ocrAnalysis, "commandReference").orElse(null));
+        invoice.setInvoiceDate(extractDate(ocrAnalysis, "invoiceDate").orElse(LocalDate.now()));
+        invoice.setDueDate(extractDate(ocrAnalysis, "dueDate").orElse(null));
         invoice.setCurrencyCode("EUR");
         invoice.setTotalHt(extractAmount(ocrAnalysis, "totalHt"));
         invoice.setTotalTva(extractAmount(ocrAnalysis, "totalTva"));
@@ -303,12 +344,34 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     private String extractNormalizedValue(OcrAnalysisResponse response, String fieldName, String fallback) {
+        return extractOptionalNormalizedValue(response, fieldName).orElse(fallback);
+    }
+
+    private Optional<String> extractOptionalNormalizedValue(OcrAnalysisResponse response, String fieldName) {
         return response.getFields().stream()
                 .filter(field -> fieldName.equals(field.getFieldName()))
                 .map(OcrFieldResponse::getNormalizedValue)
                 .filter(value -> value != null && !value.isBlank())
-                .findFirst()
-                .orElse(fallback);
+                .findFirst();
+    }
+
+    private Optional<LocalDate> extractDate(OcrAnalysisResponse response, String fieldName) {
+        return extractOptionalNormalizedValue(response, fieldName).flatMap(this::toLocalDate);
+    }
+
+    private Optional<LocalDate> toLocalDate(String value) {
+        for (DateTimeFormatter formatter : DATE_FORMATTERS) {
+            try {
+                return Optional.of(LocalDate.parse(value, formatter));
+            } catch (DateTimeParseException ignored) {
+                // Try the next supported OCR date format.
+            }
+        }
+        return Optional.empty();
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private BigDecimal toBigDecimal(String value) {
