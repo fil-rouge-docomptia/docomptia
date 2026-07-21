@@ -1,12 +1,12 @@
 package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
-import org.facturation.backend.dto.response.AccountingEntryResponse;
+import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceListItemResponse;
+import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
-import org.facturation.backend.mapper.AccountingEntryMapper;
 import org.facturation.backend.mapper.InvoiceResponseMapper;
 import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.Invoice;
@@ -56,7 +56,6 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     private final InvoiceRepository invoiceRepository;
     private final AccountingEntryService accountingEntryService;
-    private final AccountingEntryMapper accountingEntryMapper;
     private final InvoiceResponseMapper invoiceResponseMapper;
     private final InvoiceOcrService invoiceOcrService;
     private final InvoiceStatusWorkflowService invoiceStatusWorkflowService;
@@ -69,7 +68,6 @@ public class InvoiceServiceImpl implements InvoiceService {
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
             AccountingEntryService accountingEntryService,
-            AccountingEntryMapper accountingEntryMapper,
             InvoiceResponseMapper invoiceResponseMapper,
             InvoiceOcrService invoiceOcrService,
             InvoiceStatusWorkflowService invoiceStatusWorkflowService,
@@ -81,7 +79,6 @@ public class InvoiceServiceImpl implements InvoiceService {
     ) {
         this.invoiceRepository = invoiceRepository;
         this.accountingEntryService = accountingEntryService;
-        this.accountingEntryMapper = accountingEntryMapper;
         this.invoiceResponseMapper = invoiceResponseMapper;
         this.invoiceOcrService = invoiceOcrService;
         this.invoiceStatusWorkflowService = invoiceStatusWorkflowService;
@@ -122,7 +119,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice = invoiceRepository.save(invoice);
         invoiceStatusWorkflowService.recordStatus(invoice, depositedStatus, user, "Invoice uploaded");
 
-        InvoiceFile invoiceFile = saveInvoiceFile(invoice, file);
+        saveInvoiceFile(invoice, file);
 
         invoiceStatusWorkflowService.updateStatus(invoice, ocrInProgressStatus, user, "OCR analysis started");
 
@@ -130,7 +127,7 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         invoiceStatusWorkflowService.updateStatus(invoice, extractedStatus, user, "OCR analysis completed");
 
-        return invoiceResponseMapper.toUploadResponse(invoice, invoiceFile, ocrAnalysis);
+        return invoiceResponseMapper.toUploadResponse(invoice, ocrAnalysis);
     }
 
     @Override
@@ -169,28 +166,25 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional
-    public Optional<InvoiceDetailsResponse> validateInvoice(Long id) {
+    public Optional<InvoiceStatusResponse> validateInvoice(Long id) {
         return updateInvoiceStatus(id, "VALIDEE", "Invoice validated");
     }
 
     @Override
     @Transactional
-    public Optional<InvoiceDetailsResponse> rejectInvoice(Long id) {
+    public Optional<InvoiceStatusResponse> rejectInvoice(Long id) {
         return updateInvoiceStatus(id, "REJETEE", "Invoice rejected");
     }
 
     @Override
     @Transactional
-    public Optional<AccountingEntryResponse> generateAccountingEntry(Long id) {
+    public Optional<InvoiceAccountingEntryResponse> generateAccountingEntry(Long id) {
         return invoiceRepository.findById(id).map(invoice -> {
             User user = findDefaultUser();
             AccountingEntry accountingEntry = accountingEntryService.generateFromInvoice(invoice, user);
             InvoiceStatus accountedStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.COMPTABILISEE);
             invoiceStatusWorkflowService.updateStatusIfChanged(invoice, accountedStatus, user, "Accounting entry generated");
-            return accountingEntryMapper.toResponse(
-                    accountingEntry,
-                    accountingEntryService.findLines(accountingEntry)
-            );
+            return invoiceResponseMapper.toAccountingEntryResponse(invoice, accountingEntry);
         });
     }
 
@@ -282,12 +276,12 @@ public class InvoiceServiceImpl implements InvoiceService {
         return invoiceFileRepository.save(invoiceFile);
     }
 
-    private Optional<InvoiceDetailsResponse> updateInvoiceStatus(Long invoiceId, String statusCode, String comment) {
+    private Optional<InvoiceStatusResponse> updateInvoiceStatus(Long invoiceId, String statusCode, String comment) {
         return invoiceRepository.findById(invoiceId).map(invoice -> {
             User user = findDefaultUser();
             InvoiceStatus status = invoiceStatusWorkflowService.findByCode(statusCode);
             invoiceStatusWorkflowService.updateStatus(invoice, status, user, comment);
-            return invoiceResponseMapper.toDetailsResponse(invoice);
+            return invoiceResponseMapper.toStatusResponse(invoice);
         });
     }
 

@@ -1,9 +1,10 @@
 package org.facturation.backend.service;
 
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
-import org.facturation.backend.dto.response.AccountingEntryResponse;
+import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceListItemResponse;
+import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.model.Invoice;
 import org.springframework.web.multipart.MultipartFile;
@@ -27,9 +28,9 @@ public interface InvoiceService {
 
     Optional<InvoiceDetailsResponse> correctInvoice(Long id, InvoiceCorrectionRequest request);
 
-    Optional<InvoiceDetailsResponse> validateInvoice(Long id);
+    Optional<InvoiceStatusResponse> validateInvoice(Long id);
 
-    Optional<InvoiceDetailsResponse> rejectInvoice(Long id);
+    Optional<InvoiceStatusResponse> rejectInvoice(Long id);
 
-    Optional<AccountingEntryResponse> generateAccountingEntry(Long id);
+    Optional<InvoiceAccountingEntryResponse> generateAccountingEntry(Long id);
 }

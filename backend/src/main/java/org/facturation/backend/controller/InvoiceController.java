@@ -6,9 +6,10 @@ import io.swagger.v3.oas.annotations.Parameters;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
-import org.facturation.backend.dto.response.AccountingEntryResponse;
+import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceListItemResponse;
+import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.service.InvoiceService;
 import org.springframework.http.MediaType;
@@ -90,7 +91,7 @@ public class InvoiceController {
 
     @PostMapping("/{id}/accounting-entry")
     @Operation(summary = "Generer l'ecriture comptable d'une facture")
-    public ResponseEntity<AccountingEntryResponse> generateAccountingEntry(@PathVariable Long id) {
+    public ResponseEntity<InvoiceAccountingEntryResponse> generateAccountingEntry(@PathVariable Long id) {
         return invoiceService.generateAccountingEntry(id)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
@@ -113,7 +114,7 @@ public class InvoiceController {
 
     @PostMapping("/{id}/validate")
     @Operation(summary = "Valider une facture")
-    public ResponseEntity<InvoiceDetailsResponse> validateInvoice(@PathVariable Long id) {
+    public ResponseEntity<InvoiceStatusResponse> validateInvoice(@PathVariable Long id) {
         return invoiceService.validateInvoice(id)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
@@ -121,7 +122,7 @@ public class InvoiceController {
 
     @PostMapping("/{id}/reject")
     @Operation(summary = "Rejeter une facture")
-    public ResponseEntity<InvoiceDetailsResponse> rejectInvoice(@PathVariable Long id) {
+    public ResponseEntity<InvoiceStatusResponse> rejectInvoice(@PathVariable Long id) {
         return invoiceService.rejectInvoice(id)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());

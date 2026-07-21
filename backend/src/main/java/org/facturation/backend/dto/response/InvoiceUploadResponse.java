@@ -5,9 +5,7 @@ public class InvoiceUploadResponse {
     private Long invoiceId;
     private String invoiceNumber;
     private String status;
-    private String filePath;
     private OcrAnalysisResponse ocrAnalysis;
-    private AccountingEntryResponse accountingEntry;
 
     public Long getInvoiceId() {
         return invoiceId;
@@ -33,27 +31,11 @@ public class InvoiceUploadResponse {
         this.status = status;
     }
 
-    public String getFilePath() {
-        return filePath;
-    }
-
-    public void setFilePath(String filePath) {
-        this.filePath = filePath;
-    }
-
     public OcrAnalysisResponse getOcrAnalysis() {
         return ocrAnalysis;
     }
 
     public void setOcrAnalysis(OcrAnalysisResponse ocrAnalysis) {
         this.ocrAnalysis = ocrAnalysis;
-    }
-
-    public AccountingEntryResponse getAccountingEntry() {
-        return accountingEntry;
-    }
-
-    public void setAccountingEntry(AccountingEntryResponse accountingEntry) {
-        this.accountingEntry = accountingEntry;
     }
 }
