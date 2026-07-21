@@ -22,4 +22,8 @@ public interface InvoiceService {
     Optional<InvoiceDetailsResponse> findDetailsById(Long id);
 
     Optional<InvoiceDetailsResponse> correctInvoice(Long id, InvoiceCorrectionRequest request);
+
+    Optional<InvoiceDetailsResponse> validateInvoice(Long id);
+
+    Optional<InvoiceDetailsResponse> rejectInvoice(Long id);
 }

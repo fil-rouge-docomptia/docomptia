@@ -148,6 +148,18 @@ public class InvoiceServiceImpl implements InvoiceService {
         });
     }
 
+    @Override
+    @Transactional
+    public Optional<InvoiceDetailsResponse> validateInvoice(Long id) {
+        return updateInvoiceStatus(id, "VALIDEE", "Invoice validated");
+    }
+
+    @Override
+    @Transactional
+    public Optional<InvoiceDetailsResponse> rejectInvoice(Long id) {
+        return updateInvoiceStatus(id, "REJETEE", "Invoice rejected");
+    }
+
     private void saveStatusHistory(Invoice invoice, InvoiceStatus status, User user, String comment) {
         InvoiceStatusHistory history = new InvoiceStatusHistory();
         history.setInvoice(invoice);
@@ -331,6 +343,15 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice.setUpdatedAt(LocalDateTime.now());
         invoiceRepository.save(invoice);
         saveStatusHistory(invoice, status, user, comment);
+    }
+
+    private Optional<InvoiceDetailsResponse> updateInvoiceStatus(Long invoiceId, String statusCode, String comment) {
+        return invoiceRepository.findById(invoiceId).map(invoice -> {
+            User user = findDefaultUser();
+            InvoiceStatus status = findInvoiceStatusByCode(statusCode);
+            updateInvoiceStatus(invoice, status, user, comment);
+            return buildInvoiceDetailsResponse(invoice);
+        });
     }
 
     private OcrExtraction saveOcrExtraction(Invoice invoice, OcrAnalysisResponse ocrAnalysis) {
