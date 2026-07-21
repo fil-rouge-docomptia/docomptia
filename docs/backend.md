@@ -66,6 +66,14 @@ En Docker, `APP_OCR_MOCK=false` et le backend appelle:
 http://ocr:8000/ocr/analyze
 ```
 
+## Endpoints Factures MVP
+
+| Methode | Endpoint | Role |
+| --- | --- | --- |
+| `POST` | `/api/v1/invoices/upload` | Upload, OCR et sauvegarde de la facture |
+| `POST` | `/api/v1/invoices/{id}/accounting-entry` | Genere l'ecriture comptable apres validation |
+| `GET` | `/api/v1/invoices/{id}` | Retourne la facture, l'OCR et l'ecriture si elle existe |
+
 ## Stockage Des Fichiers
 
 Deux implementations existent:
