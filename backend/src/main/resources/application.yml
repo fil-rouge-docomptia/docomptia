@@ -23,6 +23,10 @@ server:
   port: 8080
   forward-headers-strategy: framework
 
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
 app:
   cors:
     allowed-origins: http://localhost:5173

@@ -64,6 +64,8 @@ Services disponibles en developpement:
 | --- | --- |
 | Frontend | http://localhost:5173 |
 | Backend | http://localhost:8080 |
+| Documentation API (Swagger UI) | http://localhost:8080/swagger-ui.html |
+| Contrat OpenAPI JSON | http://localhost:8080/v3/api-docs |
 | OCR | http://localhost:8000 |
 | MinIO API | http://localhost:9000 |
 | MinIO Console | http://localhost:9001 |

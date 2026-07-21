@@ -1,5 +1,9 @@
 package org.facturation.backend.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.Parameters;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
 import org.facturation.backend.dto.response.AccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
@@ -23,6 +27,7 @@ import java.util.Set;
 
 @RestController
 @RequestMapping("/api/v1/invoices")
+@Tag(name = "Factures", description = "Depot, consultation et traitement des factures")
 public class InvoiceController {
 
     private static final Set<String> ALLOWED_SEARCH_PARAMS = Set.of("status", "supplier", "invoiceDate");
@@ -34,8 +39,14 @@ public class InvoiceController {
     }
 
     @GetMapping
+    @Operation(summary = "Rechercher les factures")
+    @Parameters({
+            @Parameter(name = "status", description = "Code du statut", example = "EXTRAITE"),
+            @Parameter(name = "supplier", description = "Nom ou raison sociale du fournisseur", example = "Orange"),
+            @Parameter(name = "invoiceDate", description = "Date de facture au format ISO", example = "2026-07-21")
+    })
     public ResponseEntity<List<InvoiceListItemResponse>> searchInvoices(
-            @RequestParam Map<String, String> params
+            @Parameter(hidden = true) @RequestParam Map<String, String> params
     ) {
         if (!ALLOWED_SEARCH_PARAMS.containsAll(params.keySet())) {
             return ResponseEntity.badRequest().build();
@@ -53,6 +64,7 @@ public class InvoiceController {
     }
 
     @PostMapping("/upload")
+    @Operation(summary = "Deposer et analyser une facture")
     public ResponseEntity<InvoiceUploadResponse> uploadInvoice(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "supplierId", required = false) Long supplierId
@@ -61,6 +73,7 @@ public class InvoiceController {
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Consulter le detail d'une facture")
     public ResponseEntity<InvoiceDetailsResponse> getInvoice(@PathVariable Long id) {
         return invoiceService.findDetailsById(id)
                 .map(ResponseEntity::ok)
@@ -68,6 +81,7 @@ public class InvoiceController {
     }
 
     @PostMapping("/{id}/accounting-entry")
+    @Operation(summary = "Generer l'ecriture comptable d'une facture")
     public ResponseEntity<AccountingEntryResponse> generateAccountingEntry(@PathVariable Long id) {
         return invoiceService.generateAccountingEntry(id)
                 .map(ResponseEntity::ok)
@@ -75,6 +89,7 @@ public class InvoiceController {
     }
 
     @PatchMapping("/{id}")
+    @Operation(summary = "Corriger manuellement une facture")
     public ResponseEntity<InvoiceDetailsResponse> correctInvoice(
             @PathVariable Long id,
             @RequestBody InvoiceCorrectionRequest request
@@ -89,6 +104,7 @@ public class InvoiceController {
     }
 
     @PostMapping("/{id}/validate")
+    @Operation(summary = "Valider une facture")
     public ResponseEntity<InvoiceDetailsResponse> validateInvoice(@PathVariable Long id) {
         return invoiceService.validateInvoice(id)
                 .map(ResponseEntity::ok)
@@ -96,6 +112,7 @@ public class InvoiceController {
     }
 
     @PostMapping("/{id}/reject")
+    @Operation(summary = "Rejeter une facture")
     public ResponseEntity<InvoiceDetailsResponse> rejectInvoice(@PathVariable Long id) {
         return invoiceService.rejectInvoice(id)
                 .map(ResponseEntity::ok)
