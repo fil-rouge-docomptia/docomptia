@@ -1,6 +1,7 @@
 package org.facturation.backend.service.impl;
 
 import org.facturation.backend.client.OcrClient;
+import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
@@ -138,6 +139,17 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional
+    public Optional<InvoiceDetailsResponse> correctInvoice(Long id, InvoiceCorrectionRequest request) {
+        return invoiceRepository.findById(id).map(invoice -> {
+            applyInvoiceCorrections(invoice, request);
+            invoice.setUpdatedAt(LocalDateTime.now());
+            Invoice savedInvoice = invoiceRepository.save(invoice);
+            return buildInvoiceDetailsResponse(savedInvoice);
+        });
+    }
+
+    @Override
+    @Transactional
     public Optional<InvoiceDetailsResponse> validateInvoice(Long id) {
         return updateInvoiceStatus(id, "VALIDEE", "Invoice validated");
     }
@@ -160,6 +172,51 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     private Supplier findSupplierById(Long supplierId) {
         return supplierRepository.findById(supplierId)
+                .orElseThrow(() -> new IllegalArgumentException("Supplier not found"));
+    }
+
+    private void applyInvoiceCorrections(Invoice invoice, InvoiceCorrectionRequest request) {
+        if (request.getInvoiceNumber() != null) {
+            invoice.setInvoiceNumber(requireNotBlank(request.getInvoiceNumber(), "invoiceNumber"));
+        }
+
+        if (request.getCommandReference() != null) {
+            invoice.setCommandReference(toNullableValue(request.getCommandReference()));
+        }
+
+        if (request.getInvoiceDate() != null) {
+            invoice.setInvoiceDate(parseRequiredDate(request.getInvoiceDate(), "invoiceDate"));
+        }
+
+        if (request.getDueDate() != null) {
+            invoice.setDueDate(parseOptionalDate(request.getDueDate(), "dueDate"));
+        }
+
+        if (request.getTotalHt() != null) {
+            invoice.setTotalHt(parsePersistableAmount(request.getTotalHt(), "totalHt"));
+        }
+
+        if (request.getTotalTva() != null) {
+            invoice.setTotalTva(parsePersistableAmount(request.getTotalTva(), "totalTva"));
+        }
+
+        if (request.getTotalTtc() != null) {
+            invoice.setTotalTtc(parsePersistableAmount(request.getTotalTtc(), "totalTtc"));
+        }
+
+        if (request.getSupplierName() != null) {
+            invoice.setSupplier(findSupplierByName(invoice, request.getSupplierName()));
+        }
+    }
+
+    private Supplier findSupplierByName(Invoice invoice, String supplierName) {
+        String normalizedSupplierName = requireNotBlank(supplierName, "supplierName");
+        Long organizationId = invoice.getOrganization().getOrganizationId();
+        return supplierRepository.findByOrganizationOrganizationIdAndNameIgnoreCase(organizationId, normalizedSupplierName)
+                .or(() -> supplierRepository.findByOrganizationOrganizationIdAndLegalNameIgnoreCase(
+                        organizationId,
+                        normalizedSupplierName
+                ))
                 .orElseThrow(() -> new IllegalArgumentException("Supplier not found"));
     }
 
@@ -370,6 +427,31 @@ public class InvoiceServiceImpl implements InvoiceService {
         return Optional.empty();
     }
 
+    private LocalDate parseRequiredDate(String value, String fieldName) {
+        return toLocalDate(requireNotBlank(value, fieldName))
+                .orElseThrow(() -> new IllegalArgumentException("Invalid " + fieldName));
+    }
+
+    private LocalDate parseOptionalDate(String value, String fieldName) {
+        String normalizedValue = toNullableValue(value);
+        if (normalizedValue == null) {
+            return null;
+        }
+        return toLocalDate(normalizedValue)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid " + fieldName));
+    }
+
+    private String requireNotBlank(String value, String fieldName) {
+        if (isBlank(value)) {
+            throw new IllegalArgumentException(fieldName + " is required");
+        }
+        return value.trim();
+    }
+
+    private String toNullableValue(String value) {
+        return isBlank(value) ? null : value.trim();
+    }
+
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
@@ -391,6 +473,19 @@ public class InvoiceServiceImpl implements InvoiceService {
             return BigDecimal.ZERO.setScale(AMOUNT_SCALE);
         }
         return amount;
+    }
+
+    private BigDecimal parsePersistableAmount(String value, String fieldName) {
+        String normalizedValue = requireNotBlank(value, fieldName);
+        try {
+            BigDecimal amount = new BigDecimal(normalizedValue).setScale(AMOUNT_SCALE, RoundingMode.HALF_UP);
+            if (amount.abs().compareTo(MAX_PERSISTED_AMOUNT) > 0) {
+                throw new IllegalArgumentException(fieldName + " is too large");
+            }
+            return amount;
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("Invalid " + fieldName, exception);
+        }
     }
 
     private InvoiceDetailsResponse buildInvoiceDetailsResponse(Invoice invoice) {

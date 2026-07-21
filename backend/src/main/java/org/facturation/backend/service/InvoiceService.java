@@ -1,5 +1,6 @@
 package org.facturation.backend.service;
 
+import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.model.Invoice;
@@ -19,6 +20,8 @@ public interface InvoiceService {
     InvoiceUploadResponse uploadAndAnalyze(MultipartFile file, Long supplierId);
 
     Optional<InvoiceDetailsResponse> findDetailsById(Long id);
+
+    Optional<InvoiceDetailsResponse> correctInvoice(Long id, InvoiceCorrectionRequest request);
 
     Optional<InvoiceDetailsResponse> validateInvoice(Long id);
 
