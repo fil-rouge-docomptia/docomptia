@@ -2,6 +2,7 @@ package org.facturation.backend.controller;
 
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
+import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.service.InvoiceService;
 import org.springframework.http.ResponseEntity;
@@ -15,14 +16,39 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 @RestController
 @RequestMapping("/api/v1/invoices")
 public class InvoiceController {
+
+    private static final Set<String> ALLOWED_SEARCH_PARAMS = Set.of("status", "supplier", "invoiceDate");
 
     private final InvoiceService invoiceService;
 
     public InvoiceController(InvoiceService invoiceService) {
         this.invoiceService = invoiceService;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<InvoiceListItemResponse>> searchInvoices(
+            @RequestParam Map<String, String> params
+    ) {
+        if (!ALLOWED_SEARCH_PARAMS.containsAll(params.keySet())) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        try {
+            return ResponseEntity.ok(invoiceService.searchInvoices(
+                    params.get("status"),
+                    params.get("supplier"),
+                    params.get("invoiceDate")
+            ));
+        } catch (IllegalArgumentException exception) {
+            return ResponseEntity.badRequest().build();
+        }
     }
 
     @PostMapping("/upload")
