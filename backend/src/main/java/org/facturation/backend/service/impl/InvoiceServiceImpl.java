@@ -1,37 +1,30 @@
 package org.facturation.backend.service.impl;
 
-import org.facturation.backend.client.OcrClient;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
 import org.facturation.backend.dto.response.AccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
-import org.facturation.backend.dto.response.OcrFieldResponse;
 import org.facturation.backend.mapper.AccountingEntryMapper;
-import org.facturation.backend.mapper.OcrAnalysisMapper;
+import org.facturation.backend.mapper.InvoiceResponseMapper;
 import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceFile;
 import org.facturation.backend.model.InvoiceStatus;
 import org.facturation.backend.model.InvoiceStatusCode;
-import org.facturation.backend.model.InvoiceStatusHistory;
-import org.facturation.backend.model.OcrExtraction;
-import org.facturation.backend.model.OcrExtractionField;
 import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.Supplier;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.InvoiceFileRepository;
 import org.facturation.backend.repository.InvoiceRepository;
-import org.facturation.backend.repository.InvoiceStatusHistoryRepository;
-import org.facturation.backend.repository.InvoiceStatusRepository;
-import org.facturation.backend.repository.OcrExtractionFieldRepository;
-import org.facturation.backend.repository.OcrExtractionRepository;
 import org.facturation.backend.repository.OrganizationRepository;
-import org.facturation.backend.repository.SupplierRepository;
 import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.AccountingEntryService;
+import org.facturation.backend.service.InvoiceOcrService;
 import org.facturation.backend.service.InvoiceService;
+import org.facturation.backend.service.InvoiceStatusWorkflowService;
+import org.facturation.backend.service.SupplierService;
 import org.facturation.backend.service.storage.InvoiceFileStorageService;
 import org.facturation.backend.service.storage.StoredInvoiceFile;
 import jakarta.persistence.criteria.Predicate;
@@ -64,47 +57,38 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final InvoiceRepository invoiceRepository;
     private final AccountingEntryService accountingEntryService;
     private final AccountingEntryMapper accountingEntryMapper;
-    private final OcrAnalysisMapper ocrAnalysisMapper;
-    private final SupplierRepository supplierRepository;
+    private final InvoiceResponseMapper invoiceResponseMapper;
+    private final InvoiceOcrService invoiceOcrService;
+    private final InvoiceStatusWorkflowService invoiceStatusWorkflowService;
+    private final SupplierService supplierService;
     private final OrganizationRepository organizationRepository;
     private final UserRepository userRepository;
-    private final InvoiceStatusRepository invoiceStatusRepository;
     private final InvoiceFileRepository invoiceFileRepository;
-    private final InvoiceStatusHistoryRepository invoiceStatusHistoryRepository;
-    private final OcrExtractionRepository ocrExtractionRepository;
-    private final OcrExtractionFieldRepository ocrExtractionFieldRepository;
-    private final OcrClient ocrClient;
     private final InvoiceFileStorageService invoiceFileStorageService;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
             AccountingEntryService accountingEntryService,
             AccountingEntryMapper accountingEntryMapper,
-            OcrAnalysisMapper ocrAnalysisMapper,
-            SupplierRepository supplierRepository,
+            InvoiceResponseMapper invoiceResponseMapper,
+            InvoiceOcrService invoiceOcrService,
+            InvoiceStatusWorkflowService invoiceStatusWorkflowService,
+            SupplierService supplierService,
             OrganizationRepository organizationRepository,
             UserRepository userRepository,
-            InvoiceStatusRepository invoiceStatusRepository,
             InvoiceFileRepository invoiceFileRepository,
-            InvoiceStatusHistoryRepository invoiceStatusHistoryRepository,
-            OcrExtractionRepository ocrExtractionRepository,
-            OcrExtractionFieldRepository ocrExtractionFieldRepository,
-            OcrClient ocrClient,
             InvoiceFileStorageService invoiceFileStorageService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.accountingEntryService = accountingEntryService;
         this.accountingEntryMapper = accountingEntryMapper;
-        this.ocrAnalysisMapper = ocrAnalysisMapper;
-        this.supplierRepository = supplierRepository;
+        this.invoiceResponseMapper = invoiceResponseMapper;
+        this.invoiceOcrService = invoiceOcrService;
+        this.invoiceStatusWorkflowService = invoiceStatusWorkflowService;
+        this.supplierService = supplierService;
         this.organizationRepository = organizationRepository;
         this.userRepository = userRepository;
-        this.invoiceStatusRepository = invoiceStatusRepository;
         this.invoiceFileRepository = invoiceFileRepository;
-        this.invoiceStatusHistoryRepository = invoiceStatusHistoryRepository;
-        this.ocrExtractionRepository = ocrExtractionRepository;
-        this.ocrExtractionFieldRepository = ocrExtractionFieldRepository;
-        this.ocrClient = ocrClient;
         this.invoiceFileStorageService = invoiceFileStorageService;
     }
 
@@ -128,26 +112,25 @@ public class InvoiceServiceImpl implements InvoiceService {
     public InvoiceUploadResponse uploadAndAnalyze(MultipartFile file, Long supplierId) {
         Organization organization = findDefaultOrganization();
         User user = findDefaultUser();
-        InvoiceStatus depositedStatus = findInvoiceStatusByCode(InvoiceStatusCode.DEPOSEE);
-        InvoiceStatus ocrInProgressStatus = findInvoiceStatusByCode(InvoiceStatusCode.OCR_EN_COURS);
-        InvoiceStatus extractedStatus = findInvoiceStatusByCode(InvoiceStatusCode.EXTRAITE);
+        InvoiceStatus depositedStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.DEPOSEE);
+        InvoiceStatus ocrInProgressStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.OCR_EN_COURS);
+        InvoiceStatus extractedStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.EXTRAITE);
 
-        OcrAnalysisResponse ocrAnalysis = analyzeInvoice(file);
-        Supplier supplier = resolveSupplier(supplierId, organization, ocrAnalysis);
+        OcrAnalysisResponse ocrAnalysis = invoiceOcrService.analyze(file);
+        Supplier supplier = supplierService.resolveForInvoiceUpload(supplierId, organization, ocrAnalysis);
         Invoice invoice = createInvoice(organization, supplier, user, depositedStatus, ocrAnalysis);
         invoice = invoiceRepository.save(invoice);
-        saveStatusHistory(invoice, depositedStatus, user, "Invoice uploaded");
+        invoiceStatusWorkflowService.recordStatus(invoice, depositedStatus, user, "Invoice uploaded");
 
         InvoiceFile invoiceFile = saveInvoiceFile(invoice, file);
 
-        updateInvoiceStatus(invoice, ocrInProgressStatus, user, "OCR analysis started");
+        invoiceStatusWorkflowService.updateStatus(invoice, ocrInProgressStatus, user, "OCR analysis started");
 
-        OcrExtraction ocrExtraction = saveOcrExtraction(invoice, ocrAnalysis);
-        saveOcrExtractionFields(ocrExtraction, ocrAnalysis);
+        invoiceOcrService.saveExtraction(invoice, ocrAnalysis);
 
-        updateInvoiceStatus(invoice, extractedStatus, user, "OCR analysis completed");
+        invoiceStatusWorkflowService.updateStatus(invoice, extractedStatus, user, "OCR analysis completed");
 
-        return buildInvoiceUploadResponse(invoice, invoiceFile, ocrAnalysis);
+        return invoiceResponseMapper.toUploadResponse(invoice, invoiceFile, ocrAnalysis);
     }
 
     @Override
@@ -163,14 +146,14 @@ public class InvoiceServiceImpl implements InvoiceService {
                         invoiceDateFilter
                 ))
                 .stream()
-                .map(this::buildInvoiceListItemResponse)
+                .map(invoiceResponseMapper::toListItemResponse)
                 .toList();
     }
 
     @Override
     @Transactional
     public Optional<InvoiceDetailsResponse> findDetailsById(Long id) {
-        return invoiceRepository.findById(id).map(this::buildInvoiceDetailsResponse);
+        return invoiceRepository.findById(id).map(invoiceResponseMapper::toDetailsResponse);
     }
 
     @Override
@@ -180,7 +163,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             applyInvoiceCorrections(invoice, request);
             invoice.setUpdatedAt(LocalDateTime.now());
             Invoice savedInvoice = invoiceRepository.save(invoice);
-            return buildInvoiceDetailsResponse(savedInvoice);
+            return invoiceResponseMapper.toDetailsResponse(savedInvoice);
         });
     }
 
@@ -202,28 +185,13 @@ public class InvoiceServiceImpl implements InvoiceService {
         return invoiceRepository.findById(id).map(invoice -> {
             User user = findDefaultUser();
             AccountingEntry accountingEntry = accountingEntryService.generateFromInvoice(invoice, user);
-            InvoiceStatus accountedStatus = findInvoiceStatusByCode(InvoiceStatusCode.COMPTABILISEE);
-            updateInvoiceStatusIfChanged(invoice, accountedStatus, user, "Accounting entry generated");
+            InvoiceStatus accountedStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.COMPTABILISEE);
+            invoiceStatusWorkflowService.updateStatusIfChanged(invoice, accountedStatus, user, "Accounting entry generated");
             return accountingEntryMapper.toResponse(
                     accountingEntry,
                     accountingEntryService.findLines(accountingEntry)
             );
         });
-    }
-
-    private void saveStatusHistory(Invoice invoice, InvoiceStatus status, User user, String comment) {
-        InvoiceStatusHistory history = new InvoiceStatusHistory();
-        history.setInvoice(invoice);
-        history.setInvoiceStatus(status);
-        history.setChangedByUser(user);
-        history.setChangedAt(LocalDateTime.now());
-        history.setComment(comment);
-        invoiceStatusHistoryRepository.save(history);
-    }
-
-    private Supplier findSupplierById(Long supplierId) {
-        return supplierRepository.findById(supplierId)
-                .orElseThrow(() -> new IllegalArgumentException("Supplier not found"));
     }
 
     private void applyInvoiceCorrections(Invoice invoice, InvoiceCorrectionRequest request) {
@@ -256,70 +224,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
 
         if (request.getSupplierName() != null) {
-            invoice.setSupplier(findSupplierByName(invoice, request.getSupplierName()));
+            invoice.setSupplier(supplierService.findRequiredByName(invoice, request.getSupplierName()));
         }
-    }
-
-    private Supplier findSupplierByName(Invoice invoice, String supplierName) {
-        String normalizedSupplierName = requireNotBlank(supplierName, "supplierName");
-        Long organizationId = invoice.getOrganization().getOrganizationId();
-        return supplierRepository.findByOrganizationOrganizationIdAndNameIgnoreCase(organizationId, normalizedSupplierName)
-                .or(() -> supplierRepository.findByOrganizationOrganizationIdAndLegalNameIgnoreCase(
-                        organizationId,
-                        normalizedSupplierName
-                ))
-                .orElseThrow(() -> new IllegalArgumentException("Supplier not found"));
-    }
-
-    private Supplier resolveSupplier(Long supplierId, Organization organization, OcrAnalysisResponse ocrAnalysis) {
-        if (supplierId != null) {
-            return findSupplierById(supplierId);
-        }
-
-        String supplierName = extractNormalizedValue(ocrAnalysis, "supplierName", "Fournisseur a verifier");
-        Supplier supplier = supplierRepository.findByOrganizationOrganizationIdAndNameIgnoreCase(
-                        organization.getOrganizationId(),
-                        supplierName
-                )
-                .or(() -> supplierRepository.findByOrganizationOrganizationIdAndLegalNameIgnoreCase(
-                        organization.getOrganizationId(),
-                        supplierName
-                ))
-                .orElseGet(() -> createSupplierToVerify(organization, supplierName));
-        return updateSupplierFromOcrIfNeeded(supplier, ocrAnalysis);
-    }
-
-    private Supplier createSupplierToVerify(Organization organization, String supplierName) {
-        Supplier supplier = new Supplier();
-        supplier.setOrganization(organization);
-        supplier.setName(supplierName);
-        supplier.setLegalName(supplierName);
-        supplier.setCreatedAt(LocalDateTime.now());
-        supplier.setUpdatedAt(LocalDateTime.now());
-        return supplierRepository.save(supplier);
-    }
-
-    private Supplier updateSupplierFromOcrIfNeeded(Supplier supplier, OcrAnalysisResponse ocrAnalysis) {
-        boolean updated = false;
-
-        Optional<String> siret = extractOptionalNormalizedValue(ocrAnalysis, "siret");
-        if (isBlank(supplier.getSiret()) && siret.isPresent()) {
-            supplier.setSiret(siret.get());
-            updated = true;
-        }
-
-        Optional<String> vatNumber = extractOptionalNormalizedValue(ocrAnalysis, "vatNumber");
-        if (isBlank(supplier.getVatNumber()) && vatNumber.isPresent()) {
-            supplier.setVatNumber(vatNumber.get());
-            updated = true;
-        }
-
-        if (!updated) {
-            return supplier;
-        }
-
-        supplier.setUpdatedAt(LocalDateTime.now());
-        return supplierRepository.save(supplier);
     }
 
     private Organization findDefaultOrganization() {
@@ -330,19 +236,6 @@ public class InvoiceServiceImpl implements InvoiceService {
     private User findDefaultUser() {
         return userRepository.findById(1L)
                 .orElseThrow(() -> new IllegalStateException("Default user not found"));
-    }
-
-    private InvoiceStatus findInvoiceStatusByCode(InvoiceStatusCode code) {
-        return findInvoiceStatusByCode(code.getCode());
-    }
-
-    private InvoiceStatus findInvoiceStatusByCode(String code) {
-        return invoiceStatusRepository.findByCode(code)
-                .orElseThrow(() -> new IllegalStateException("Invoice status " + code + " not found"));
-    }
-
-    private OcrAnalysisResponse analyzeInvoice(MultipartFile file) {
-        return ocrClient.analyze(file);
     }
 
     private Invoice createInvoice(
@@ -358,13 +251,13 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice.setCreatedByUser(user);
         invoice.setInvoiceStatus(invoiceStatus);
         invoice.setInvoiceNumber(extractInvoiceNumber(ocrAnalysis));
-        invoice.setCommandReference(extractOptionalNormalizedValue(ocrAnalysis, "commandReference").orElse(null));
-        invoice.setInvoiceDate(extractDate(ocrAnalysis, "invoiceDate").orElse(LocalDate.now()));
-        invoice.setDueDate(extractDate(ocrAnalysis, "dueDate").orElse(null));
+        invoice.setCommandReference(invoiceOcrService.extractOptionalNormalizedValue(ocrAnalysis, "commandReference").orElse(null));
+        invoice.setInvoiceDate(invoiceOcrService.extractDate(ocrAnalysis, "invoiceDate").orElse(LocalDate.now()));
+        invoice.setDueDate(invoiceOcrService.extractDate(ocrAnalysis, "dueDate").orElse(null));
         invoice.setCurrencyCode("EUR");
-        invoice.setTotalHt(extractAmount(ocrAnalysis, "totalHt"));
-        invoice.setTotalTva(extractAmount(ocrAnalysis, "totalTva"));
-        invoice.setTotalTtc(extractAmount(ocrAnalysis, "totalTtc"));
+        invoice.setTotalHt(invoiceOcrService.extractAmount(ocrAnalysis, "totalHt"));
+        invoice.setTotalTva(invoiceOcrService.extractAmount(ocrAnalysis, "totalTva"));
+        invoice.setTotalTtc(invoiceOcrService.extractAmount(ocrAnalysis, "totalTtc"));
         invoice.setDescription("Invoice uploaded for OCR analysis");
         invoice.setCreatedAt(LocalDateTime.now());
         invoice.setUpdatedAt(LocalDateTime.now());
@@ -372,11 +265,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     private String extractInvoiceNumber(OcrAnalysisResponse ocrAnalysis) {
-        return extractNormalizedValue(ocrAnalysis, "invoiceNumber", "INV-" + System.currentTimeMillis());
-    }
-
-    private BigDecimal extractAmount(OcrAnalysisResponse ocrAnalysis, String fieldName) {
-        return toPersistableAmount(extractNormalizedValue(ocrAnalysis, fieldName, "0.00"));
+        return invoiceOcrService.extractNormalizedValue(ocrAnalysis, "invoiceNumber", "INV-" + System.currentTimeMillis());
     }
 
     private InvoiceFile saveInvoiceFile(Invoice invoice, MultipartFile file) {
@@ -393,89 +282,13 @@ public class InvoiceServiceImpl implements InvoiceService {
         return invoiceFileRepository.save(invoiceFile);
     }
 
-    private void updateInvoiceStatus(Invoice invoice, InvoiceStatus status, User user, String comment) {
-        invoice.setInvoiceStatus(status);
-        invoice.setUpdatedAt(LocalDateTime.now());
-        invoiceRepository.save(invoice);
-        saveStatusHistory(invoice, status, user, comment);
-    }
-
     private Optional<InvoiceDetailsResponse> updateInvoiceStatus(Long invoiceId, String statusCode, String comment) {
         return invoiceRepository.findById(invoiceId).map(invoice -> {
             User user = findDefaultUser();
-            InvoiceStatus status = findInvoiceStatusByCode(statusCode);
-            updateInvoiceStatus(invoice, status, user, comment);
-            return buildInvoiceDetailsResponse(invoice);
+            InvoiceStatus status = invoiceStatusWorkflowService.findByCode(statusCode);
+            invoiceStatusWorkflowService.updateStatus(invoice, status, user, comment);
+            return invoiceResponseMapper.toDetailsResponse(invoice);
         });
-    }
-
-    private void updateInvoiceStatusIfChanged(Invoice invoice, InvoiceStatus status, User user, String comment) {
-        if (invoice.getInvoiceStatus().getCode().equals(status.getCode())) {
-            return;
-        }
-        updateInvoiceStatus(invoice, status, user, comment);
-    }
-
-    private OcrExtraction saveOcrExtraction(Invoice invoice, OcrAnalysisResponse ocrAnalysis) {
-        OcrExtraction ocrExtraction = new OcrExtraction();
-        ocrExtraction.setInvoice(invoice);
-        ocrExtraction.setStatus(ocrAnalysis.getStatus());
-        ocrExtraction.setEngineName("mock-ocr");
-        ocrExtraction.setEngineVersion("1.0");
-        ocrExtraction.setRawText(ocrAnalysis.getRawText());
-        ocrExtraction.setConfidenceScore(toBigDecimal(ocrAnalysis.getConfidenceScore()));
-        ocrExtraction.setProcessedAt(LocalDateTime.now());
-        ocrExtraction.setCreatedAt(LocalDateTime.now());
-        return ocrExtractionRepository.save(ocrExtraction);
-    }
-
-    private void saveOcrExtractionFields(OcrExtraction ocrExtraction, OcrAnalysisResponse ocrAnalysis) {
-        for (OcrFieldResponse field : ocrAnalysis.getFields()) {
-            ocrExtractionFieldRepository.save(createOcrExtractionField(ocrExtraction, field));
-        }
-    }
-
-    private OcrExtractionField createOcrExtractionField(OcrExtraction ocrExtraction, OcrFieldResponse field) {
-        OcrExtractionField extractionField = new OcrExtractionField();
-        extractionField.setOcrExtraction(ocrExtraction);
-        extractionField.setFieldName(field.getFieldName());
-        extractionField.setRawValue(field.getRawValue());
-        extractionField.setNormalizedValue(field.getNormalizedValue());
-        extractionField.setConfidenceScore(toBigDecimal(field.getConfidenceScore()));
-        extractionField.setCorrected(false);
-        extractionField.setCreatedAt(LocalDateTime.now());
-        extractionField.setUpdatedAt(LocalDateTime.now());
-        return extractionField;
-    }
-
-    private InvoiceUploadResponse buildInvoiceUploadResponse(
-            Invoice invoice,
-            InvoiceFile invoiceFile,
-            OcrAnalysisResponse ocrAnalysis
-    ) {
-        InvoiceUploadResponse response = new InvoiceUploadResponse();
-        response.setInvoiceId(invoice.getInvoiceId());
-        response.setInvoiceNumber(invoice.getInvoiceNumber());
-        response.setStatus(invoice.getInvoiceStatus().getCode());
-        response.setFilePath(invoiceFile.getFilePath());
-        response.setOcrAnalysis(ocrAnalysis);
-        return response;
-    }
-
-    private String extractNormalizedValue(OcrAnalysisResponse response, String fieldName, String fallback) {
-        return extractOptionalNormalizedValue(response, fieldName).orElse(fallback);
-    }
-
-    private Optional<String> extractOptionalNormalizedValue(OcrAnalysisResponse response, String fieldName) {
-        return response.getFields().stream()
-                .filter(field -> fieldName.equals(field.getFieldName()))
-                .map(OcrFieldResponse::getNormalizedValue)
-                .filter(value -> value != null && !value.isBlank())
-                .findFirst();
-    }
-
-    private Optional<LocalDate> extractDate(OcrAnalysisResponse response, String fieldName) {
-        return extractOptionalNormalizedValue(response, fieldName).flatMap(this::toLocalDate);
     }
 
     private Optional<LocalDate> toLocalDate(String value) {
@@ -525,25 +338,6 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
-    }
-
-    private BigDecimal toBigDecimal(String value) {
-        if (value == null || value.isBlank()) {
-            return BigDecimal.ZERO;
-        }
-        try {
-            return new BigDecimal(value);
-        } catch (NumberFormatException exception) {
-            return BigDecimal.ZERO;
-        }
-    }
-
-    private BigDecimal toPersistableAmount(String value) {
-        BigDecimal amount = toBigDecimal(value).setScale(AMOUNT_SCALE, RoundingMode.HALF_UP);
-        if (amount.abs().compareTo(MAX_PERSISTED_AMOUNT) > 0) {
-            return BigDecimal.ZERO.setScale(AMOUNT_SCALE);
-        }
-        return amount;
     }
 
     private BigDecimal parsePersistableAmount(String value, String fieldName) {
@@ -597,53 +391,5 @@ public class InvoiceServiceImpl implements InvoiceService {
                     predicates.toArray(new Predicate[0])
             );
         };
-    }
-
-    private InvoiceListItemResponse buildInvoiceListItemResponse(Invoice invoice) {
-        InvoiceListItemResponse response = new InvoiceListItemResponse();
-        response.setInvoiceId(invoice.getInvoiceId());
-        response.setInvoiceNumber(invoice.getInvoiceNumber());
-        response.setCommandReference(invoice.getCommandReference());
-        response.setInvoiceDate(invoice.getInvoiceDate() == null ? null : invoice.getInvoiceDate().toString());
-        response.setDueDate(invoice.getDueDate() == null ? null : invoice.getDueDate().toString());
-        response.setStatus(invoice.getInvoiceStatus().getCode());
-        response.setSupplierName(invoice.getSupplier().getName());
-        response.setCurrencyCode(invoice.getCurrencyCode());
-        response.setTotalHt(invoice.getTotalHt().toString());
-        response.setTotalTva(invoice.getTotalTva().toString());
-        response.setTotalTtc(invoice.getTotalTtc().toString());
-        return response;
-    }
-
-    private InvoiceDetailsResponse buildInvoiceDetailsResponse(Invoice invoice) {
-        InvoiceDetailsResponse response = new InvoiceDetailsResponse();
-        response.setInvoiceId(invoice.getInvoiceId());
-        response.setInvoiceNumber(invoice.getInvoiceNumber());
-        response.setCommandReference(invoice.getCommandReference());
-        response.setInvoiceDate(invoice.getInvoiceDate() == null ? null : invoice.getInvoiceDate().toString());
-        response.setDueDate(invoice.getDueDate() == null ? null : invoice.getDueDate().toString());
-        response.setStatus(invoice.getInvoiceStatus().getCode());
-        response.setSupplierName(invoice.getSupplier().getName());
-        response.setCurrencyCode(invoice.getCurrencyCode());
-        response.setTotalHt(invoice.getTotalHt().toString());
-        response.setTotalTva(invoice.getTotalTva().toString());
-        response.setTotalTtc(invoice.getTotalTtc().toString());
-
-        invoiceFileRepository.findByInvoiceInvoiceId(invoice.getInvoiceId())
-                .ifPresent(invoiceFile -> response.setFilePath(invoiceFile.getFilePath()));
-
-        ocrExtractionRepository.findTopByInvoiceInvoiceIdOrderByOcrExtractionIdDesc(invoice.getInvoiceId())
-                .ifPresent(ocrExtraction -> response.setOcrAnalysis(ocrAnalysisMapper.toResponse(
-                        ocrExtraction,
-                        ocrExtractionFieldRepository.findByOcrExtractionOcrExtractionId(ocrExtraction.getOcrExtractionId())
-                )));
-
-        accountingEntryService.findByInvoiceId(invoice.getInvoiceId())
-                .ifPresent(accountingEntry -> response.setAccountingEntry(accountingEntryMapper.toResponse(
-                        accountingEntry,
-                        accountingEntryService.findLines(accountingEntry)
-                )));
-
-        return response;
     }
 }
