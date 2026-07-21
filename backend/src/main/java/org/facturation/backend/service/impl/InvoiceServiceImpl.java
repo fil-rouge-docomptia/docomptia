@@ -2,14 +2,19 @@ package org.facturation.backend.service.impl;
 
 import org.facturation.backend.client.OcrClient;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
+import org.facturation.backend.dto.response.AccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
 import org.facturation.backend.dto.response.OcrFieldResponse;
+import org.facturation.backend.mapper.AccountingEntryMapper;
+import org.facturation.backend.mapper.OcrAnalysisMapper;
+import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceFile;
 import org.facturation.backend.model.InvoiceStatus;
+import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.InvoiceStatusHistory;
 import org.facturation.backend.model.OcrExtraction;
 import org.facturation.backend.model.OcrExtractionField;
@@ -25,6 +30,7 @@ import org.facturation.backend.repository.OcrExtractionRepository;
 import org.facturation.backend.repository.OrganizationRepository;
 import org.facturation.backend.repository.SupplierRepository;
 import org.facturation.backend.repository.UserRepository;
+import org.facturation.backend.service.AccountingEntryService;
 import org.facturation.backend.service.InvoiceService;
 import org.facturation.backend.service.storage.InvoiceFileStorageService;
 import org.facturation.backend.service.storage.StoredInvoiceFile;
@@ -56,6 +62,9 @@ public class InvoiceServiceImpl implements InvoiceService {
     );
 
     private final InvoiceRepository invoiceRepository;
+    private final AccountingEntryService accountingEntryService;
+    private final AccountingEntryMapper accountingEntryMapper;
+    private final OcrAnalysisMapper ocrAnalysisMapper;
     private final SupplierRepository supplierRepository;
     private final OrganizationRepository organizationRepository;
     private final UserRepository userRepository;
@@ -69,6 +78,9 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
+            AccountingEntryService accountingEntryService,
+            AccountingEntryMapper accountingEntryMapper,
+            OcrAnalysisMapper ocrAnalysisMapper,
             SupplierRepository supplierRepository,
             OrganizationRepository organizationRepository,
             UserRepository userRepository,
@@ -81,6 +93,9 @@ public class InvoiceServiceImpl implements InvoiceService {
             InvoiceFileStorageService invoiceFileStorageService
     ) {
         this.invoiceRepository = invoiceRepository;
+        this.accountingEntryService = accountingEntryService;
+        this.accountingEntryMapper = accountingEntryMapper;
+        this.ocrAnalysisMapper = ocrAnalysisMapper;
         this.supplierRepository = supplierRepository;
         this.organizationRepository = organizationRepository;
         this.userRepository = userRepository;
@@ -113,9 +128,9 @@ public class InvoiceServiceImpl implements InvoiceService {
     public InvoiceUploadResponse uploadAndAnalyze(MultipartFile file, Long supplierId) {
         Organization organization = findDefaultOrganization();
         User user = findDefaultUser();
-        InvoiceStatus depositedStatus = findInvoiceStatusByCode("DEPOSEE");
-        InvoiceStatus ocrInProgressStatus = findInvoiceStatusByCode("OCR_EN_COURS");
-        InvoiceStatus extractedStatus = findInvoiceStatusByCode("EXTRAITE");
+        InvoiceStatus depositedStatus = findInvoiceStatusByCode(InvoiceStatusCode.DEPOSEE);
+        InvoiceStatus ocrInProgressStatus = findInvoiceStatusByCode(InvoiceStatusCode.OCR_EN_COURS);
+        InvoiceStatus extractedStatus = findInvoiceStatusByCode(InvoiceStatusCode.EXTRAITE);
 
         OcrAnalysisResponse ocrAnalysis = analyzeInvoice(file);
         Supplier supplier = resolveSupplier(supplierId, organization, ocrAnalysis);
@@ -179,6 +194,21 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Transactional
     public Optional<InvoiceDetailsResponse> rejectInvoice(Long id) {
         return updateInvoiceStatus(id, "REJETEE", "Invoice rejected");
+    }
+
+    @Override
+    @Transactional
+    public Optional<AccountingEntryResponse> generateAccountingEntry(Long id) {
+        return invoiceRepository.findById(id).map(invoice -> {
+            User user = findDefaultUser();
+            AccountingEntry accountingEntry = accountingEntryService.generateFromInvoice(invoice, user);
+            InvoiceStatus accountedStatus = findInvoiceStatusByCode(InvoiceStatusCode.COMPTABILISEE);
+            updateInvoiceStatusIfChanged(invoice, accountedStatus, user, "Accounting entry generated");
+            return accountingEntryMapper.toResponse(
+                    accountingEntry,
+                    accountingEntryService.findLines(accountingEntry)
+            );
+        });
     }
 
     private void saveStatusHistory(Invoice invoice, InvoiceStatus status, User user, String comment) {
@@ -302,6 +332,10 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .orElseThrow(() -> new IllegalStateException("Default user not found"));
     }
 
+    private InvoiceStatus findInvoiceStatusByCode(InvoiceStatusCode code) {
+        return findInvoiceStatusByCode(code.getCode());
+    }
+
     private InvoiceStatus findInvoiceStatusByCode(String code) {
         return invoiceStatusRepository.findByCode(code)
                 .orElseThrow(() -> new IllegalStateException("Invoice status " + code + " not found"));
@@ -373,6 +407,13 @@ public class InvoiceServiceImpl implements InvoiceService {
             updateInvoiceStatus(invoice, status, user, comment);
             return buildInvoiceDetailsResponse(invoice);
         });
+    }
+
+    private void updateInvoiceStatusIfChanged(Invoice invoice, InvoiceStatus status, User user, String comment) {
+        if (invoice.getInvoiceStatus().getCode().equals(status.getCode())) {
+            return;
+        }
+        updateInvoiceStatus(invoice, status, user, comment);
     }
 
     private OcrExtraction saveOcrExtraction(Invoice invoice, OcrAnalysisResponse ocrAnalysis) {
@@ -592,31 +633,17 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .ifPresent(invoiceFile -> response.setFilePath(invoiceFile.getFilePath()));
 
         ocrExtractionRepository.findTopByInvoiceInvoiceIdOrderByOcrExtractionIdDesc(invoice.getInvoiceId())
-                .ifPresent(ocrExtraction -> response.setOcrAnalysis(toOcrAnalysisResponse(ocrExtraction)));
+                .ifPresent(ocrExtraction -> response.setOcrAnalysis(ocrAnalysisMapper.toResponse(
+                        ocrExtraction,
+                        ocrExtractionFieldRepository.findByOcrExtractionOcrExtractionId(ocrExtraction.getOcrExtractionId())
+                )));
 
-        return response;
-    }
+        accountingEntryService.findByInvoiceId(invoice.getInvoiceId())
+                .ifPresent(accountingEntry -> response.setAccountingEntry(accountingEntryMapper.toResponse(
+                        accountingEntry,
+                        accountingEntryService.findLines(accountingEntry)
+                )));
 
-    private OcrAnalysisResponse toOcrAnalysisResponse(OcrExtraction ocrExtraction) {
-        OcrAnalysisResponse response = new OcrAnalysisResponse();
-        response.setStatus(ocrExtraction.getStatus());
-        response.setRawText(ocrExtraction.getRawText());
-        response.setConfidenceScore(ocrExtraction.getConfidenceScore() == null ? null : ocrExtraction.getConfidenceScore().toString());
-        response.setFields(
-                ocrExtractionFieldRepository.findByOcrExtractionOcrExtractionId(ocrExtraction.getOcrExtractionId())
-                        .stream()
-                        .map(this::toOcrFieldResponse)
-                        .toList()
-        );
-        return response;
-    }
-
-    private OcrFieldResponse toOcrFieldResponse(OcrExtractionField field) {
-        OcrFieldResponse response = new OcrFieldResponse();
-        response.setFieldName(field.getFieldName());
-        response.setRawValue(field.getRawValue());
-        response.setNormalizedValue(field.getNormalizedValue());
-        response.setConfidenceScore(field.getConfidenceScore() == null ? null : field.getConfidenceScore().toString());
         return response;
     }
 }

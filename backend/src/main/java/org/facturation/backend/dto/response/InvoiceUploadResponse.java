@@ -7,6 +7,7 @@ public class InvoiceUploadResponse {
     private String status;
     private String filePath;
     private OcrAnalysisResponse ocrAnalysis;
+    private AccountingEntryResponse accountingEntry;
 
     public Long getInvoiceId() {
         return invoiceId;
@@ -46,5 +47,13 @@ public class InvoiceUploadResponse {
 
     public void setOcrAnalysis(OcrAnalysisResponse ocrAnalysis) {
         this.ocrAnalysis = ocrAnalysis;
+    }
+
+    public AccountingEntryResponse getAccountingEntry() {
+        return accountingEntry;
+    }
+
+    public void setAccountingEntry(AccountingEntryResponse accountingEntry) {
+        this.accountingEntry = accountingEntry;
     }
 }
