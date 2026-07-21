@@ -16,6 +16,5 @@ export type InvoiceUploadResponse = {
   invoiceId: number
   invoiceNumber: string
   status: string
-  filePath: string
   ocrAnalysis: OcrAnalysisResponse
 }
