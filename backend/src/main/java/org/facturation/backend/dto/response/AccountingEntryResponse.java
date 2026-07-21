@@ -1,0 +1,61 @@
+package org.facturation.backend.dto.response;
+
+import java.util.List;
+
+public class AccountingEntryResponse {
+
+    private Long accountingEntryId;
+    private String entryNumber;
+    private String entryDate;
+    private String label;
+    private String status;
+    private List<AccountingEntryLineResponse> lines;
+
+    public Long getAccountingEntryId() {
+        return accountingEntryId;
+    }
+
+    public void setAccountingEntryId(Long accountingEntryId) {
+        this.accountingEntryId = accountingEntryId;
+    }
+
+    public String getEntryNumber() {
+        return entryNumber;
+    }
+
+    public void setEntryNumber(String entryNumber) {
+        this.entryNumber = entryNumber;
+    }
+
+    public String getEntryDate() {
+        return entryDate;
+    }
+
+    public void setEntryDate(String entryDate) {
+        this.entryDate = entryDate;
+    }
+
+    public String getLabel() {
+        return label;
+    }
+
+    public void setLabel(String label) {
+        this.label = label;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public List<AccountingEntryLineResponse> getLines() {
+        return lines;
+    }
+
+    public void setLines(List<AccountingEntryLineResponse> lines) {
+        this.lines = lines;
+    }
+}
