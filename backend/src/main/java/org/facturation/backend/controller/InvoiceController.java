@@ -3,6 +3,7 @@ package org.facturation.backend.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.Parameters;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
 import org.facturation.backend.dto.response.AccountingEntryResponse;
@@ -10,6 +11,7 @@ import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.service.InvoiceService;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -63,10 +65,16 @@ public class InvoiceController {
         }
     }
 
-    @PostMapping("/upload")
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Deposer et analyser une facture")
     public ResponseEntity<InvoiceUploadResponse> uploadInvoice(
+            @Parameter(
+                    description = "Fichier facture a analyser",
+                    required = true,
+                    schema = @Schema(type = "string", format = "binary")
+            )
             @RequestParam("file") MultipartFile file,
+            @Parameter(description = "Identifiant fournisseur optionnel", example = "1")
             @RequestParam(value = "supplierId", required = false) Long supplierId
     ) {
         return ResponseEntity.ok(invoiceService.uploadAndAnalyze(file, supplierId));
