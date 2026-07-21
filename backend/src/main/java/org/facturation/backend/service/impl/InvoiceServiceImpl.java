@@ -3,6 +3,7 @@ package org.facturation.backend.service.impl;
 import org.facturation.backend.client.OcrClient;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
+import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
 import org.facturation.backend.dto.response.OcrFieldResponse;
@@ -27,7 +28,9 @@ import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.InvoiceService;
 import org.facturation.backend.service.storage.InvoiceFileStorageService;
 import org.facturation.backend.service.storage.StoredInvoiceFile;
+import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -37,6 +40,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -129,6 +133,23 @@ public class InvoiceServiceImpl implements InvoiceService {
         updateInvoiceStatus(invoice, extractedStatus, user, "OCR analysis completed");
 
         return buildInvoiceUploadResponse(invoice, invoiceFile, ocrAnalysis);
+    }
+
+    @Override
+    @Transactional
+    public List<InvoiceListItemResponse> searchInvoices(String status, String supplier, String invoiceDate) {
+        String statusFilter = toNullableValue(status);
+        String supplierFilter = toNullableValue(supplier);
+        LocalDate invoiceDateFilter = parseOptionalDateFilter(invoiceDate);
+
+        return invoiceRepository.findAll(buildInvoiceSearchSpecification(
+                        statusFilter,
+                        supplierFilter,
+                        invoiceDateFilter
+                ))
+                .stream()
+                .map(this::buildInvoiceListItemResponse)
+                .toList();
     }
 
     @Override
@@ -441,6 +462,15 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .orElseThrow(() -> new IllegalArgumentException("Invalid " + fieldName));
     }
 
+    private LocalDate parseOptionalDateFilter(String value) {
+        String normalizedValue = toNullableValue(value);
+        if (normalizedValue == null) {
+            return null;
+        }
+        return toLocalDate(normalizedValue)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid date"));
+    }
+
     private String requireNotBlank(String value, String fieldName) {
         if (isBlank(value)) {
             throw new IllegalArgumentException(fieldName + " is required");
@@ -486,6 +516,62 @@ public class InvoiceServiceImpl implements InvoiceService {
         } catch (NumberFormatException exception) {
             throw new IllegalArgumentException("Invalid " + fieldName, exception);
         }
+    }
+
+    private Specification<Invoice> buildInvoiceSearchSpecification(
+            String status,
+            String supplier,
+            LocalDate invoiceDate
+    ) {
+        return (root, query, criteriaBuilder) -> {
+            query.orderBy(criteriaBuilder.desc(root.get("createdAt")));
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (status != null) {
+                predicates.add(criteriaBuilder.equal(
+                        criteriaBuilder.lower(root.get("invoiceStatus").get("code")),
+                        status.toLowerCase()
+                ));
+            }
+
+            if (supplier != null) {
+                String supplierPattern = "%" + supplier.toLowerCase() + "%";
+                predicates.add(criteriaBuilder.or(
+                        criteriaBuilder.like(
+                                criteriaBuilder.lower(root.get("supplier").get("name")),
+                                supplierPattern
+                        ),
+                        criteriaBuilder.like(
+                                criteriaBuilder.lower(root.get("supplier").get("legalName")),
+                                supplierPattern
+                        )
+                ));
+            }
+
+            if (invoiceDate != null) {
+                predicates.add(criteriaBuilder.equal(root.get("invoiceDate"), invoiceDate));
+            }
+
+            return criteriaBuilder.and(
+                    predicates.toArray(new Predicate[0])
+            );
+        };
+    }
+
+    private InvoiceListItemResponse buildInvoiceListItemResponse(Invoice invoice) {
+        InvoiceListItemResponse response = new InvoiceListItemResponse();
+        response.setInvoiceId(invoice.getInvoiceId());
+        response.setInvoiceNumber(invoice.getInvoiceNumber());
+        response.setCommandReference(invoice.getCommandReference());
+        response.setInvoiceDate(invoice.getInvoiceDate() == null ? null : invoice.getInvoiceDate().toString());
+        response.setDueDate(invoice.getDueDate() == null ? null : invoice.getDueDate().toString());
+        response.setStatus(invoice.getInvoiceStatus().getCode());
+        response.setSupplierName(invoice.getSupplier().getName());
+        response.setCurrencyCode(invoice.getCurrencyCode());
+        response.setTotalHt(invoice.getTotalHt().toString());
+        response.setTotalTva(invoice.getTotalTva().toString());
+        response.setTotalTtc(invoice.getTotalTtc().toString());
+        return response;
     }
 
     private InvoiceDetailsResponse buildInvoiceDetailsResponse(Invoice invoice) {
