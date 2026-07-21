@@ -133,28 +133,19 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional
     public Optional<InvoiceDetailsResponse> findDetailsById(Long id) {
-        return invoiceRepository.findById(id).map(invoice -> {
-            InvoiceDetailsResponse response = new InvoiceDetailsResponse();
-            response.setInvoiceId(invoice.getInvoiceId());
-            response.setInvoiceNumber(invoice.getInvoiceNumber());
-            response.setCommandReference(invoice.getCommandReference());
-            response.setInvoiceDate(invoice.getInvoiceDate() == null ? null : invoice.getInvoiceDate().toString());
-            response.setDueDate(invoice.getDueDate() == null ? null : invoice.getDueDate().toString());
-            response.setStatus(invoice.getInvoiceStatus().getCode());
-            response.setSupplierName(invoice.getSupplier().getName());
-            response.setCurrencyCode(invoice.getCurrencyCode());
-            response.setTotalHt(invoice.getTotalHt().toString());
-            response.setTotalTva(invoice.getTotalTva().toString());
-            response.setTotalTtc(invoice.getTotalTtc().toString());
+        return invoiceRepository.findById(id).map(this::buildInvoiceDetailsResponse);
+    }
 
-            invoiceFileRepository.findByInvoiceInvoiceId(id)
-                    .ifPresent(invoiceFile -> response.setFilePath(invoiceFile.getFilePath()));
+    @Override
+    @Transactional
+    public Optional<InvoiceDetailsResponse> validateInvoice(Long id) {
+        return updateInvoiceStatus(id, "VALIDEE", "Invoice validated");
+    }
 
-            ocrExtractionRepository.findTopByInvoiceInvoiceIdOrderByOcrExtractionIdDesc(id)
-                    .ifPresent(ocrExtraction -> response.setOcrAnalysis(toOcrAnalysisResponse(ocrExtraction)));
-
-            return response;
-        });
+    @Override
+    @Transactional
+    public Optional<InvoiceDetailsResponse> rejectInvoice(Long id) {
+        return updateInvoiceStatus(id, "REJETEE", "Invoice rejected");
     }
 
     private void saveStatusHistory(Invoice invoice, InvoiceStatus status, User user, String comment) {
@@ -297,6 +288,15 @@ public class InvoiceServiceImpl implements InvoiceService {
         saveStatusHistory(invoice, status, user, comment);
     }
 
+    private Optional<InvoiceDetailsResponse> updateInvoiceStatus(Long invoiceId, String statusCode, String comment) {
+        return invoiceRepository.findById(invoiceId).map(invoice -> {
+            User user = findDefaultUser();
+            InvoiceStatus status = findInvoiceStatusByCode(statusCode);
+            updateInvoiceStatus(invoice, status, user, comment);
+            return buildInvoiceDetailsResponse(invoice);
+        });
+    }
+
     private OcrExtraction saveOcrExtraction(Invoice invoice, OcrAnalysisResponse ocrAnalysis) {
         OcrExtraction ocrExtraction = new OcrExtraction();
         ocrExtraction.setInvoice(invoice);
@@ -391,6 +391,29 @@ public class InvoiceServiceImpl implements InvoiceService {
             return BigDecimal.ZERO.setScale(AMOUNT_SCALE);
         }
         return amount;
+    }
+
+    private InvoiceDetailsResponse buildInvoiceDetailsResponse(Invoice invoice) {
+        InvoiceDetailsResponse response = new InvoiceDetailsResponse();
+        response.setInvoiceId(invoice.getInvoiceId());
+        response.setInvoiceNumber(invoice.getInvoiceNumber());
+        response.setCommandReference(invoice.getCommandReference());
+        response.setInvoiceDate(invoice.getInvoiceDate() == null ? null : invoice.getInvoiceDate().toString());
+        response.setDueDate(invoice.getDueDate() == null ? null : invoice.getDueDate().toString());
+        response.setStatus(invoice.getInvoiceStatus().getCode());
+        response.setSupplierName(invoice.getSupplier().getName());
+        response.setCurrencyCode(invoice.getCurrencyCode());
+        response.setTotalHt(invoice.getTotalHt().toString());
+        response.setTotalTva(invoice.getTotalTva().toString());
+        response.setTotalTtc(invoice.getTotalTtc().toString());
+
+        invoiceFileRepository.findByInvoiceInvoiceId(invoice.getInvoiceId())
+                .ifPresent(invoiceFile -> response.setFilePath(invoiceFile.getFilePath()));
+
+        ocrExtractionRepository.findTopByInvoiceInvoiceIdOrderByOcrExtractionIdDesc(invoice.getInvoiceId())
+                .ifPresent(ocrExtraction -> response.setOcrAnalysis(toOcrAnalysisResponse(ocrExtraction)));
+
+        return response;
     }
 
     private OcrAnalysisResponse toOcrAnalysisResponse(OcrExtraction ocrExtraction) {

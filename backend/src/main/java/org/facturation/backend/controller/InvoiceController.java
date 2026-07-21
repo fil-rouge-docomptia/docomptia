@@ -36,4 +36,18 @@ public class InvoiceController {
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
+
+    @PostMapping("/{id}/validate")
+    public ResponseEntity<InvoiceDetailsResponse> validateInvoice(@PathVariable Long id) {
+        return invoiceService.validateInvoice(id)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/{id}/reject")
+    public ResponseEntity<InvoiceDetailsResponse> rejectInvoice(@PathVariable Long id) {
+        return invoiceService.rejectInvoice(id)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
 }

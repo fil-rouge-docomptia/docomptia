@@ -19,4 +19,8 @@ public interface InvoiceService {
     InvoiceUploadResponse uploadAndAnalyze(MultipartFile file, Long supplierId);
 
     Optional<InvoiceDetailsResponse> findDetailsById(Long id);
+
+    Optional<InvoiceDetailsResponse> validateInvoice(Long id);
+
+    Optional<InvoiceDetailsResponse> rejectInvoice(Long id);
 }
