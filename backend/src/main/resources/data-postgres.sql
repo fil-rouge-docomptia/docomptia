@@ -1,6 +1,8 @@
 ALTER TABLE IF EXISTS ocr_extractions
 ALTER COLUMN raw_text TYPE TEXT;
 
+DROP TABLE IF EXISTS accounting_entry_line_templates;
+
 INSERT INTO organizations (organization_id, name, legal_name, siret, email, phone, address, created_at, updated_at)
 VALUES (1, 'Facturation Demo', 'Facturation Demo SARL', '12345678901234', 'contact@facturation-demo.fr', '0102030405', '10 rue de Paris, 75001 Paris', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT (organization_id) DO NOTHING;
@@ -61,9 +63,48 @@ INSERT INTO chart_of_accounts (account_id, organization_id, account_number, acco
 VALUES (3, 1, '445660', 'TVA deductible sur autres biens et services', 'ACTIF', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT (account_id) DO NOTHING;
 
+INSERT INTO chart_of_accounts (account_id, organization_id, account_number, account_label, account_type, is_active, created_at, updated_at)
+VALUES (4, 1, '626000', 'Frais de telecommunications', 'CHARGE', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON CONFLICT (account_id) DO NOTHING;
+
+INSERT INTO accounting_rules (
+    accounting_rule_id,
+    organization_id,
+    supplier_id,
+    rule_name,
+    keyword,
+    expense_account_id,
+    vat_account_id,
+    supplier_account_id,
+    priority,
+    is_active,
+    created_at,
+    updated_at
+)
+VALUES (1, 1, 1, 'Factures Orange telecom', null, 4, 3, 1, 10, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON CONFLICT (accounting_rule_id) DO NOTHING;
+
+INSERT INTO accounting_rules (
+    accounting_rule_id,
+    organization_id,
+    supplier_id,
+    rule_name,
+    keyword,
+    expense_account_id,
+    vat_account_id,
+    supplier_account_id,
+    priority,
+    is_active,
+    created_at,
+    updated_at
+)
+VALUES (2, 1, null, 'Factures fournisseurs par defaut', null, 2, 3, 1, 100, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON CONFLICT (accounting_rule_id) DO NOTHING;
+
 SELECT setval(pg_get_serial_sequence('organizations', 'organization_id'), COALESCE((SELECT MAX(organization_id) FROM organizations), 1), true);
 SELECT setval(pg_get_serial_sequence('roles', 'role_id'), COALESCE((SELECT MAX(role_id) FROM roles), 1), true);
 SELECT setval(pg_get_serial_sequence('invoice_statuses', 'invoice_status_id'), COALESCE((SELECT MAX(invoice_status_id) FROM invoice_statuses), 1), true);
 SELECT setval(pg_get_serial_sequence('users', 'user_id'), COALESCE((SELECT MAX(user_id) FROM users), 1), true);
 SELECT setval(pg_get_serial_sequence('suppliers', 'supplier_id'), COALESCE((SELECT MAX(supplier_id) FROM suppliers), 1), true);
 SELECT setval(pg_get_serial_sequence('chart_of_accounts', 'account_id'), COALESCE((SELECT MAX(account_id) FROM chart_of_accounts), 1), true);
+SELECT setval(pg_get_serial_sequence('accounting_rules', 'accounting_rule_id'), COALESCE((SELECT MAX(accounting_rule_id) FROM accounting_rules), 1), true);

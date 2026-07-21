@@ -104,8 +104,14 @@ sequenceDiagram
     B->>DB: Cree la facture et les donnees OCR
     B->>S: Stocke le fichier original
     B->>DB: Sauvegarde le chemin s3://bucket/object
-    B-->>F: Retourne la facture creee
-    F-->>U: Affiche le resultat
+    B-->>F: Retourne facture et OCR
+    F-->>U: Affiche les donnees extraites
+    U->>F: Valide la generation comptable
+    F->>B: POST /api/v1/invoices/{id}/accounting-entry
+    B->>DB: Lit la regle comptable active
+    B->>DB: Cree l'ecriture et ses lignes
+    B-->>F: Retourne l'ecriture comptable
+    F-->>U: Affiche l'ecriture comptable
 ```
 
 ## Flux De Demarrage Docker

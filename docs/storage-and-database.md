@@ -46,7 +46,48 @@ Il initialise les donnees minimales du MVP:
 - statuts facture;
 - utilisateur admin de demo;
 - fournisseur Orange;
-- comptes comptables de base.
+- comptes comptables de base;
+- regles comptables pour proposer une ecriture depuis une facture OCR.
+
+## Configuration Comptable MVP
+
+Les comptes disponibles sont stockes dans:
+
+```text
+chart_of_accounts
+```
+
+La configuration qui explique comment transformer une facture extraite en lignes comptables est stockee dans:
+
+```text
+accounting_rules
+```
+
+Chaque regle indique:
+
+- l'organisation concernee;
+- le fournisseur concerne, si la regle est specifique;
+- un mot-cle optionnel;
+- le compte de charge a utiliser;
+- le compte de TVA deductible;
+- le compte fournisseur;
+- une priorite;
+- si la regle est active.
+
+Pour les donnees de demo:
+
+- Orange utilise le compte de charge `626000`;
+- les autres fournisseurs utilisent le compte de charge par defaut `607000`;
+- la TVA utilise `445660`;
+- la dette fournisseur utilise `401000`.
+
+Le backend lit la premiere regle active qui correspond a la facture, puis cree les lignes dans:
+
+```text
+accounting_entry_lines
+```
+
+La table `accounting_entries` contient l'entete de l'ecriture comptable liee a la facture.
 
 Les inserts utilisent `ON CONFLICT DO NOTHING` pour supporter les redemarrages, puis recalibrent les sequences PostgreSQL.
 

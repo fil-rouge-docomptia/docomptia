@@ -42,3 +42,38 @@ VALUES (2, 1, '607000', 'Achats de marchandises', 'CHARGE', true, CURRENT_TIMEST
 
 INSERT INTO chart_of_accounts (account_id, organization_id, account_number, account_label, account_type, is_active, created_at, updated_at)
 VALUES (3, 1, '445660', 'TVA deductible sur autres biens et services', 'ACTIF', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+INSERT INTO chart_of_accounts (account_id, organization_id, account_number, account_label, account_type, is_active, created_at, updated_at)
+VALUES (4, 1, '626000', 'Frais de telecommunications', 'CHARGE', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+INSERT INTO accounting_rules (
+    accounting_rule_id,
+    organization_id,
+    supplier_id,
+    rule_name,
+    keyword,
+    expense_account_id,
+    vat_account_id,
+    supplier_account_id,
+    priority,
+    is_active,
+    created_at,
+    updated_at
+)
+VALUES (1, 1, 1, 'Factures Orange telecom', null, 4, 3, 1, 10, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+INSERT INTO accounting_rules (
+    accounting_rule_id,
+    organization_id,
+    supplier_id,
+    rule_name,
+    keyword,
+    expense_account_id,
+    vat_account_id,
+    supplier_account_id,
+    priority,
+    is_active,
+    created_at,
+    updated_at
+)
+VALUES (2, 1, null, 'Factures fournisseurs par defaut', null, 2, 3, 1, 100, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);

@@ -1,6 +1,7 @@
 package org.facturation.backend.controller;
 
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
+import org.facturation.backend.dto.response.AccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
@@ -62,6 +63,13 @@ public class InvoiceController {
     @GetMapping("/{id}")
     public ResponseEntity<InvoiceDetailsResponse> getInvoice(@PathVariable Long id) {
         return invoiceService.findDetailsById(id)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/{id}/accounting-entry")
+    public ResponseEntity<AccountingEntryResponse> generateAccountingEntry(@PathVariable Long id) {
+        return invoiceService.generateAccountingEntry(id)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
