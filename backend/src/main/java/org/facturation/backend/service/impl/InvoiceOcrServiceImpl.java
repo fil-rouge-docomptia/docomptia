@@ -99,8 +99,8 @@ public class InvoiceOcrServiceImpl implements InvoiceOcrService {
         OcrExtraction ocrExtraction = new OcrExtraction();
         ocrExtraction.setInvoice(invoice);
         ocrExtraction.setStatus(ocrAnalysis.getStatus());
-        ocrExtraction.setEngineName("mock-ocr");
-        ocrExtraction.setEngineVersion("1.0");
+        ocrExtraction.setEngineName(ocrAnalysis.getEngineName());
+        ocrExtraction.setEngineVersion(ocrAnalysis.getEngineVersion());
         ocrExtraction.setRawText(ocrAnalysis.getRawText());
         ocrExtraction.setConfidenceScore(toBigDecimal(ocrAnalysis.getConfidenceScore()));
         ocrExtraction.setProcessedAt(LocalDateTime.now());

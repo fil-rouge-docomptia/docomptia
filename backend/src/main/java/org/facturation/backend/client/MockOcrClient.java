@@ -46,6 +46,8 @@ public class MockOcrClient implements OcrClient {
 
         OcrAnalysisResponse response = new OcrAnalysisResponse();
         response.setStatus("SUCCESS");
+        response.setEngineName("mock-ocr");
+        response.setEngineVersion("1.0");
         response.setRawText("Mock OCR result for file " + file.getOriginalFilename());
         response.setConfidenceScore("0.92");
         response.setFields(List.of(
