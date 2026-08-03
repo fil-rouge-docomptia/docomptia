@@ -1,9 +1,11 @@
 package org.facturation.backend.service.storage;
 
 import io.minio.BucketExistsArgs;
+import io.minio.GetObjectArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import org.facturation.backend.model.InvoiceFile;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -55,6 +57,22 @@ public class MinioInvoiceFileStorageService implements InvoiceFileStorageService
             );
         } catch (Exception exception) {
             throw new IllegalStateException("Unable to store uploaded file in MinIO", exception);
+        }
+    }
+
+    @Override
+    public MultipartFile load(InvoiceFile invoiceFile) {
+        try (var inputStream = minioClient.getObject(GetObjectArgs.builder()
+                .bucket(bucketName)
+                .object(invoiceFile.getStoredFileName())
+                .build())) {
+            return new StoredMultipartFile(
+                    invoiceFile.getOriginalFileName(),
+                    invoiceFile.getMimeType(),
+                    inputStream.readAllBytes()
+            );
+        } catch (Exception exception) {
+            throw new IllegalStateException("Unable to read stored invoice file from MinIO", exception);
         }
     }
 

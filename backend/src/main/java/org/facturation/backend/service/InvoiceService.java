@@ -22,6 +22,8 @@ public interface InvoiceService {
 
     InvoiceUploadResponse uploadAndAnalyze(MultipartFile file, Long supplierId);
 
+    Optional<InvoiceDetailsResponse> retryOcr(Long invoiceId);
+
     List<InvoiceListItemResponse> searchInvoices(String status, String supplier, String invoiceDate);
 
     Optional<InvoiceDetailsResponse> findDetailsById(Long id);

@@ -5,6 +5,7 @@ import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.exception.OcrClientException;
 import org.facturation.backend.model.Invoice;
+import org.facturation.backend.model.InvoiceFile;
 import org.facturation.backend.model.OcrError;
 import org.facturation.backend.model.OcrErrorCode;
 import org.facturation.backend.repository.InvoiceFileRepository;
@@ -14,6 +15,7 @@ import org.facturation.backend.repository.OcrErrorRepository;
 import org.facturation.backend.service.InvoiceService;
 import org.facturation.backend.service.storage.InvoiceFileStorageService;
 import org.facturation.backend.service.storage.StoredInvoiceFile;
+import org.facturation.backend.service.storage.StoredMultipartFile;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -22,6 +24,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -133,13 +136,27 @@ class InvoiceDraftWorkflowIntegrationTest {
         @Bean
         @Primary
         InvoiceFileStorageService invoiceFileStorageService() {
-            return (file, invoiceId) -> new StoredInvoiceFile(
-                    file.getOriginalFilename(),
-                    invoiceId + "-invoice.png",
-                    "test://invoices/" + invoiceId + "/invoice.png",
-                    file.getContentType(),
-                    file.getSize()
-            );
+            return new InvoiceFileStorageService() {
+                @Override
+                public StoredInvoiceFile store(MultipartFile file, Long invoiceId) {
+                    return new StoredInvoiceFile(
+                            file.getOriginalFilename(),
+                            invoiceId + "-invoice.png",
+                            "test://invoices/" + invoiceId + "/invoice.png",
+                            file.getContentType(),
+                            file.getSize()
+                    );
+                }
+
+                @Override
+                public MultipartFile load(InvoiceFile invoiceFile) {
+                    return new StoredMultipartFile(
+                            invoiceFile.getOriginalFileName(),
+                            invoiceFile.getMimeType(),
+                            new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
+                    );
+                }
+            };
         }
     }
 }

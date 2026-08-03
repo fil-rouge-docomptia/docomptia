@@ -1,5 +1,6 @@
 package org.facturation.backend.service.storage;
 
+import org.facturation.backend.model.InvoiceFile;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -40,6 +41,20 @@ public class LocalInvoiceFileStorageService implements InvoiceFileStorageService
             );
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to store uploaded file", exception);
+        }
+    }
+
+    @Override
+    public MultipartFile load(InvoiceFile invoiceFile) {
+        try {
+            byte[] content = Files.readAllBytes(Path.of(invoiceFile.getFilePath()));
+            return new StoredMultipartFile(
+                    invoiceFile.getOriginalFileName(),
+                    invoiceFile.getMimeType(),
+                    content
+            );
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read stored invoice file", exception);
         }
     }
 
