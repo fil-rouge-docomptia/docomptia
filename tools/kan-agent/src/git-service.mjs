@@ -61,6 +61,10 @@ export class GitService {
       return
     }
 
+    if (this.config.sharedRepository) {
+      throw new Error(`Shared Git repository not found: ${repository}`)
+    }
+
     await mkdir(dirname(repository), { recursive: true })
     if (await exists(repository)) {
       const entries = await readdir(repository)
@@ -76,21 +80,27 @@ export class GitService {
   async syncMain() {
     await this.ensureBaseRepository()
     const repository = this.config.baseRepositoryPath
+    await this.git(['fetch', this.config.remote], { cwd: repository, inherit: true })
+
+    if (this.config.sharedRepository) {
+      return `${this.config.remote}/${this.config.mainBranch}`
+    }
+
     const status = await this.git(['status', '--porcelain'], { cwd: repository })
     if (status.stdout) {
       throw new Error(`The agent base repository is not clean:\n${status.stdout}`)
     }
 
-    await this.git(['fetch', this.config.remote], { cwd: repository, inherit: true })
     await this.git(['switch', this.config.mainBranch], { cwd: repository, inherit: true })
     await this.git(
       ['pull', '--ff-only', this.config.remote, this.config.mainBranch],
       { cwd: repository, inherit: true },
     )
+    return this.config.mainBranch
   }
 
   async prepareWorktree(issue) {
-    await this.syncMain()
+    const baseRevision = await this.syncMain()
 
     const branch = `${issue.key}_${slugify(issue.summary)}`
     const worktree = resolve(this.config.worktreesDirectory, branch)
@@ -135,7 +145,7 @@ export class GitService {
       )
     } else {
       await this.git(
-        ['worktree', 'add', '-b', branch, worktree, this.config.mainBranch],
+        ['worktree', 'add', '-b', branch, worktree, baseRevision],
         { cwd: this.config.baseRepositoryPath, inherit: true },
       )
     }

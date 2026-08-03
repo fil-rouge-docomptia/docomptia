@@ -27,11 +27,10 @@ test('forbidden paths identify certificates and generated files', () => {
   assert.equal(matchesForbiddenPath('backend/src/main/java/Invoice.java', patterns), false)
 })
 
-test('GitService prepares and validates a ticket worktree', async () => {
+test('GitService creates the ticket branch in the shared repository', async () => {
   const directory = await mkdtemp(resolve(tmpdir(), 'kan-agent-git-'))
   const remote = resolve(directory, 'remote.git')
   const seed = resolve(directory, 'seed')
-  const base = resolve(directory, 'agent', 'base')
   const worktrees = resolve(directory, 'agent', 'worktrees')
 
   try {
@@ -49,7 +48,8 @@ test('GitService prepares and validates a ticket worktree', async () => {
     const service = new GitService({
       git: {
         repositoryUrl: remote,
-        baseRepositoryPath: base,
+        sharedRepository: true,
+        baseRepositoryPath: seed,
         worktreesDirectory: worktrees,
         remote: 'origin',
         mainBranch: 'main',
@@ -74,7 +74,13 @@ test('GitService prepares and validates a ticket worktree', async () => {
     })
 
     const validation = await service.validateForApproval('KAN-123', prepared.worktree)
+    const localBranch = await runCommand(
+      'git',
+      ['branch', '--list', 'KAN-123_implement_local_integration_test'],
+      { cwd: seed },
+    )
     assert.equal(prepared.branch, 'KAN-123_implement_local_integration_test')
+    assert.match(localBranch.stdout, /KAN-123_implement_local_integration_test/)
     assert.equal(validation.valid, true)
     assert.deepEqual(validation.review.files, ['feature.txt'])
   } finally {

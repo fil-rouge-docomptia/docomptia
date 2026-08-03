@@ -1,8 +1,25 @@
-import { readFile } from 'node:fs/promises'
+import { access, readFile } from 'node:fs/promises'
+import { constants } from 'node:fs'
 import { resolve } from 'node:path'
 
 function replace(template, name, value) {
   return template.replaceAll(`{{${name}}}`, value || 'Not provided')
+}
+
+async function exists(path) {
+  try {
+    await access(path, constants.F_OK)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function resolveContextFile(config, state, path) {
+  if (await exists(resolve(state.worktree, path))) return path
+
+  const repositoryPath = resolve(config.git.baseRepositoryPath, path)
+  return await exists(repositoryPath) ? repositoryPath : `${path} (missing)`
 }
 
 export async function buildPrompt(config, state, revisionInstruction = '') {
@@ -10,7 +27,10 @@ export async function buildPrompt(config, state, revisionInstruction = '') {
     resolve(config.toolDirectory, 'prompts', 'implement-ticket.md'),
     'utf8',
   )
-  const contextFiles = config.codex.contextFiles
+  const resolvedContextFiles = await Promise.all(
+    config.codex.contextFiles.map((path) => resolveContextFile(config, state, path)),
+  )
+  const contextFiles = resolvedContextFiles
     .map((path, index) => `${index + 1}. ${path}`)
     .join('\n')
 

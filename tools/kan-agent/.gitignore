@@ -1,4 +1,5 @@
 config.local.json
+.env.local
 .agent-state/
 runs/
 node_modules/
