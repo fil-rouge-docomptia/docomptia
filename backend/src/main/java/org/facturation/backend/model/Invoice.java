@@ -26,8 +26,8 @@ public class Invoice {
     @JoinColumn(name = "organization_id", nullable = false)
     private Organization organization;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "supplier_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "supplier_id")
     private Supplier supplier;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -38,12 +38,10 @@ public class Invoice {
     @JoinColumn(name = "created_by_user_id", nullable = false)
     private User createdByUser;
 
-    @Column(nullable = false)
     private String invoiceNumber;
 
     private String commandReference;
 
-    @Column(nullable = false)
     private LocalDate invoiceDate;
 
     private LocalDate dueDate;
@@ -51,13 +49,13 @@ public class Invoice {
     @Column(nullable = false, length = 3)
     private String currencyCode;
 
-    @Column(nullable = false, precision = 12, scale = 2)
+    @Column(precision = 12, scale = 2)
     private BigDecimal totalHt;
 
-    @Column(nullable = false, precision = 12, scale = 2)
+    @Column(precision = 12, scale = 2)
     private BigDecimal totalTva;
 
-    @Column(nullable = false, precision = 12, scale = 2)
+    @Column(precision = 12, scale = 2)
     private BigDecimal totalTtc;
 
     private String description;
