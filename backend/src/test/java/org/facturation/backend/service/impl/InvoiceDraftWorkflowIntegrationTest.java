@@ -3,10 +3,14 @@ package org.facturation.backend.service.impl;
 import org.facturation.backend.client.OcrClient;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceListItemResponse;
+import org.facturation.backend.exception.OcrClientException;
 import org.facturation.backend.model.Invoice;
+import org.facturation.backend.model.OcrError;
+import org.facturation.backend.model.OcrErrorCode;
 import org.facturation.backend.repository.InvoiceFileRepository;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.InvoiceStatusHistoryRepository;
+import org.facturation.backend.repository.OcrErrorRepository;
 import org.facturation.backend.service.InvoiceService;
 import org.facturation.backend.service.storage.InvoiceFileStorageService;
 import org.facturation.backend.service.storage.StoredInvoiceFile;
@@ -22,6 +26,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -33,18 +38,21 @@ class InvoiceDraftWorkflowIntegrationTest {
     private final InvoiceRepository invoiceRepository;
     private final InvoiceFileRepository invoiceFileRepository;
     private final InvoiceStatusHistoryRepository invoiceStatusHistoryRepository;
+    private final OcrErrorRepository ocrErrorRepository;
 
     @Autowired
     InvoiceDraftWorkflowIntegrationTest(
             InvoiceService invoiceService,
             InvoiceRepository invoiceRepository,
             InvoiceFileRepository invoiceFileRepository,
-            InvoiceStatusHistoryRepository invoiceStatusHistoryRepository
+            InvoiceStatusHistoryRepository invoiceStatusHistoryRepository,
+            OcrErrorRepository ocrErrorRepository
     ) {
         this.invoiceService = invoiceService;
         this.invoiceRepository = invoiceRepository;
         this.invoiceFileRepository = invoiceFileRepository;
         this.invoiceStatusHistoryRepository = invoiceStatusHistoryRepository;
+        this.ocrErrorRepository = ocrErrorRepository;
     }
 
     @Test
@@ -52,6 +60,7 @@ class InvoiceDraftWorkflowIntegrationTest {
         long invoiceCountBeforeUpload = invoiceRepository.count();
         long invoiceFileCountBeforeUpload = invoiceFileRepository.count();
         long historyCountBeforeUpload = invoiceStatusHistoryRepository.count();
+        long errorCountBeforeUpload = ocrErrorRepository.count();
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "invoice.png",
@@ -64,6 +73,7 @@ class InvoiceDraftWorkflowIntegrationTest {
         assertEquals(invoiceCountBeforeUpload + 1, invoiceRepository.count());
         assertEquals(invoiceFileCountBeforeUpload + 1, invoiceFileRepository.count());
         assertEquals(historyCountBeforeUpload + 3, invoiceStatusHistoryRepository.count());
+        assertEquals(errorCountBeforeUpload + 1, ocrErrorRepository.count());
 
         Invoice draft = invoiceRepository.findAll().stream()
                 .max((first, second) -> first.getInvoiceId().compareTo(second.getInvoiceId()))
@@ -74,6 +84,13 @@ class InvoiceDraftWorkflowIntegrationTest {
         assertNull(draft.getTotalHt());
         assertNull(draft.getTotalTva());
         assertNull(draft.getTotalTtc());
+
+        OcrError ocrError = ocrErrorRepository
+                .findTopByInvoiceInvoiceIdOrderByOcrErrorIdDesc(draft.getInvoiceId())
+                .orElseThrow();
+        assertEquals(OcrErrorCode.SERVICE_UNAVAILABLE.getCode(), ocrError.getErrorCode());
+        assertEquals("OCR service is unavailable", ocrError.getErrorMessage());
+        assertNotNull(ocrError.getOccurredAt());
 
         List<InvoiceListItemResponse> searchResults = invoiceService.searchInvoices(null, null, null);
         InvoiceListItemResponse draftResponse = searchResults.stream()
@@ -93,6 +110,10 @@ class InvoiceDraftWorkflowIntegrationTest {
         assertNull(draftDetails.getTotalHt());
         assertNull(draftDetails.getTotalTva());
         assertNull(draftDetails.getTotalTtc());
+        assertNotNull(draftDetails.getOcrError());
+        assertEquals(OcrErrorCode.SERVICE_UNAVAILABLE.getCode(), draftDetails.getOcrError().getCode());
+        assertEquals("OCR service is unavailable", draftDetails.getOcrError().getMessage());
+        assertNotNull(draftDetails.getOcrError().getOccurredAt());
     }
 
     @TestConfiguration(proxyBeanMethods = false)
@@ -102,7 +123,10 @@ class InvoiceDraftWorkflowIntegrationTest {
         @Primary
         OcrClient failingOcrClient() {
             return file -> {
-                throw new IllegalStateException("OCR unavailable");
+                throw new OcrClientException(
+                        OcrErrorCode.SERVICE_UNAVAILABLE,
+                        "OCR service is unavailable"
+                );
             };
         }
 

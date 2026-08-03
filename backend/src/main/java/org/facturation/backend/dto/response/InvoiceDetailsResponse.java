@@ -15,6 +15,7 @@ public class InvoiceDetailsResponse {
     private String totalTtc;
     private String filePath;
     private OcrAnalysisResponse ocrAnalysis;
+    private OcrErrorResponse ocrError;
     private AccountingEntryResponse accountingEntry;
 
     public Long getInvoiceId() {
@@ -119,6 +120,14 @@ public class InvoiceDetailsResponse {
 
     public void setOcrAnalysis(OcrAnalysisResponse ocrAnalysis) {
         this.ocrAnalysis = ocrAnalysis;
+    }
+
+    public OcrErrorResponse getOcrError() {
+        return ocrError;
+    }
+
+    public void setOcrError(OcrErrorResponse ocrError) {
+        this.ocrError = ocrError;
     }
 
     public AccountingEntryResponse getAccountingEntry() {

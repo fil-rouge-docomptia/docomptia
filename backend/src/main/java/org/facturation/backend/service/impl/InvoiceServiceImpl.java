@@ -25,6 +25,7 @@ import org.facturation.backend.service.InvoiceFileValidator;
 import org.facturation.backend.service.InvoiceOcrService;
 import org.facturation.backend.service.InvoiceService;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
+import org.facturation.backend.service.OcrErrorService;
 import org.facturation.backend.service.SupplierService;
 import org.facturation.backend.service.storage.InvoiceFileStorageService;
 import org.facturation.backend.service.storage.StoredInvoiceFile;
@@ -61,6 +62,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final InvoiceResponseMapper invoiceResponseMapper;
     private final InvoiceOcrService invoiceOcrService;
     private final InvoiceStatusWorkflowService invoiceStatusWorkflowService;
+    private final OcrErrorService ocrErrorService;
     private final SupplierService supplierService;
     private final OrganizationRepository organizationRepository;
     private final UserRepository userRepository;
@@ -74,6 +76,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             InvoiceResponseMapper invoiceResponseMapper,
             InvoiceOcrService invoiceOcrService,
             InvoiceStatusWorkflowService invoiceStatusWorkflowService,
+            OcrErrorService ocrErrorService,
             SupplierService supplierService,
             OrganizationRepository organizationRepository,
             UserRepository userRepository,
@@ -86,6 +89,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.invoiceResponseMapper = invoiceResponseMapper;
         this.invoiceOcrService = invoiceOcrService;
         this.invoiceStatusWorkflowService = invoiceStatusWorkflowService;
+        this.ocrErrorService = ocrErrorService;
         this.supplierService = supplierService;
         this.organizationRepository = organizationRepository;
         this.userRepository = userRepository;
@@ -141,6 +145,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         } catch (RuntimeException exception) {
             InvoiceStatus ocrErrorStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.ERREUR_OCR);
             invoiceStatusWorkflowService.updateStatus(invoice, ocrErrorStatus, user, "OCR analysis failed");
+            ocrErrorService.recordFailure(invoice, exception);
             throw exception;
         }
     }

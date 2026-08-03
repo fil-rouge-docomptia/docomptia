@@ -2,6 +2,8 @@ package org.facturation.backend.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
+import org.facturation.backend.exception.OcrClientException;
+import org.facturation.backend.model.OcrErrorCode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
@@ -44,25 +46,41 @@ public class FastApiOcrClient implements OcrClient {
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body))
                 .build();
 
-        try {
-            HttpResponse<String> response = httpClient.send(
-                    request,
-                    HttpResponse.BodyHandlers.ofString()
+        HttpResponse<String> response = send(request);
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new OcrClientException(
+                    OcrErrorCode.SERVICE_REJECTED,
+                    "OCR service returned HTTP status " + response.statusCode()
             );
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IllegalStateException(
-                        "OCR service returned status "
-                                + response.statusCode()
-                                + ": "
-                                + response.body()
-                );
-            }
+        }
+
+        try {
             return objectMapper.readValue(response.body(), OcrAnalysisResponse.class);
         } catch (IOException exception) {
-            throw new IllegalStateException("Unable to call OCR service", exception);
+            throw new OcrClientException(
+                    OcrErrorCode.INVALID_RESPONSE,
+                    "OCR service returned an invalid response",
+                    exception
+            );
+        }
+    }
+
+    private HttpResponse<String> send(HttpRequest request) {
+        try {
+            return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (IOException exception) {
+            throw new OcrClientException(
+                    OcrErrorCode.SERVICE_UNAVAILABLE,
+                    "OCR service is unavailable",
+                    exception
+            );
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("OCR service call was interrupted", exception);
+            throw new OcrClientException(
+                    OcrErrorCode.CALL_INTERRUPTED,
+                    "OCR service call was interrupted",
+                    exception
+            );
         }
     }
 
@@ -85,7 +103,11 @@ public class FastApiOcrClient implements OcrClient {
             out.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
             return out.toByteArray();
         } catch (IOException exception) {
-            throw new IllegalStateException("Unable to read file for OCR analysis", exception);
+            throw new OcrClientException(
+                    OcrErrorCode.FILE_READ_FAILED,
+                    "Unable to read file for OCR analysis",
+                    exception
+            );
         }
     }
 
