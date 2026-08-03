@@ -14,6 +14,8 @@ public class OcrAnalysisMapper {
     public OcrAnalysisResponse toResponse(OcrExtraction ocrExtraction, List<OcrExtractionField> fields) {
         OcrAnalysisResponse response = new OcrAnalysisResponse();
         response.setStatus(ocrExtraction.getStatus());
+        response.setEngineName(ocrExtraction.getEngineName());
+        response.setEngineVersion(ocrExtraction.getEngineVersion());
         response.setRawText(ocrExtraction.getRawText());
         response.setConfidenceScore(ocrExtraction.getConfidenceScore() == null ? null : ocrExtraction.getConfidenceScore().toString());
         response.setFields(fields.stream().map(this::toFieldResponse).toList());

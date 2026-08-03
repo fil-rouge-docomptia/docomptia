@@ -11,6 +11,7 @@ import org.facturation.backend.exception.OcrClientException;
 import org.facturation.backend.exception.OcrRetryNotAllowedException;
 import org.facturation.backend.model.InvoiceFile;
 import org.facturation.backend.model.OcrErrorCode;
+import org.facturation.backend.model.OcrExtraction;
 import org.facturation.backend.repository.InvoiceFileRepository;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.InvoiceStatusHistoryRepository;
@@ -109,10 +110,17 @@ class InvoiceOcrRetryIntegrationTest {
 
         ocrClient.makeAvailable();
         InvoiceDetailsResponse response = invoiceService.retryOcr(failure.getInvoiceId()).orElseThrow();
+        OcrExtraction extraction = ocrExtractionRepository
+                .findTopByInvoiceInvoiceIdOrderByOcrExtractionIdDesc(failure.getInvoiceId())
+                .orElseThrow();
 
         assertEquals(failure.getInvoiceId(), response.getInvoiceId());
         assertEquals("EXTRAITE", response.getStatus());
         assertNotNull(response.getOcrAnalysis());
+        assertEquals("mock-ocr", response.getOcrAnalysis().getEngineName());
+        assertEquals("1.0", response.getOcrAnalysis().getEngineVersion());
+        assertEquals("mock-ocr", extraction.getEngineName());
+        assertEquals("1.0", extraction.getEngineVersion());
         assertEquals(invoiceCount + 1, invoiceRepository.count());
         assertEquals(fileCount + 1, invoiceFileRepository.count());
         assertEquals(historyCount + 5, invoiceStatusHistoryRepository.count());

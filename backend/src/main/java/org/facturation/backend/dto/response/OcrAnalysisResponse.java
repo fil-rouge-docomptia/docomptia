@@ -6,6 +6,8 @@ import java.util.List;
 public class OcrAnalysisResponse {
 
     private String status;
+    private String engineName;
+    private String engineVersion;
     private String rawText;
     private String confidenceScore;
     private List<OcrFieldResponse> fields = new ArrayList<>();
@@ -16,6 +18,22 @@ public class OcrAnalysisResponse {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getEngineName() {
+        return engineName;
+    }
+
+    public void setEngineName(String engineName) {
+        this.engineName = engineName;
+    }
+
+    public String getEngineVersion() {
+        return engineVersion;
+    }
+
+    public void setEngineVersion(String engineVersion) {
+        this.engineVersion = engineVersion;
     }
 
     public String getRawText() {
