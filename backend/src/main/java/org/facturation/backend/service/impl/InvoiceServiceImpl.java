@@ -123,7 +123,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         saveInvoiceFile(invoice, file);
         invoiceStatusWorkflowService.updateStatus(invoice, ocrInProgressStatus, user, "OCR analysis started");
 
-        OcrAnalysisResponse ocrAnalysis = invoiceOcrService.analyze(file);
+        OcrAnalysisResponse ocrAnalysis = analyzeInvoice(invoice, user, file);
         Supplier supplier = supplierService.resolveForInvoiceUpload(supplierId, organization, ocrAnalysis);
         applyOcrAnalysis(invoice, supplier, ocrAnalysis);
         invoice = invoiceRepository.save(invoice);
@@ -133,6 +133,16 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoiceStatusWorkflowService.updateStatus(invoice, extractedStatus, user, "OCR analysis completed");
 
         return invoiceResponseMapper.toUploadResponse(invoice, ocrAnalysis);
+    }
+
+    private OcrAnalysisResponse analyzeInvoice(Invoice invoice, User user, MultipartFile file) {
+        try {
+            return invoiceOcrService.analyze(file);
+        } catch (RuntimeException exception) {
+            InvoiceStatus ocrErrorStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.ERREUR_OCR);
+            invoiceStatusWorkflowService.updateStatus(invoice, ocrErrorStatus, user, "OCR analysis failed");
+            throw exception;
+        }
     }
 
     @Override
