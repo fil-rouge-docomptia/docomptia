@@ -32,7 +32,10 @@
       "AGENTS.md",
       "README.md",
       "docs/ai-agent-context.md",
+      "docs/project-decisions.md",
+      "docs/product-requirements.md",
       "docs/backend-business-workflows.md",
+      "docs/context-sources.md",
       "docs/backend.md",
       "docs/ocr.md"
     ]

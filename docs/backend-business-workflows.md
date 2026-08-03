@@ -3,6 +3,10 @@
 Ce document constitue la reference fonctionnelle pour les futurs tickets backend.
 Il decrit la cible metier issue des huit diagrammes de workflow fournis au projet.
 
+La correspondance image par image et la provenance des exigences sont decrites
+dans `context-sources.md`. Les besoins consolides et les decisions validees sont
+respectivement dans `product-requirements.md` et `project-decisions.md`.
+
 Il ne decrit pas uniquement le code deja implemente. Chaque ticket devra donc
 preciser s'il complete une capacite existante ou s'il introduit une nouvelle
 capacite.
@@ -460,7 +464,8 @@ besoins metier.
 - email dedie;
 - export vers un logiciel comptable;
 - plateforme agreee;
-- connecteurs Sage, EBP ou Pennylane dans une phase ulterieure.
+- connecteurs Sage, EBP ou Pennylane dans une phase ulterieure;
+- generation SEPA dans la feuille de route, apres validation du paiement.
 
 ### Securite, audit et abonnement
 
@@ -468,7 +473,7 @@ besoins metier.
 - sessions et authentification;
 - export des donnees et exigences RGPD;
 - plan courant, facturation et limites documentaires;
-- changement de plan.
+- changement de plan ou d'offre.
 
 Ces elements restent en dehors de la premiere phase metier, sauf lorsqu'une
 donnee de configuration est indispensable a un workflow comptable.

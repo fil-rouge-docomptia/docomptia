@@ -10,6 +10,9 @@ Documents disponibles:
 - [Exploitation et commandes utiles](operations.md)
 - [Conventions de commits Git](git-commit-guidelines.md)
 - [Contexte de l'agent IA](ai-agent-context.md)
+- [Besoins produit consolides](product-requirements.md)
+- [Decisions projet validees](project-decisions.md)
 - [Workflows metier backend](backend-business-workflows.md)
+- [Sources du contexte agent](context-sources.md)
 
 Le `README.md` a la racine reste le point d'entree pour demarrer le projet rapidement. Les documents de ce dossier detaillent les choix techniques et les procedures specifiques.

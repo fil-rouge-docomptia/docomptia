@@ -2,7 +2,13 @@
 
 Ce document donne aux agents de developpement le contexte stable du produit. Il
 complete `AGENTS.md`, qui reste prioritaire pour les regles de code et de Git,
-et `backend-business-workflows.md`, qui detaille la cible fonctionnelle.
+`product-requirements.md`, `project-decisions.md` et
+`backend-business-workflows.md`, qui detaillent la cible fonctionnelle.
+
+L'agent ne dispose pas de l'historique brut des conversations. Les decisions
+issues des echanges sont normalisees dans `project-decisions.md`. Les cahiers des
+charges et les huit diagrammes sont consolides dans les documents references par
+`context-sources.md`.
 
 ## Produit
 
@@ -112,7 +118,10 @@ L'agent doit verifier ces scripts avant de choisir une commande.
 ## Sources De Verite
 
 - `AGENTS.md`: regles durables de developpement et de Git;
+- `docs/project-decisions.md`: decisions validees, temporaires ou abandonnees;
+- `docs/product-requirements.md`: besoins fonctionnels et non fonctionnels;
 - `docs/backend-business-workflows.md`: workflows et cible fonctionnelle;
+- `docs/context-sources.md`: provenance et couverture des sources originales;
 - ticket Jira: besoin et criteres d'acceptation de la tache courante;
 - code, tests et historique Git: etat reel de l'implementation.
 
