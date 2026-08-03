@@ -318,16 +318,10 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice.setCommandReference(invoiceOcrService.extractOptionalNormalizedValue(ocrAnalysis, "commandReference").orElse(null));
         invoice.setInvoiceDate(invoiceOcrService.extractDate(ocrAnalysis, "invoiceDate").orElse(null));
         invoice.setDueDate(invoiceOcrService.extractDate(ocrAnalysis, "dueDate").orElse(null));
-        invoice.setTotalHt(extractOptionalAmount(ocrAnalysis, "totalHt"));
-        invoice.setTotalTva(extractOptionalAmount(ocrAnalysis, "totalTva"));
-        invoice.setTotalTtc(extractOptionalAmount(ocrAnalysis, "totalTtc"));
+        invoice.setTotalHt(invoiceOcrService.extractOptionalAmount(ocrAnalysis, "totalHt").orElse(null));
+        invoice.setTotalTva(invoiceOcrService.extractOptionalAmount(ocrAnalysis, "totalTva").orElse(null));
+        invoice.setTotalTtc(invoiceOcrService.extractOptionalAmount(ocrAnalysis, "totalTtc").orElse(null));
         invoice.setUpdatedAt(LocalDateTime.now());
-    }
-
-    private BigDecimal extractOptionalAmount(OcrAnalysisResponse ocrAnalysis, String fieldName) {
-        return invoiceOcrService.extractOptionalNormalizedValue(ocrAnalysis, fieldName)
-                .map(value -> invoiceOcrService.extractAmount(ocrAnalysis, fieldName))
-                .orElse(null);
     }
 
     private InvoiceFile saveInvoiceFile(Invoice invoice, MultipartFile file) {

@@ -72,11 +72,6 @@ public class InvoiceOcrServiceImpl implements InvoiceOcrService {
     }
 
     @Override
-    public String extractNormalizedValue(OcrAnalysisResponse response, String fieldName, String fallback) {
-        return extractOptionalNormalizedValue(response, fieldName).orElse(fallback);
-    }
-
-    @Override
     public Optional<String> extractOptionalNormalizedValue(OcrAnalysisResponse response, String fieldName) {
         return response.getFields().stream()
                 .filter(field -> fieldName.equals(field.getFieldName()))
@@ -91,8 +86,8 @@ public class InvoiceOcrServiceImpl implements InvoiceOcrService {
     }
 
     @Override
-    public BigDecimal extractAmount(OcrAnalysisResponse response, String fieldName) {
-        return toPersistableAmount(extractNormalizedValue(response, fieldName, "0.00"));
+    public Optional<BigDecimal> extractOptionalAmount(OcrAnalysisResponse response, String fieldName) {
+        return extractOptionalNormalizedValue(response, fieldName).flatMap(this::toPersistableAmount);
     }
 
     private OcrExtraction saveOcrExtraction(Invoice invoice, OcrAnalysisResponse ocrAnalysis) {
@@ -102,7 +97,7 @@ public class InvoiceOcrServiceImpl implements InvoiceOcrService {
         ocrExtraction.setEngineName(ocrAnalysis.getEngineName());
         ocrExtraction.setEngineVersion(ocrAnalysis.getEngineVersion());
         ocrExtraction.setRawText(ocrAnalysis.getRawText());
-        ocrExtraction.setConfidenceScore(toBigDecimal(ocrAnalysis.getConfidenceScore()));
+        ocrExtraction.setConfidenceScore(toBigDecimal(ocrAnalysis.getConfidenceScore()).orElse(null));
         ocrExtraction.setProcessedAt(LocalDateTime.now());
         ocrExtraction.setCreatedAt(LocalDateTime.now());
         return ocrExtractionRepository.save(ocrExtraction);
@@ -120,7 +115,7 @@ public class InvoiceOcrServiceImpl implements InvoiceOcrService {
         extractionField.setFieldName(field.getFieldName());
         extractionField.setRawValue(field.getRawValue());
         extractionField.setNormalizedValue(field.getNormalizedValue());
-        extractionField.setConfidenceScore(toBigDecimal(field.getConfidenceScore()));
+        extractionField.setConfidenceScore(toBigDecimal(field.getConfidenceScore()).orElse(null));
         extractionField.setCorrected(false);
         extractionField.setCreatedAt(LocalDateTime.now());
         extractionField.setUpdatedAt(LocalDateTime.now());
@@ -138,22 +133,20 @@ public class InvoiceOcrServiceImpl implements InvoiceOcrService {
         return Optional.empty();
     }
 
-    private BigDecimal toBigDecimal(String value) {
+    private Optional<BigDecimal> toBigDecimal(String value) {
         if (value == null || value.isBlank()) {
-            return BigDecimal.ZERO;
+            return Optional.empty();
         }
         try {
-            return new BigDecimal(value);
+            return Optional.of(new BigDecimal(value));
         } catch (NumberFormatException exception) {
-            return BigDecimal.ZERO;
+            return Optional.empty();
         }
     }
 
-    private BigDecimal toPersistableAmount(String value) {
-        BigDecimal amount = toBigDecimal(value).setScale(AMOUNT_SCALE, RoundingMode.HALF_UP);
-        if (amount.abs().compareTo(MAX_PERSISTED_AMOUNT) > 0) {
-            return BigDecimal.ZERO.setScale(AMOUNT_SCALE);
-        }
-        return amount;
+    private Optional<BigDecimal> toPersistableAmount(String value) {
+        return toBigDecimal(value)
+                .map(amount -> amount.setScale(AMOUNT_SCALE, RoundingMode.HALF_UP))
+                .filter(amount -> amount.abs().compareTo(MAX_PERSISTED_AMOUNT) <= 0);
     }
 }
