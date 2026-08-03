@@ -48,7 +48,7 @@ class InvoiceDraftWorkflowIntegrationTest {
     }
 
     @Test
-    void keepsIncompleteDraftWhenOcrFails() {
+    void marksIncompleteDraftAsOcrErrorWhenOcrFails() {
         long invoiceCountBeforeUpload = invoiceRepository.count();
         long invoiceFileCountBeforeUpload = invoiceFileRepository.count();
         long historyCountBeforeUpload = invoiceStatusHistoryRepository.count();
@@ -63,7 +63,7 @@ class InvoiceDraftWorkflowIntegrationTest {
 
         assertEquals(invoiceCountBeforeUpload + 1, invoiceRepository.count());
         assertEquals(invoiceFileCountBeforeUpload + 1, invoiceFileRepository.count());
-        assertEquals(historyCountBeforeUpload + 2, invoiceStatusHistoryRepository.count());
+        assertEquals(historyCountBeforeUpload + 3, invoiceStatusHistoryRepository.count());
 
         Invoice draft = invoiceRepository.findAll().stream()
                 .max((first, second) -> first.getInvoiceId().compareTo(second.getInvoiceId()))
@@ -80,7 +80,7 @@ class InvoiceDraftWorkflowIntegrationTest {
                 .filter(response -> draft.getInvoiceId().equals(response.getInvoiceId()))
                 .findFirst()
                 .orElseThrow();
-        assertEquals("OCR_EN_COURS", draftResponse.getStatus());
+        assertEquals("ERREUR_OCR", draftResponse.getStatus());
         assertNull(draftResponse.getSupplierName());
         assertNull(draftResponse.getInvoiceNumber());
         assertNull(draftResponse.getInvoiceDate());
