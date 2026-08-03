@@ -13,8 +13,9 @@
   },
   "git": {
     "repositoryUrl": "https://github.com/ProjeFilrouge/FacturationElectronique.git",
-    "baseRepositoryPath": "~/.kan-agent/workspaces/facturation/base",
-    "worktreesDirectory": "~/.kan-agent/workspaces/facturation/worktrees",
+    "sharedRepository": true,
+    "baseRepositoryPath": "../..",
+    "worktreesDirectory": "~/.kan-agent/workspaces/facturation/source-worktrees",
     "remote": "origin",
     "mainBranch": "main",
     "forbiddenFiles": [

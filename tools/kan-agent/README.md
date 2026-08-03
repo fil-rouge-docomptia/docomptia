@@ -37,16 +37,21 @@ Depuis la racine du projet:
 ./tools/kan-agent/bin/kan-agent init
 ```
 
-La commande cree `tools/kan-agent/config.local.json`. Modifier au minimum l'URL
-Jira si elle n'est pas fournie par l'environnement.
+La commande cree deux fichiers ignores par Git:
 
-Configurer les secrets uniquement dans le terminal:
+- `tools/kan-agent/config.local.json` pour la configuration de l'outil;
+- `tools/kan-agent/.env.local` pour les identifiants Jira.
 
-```bash
-export JIRA_BASE_URL="https://organisation.atlassian.net"
-export JIRA_EMAIL="utilisateur@entreprise.fr"
-export JIRA_API_TOKEN="token-api-jira"
+Configurer les variables dans `.env.local`:
+
+```dotenv
+JIRA_BASE_URL=https://organisation.atlassian.net
+JIRA_EMAIL=utilisateur@entreprise.fr
+JIRA_API_TOKEN=token-api-jira
 ```
+
+Le fichier est cree avec des permissions limitees a l'utilisateur courant. Les
+variables deja exportees dans le terminal restent prioritaires sur ce fichier.
 
 Verifier ensuite toute la configuration:
 
@@ -55,6 +60,11 @@ Verifier ensuite toute la configuration:
 ```
 
 Le token Jira n'est jamais transmis au processus Codex.
+
+Pour chaque ticket, Codex lit automatiquement les regles du projet, les besoins
+consolides, les decisions validees, les huit workflows transcrits et le registre
+des sources. Si un document n'existe pas encore dans la branche du ticket,
+l'agent utilise sa version presente dans le depot `SourceCode`.
 
 Si Jira n'utilise pas `parent` pour relier les tickets aux epics, adapter
 `jira.childrenJqlTemplate` dans `config.local.json`, par exemple avec le champ
@@ -95,23 +105,26 @@ SELECTED
 et place le ticket dans le statut configure pour la code review. Le CLI ne passe
 jamais automatiquement un ticket a `Done`.
 
-## Isolation Git
+## Travail Git
 
-Le CLI utilise un clone de base dans:
+Le CLI utilise directement le depot Git du projet `SourceCode`. Les branches et
+les commits crees par l'agent sont donc visibles depuis le depot principal avec:
 
-```text
-~/.kan-agent/workspaces/facturation/base
+```bash
+git branch
+git log --oneline --all
 ```
 
-et un worktree par ticket dans:
+Pour ne pas modifier la branche ou les fichiers actuellement ouverts par le
+developpeur, chaque ticket reste execute dans un worktree lie au meme depot:
 
 ```text
-~/.kan-agent/workspaces/facturation/worktrees/KAN-XX_titre_du_ticket
+~/.kan-agent/workspaces/facturation/source-worktrees/KAN-XX_titre_du_ticket
 ```
 
-Il ne travaille donc pas dans le workspace utilise par le developpeur. A chaque
-nouveau ticket, il execute `fetch`, `switch main` et `pull --ff-only` avant de
-creer la branche.
+Il n'existe plus de second clone Git. A chaque nouveau ticket, l'agent execute
+`fetch origin` et cree la branche depuis `origin/main`, sans changer la branche
+courante de `SourceCode`.
 
 ## Verification Du CLI
 
