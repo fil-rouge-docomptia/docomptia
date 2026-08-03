@@ -89,6 +89,14 @@ public class InvoiceController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    @PostMapping("/{id}/ocr/retry")
+    @Operation(summary = "Relancer l'analyse OCR d'une facture en erreur")
+    public ResponseEntity<InvoiceDetailsResponse> retryOcr(@PathVariable Long id) {
+        return invoiceService.retryOcr(id)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     @PostMapping("/{id}/accounting-entry")
     @Operation(summary = "Generer l'ecriture comptable d'une facture")
     public ResponseEntity<InvoiceAccountingEntryResponse> generateAccountingEntry(@PathVariable Long id) {

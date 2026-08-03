@@ -7,12 +7,15 @@ import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
+import org.facturation.backend.exception.InvoiceOcrFailureException;
+import org.facturation.backend.exception.OcrRetryNotAllowedException;
 import org.facturation.backend.mapper.InvoiceResponseMapper;
 import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceFile;
 import org.facturation.backend.model.InvoiceStatus;
 import org.facturation.backend.model.InvoiceStatusCode;
+import org.facturation.backend.model.OcrError;
 import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.Supplier;
 import org.facturation.backend.model.User;
@@ -120,7 +123,6 @@ public class InvoiceServiceImpl implements InvoiceService {
         User user = findDefaultUser();
         InvoiceStatus depositedStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.DEPOSEE);
         InvoiceStatus ocrInProgressStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.OCR_EN_COURS);
-        InvoiceStatus extractedStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.EXTRAITE);
 
         Invoice invoice = createDraftInvoice(organization, user, depositedStatus);
         invoiceStatusWorkflowService.recordStatus(invoice, depositedStatus, user, "Invoice uploaded");
@@ -129,14 +131,31 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         OcrAnalysisResponse ocrAnalysis = analyzeInvoice(invoice, user, file);
         Supplier supplier = supplierService.resolveForInvoiceUpload(supplierId, organization, ocrAnalysis);
-        applyOcrAnalysis(invoice, supplier, ocrAnalysis);
-        invoice = invoiceRepository.save(invoice);
-
-        invoiceOcrService.saveExtraction(invoice, ocrAnalysis);
-
-        invoiceStatusWorkflowService.updateStatus(invoice, extractedStatus, user, "OCR analysis completed");
+        invoice = completeOcrAnalysis(invoice, supplier, user, ocrAnalysis);
 
         return invoiceResponseMapper.toUploadResponse(invoice, ocrAnalysis);
+    }
+
+    @Override
+    public Optional<InvoiceDetailsResponse> retryOcr(Long invoiceId) {
+        return invoiceRepository.findForOcrRetryByInvoiceId(invoiceId).map(invoice -> {
+            ensureOcrRetryAllowed(invoice);
+
+            InvoiceFile invoiceFile = invoiceFileRepository.findByInvoiceInvoiceId(invoiceId)
+                    .orElseThrow(() -> new IllegalStateException("Stored invoice file not found"));
+            MultipartFile file = invoiceFileStorageService.load(invoiceFile);
+            User user = findDefaultUser();
+            InvoiceStatus ocrInProgressStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.OCR_EN_COURS);
+            invoiceStatusWorkflowService.updateStatus(invoice, ocrInProgressStatus, user, "OCR retry started");
+
+            OcrAnalysisResponse ocrAnalysis = analyzeInvoice(invoice, user, file);
+            Supplier supplier = invoice.getSupplier() == null
+                    ? supplierService.resolveForInvoiceUpload(null, invoice.getOrganization(), ocrAnalysis)
+                    : invoice.getSupplier();
+            completeOcrAnalysis(invoice, supplier, user, ocrAnalysis);
+            Invoice responseInvoice = invoiceRepository.findForOcrRetryByInvoiceId(invoiceId).orElseThrow();
+            return invoiceResponseMapper.toDetailsResponse(responseInvoice);
+        });
     }
 
     private OcrAnalysisResponse analyzeInvoice(Invoice invoice, User user, MultipartFile file) {
@@ -145,8 +164,29 @@ public class InvoiceServiceImpl implements InvoiceService {
         } catch (RuntimeException exception) {
             InvoiceStatus ocrErrorStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.ERREUR_OCR);
             invoiceStatusWorkflowService.updateStatus(invoice, ocrErrorStatus, user, "OCR analysis failed");
-            ocrErrorService.recordFailure(invoice, exception);
-            throw exception;
+            OcrError ocrError = ocrErrorService.recordFailure(invoice, exception);
+            throw new InvoiceOcrFailureException(invoice.getInvoiceId(), ocrError, exception);
+        }
+    }
+
+    private Invoice completeOcrAnalysis(
+            Invoice invoice,
+            Supplier supplier,
+            User user,
+            OcrAnalysisResponse ocrAnalysis
+    ) {
+        applyOcrAnalysis(invoice, supplier, ocrAnalysis);
+        Invoice savedInvoice = invoiceRepository.save(invoice);
+        invoiceOcrService.saveExtraction(savedInvoice, ocrAnalysis);
+
+        InvoiceStatus extractedStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.EXTRAITE);
+        invoiceStatusWorkflowService.updateStatus(savedInvoice, extractedStatus, user, "OCR analysis completed");
+        return savedInvoice;
+    }
+
+    private void ensureOcrRetryAllowed(Invoice invoice) {
+        if (!InvoiceStatusCode.ERREUR_OCR.getCode().equals(invoice.getInvoiceStatus().getCode())) {
+            throw new OcrRetryNotAllowedException(invoice.getInvoiceId());
         }
     }
 
