@@ -51,6 +51,40 @@ async function tryJiraTransition(jira, issueKey, status) {
   }
 }
 
+async function releaseTaskWorktree(context, state) {
+  const worktree = state.worktree
+  const result = await context.git.releaseWorktree(worktree)
+  if (!result.released) {
+    console.warn(`Worktree kept for safety: ${result.reason}`)
+    return context.store.save({
+      ...state,
+      worktreeReleaseWarning: result.reason,
+    })
+  }
+  if (!worktree) return state
+
+  console.log(`Worktree released: ${worktree}`)
+  return context.store.save({
+    ...state,
+    worktree: null,
+    releasedWorktree: worktree,
+    worktreeReleasedAt: new Date().toISOString(),
+    worktreeReleaseWarning: null,
+  })
+}
+
+async function ensureTaskWorktree(context, state) {
+  if (await context.git.isWorktreeAvailable(state.worktree)) return state
+
+  const prepared = await context.git.prepareWorktree(state.issue)
+  return context.store.save({
+    ...state,
+    ...prepared,
+    releasedWorktree: null,
+    worktreeReleaseWarning: null,
+  })
+}
+
 async function runCodexAndSave(context, state, revisionInstruction = '') {
   state = await context.store.save({ ...state, status: 'IN_PROGRESS' })
   try {
@@ -70,8 +104,11 @@ async function runCodexAndSave(context, state, revisionInstruction = '') {
       status: 'BLOCKED',
       executionError: error.message,
     })
+    await releaseTaskWorktree(context, state)
     throw error
   }
+
+  state = await releaseTaskWorktree(context, state)
 
   printSection('Agent result', state.agentResult.summary)
   printSection('Tests', formatTests(state.agentResult.tests))
@@ -181,9 +218,12 @@ export async function startTask() {
 export async function showStatus() {
   const context = await services()
   const state = await requireState(context.store)
+  const worktree = await context.git.isWorktreeAvailable(state.worktree)
+    ? state.worktree
+    : 'Released'
   printSection(
     'Active ticket',
-    `${state.issue.key} - ${state.issue.summary}\nStatus: ${state.status}\nBranch: ${state.branch || 'Not prepared'}\nWorktree: ${state.worktree || 'Not prepared'}`,
+    `${state.issue.key} - ${state.issue.summary}\nStatus: ${state.status}\nBranch: ${state.branch || 'Not prepared'}\nWorktree: ${worktree}`,
   )
   if (state.agentResult) {
     printSection('Agent summary', state.agentResult.summary)
@@ -197,10 +237,7 @@ export async function showStatus() {
 export async function reviewTask() {
   const context = await services()
   const state = await requireState(context.store)
-  if (!state.worktree) {
-    throw new Error('The worktree has not been prepared yet')
-  }
-  const review = await context.git.getReview(state.worktree)
+  const review = await context.git.getReview(state.worktree, state.branch)
   printSection(`${state.issue.key} review`, formatReview(review))
   if (state.agentResult) {
     printSection('Tests', formatTests(state.agentResult.tests))
@@ -212,11 +249,12 @@ export async function reviseTask(instruction) {
     throw new Error('Usage: kan-agent revise "requested change"')
   }
   const context = await services()
-  const state = await requireState(context.store)
+  let state = await requireState(context.store)
   if (!['REVIEW_REQUIRED', 'APPROVED', 'BLOCKED'].includes(state.status)) {
     throw new Error(`Cannot request a revision while status is ${state.status}`)
   }
 
+  state = await ensureTaskWorktree(context, state)
   await runCodexAndSave(context, state, instruction.trim())
 }
 
@@ -230,6 +268,7 @@ export async function approveTask() {
   const validation = await context.git.validateForApproval(
     state.issue.key,
     state.worktree,
+    state.branch,
   )
   printSection(`${state.issue.key} review`, formatReview(validation.review))
   printSection('Tests', formatTests(state.agentResult?.tests))
@@ -279,6 +318,7 @@ export async function pushTask() {
   const validation = await context.git.validateForApproval(
     state.issue.key,
     state.worktree,
+    state.branch,
   )
   if (!validation.valid) {
     throw new Error(`Push checks failed:\n${validation.problems.join('\n\n')}`)
