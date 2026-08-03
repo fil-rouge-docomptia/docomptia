@@ -21,6 +21,7 @@ import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.OrganizationRepository;
 import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.AccountingEntryService;
+import org.facturation.backend.service.InvoiceFileValidator;
 import org.facturation.backend.service.InvoiceOcrService;
 import org.facturation.backend.service.InvoiceService;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
@@ -56,6 +57,7 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     private final InvoiceRepository invoiceRepository;
     private final AccountingEntryService accountingEntryService;
+    private final InvoiceFileValidator invoiceFileValidator;
     private final InvoiceResponseMapper invoiceResponseMapper;
     private final InvoiceOcrService invoiceOcrService;
     private final InvoiceStatusWorkflowService invoiceStatusWorkflowService;
@@ -68,6 +70,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
             AccountingEntryService accountingEntryService,
+            InvoiceFileValidator invoiceFileValidator,
             InvoiceResponseMapper invoiceResponseMapper,
             InvoiceOcrService invoiceOcrService,
             InvoiceStatusWorkflowService invoiceStatusWorkflowService,
@@ -79,6 +82,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     ) {
         this.invoiceRepository = invoiceRepository;
         this.accountingEntryService = accountingEntryService;
+        this.invoiceFileValidator = invoiceFileValidator;
         this.invoiceResponseMapper = invoiceResponseMapper;
         this.invoiceOcrService = invoiceOcrService;
         this.invoiceStatusWorkflowService = invoiceStatusWorkflowService;
@@ -106,6 +110,8 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     public InvoiceUploadResponse uploadAndAnalyze(MultipartFile file, Long supplierId) {
+        invoiceFileValidator.validate(file);
+
         Organization organization = findDefaultOrganization();
         User user = findDefaultUser();
         InvoiceStatus depositedStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.DEPOSEE);

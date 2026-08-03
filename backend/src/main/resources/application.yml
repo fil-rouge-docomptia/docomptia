@@ -28,6 +28,8 @@ springdoc:
     path: /swagger-ui.html
 
 app:
+  invoice-upload:
+    max-file-size: 10MB
   cors:
     allowed-origins: http://localhost:5173
   ocr:

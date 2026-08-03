@@ -70,7 +70,7 @@ public class InvoiceController {
     @Operation(summary = "Deposer et analyser une facture")
     public ResponseEntity<InvoiceUploadResponse> uploadInvoice(
             @Parameter(
-                    description = "Fichier facture a analyser",
+                    description = "Facture PDF, PNG ou JPEG a analyser (10 Mo maximum)",
                     required = true,
                     schema = @Schema(type = "string", format = "binary")
             )
