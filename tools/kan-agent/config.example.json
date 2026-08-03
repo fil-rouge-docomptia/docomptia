@@ -1,0 +1,43 @@
+{
+  "project": {
+    "name": "Facturation Electronique"
+  },
+  "jira": {
+    "baseUrl": "",
+    "projectKey": "KAN",
+    "epicIssueType": "Epic",
+    "childrenJqlTemplate": "project = {projectKey} AND parent = {epicKey} ORDER BY created ASC",
+    "acceptanceCriteriaField": "",
+    "inProgressStatus": "In Progress",
+    "reviewStatus": "Code Review"
+  },
+  "git": {
+    "repositoryUrl": "https://github.com/ProjeFilrouge/FacturationElectronique.git",
+    "baseRepositoryPath": "~/.kan-agent/workspaces/facturation/base",
+    "worktreesDirectory": "~/.kan-agent/workspaces/facturation/worktrees",
+    "remote": "origin",
+    "mainBranch": "main",
+    "forbiddenFiles": [
+      "**/certs/**",
+      "**/*netskope*",
+      "**/__pycache__/**",
+      "out/**"
+    ]
+  },
+  "codex": {
+    "command": "auto",
+    "sandbox": "workspace-write",
+    "approvalPolicy": "on-request",
+    "contextFiles": [
+      "AGENTS.md",
+      "README.md",
+      "docs/ai-agent-context.md",
+      "docs/backend-business-workflows.md",
+      "docs/backend.md",
+      "docs/ocr.md"
+    ]
+  },
+  "state": {
+    "directory": "~/.kan-agent/state/facturation"
+  }
+}

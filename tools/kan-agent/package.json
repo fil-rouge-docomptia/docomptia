@@ -1,0 +1,18 @@
+{
+  "name": "@facturation/kan-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CLI local pour orchestrer Jira, Git et Codex sur le projet Facturation Electronique",
+  "bin": {
+    "kan-agent": "bin/kan-agent"
+  },
+  "scripts": {
+    "start": "node src/cli.mjs",
+    "check": "node --check src/cli.mjs && node --check src/config.mjs && node --check src/codex-service.mjs && node --check src/git-service.mjs && node --check src/jira-client.mjs && node --check src/prompt-builder.mjs && node --check src/process.mjs && node --check src/state-store.mjs && node --check src/terminal.mjs && node --check src/workflow-service.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
