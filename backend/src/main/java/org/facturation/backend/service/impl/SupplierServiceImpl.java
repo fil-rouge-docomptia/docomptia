@@ -56,16 +56,20 @@ public class SupplierServiceImpl implements SupplierService {
                     .orElseThrow(() -> new IllegalArgumentException("Supplier not found"));
         }
 
-        String supplierName = extractNormalizedValue(ocrAnalysis, "supplierName", "Fournisseur a verifier");
+        Optional<String> supplierName = extractOptionalNormalizedValue(ocrAnalysis, "supplierName");
+        if (supplierName.isEmpty()) {
+            return null;
+        }
+
         Supplier supplier = supplierRepository.findByOrganizationOrganizationIdAndNameIgnoreCase(
                         organization.getOrganizationId(),
-                        supplierName
+                        supplierName.get()
                 )
                 .or(() -> supplierRepository.findByOrganizationOrganizationIdAndLegalNameIgnoreCase(
                         organization.getOrganizationId(),
-                        supplierName
+                        supplierName.get()
                 ))
-                .orElseGet(() -> createSupplierToVerify(organization, supplierName));
+                .orElseGet(() -> createSupplierToVerify(organization, supplierName.get()));
         return updateSupplierFromOcrIfNeeded(supplier, ocrAnalysis);
     }
 
@@ -100,10 +104,6 @@ public class SupplierServiceImpl implements SupplierService {
 
         supplier.setUpdatedAt(LocalDateTime.now());
         return supplierRepository.save(supplier);
-    }
-
-    private String extractNormalizedValue(OcrAnalysisResponse response, String fieldName, String fallback) {
-        return extractOptionalNormalizedValue(response, fieldName).orElse(fallback);
     }
 
     private Optional<String> extractOptionalNormalizedValue(OcrAnalysisResponse response, String fieldName) {

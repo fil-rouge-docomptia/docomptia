@@ -11,6 +11,7 @@ spring:
   sql:
     init:
       mode: always
+      schema-locations: classpath:schema-postgres.sql
       data-locations: classpath:data-postgres.sql
 
 app:
