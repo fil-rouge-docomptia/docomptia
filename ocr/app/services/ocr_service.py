@@ -10,6 +10,7 @@ from PIL import Image
 AMOUNT_PATTERN = r"(?:\d{1,3}(?:[\s.,]\d{3})+|\d+)"
 DECIMAL_AMOUNT_PATTERN = rf"{AMOUNT_PATTERN}[,.]\d{{2}}"
 CURRENCY_PATTERN = r"(?:€|EUR)"
+OCR_ENGINE_NAME = "tesseract"
 
 
 def analyze_document(filename: str, content: bytes) -> dict:
@@ -30,6 +31,8 @@ def analyze_document(filename: str, content: bytes) -> dict:
 
     return {
         "status": "SUCCESS",
+        "engineName": OCR_ENGINE_NAME,
+        "engineVersion": str(pytesseract.get_tesseract_version()),
         "rawText": raw_text,
         "confidenceScore": "0.75",
         "fields": fields,
