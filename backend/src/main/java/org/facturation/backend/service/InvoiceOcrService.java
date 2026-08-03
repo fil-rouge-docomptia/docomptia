@@ -17,11 +17,9 @@ public interface InvoiceOcrService {
 
     Optional<OcrAnalysisResponse> findLatestAnalysisResponse(Long invoiceId);
 
-    String extractNormalizedValue(OcrAnalysisResponse response, String fieldName, String fallback);
-
     Optional<String> extractOptionalNormalizedValue(OcrAnalysisResponse response, String fieldName);
 
     Optional<LocalDate> extractDate(OcrAnalysisResponse response, String fieldName);
 
-    BigDecimal extractAmount(OcrAnalysisResponse response, String fieldName);
+    Optional<BigDecimal> extractOptionalAmount(OcrAnalysisResponse response, String fieldName);
 }
