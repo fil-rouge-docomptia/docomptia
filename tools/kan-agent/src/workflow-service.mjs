@@ -91,6 +91,12 @@ export async function initAgent() {
   } else {
     console.log(`Configuration already exists: ${result.path}`)
   }
+  if (result.environmentCreated) {
+    console.log(`Environment file created: ${result.environmentPath}`)
+    console.log('Set JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_TOKEN in this file.')
+  } else {
+    console.log(`Environment file already exists: ${result.environmentPath}`)
+  }
 }
 
 export async function doctorAgent() {
