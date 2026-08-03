@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TOOL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+NODE_BIN=""
+
+is_supported_node() {
+  local candidate="$1"
+  local major
+
+  [ -x "$candidate" ] || return 1
+  major="$($candidate -p "process.versions.node.split('.')[0]" 2>/dev/null || true)"
+  [ -n "$major" ] && [ "$major" -ge 20 ]
+}
+
+CURRENT_NODE="$(command -v node 2>/dev/null || true)"
+if [ -n "$CURRENT_NODE" ] && is_supported_node "$CURRENT_NODE"; then
+  NODE_BIN="$CURRENT_NODE"
+else
+  for candidate in "$HOME"/.nvm/versions/node/v*/bin/node; do
+    if is_supported_node "$candidate"; then
+      NODE_BIN="$candidate"
+      break
+    fi
+  done
+fi
+
+if [ -z "$NODE_BIN" ]; then
+  echo "kan-agent requires Node.js 20 or newer." >&2
+  echo "Install it with nvm, then run: nvm use 20" >&2
+  exit 1
+fi
+
+export PATH="$(dirname "$NODE_BIN"):$PATH"
+exec "$NODE_BIN" "$TOOL_DIR/src/cli.mjs" "$@"

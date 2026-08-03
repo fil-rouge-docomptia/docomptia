@@ -141,6 +141,11 @@ Implement only what is required today.
 * Do not rewrite Git history.
 * Do not modify unrelated files.
 * Keep changes focused and atomic.
+* When a Jira ticket explicitly requests commits, use `KAN-XX: Message`, where
+  `KAN-XX` is the selected ticket key.
+* Never push a branch without explicit user approval.
+* Never include Netskope certificates, network workarounds, generated files, or
+  unrelated Docker changes in a feature commit.
 
 When work is completed, provide:
 
