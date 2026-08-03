@@ -43,6 +43,10 @@ INSERT INTO invoice_statuses (invoice_status_id, code, label, description)
 VALUES (6, 'REJETEE', 'Rejetee', 'Facture rejetee')
 ON CONFLICT (invoice_status_id) DO NOTHING;
 
+INSERT INTO invoice_statuses (invoice_status_id, code, label, description)
+VALUES (7, 'ERREUR_OCR', 'Erreur OCR', 'Echec du traitement OCR')
+ON CONFLICT (invoice_status_id) DO NOTHING;
+
 INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, password_hash, is_active, created_at, updated_at)
 VALUES (1, 1, 1, 'Admin', 'Demo', 'admin@facturation-demo.fr', 'admin123', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT (user_id) DO NOTHING;

@@ -3,6 +3,7 @@ package org.facturation.backend.model;
 public enum InvoiceStatusCode {
     DEPOSEE("DEPOSEE"),
     OCR_EN_COURS("OCR_EN_COURS"),
+    ERREUR_OCR("ERREUR_OCR"),
     EXTRAITE("EXTRAITE"),
     COMPTABILISEE("COMPTABILISEE");
 
