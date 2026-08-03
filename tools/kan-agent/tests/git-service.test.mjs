@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { access, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { GitService, matchesForbiddenPath, slugify } from '../src/git-service.mjs'
@@ -73,7 +73,11 @@ test('GitService creates the ticket branch in the shared repository', async () =
       cwd: prepared.worktree,
     })
 
-    const validation = await service.validateForApproval('KAN-123', prepared.worktree)
+    const validation = await service.validateForApproval(
+      'KAN-123',
+      prepared.worktree,
+      prepared.branch,
+    )
     const localBranch = await runCommand(
       'git',
       ['branch', '--list', 'KAN-123_implement_local_integration_test'],
@@ -83,6 +87,46 @@ test('GitService creates the ticket branch in the shared repository', async () =
     assert.match(localBranch.stdout, /KAN-123_implement_local_integration_test/)
     assert.equal(validation.valid, true)
     assert.deepEqual(validation.review.files, ['feature.txt'])
+
+    const released = await service.releaseWorktree(prepared.worktree)
+    assert.equal(released.released, true)
+    await assert.rejects(access(prepared.worktree))
+
+    const detachedValidation = await service.validateForApproval(
+      'KAN-123',
+      null,
+      prepared.branch,
+    )
+    assert.equal(detachedValidation.valid, true)
+    assert.deepEqual(detachedValidation.review.files, ['feature.txt'])
+
+    await runCommand('git', ['switch', prepared.branch], { cwd: seed })
+    const sharedDraftFile = resolve(seed, 'shared-draft.txt')
+    await writeFile(sharedDraftFile, 'not committed\n', 'utf8')
+    const sharedRepositoryValidation = await service.validateForApproval(
+      'KAN-123',
+      null,
+      prepared.branch,
+    )
+    assert.equal(sharedRepositoryValidation.valid, false)
+    assert.match(sharedRepositoryValidation.review.status, /shared-draft\.txt/)
+    await rm(sharedDraftFile)
+    await runCommand('git', ['switch', 'main'], { cwd: seed })
+
+    const resumed = await service.prepareWorktree({
+      key: 'KAN-123',
+      summary: 'Implement local integration test',
+    })
+    const draftFile = resolve(resumed.worktree, 'draft.txt')
+    await writeFile(draftFile, 'not committed\n', 'utf8')
+
+    const kept = await service.releaseWorktree(resumed.worktree)
+    assert.equal(kept.released, false)
+    assert.match(kept.reason, /draft\.txt/)
+
+    await rm(draftFile)
+    const releasedAfterCleanup = await service.releaseWorktree(resumed.worktree)
+    assert.equal(releasedAfterCleanup.released, true)
   } finally {
     await rm(directory, { recursive: true, force: true })
   }

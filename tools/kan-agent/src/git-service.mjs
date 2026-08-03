@@ -105,6 +105,7 @@ export class GitService {
     const branch = `${issue.key}_${slugify(issue.summary)}`
     const worktree = resolve(this.config.worktreesDirectory, branch)
     await mkdir(this.config.worktreesDirectory, { recursive: true })
+    await this.git(['worktree', 'prune'], { cwd: this.config.baseRepositoryPath })
 
     if (await exists(worktree)) {
       await this.git(['rev-parse', '--is-inside-work-tree'], { cwd: worktree })
@@ -153,15 +154,64 @@ export class GitService {
     return { branch, worktree, resumed: false }
   }
 
-  async getReview(worktree) {
-    const comparison = `${this.config.remote}/${this.config.mainBranch}...HEAD`
+  async isWorktreeAvailable(worktree) {
+    return Boolean(worktree) && await exists(resolve(worktree, '.git'))
+  }
+
+  async releaseWorktree(worktree) {
+    if (!worktree) {
+      return { released: true, alreadyReleased: true }
+    }
+    if (resolve(worktree) === resolve(this.config.baseRepositoryPath)) {
+      throw new Error('The shared repository cannot be released as a worktree')
+    }
+    if (!await this.isWorktreeAvailable(worktree)) {
+      await this.git(['worktree', 'prune'], { cwd: this.config.baseRepositoryPath })
+      return { released: true, alreadyReleased: true }
+    }
+
+    const status = await this.git(['status', '--short'], { cwd: worktree })
+    if (status.stdout) {
+      return {
+        released: false,
+        reason: `Uncommitted changes remain:\n${status.stdout}`,
+      }
+    }
+
+    await this.git(['worktree', 'remove', worktree], {
+      cwd: this.config.baseRepositoryPath,
+      inherit: true,
+    })
+    return { released: true, alreadyReleased: false }
+  }
+
+  async getReview(worktree, branch) {
+    const worktreeAvailable = await this.isWorktreeAvailable(worktree)
+    const repository = worktreeAvailable ? worktree : this.config.baseRepositoryPath
+    const currentBranch = worktreeAvailable
+      ? null
+      : await this.git(['branch', '--show-current'], { cwd: repository })
+    const branchIsOpenInSharedRepository = currentBranch?.stdout === branch
+    const inspectStatus = worktreeAvailable || branchIsOpenInSharedRepository
+    const revision = inspectStatus ? 'HEAD' : branch
+    if (!revision) {
+      throw new Error('The ticket branch has not been prepared yet')
+    }
+    const branchComparison = `${this.config.remote}/${this.config.mainBranch}...${revision}`
     const [status, log, diffStat, files] = await Promise.all([
-      this.git(['status', '--short'], { cwd: worktree }),
-      this.git(['log', '--format=%h %s', `${this.config.remote}/${this.config.mainBranch}..HEAD`], {
-        cwd: worktree,
-      }),
-      this.git(['diff', '--stat', comparison], { cwd: worktree }),
-      this.git(['diff', '--name-only', comparison], { cwd: worktree }),
+      inspectStatus
+        ? this.git(['status', '--short'], { cwd: repository })
+        : Promise.resolve({ stdout: '' }),
+      this.git(
+        [
+          'log',
+          '--format=%h %s',
+          `${this.config.remote}/${this.config.mainBranch}..${revision}`,
+        ],
+        { cwd: repository },
+      ),
+      this.git(['diff', '--stat', branchComparison], { cwd: repository }),
+      this.git(['diff', '--name-only', branchComparison], { cwd: repository }),
     ])
 
     return {
@@ -172,8 +222,8 @@ export class GitService {
     }
   }
 
-  async validateForApproval(issueKey, worktree) {
-    const review = await this.getReview(worktree)
+  async validateForApproval(issueKey, worktree, branch) {
+    const review = await this.getReview(worktree, branch)
     const problems = []
 
     if (review.status) {
@@ -200,9 +250,12 @@ export class GitService {
   }
 
   async push(branch, worktree) {
+    const repository = await this.isWorktreeAvailable(worktree)
+      ? worktree
+      : this.config.baseRepositoryPath
     await this.git(
       ['push', '--set-upstream', this.config.remote, branch],
-      { cwd: worktree, inherit: true },
+      { cwd: repository, inherit: true },
     )
   }
 

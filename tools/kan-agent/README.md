@@ -116,7 +116,7 @@ git log --oneline --all
 ```
 
 Pour ne pas modifier la branche ou les fichiers actuellement ouverts par le
-developpeur, chaque ticket reste execute dans un worktree lie au meme depot:
+developpeur, chaque ticket est execute dans un worktree lie au meme depot:
 
 ```text
 ~/.kan-agent/workspaces/facturation/source-worktrees/KAN-XX_titre_du_ticket
@@ -125,6 +125,16 @@ developpeur, chaque ticket reste execute dans un worktree lie au meme depot:
 Il n'existe plus de second clone Git. A chaque nouveau ticket, l'agent execute
 `fetch origin` et cree la branche depuis `origin/main`, sans changer la branche
 courante de `SourceCode`.
+
+Lorsque l'execution Codex se termine et que tous les changements sont commites,
+l'agent supprime automatiquement le worktree temporaire. La branche et ses
+commits restent disponibles dans `SourceCode` et peuvent etre ouverts avec
+`git switch KAN-XX_nom_du_ticket`. Les commandes `review`, `approve` et `push`
+continuent de fonctionner sans le worktree. La commande `revise` le recree
+temporairement, puis le libere apres la revision.
+
+Un worktree contenant des changements non commites n'est jamais supprime. Dans
+ce cas, `kan-agent status` signale qu'il est conserve afin d'eviter toute perte.
 
 ## Verification Du CLI
 
