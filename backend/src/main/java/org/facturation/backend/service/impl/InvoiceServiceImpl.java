@@ -105,7 +105,6 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     @Override
-    @Transactional
     public InvoiceUploadResponse uploadAndAnalyze(MultipartFile file, Long supplierId) {
         Organization organization = findDefaultOrganization();
         User user = findDefaultUser();
@@ -113,15 +112,15 @@ public class InvoiceServiceImpl implements InvoiceService {
         InvoiceStatus ocrInProgressStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.OCR_EN_COURS);
         InvoiceStatus extractedStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.EXTRAITE);
 
+        Invoice invoice = createDraftInvoice(organization, user, depositedStatus);
+        invoiceStatusWorkflowService.recordStatus(invoice, depositedStatus, user, "Invoice uploaded");
+        saveInvoiceFile(invoice, file);
+        invoiceStatusWorkflowService.updateStatus(invoice, ocrInProgressStatus, user, "OCR analysis started");
+
         OcrAnalysisResponse ocrAnalysis = invoiceOcrService.analyze(file);
         Supplier supplier = supplierService.resolveForInvoiceUpload(supplierId, organization, ocrAnalysis);
-        Invoice invoice = createInvoice(organization, supplier, user, depositedStatus, ocrAnalysis);
+        applyOcrAnalysis(invoice, supplier, ocrAnalysis);
         invoice = invoiceRepository.save(invoice);
-        invoiceStatusWorkflowService.recordStatus(invoice, depositedStatus, user, "Invoice uploaded");
-
-        saveInvoiceFile(invoice, file);
-
-        invoiceStatusWorkflowService.updateStatus(invoice, ocrInProgressStatus, user, "OCR analysis started");
 
         invoiceOcrService.saveExtraction(invoice, ocrAnalysis);
 
@@ -232,34 +231,42 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .orElseThrow(() -> new IllegalStateException("Default user not found"));
     }
 
-    private Invoice createInvoice(
+    private Invoice createDraftInvoice(
             Organization organization,
-            Supplier supplier,
             User user,
-            InvoiceStatus invoiceStatus,
-            OcrAnalysisResponse ocrAnalysis
+            InvoiceStatus invoiceStatus
     ) {
         Invoice invoice = new Invoice();
         invoice.setOrganization(organization);
-        invoice.setSupplier(supplier);
         invoice.setCreatedByUser(user);
         invoice.setInvoiceStatus(invoiceStatus);
-        invoice.setInvoiceNumber(extractInvoiceNumber(ocrAnalysis));
-        invoice.setCommandReference(invoiceOcrService.extractOptionalNormalizedValue(ocrAnalysis, "commandReference").orElse(null));
-        invoice.setInvoiceDate(invoiceOcrService.extractDate(ocrAnalysis, "invoiceDate").orElse(LocalDate.now()));
-        invoice.setDueDate(invoiceOcrService.extractDate(ocrAnalysis, "dueDate").orElse(null));
         invoice.setCurrencyCode("EUR");
-        invoice.setTotalHt(invoiceOcrService.extractAmount(ocrAnalysis, "totalHt"));
-        invoice.setTotalTva(invoiceOcrService.extractAmount(ocrAnalysis, "totalTva"));
-        invoice.setTotalTtc(invoiceOcrService.extractAmount(ocrAnalysis, "totalTtc"));
         invoice.setDescription("Invoice uploaded for OCR analysis");
         invoice.setCreatedAt(LocalDateTime.now());
         invoice.setUpdatedAt(LocalDateTime.now());
-        return invoice;
+        return invoiceRepository.save(invoice);
     }
 
-    private String extractInvoiceNumber(OcrAnalysisResponse ocrAnalysis) {
-        return invoiceOcrService.extractNormalizedValue(ocrAnalysis, "invoiceNumber", "INV-" + System.currentTimeMillis());
+    private void applyOcrAnalysis(
+            Invoice invoice,
+            Supplier supplier,
+            OcrAnalysisResponse ocrAnalysis
+    ) {
+        invoice.setSupplier(supplier);
+        invoice.setInvoiceNumber(invoiceOcrService.extractOptionalNormalizedValue(ocrAnalysis, "invoiceNumber").orElse(null));
+        invoice.setCommandReference(invoiceOcrService.extractOptionalNormalizedValue(ocrAnalysis, "commandReference").orElse(null));
+        invoice.setInvoiceDate(invoiceOcrService.extractDate(ocrAnalysis, "invoiceDate").orElse(null));
+        invoice.setDueDate(invoiceOcrService.extractDate(ocrAnalysis, "dueDate").orElse(null));
+        invoice.setTotalHt(extractOptionalAmount(ocrAnalysis, "totalHt"));
+        invoice.setTotalTva(extractOptionalAmount(ocrAnalysis, "totalTva"));
+        invoice.setTotalTtc(extractOptionalAmount(ocrAnalysis, "totalTtc"));
+        invoice.setUpdatedAt(LocalDateTime.now());
+    }
+
+    private BigDecimal extractOptionalAmount(OcrAnalysisResponse ocrAnalysis, String fieldName) {
+        return invoiceOcrService.extractOptionalNormalizedValue(ocrAnalysis, fieldName)
+                .map(value -> invoiceOcrService.extractAmount(ocrAnalysis, fieldName))
+                .orElse(null);
     }
 
     private InvoiceFile saveInvoiceFile(Invoice invoice, MultipartFile file) {
@@ -386,4 +393,5 @@ public class InvoiceServiceImpl implements InvoiceService {
             );
         };
     }
+
 }

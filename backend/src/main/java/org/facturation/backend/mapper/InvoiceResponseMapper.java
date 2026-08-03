@@ -13,6 +13,8 @@ import org.facturation.backend.service.AccountingEntryService;
 import org.facturation.backend.service.InvoiceOcrService;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+
 @Component
 public class InvoiceResponseMapper {
 
@@ -49,9 +51,9 @@ public class InvoiceResponseMapper {
         response.setInvoiceDate(invoice.getInvoiceDate() == null ? null : invoice.getInvoiceDate().toString());
         response.setDueDate(invoice.getDueDate() == null ? null : invoice.getDueDate().toString());
         response.setStatus(invoice.getInvoiceStatus().getCode());
-        response.setSupplierName(invoice.getSupplier().getName());
+        response.setSupplierName(extractSupplierName(invoice));
         response.setCurrencyCode(invoice.getCurrencyCode());
-        response.setTotalTtc(invoice.getTotalTtc().toString());
+        response.setTotalTtc(toStringOrNull(invoice.getTotalTtc()));
         return response;
     }
 
@@ -84,11 +86,11 @@ public class InvoiceResponseMapper {
         response.setInvoiceDate(invoice.getInvoiceDate() == null ? null : invoice.getInvoiceDate().toString());
         response.setDueDate(invoice.getDueDate() == null ? null : invoice.getDueDate().toString());
         response.setStatus(invoice.getInvoiceStatus().getCode());
-        response.setSupplierName(invoice.getSupplier().getName());
+        response.setSupplierName(extractSupplierName(invoice));
         response.setCurrencyCode(invoice.getCurrencyCode());
-        response.setTotalHt(invoice.getTotalHt().toString());
-        response.setTotalTva(invoice.getTotalTva().toString());
-        response.setTotalTtc(invoice.getTotalTtc().toString());
+        response.setTotalHt(toStringOrNull(invoice.getTotalHt()));
+        response.setTotalTva(toStringOrNull(invoice.getTotalTva()));
+        response.setTotalTtc(toStringOrNull(invoice.getTotalTtc()));
 
         invoiceFileRepository.findByInvoiceInvoiceId(invoice.getInvoiceId())
                 .ifPresent(invoiceFile -> response.setFilePath(invoiceFile.getFilePath()));
@@ -103,5 +105,13 @@ public class InvoiceResponseMapper {
                 )));
 
         return response;
+    }
+
+    private String extractSupplierName(Invoice invoice) {
+        return invoice.getSupplier() == null ? null : invoice.getSupplier().getName();
+    }
+
+    private String toStringOrNull(BigDecimal value) {
+        return value == null ? null : value.toString();
     }
 }
