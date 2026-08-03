@@ -17,16 +17,16 @@ def analyze_document(filename: str, content: bytes) -> dict:
     raw_text = extract_text(filename, content)
 
     fields = [
-        build_field("supplierName", extract_supplier(raw_text), "0.70"),
-        build_field("siret", extract_siret(raw_text), "0.75"),
-        build_field("vatNumber", extract_vat_number(raw_text), "0.75"),
-        build_field("invoiceNumber", extract_invoice_number(raw_text), "0.75"),
-        build_field("invoiceDate", extract_labeled_date(raw_text, ["date de facture", "date d'emission", "date d'émission"]), "0.70"),
-        build_field("dueDate", extract_labeled_date(raw_text, ["date d'echeance", "date d'échéance", "echeance", "échéance"]), "0.70"),
-        build_field("commandReference", extract_command_reference(raw_text), "0.70"),
-        build_field("totalHt", extract_amount(raw_text, ["HT", "hors taxe"]), "0.70"),
-        build_field("totalTva", extract_amount(raw_text, ["TVA", "taxe"], allow_fallback=False), "0.70"),
-        build_field("totalTtc", extract_amount(raw_text, ["TTC", "total"]), "0.75"),
+        build_field("supplierName", extract_supplier(raw_text)),
+        build_field("siret", extract_siret(raw_text)),
+        build_field("vatNumber", extract_vat_number(raw_text)),
+        build_field("invoiceNumber", extract_invoice_number(raw_text)),
+        build_field("invoiceDate", extract_labeled_date(raw_text, ["date de facture", "date d'emission", "date d'émission"])),
+        build_field("dueDate", extract_labeled_date(raw_text, ["date d'echeance", "date d'échéance", "echeance", "échéance"])),
+        build_field("commandReference", extract_command_reference(raw_text)),
+        build_field("totalHt", extract_amount(raw_text, ["HT", "hors taxe"])),
+        build_field("totalTva", extract_amount(raw_text, ["TVA", "taxe"])),
+        build_field("totalTtc", extract_amount(raw_text, ["TTC", "total"])),
     ]
 
     return {
@@ -34,7 +34,7 @@ def analyze_document(filename: str, content: bytes) -> dict:
         "engineName": OCR_ENGINE_NAME,
         "engineVersion": str(pytesseract.get_tesseract_version()),
         "rawText": raw_text,
-        "confidenceScore": "0.75",
+        "confidenceScore": None,
         "fields": fields,
     }
 
@@ -54,13 +54,12 @@ def load_images(filename: str, content: bytes) -> list[Image.Image]:
     return [image.convert("RGB")]
 
 
-def build_field(field_name: str, value: str | None, confidence: str) -> dict[str, str]:
-    normalized_value = value or ""
+def build_field(field_name: str, value: str | None) -> dict[str, str | None]:
     return {
         "fieldName": field_name,
-        "rawValue": normalized_value,
-        "normalizedValue": normalized_value,
-        "confidenceScore": confidence if normalized_value else "0.00",
+        "rawValue": value,
+        "normalizedValue": value,
+        "confidenceScore": None,
     }
 
 
@@ -69,11 +68,6 @@ def extract_supplier(raw_text: str) -> str | None:
     for line in lines[:15]:
         candidate = clean_supplier_candidate(line)
         if candidate and looks_like_supplier_name(candidate):
-            return candidate
-
-    for line in lines[:15]:
-        candidate = clean_supplier_candidate(line)
-        if candidate:
             return candidate
 
     return None
@@ -154,7 +148,7 @@ def extract_vat_number(raw_text: str) -> str | None:
     return re.sub(r"\s", "", match.group(1)).upper()
 
 
-def extract_amount(raw_text: str, labels: list[str], allow_fallback: bool = True) -> str | None:
+def extract_amount(raw_text: str, labels: list[str]) -> str | None:
     for label in labels:
         pattern = (
             rf"{re.escape(label)}[^\n\r]{{0,40}}?"
@@ -164,13 +158,6 @@ def extract_amount(raw_text: str, labels: list[str], allow_fallback: bool = True
         match = re.search(pattern, raw_text, flags=re.IGNORECASE)
         if match:
             return normalize_amount(match.group(1) or match.group(2))
-
-    if not allow_fallback:
-        return None
-
-    amounts = re.findall(DECIMAL_AMOUNT_PATTERN, raw_text)
-    if amounts:
-        return normalize_amount(amounts[-1])
 
     return None
 
