@@ -6,11 +6,15 @@ import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
+import org.facturation.backend.dto.response.OcrErrorResponse;
 import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.Invoice;
+import org.facturation.backend.model.InvoiceStatusCode;
+import org.facturation.backend.model.OcrError;
 import org.facturation.backend.repository.InvoiceFileRepository;
 import org.facturation.backend.service.AccountingEntryService;
 import org.facturation.backend.service.InvoiceOcrService;
+import org.facturation.backend.service.OcrErrorService;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -20,17 +24,20 @@ public class InvoiceResponseMapper {
 
     private final InvoiceFileRepository invoiceFileRepository;
     private final InvoiceOcrService invoiceOcrService;
+    private final OcrErrorService ocrErrorService;
     private final AccountingEntryService accountingEntryService;
     private final AccountingEntryMapper accountingEntryMapper;
 
     public InvoiceResponseMapper(
             InvoiceFileRepository invoiceFileRepository,
             InvoiceOcrService invoiceOcrService,
+            OcrErrorService ocrErrorService,
             AccountingEntryService accountingEntryService,
             AccountingEntryMapper accountingEntryMapper
     ) {
         this.invoiceFileRepository = invoiceFileRepository;
         this.invoiceOcrService = invoiceOcrService;
+        this.ocrErrorService = ocrErrorService;
         this.accountingEntryService = accountingEntryService;
         this.accountingEntryMapper = accountingEntryMapper;
     }
@@ -98,12 +105,26 @@ public class InvoiceResponseMapper {
         invoiceOcrService.findLatestAnalysisResponse(invoice.getInvoiceId())
                 .ifPresent(response::setOcrAnalysis);
 
+        if (InvoiceStatusCode.ERREUR_OCR.getCode().equals(invoice.getInvoiceStatus().getCode())) {
+            ocrErrorService.findLatestByInvoiceId(invoice.getInvoiceId())
+                    .map(this::toOcrErrorResponse)
+                    .ifPresent(response::setOcrError);
+        }
+
         accountingEntryService.findByInvoiceId(invoice.getInvoiceId())
                 .ifPresent(accountingEntry -> response.setAccountingEntry(accountingEntryMapper.toResponse(
                         accountingEntry,
                         accountingEntryService.findLines(accountingEntry)
                 )));
 
+        return response;
+    }
+
+    private OcrErrorResponse toOcrErrorResponse(OcrError error) {
+        OcrErrorResponse response = new OcrErrorResponse();
+        response.setCode(error.getErrorCode());
+        response.setMessage(error.getErrorMessage());
+        response.setOccurredAt(error.getOccurredAt().toString());
         return response;
     }
 
