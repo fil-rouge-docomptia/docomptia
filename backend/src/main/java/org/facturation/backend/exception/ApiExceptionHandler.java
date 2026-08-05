@@ -39,4 +39,11 @@ public class ApiExceptionHandler {
     public ResponseEntity<Map<String, String>> handleOcrRetryNotAllowed(OcrRetryNotAllowedException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", exception.getMessage()));
     }
+
+    @ExceptionHandler(InvoiceStatusTransitionException.class)
+    public ResponseEntity<Map<String, String>> handleInvoiceStatusTransition(
+            InvoiceStatusTransitionException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", exception.getMessage()));
+    }
 }

@@ -47,6 +47,22 @@ INSERT INTO invoice_statuses (invoice_status_id, code, label, description)
 VALUES (7, 'ERREUR_OCR', 'Erreur OCR', 'Echec du traitement OCR')
 ON CONFLICT (invoice_status_id) DO NOTHING;
 
+INSERT INTO invoice_statuses (invoice_status_id, code, label, description)
+VALUES (8, 'A_VERIFIER', 'A verifier', 'Facture corrigee a verifier')
+ON CONFLICT (invoice_status_id) DO NOTHING;
+
+INSERT INTO invoice_statuses (invoice_status_id, code, label, description)
+VALUES (9, 'EXPORTABLE', 'Exportable', 'Facture validee et prete a etre exportee')
+ON CONFLICT (invoice_status_id) DO NOTHING;
+
+INSERT INTO invoice_statuses (invoice_status_id, code, label, description)
+VALUES (10, 'EXPORTEE', 'Exportee', 'Facture exportee avec succes')
+ON CONFLICT (invoice_status_id) DO NOTHING;
+
+INSERT INTO invoice_statuses (invoice_status_id, code, label, description)
+VALUES (11, 'ARCHIVEE', 'Archivee', 'Facture archivee en lecture seule')
+ON CONFLICT (invoice_status_id) DO NOTHING;
+
 INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, password_hash, is_active, created_at, updated_at)
 VALUES (1, 1, 1, 'Admin', 'Demo', 'admin@facturation-demo.fr', 'admin123', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT (user_id) DO NOTHING;

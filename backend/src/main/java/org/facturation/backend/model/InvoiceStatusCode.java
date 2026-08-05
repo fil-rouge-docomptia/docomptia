@@ -6,8 +6,12 @@ public enum InvoiceStatusCode {
     ERREUR_OCR("ERREUR_OCR"),
     EXTRAITE("EXTRAITE"),
     COMPTABILISEE("COMPTABILISEE"),
+    A_VERIFIER("A_VERIFIER"),
     VALIDEE("VALIDEE"),
-    REJETEE("REJETEE");
+    REJETEE("REJETEE"),
+    EXPORTABLE("EXPORTABLE"),
+    EXPORTEE("EXPORTEE"),
+    ARCHIVEE("ARCHIVEE");
 
     private final String code;
 
@@ -17,5 +21,14 @@ public enum InvoiceStatusCode {
 
     public String getCode() {
         return code;
+    }
+
+    public static InvoiceStatusCode fromCode(String code) {
+        for (InvoiceStatusCode statusCode : values()) {
+            if (statusCode.code.equals(code)) {
+                return statusCode;
+            }
+        }
+        throw new IllegalStateException("Unknown invoice status code " + code);
     }
 }

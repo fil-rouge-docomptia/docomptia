@@ -11,6 +11,10 @@ public interface InvoiceStatusWorkflowService {
 
     InvoiceStatus findByCode(String code);
 
+    void ensureCanTransition(Invoice invoice, InvoiceStatusCode targetCode);
+
+    void transitionTo(Invoice invoice, InvoiceStatusCode targetCode, User user, String comment);
+
     void recordStatus(Invoice invoice, InvoiceStatus status, User user, String comment);
 
     void updateStatus(Invoice invoice, InvoiceStatus status, User user, String comment);
