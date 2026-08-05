@@ -227,13 +227,13 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional
     public Optional<InvoiceStatusResponse> validateInvoice(Long id) {
-        return updateInvoiceStatus(id, "VALIDEE", "Invoice validated");
+        return updateInvoiceStatus(id, InvoiceStatusCode.VALIDEE, "Invoice validated");
     }
 
     @Override
     @Transactional
     public Optional<InvoiceStatusResponse> rejectInvoice(Long id) {
-        return updateInvoiceStatus(id, "REJETEE", "Invoice rejected");
+        return updateInvoiceStatus(id, InvoiceStatusCode.REJETEE, "Invoice rejected");
     }
 
     @Override
@@ -338,7 +338,11 @@ public class InvoiceServiceImpl implements InvoiceService {
         return invoiceFileRepository.save(invoiceFile);
     }
 
-    private Optional<InvoiceStatusResponse> updateInvoiceStatus(Long invoiceId, String statusCode, String comment) {
+    private Optional<InvoiceStatusResponse> updateInvoiceStatus(
+            Long invoiceId,
+            InvoiceStatusCode statusCode,
+            String comment
+    ) {
         return invoiceRepository.findById(invoiceId).map(invoice -> {
             User user = findDefaultUser();
             InvoiceStatus status = invoiceStatusWorkflowService.findByCode(statusCode);

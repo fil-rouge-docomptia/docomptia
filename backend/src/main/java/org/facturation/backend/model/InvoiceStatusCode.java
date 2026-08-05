@@ -5,7 +5,9 @@ public enum InvoiceStatusCode {
     OCR_EN_COURS("OCR_EN_COURS"),
     ERREUR_OCR("ERREUR_OCR"),
     EXTRAITE("EXTRAITE"),
-    COMPTABILISEE("COMPTABILISEE");
+    COMPTABILISEE("COMPTABILISEE"),
+    VALIDEE("VALIDEE"),
+    REJETEE("REJETEE");
 
     private final String code;
 
