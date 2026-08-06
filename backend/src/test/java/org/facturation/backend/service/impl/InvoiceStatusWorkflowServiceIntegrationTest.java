@@ -41,6 +41,10 @@ class InvoiceStatusWorkflowServiceIntegrationTest {
                 .collect(Collectors.toSet());
 
         assertEquals(databaseStatusCodes, javaStatusCodes);
+        assertNotNull(invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.A_VERIFIER));
+        assertNotNull(invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.EXPORTABLE));
+        assertNotNull(invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.EXPORTEE));
+        assertNotNull(invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.ARCHIVEE));
         assertNotNull(invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.VALIDEE));
         assertNotNull(invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.REJETEE));
     }

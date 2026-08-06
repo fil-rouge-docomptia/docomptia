@@ -122,12 +122,11 @@ public class InvoiceServiceImpl implements InvoiceService {
         Organization organization = findDefaultOrganization();
         User user = findDefaultUser();
         InvoiceStatus depositedStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.DEPOSEE);
-        InvoiceStatus ocrInProgressStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.OCR_EN_COURS);
 
         Invoice invoice = createDraftInvoice(organization, user, depositedStatus);
         invoiceStatusWorkflowService.recordStatus(invoice, depositedStatus, user, "Invoice uploaded");
         saveInvoiceFile(invoice, file);
-        invoiceStatusWorkflowService.updateStatus(invoice, ocrInProgressStatus, user, "OCR analysis started");
+        invoiceStatusWorkflowService.transitionTo(invoice, InvoiceStatusCode.OCR_EN_COURS, user, "OCR analysis started");
 
         OcrAnalysisResponse ocrAnalysis = analyzeInvoice(invoice, user, file);
         Supplier supplier = supplierService.resolveForInvoiceUpload(supplierId, organization, ocrAnalysis);
@@ -162,8 +161,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         try {
             return invoiceOcrService.analyze(file);
         } catch (RuntimeException exception) {
-            InvoiceStatus ocrErrorStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.ERREUR_OCR);
-            invoiceStatusWorkflowService.updateStatus(invoice, ocrErrorStatus, user, "OCR analysis failed");
+            invoiceStatusWorkflowService.transitionTo(invoice, InvoiceStatusCode.ERREUR_OCR, user, "OCR analysis failed");
             OcrError ocrError = ocrErrorService.recordFailure(invoice, exception);
             throw new InvoiceOcrFailureException(invoice.getInvoiceId(), ocrError, exception);
         }
@@ -179,8 +177,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         Invoice savedInvoice = invoiceRepository.save(invoice);
         invoiceOcrService.saveExtraction(savedInvoice, ocrAnalysis);
 
-        InvoiceStatus extractedStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.EXTRAITE);
-        invoiceStatusWorkflowService.updateStatus(savedInvoice, extractedStatus, user, "OCR analysis completed");
+        invoiceStatusWorkflowService.transitionTo(savedInvoice, InvoiceStatusCode.EXTRAITE, user, "OCR analysis completed");
         return savedInvoice;
     }
 
@@ -220,6 +217,15 @@ public class InvoiceServiceImpl implements InvoiceService {
             applyInvoiceCorrections(invoice, request);
             invoice.setUpdatedAt(LocalDateTime.now());
             Invoice savedInvoice = invoiceRepository.save(invoice);
+            if (shouldMoveToReviewAfterCorrection(savedInvoice, request)) {
+                User user = findDefaultUser();
+                invoiceStatusWorkflowService.transitionTo(
+                        savedInvoice,
+                        InvoiceStatusCode.A_VERIFIER,
+                        user,
+                        "Invoice corrected and ready for review"
+                );
+            }
             return invoiceResponseMapper.toDetailsResponse(savedInvoice);
         });
     }
@@ -241,9 +247,14 @@ public class InvoiceServiceImpl implements InvoiceService {
     public Optional<InvoiceAccountingEntryResponse> generateAccountingEntry(Long id) {
         return invoiceRepository.findById(id).map(invoice -> {
             User user = findDefaultUser();
+            invoiceStatusWorkflowService.ensureCanTransition(invoice, InvoiceStatusCode.EXPORTABLE);
             AccountingEntry accountingEntry = accountingEntryService.generateFromInvoice(invoice, user);
-            InvoiceStatus accountedStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.COMPTABILISEE);
-            invoiceStatusWorkflowService.updateStatusIfChanged(invoice, accountedStatus, user, "Accounting entry generated");
+            invoiceStatusWorkflowService.transitionTo(
+                    invoice,
+                    InvoiceStatusCode.EXPORTABLE,
+                    user,
+                    "Accounting entry generated and invoice marked exportable"
+            );
             return invoiceResponseMapper.toAccountingEntryResponse(invoice, accountingEntry);
         });
     }
@@ -345,10 +356,30 @@ public class InvoiceServiceImpl implements InvoiceService {
     ) {
         return invoiceRepository.findById(invoiceId).map(invoice -> {
             User user = findDefaultUser();
-            InvoiceStatus status = invoiceStatusWorkflowService.findByCode(statusCode);
-            invoiceStatusWorkflowService.updateStatus(invoice, status, user, comment);
+            invoiceStatusWorkflowService.transitionTo(invoice, statusCode, user, comment);
             return invoiceResponseMapper.toStatusResponse(invoice);
         });
+    }
+
+    private boolean shouldMoveToReviewAfterCorrection(Invoice invoice, InvoiceCorrectionRequest request) {
+        if (!hasRequestedCorrections(request)) {
+            return false;
+        }
+        return switch (InvoiceStatusCode.fromCode(invoice.getInvoiceStatus().getCode())) {
+            case ERREUR_OCR, REJETEE -> true;
+            default -> false;
+        };
+    }
+
+    private boolean hasRequestedCorrections(InvoiceCorrectionRequest request) {
+        return request.getInvoiceNumber() != null
+                || request.getCommandReference() != null
+                || request.getInvoiceDate() != null
+                || request.getDueDate() != null
+                || request.getTotalHt() != null
+                || request.getTotalTva() != null
+                || request.getTotalTtc() != null
+                || request.getSupplierName() != null;
     }
 
     private Optional<LocalDate> toLocalDate(String value) {

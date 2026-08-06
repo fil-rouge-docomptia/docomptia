@@ -4,6 +4,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.Parameters;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
@@ -99,6 +101,10 @@ public class InvoiceController {
 
     @PostMapping("/{id}/accounting-entry")
     @Operation(summary = "Generer l'ecriture comptable d'une facture")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Ecriture comptable generee"),
+            @ApiResponse(responseCode = "409", description = "Transition de statut invalide pour rendre la facture exportable")
+    })
     public ResponseEntity<InvoiceAccountingEntryResponse> generateAccountingEntry(@PathVariable Long id) {
         return invoiceService.generateAccountingEntry(id)
                 .map(ResponseEntity::ok)
@@ -122,6 +128,10 @@ public class InvoiceController {
 
     @PostMapping("/{id}/validate")
     @Operation(summary = "Valider une facture")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Facture validee"),
+            @ApiResponse(responseCode = "409", description = "Transition de statut invalide")
+    })
     public ResponseEntity<InvoiceStatusResponse> validateInvoice(@PathVariable Long id) {
         return invoiceService.validateInvoice(id)
                 .map(ResponseEntity::ok)
@@ -130,6 +140,10 @@ public class InvoiceController {
 
     @PostMapping("/{id}/reject")
     @Operation(summary = "Rejeter une facture")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Facture rejetee"),
+            @ApiResponse(responseCode = "409", description = "Transition de statut invalide")
+    })
     public ResponseEntity<InvoiceStatusResponse> rejectInvoice(@PathVariable Long id) {
         return invoiceService.rejectInvoice(id)
                 .map(ResponseEntity::ok)
