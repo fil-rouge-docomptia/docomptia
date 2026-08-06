@@ -23,6 +23,15 @@
       "**/*netskope*",
       "**/__pycache__/**",
       "out/**"
+    ],
+    "ignoredWorkingTreeFiles": [
+      "backend/Dockerfile.dev",
+      "frontend/Dockerfile.dev",
+      "ocr/Dockerfile.dev",
+      "**/certs/**",
+      "**/*netskope*",
+      "**/__pycache__/**",
+      "out/**"
     ]
   },
   "codex": {
