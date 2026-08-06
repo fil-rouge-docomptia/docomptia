@@ -95,11 +95,20 @@ SELECTED
 
 `approve` verifie que:
 
-- le worktree est propre;
+- le worktree ne contient aucun changement non commite bloquant;
 - au moins un commit existe;
 - chaque commit commence par la cle du ticket;
 - aucun fichier interdit n'est present;
 - aucun test n'est signale en echec.
+
+Lorsqu'une commande de test est relancee apres une correction, son dernier
+resultat remplace le precedent pour l'affichage et la validation.
+
+Les chemins declares dans `git.ignoredWorkingTreeFiles` restent affiches dans
+la review, mais ne bloquent pas `approve` ou `push`. Cette liste sert uniquement
+aux adaptations locales de developpement, par exemple les certificats Netskope,
+les `Dockerfile.dev`, `out/` et les caches Python. Elle ne masque pas ces fichiers
+s'ils sont commites: `git.forbiddenFiles` continue alors de refuser le ticket.
 
 `push` redemande une confirmation, pousse la branche, ajoute un commentaire Jira
 et place le ticket dans le statut configure pour la code review. Le CLI ne passe

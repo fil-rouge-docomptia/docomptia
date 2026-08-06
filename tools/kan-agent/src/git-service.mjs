@@ -34,7 +34,32 @@ function globToRegExp(pattern) {
 }
 
 export function matchesForbiddenPath(path, patterns) {
-  return patterns.some((pattern) => globToRegExp(pattern).test(path))
+  return (patterns || []).some((pattern) => globToRegExp(pattern).test(path))
+}
+
+function statusLinePath(line) {
+  const pathStart = line[2] === ' ' ? 3 : 2
+  const path = line.slice(pathStart).trim()
+  const renameSeparator = path.lastIndexOf(' -> ')
+  return renameSeparator === -1 ? path : path.slice(renameSeparator + 4)
+}
+
+export function splitWorkingTreeStatus(status, ignoredPatterns = []) {
+  const lines = status ? status.split('\n').filter(Boolean) : []
+  const ignored = []
+  const blocking = []
+
+  for (const line of lines) {
+    const target = matchesForbiddenPath(statusLinePath(line), ignoredPatterns)
+      ? ignored
+      : blocking
+    target.push(line)
+  }
+
+  return {
+    blockingStatus: blocking.join('\n'),
+    ignoredStatus: ignored.join('\n'),
+  }
 }
 
 async function exists(path) {
@@ -214,8 +239,14 @@ export class GitService {
       this.git(['diff', '--name-only', branchComparison], { cwd: repository }),
     ])
 
+    const workingTreeStatus = splitWorkingTreeStatus(
+      status.stdout,
+      this.config.ignoredWorkingTreeFiles,
+    )
+
     return {
       status: status.stdout,
+      ...workingTreeStatus,
       commits: log.stdout ? log.stdout.split('\n') : [],
       diffStat: diffStat.stdout,
       files: files.stdout ? files.stdout.split('\n') : [],
@@ -226,8 +257,8 @@ export class GitService {
     const review = await this.getReview(worktree, branch)
     const problems = []
 
-    if (review.status) {
-      problems.push(`Uncommitted changes remain:\n${review.status}`)
+    if (review.blockingStatus) {
+      problems.push(`Uncommitted changes remain:\n${review.blockingStatus}`)
     }
     if (review.commits.length === 0) {
       problems.push('No commit was created')

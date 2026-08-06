@@ -16,10 +16,21 @@ async function services() {
   }
 }
 
+export function latestTestsByCommand(tests = []) {
+  const latestTests = new Map()
+  tests.forEach((test) => latestTests.set(test.command, test))
+  return [...latestTests.values()]
+}
+
+export function hasFailedTests(tests = []) {
+  return latestTestsByCommand(tests).some((test) => test.status === 'failed')
+}
+
 function formatTests(tests = []) {
-  return tests.length === 0
+  const latestTests = latestTestsByCommand(tests)
+  return latestTests.length === 0
     ? 'No test result reported'
-    : tests
+    : latestTests
       .map((test) => `- ${test.status}: ${test.command}\n  ${test.details}`)
       .join('\n')
 }
@@ -29,7 +40,8 @@ function formatReview(review) {
     `Commits:\n${review.commits.join('\n') || 'None'}`,
     `\nChanged files:\n${review.files.join('\n') || 'None'}`,
     `\nDiff summary:\n${review.diffStat || 'No diff'}`,
-    `\nWorking tree:\n${review.status || 'Clean'}`,
+    `\nBlocking working tree changes:\n${review.blockingStatus || 'Clean'}`,
+    `\nIgnored local changes:\n${review.ignoredStatus || 'None'}`,
   ].join('\n')
 }
 
@@ -275,7 +287,7 @@ export async function approveTask() {
   if (!validation.valid) {
     throw new Error(`Approval checks failed:\n${validation.problems.join('\n\n')}`)
   }
-  if (state.agentResult?.tests.some((test) => test.status === 'failed')) {
+  if (hasFailedTests(state.agentResult?.tests)) {
     throw new Error('At least one reported test failed')
   }
   if (!await confirm('Approve this implementation?', false)) {
