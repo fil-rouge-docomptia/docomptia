@@ -1,6 +1,7 @@
 package org.facturation.backend.service.impl;
 
 import org.facturation.backend.exception.InvoiceStatusTransitionException;
+import org.facturation.backend.exception.OcrRetryNotAllowedException;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatus;
 import org.facturation.backend.model.InvoiceStatusCode;
@@ -50,6 +51,90 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     }
 
     @Override
+    public void recordUpload(Invoice invoice, User user) {
+        saveStatusHistory(invoice, invoice.getInvoiceStatus(), user, "Invoice uploaded");
+    }
+
+    @Override
+    public void startOcrAnalysis(Invoice invoice, User user) {
+        transitionTo(invoice, InvoiceStatusCode.OCR_EN_COURS, user, "OCR analysis started");
+    }
+
+    @Override
+    public void ensureCanRetryOcr(Invoice invoice) {
+        if (getCurrentStatusCode(invoice) != InvoiceStatusCode.ERREUR_OCR) {
+            throw new OcrRetryNotAllowedException(invoice.getInvoiceId());
+        }
+    }
+
+    @Override
+    public void restartOcrAnalysis(Invoice invoice, User user) {
+        ensureCanRetryOcr(invoice);
+        updateStatus(invoice, findByCode(InvoiceStatusCode.OCR_EN_COURS), user, "OCR retry started");
+    }
+
+    @Override
+    public void markOcrFailure(Invoice invoice, User user) {
+        transitionTo(invoice, InvoiceStatusCode.ERREUR_OCR, user, "OCR analysis failed");
+    }
+
+    @Override
+    public void completeOcrAnalysis(Invoice invoice, User user) {
+        transitionTo(invoice, InvoiceStatusCode.EXTRAITE, user, "OCR analysis completed");
+    }
+
+    @Override
+    public void ensureCanCorrect(Invoice invoice, boolean hasCorrections) {
+        if (!hasCorrections) {
+            return;
+        }
+
+        InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);
+        switch (currentCode) {
+            case EXTRAITE, A_VERIFIER, ERREUR_OCR, REJETEE -> {
+                return;
+            }
+            default -> throw InvoiceStatusTransitionException.forAction(
+                    invoice.getInvoiceId(),
+                    currentCode.getCode(),
+                    "be corrected"
+            );
+        }
+    }
+
+    @Override
+    public void moveToReviewAfterCorrectionIfNeeded(Invoice invoice, User user, boolean hasCorrections) {
+        if (!hasCorrections) {
+            return;
+        }
+
+        InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);
+        if (currentCode == InvoiceStatusCode.ERREUR_OCR || currentCode == InvoiceStatusCode.REJETEE) {
+            transitionTo(invoice, InvoiceStatusCode.A_VERIFIER, user, "Invoice corrected and ready for review");
+        }
+    }
+
+    @Override
+    public void validateInvoice(Invoice invoice, User user) {
+        transitionTo(invoice, InvoiceStatusCode.VALIDEE, user, "Invoice validated");
+    }
+
+    @Override
+    public void rejectInvoice(Invoice invoice, User user) {
+        transitionTo(invoice, InvoiceStatusCode.REJETEE, user, "Invoice rejected");
+    }
+
+    @Override
+    public void markExportable(Invoice invoice, User user) {
+        transitionTo(
+                invoice,
+                InvoiceStatusCode.EXPORTABLE,
+                user,
+                "Accounting entry generated and invoice marked exportable"
+        );
+    }
+
+    @Override
     public void ensureCanTransition(Invoice invoice, InvoiceStatusCode targetCode) {
         InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);
         if (currentCode == targetCode) {
@@ -76,25 +161,11 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
         updateStatus(invoice, findByCode(targetCode), user, comment);
     }
 
-    @Override
-    public void recordStatus(Invoice invoice, InvoiceStatus status, User user, String comment) {
-        saveStatusHistory(invoice, status, user, comment);
-    }
-
-    @Override
-    public void updateStatus(Invoice invoice, InvoiceStatus status, User user, String comment) {
+    private void updateStatus(Invoice invoice, InvoiceStatus status, User user, String comment) {
         invoice.setInvoiceStatus(status);
         invoice.setUpdatedAt(LocalDateTime.now());
         invoiceRepository.save(invoice);
         saveStatusHistory(invoice, status, user, comment);
-    }
-
-    @Override
-    public void updateStatusIfChanged(Invoice invoice, InvoiceStatus status, User user, String comment) {
-        if (getCurrentStatusCode(invoice).getCode().equals(status.getCode())) {
-            return;
-        }
-        updateStatus(invoice, status, user, comment);
     }
 
     private void saveStatusHistory(Invoice invoice, InvoiceStatus status, User user, String comment) {

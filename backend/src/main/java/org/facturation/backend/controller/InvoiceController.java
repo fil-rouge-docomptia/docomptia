@@ -93,6 +93,10 @@ public class InvoiceController {
 
     @PostMapping("/{id}/ocr/retry")
     @Operation(summary = "Relancer l'analyse OCR d'une facture en erreur")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Analyse OCR relancee"),
+            @ApiResponse(responseCode = "409", description = "Relance OCR interdite pour le statut courant")
+    })
     public ResponseEntity<InvoiceDetailsResponse> retryOcr(@PathVariable Long id) {
         return invoiceService.retryOcr(id)
                 .map(ResponseEntity::ok)
@@ -113,6 +117,11 @@ public class InvoiceController {
 
     @PatchMapping("/{id}")
     @Operation(summary = "Corriger manuellement une facture")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Facture corrigee"),
+            @ApiResponse(responseCode = "400", description = "Donnees de correction invalides"),
+            @ApiResponse(responseCode = "409", description = "Correction interdite pour le statut courant")
+    })
     public ResponseEntity<InvoiceDetailsResponse> correctInvoice(
             @PathVariable Long id,
             @RequestBody InvoiceCorrectionRequest request

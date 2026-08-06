@@ -81,6 +81,33 @@ class InvoiceLifecycleStatusIntegrationTest {
     }
 
     @Test
+    void rejectsCorrectionsOnceInvoiceIsValidated() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+        Invoice persistedBeforeCorrection = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+        String initialInvoiceNumber = persistedBeforeCorrection.getInvoiceNumber();
+        InvoiceCorrectionRequest request = new InvoiceCorrectionRequest();
+        request.setInvoiceNumber("INV-LOCKED-001");
+
+        InvoiceStatusTransitionException exception = assertThrows(
+                InvoiceStatusTransitionException.class,
+                () -> invoiceService.correctInvoice(uploadResponse.getInvoiceId(), request)
+        );
+        ResponseEntity<Map<String, String>> errorResponse =
+                apiExceptionHandler.handleInvoiceStatusTransition(exception);
+        Invoice persistedAfterCorrection = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+
+        assertEquals(
+                "Invoice " + uploadResponse.getInvoiceId() + " cannot be corrected from status VALIDEE",
+                exception.getMessage()
+        );
+        assertEquals(HttpStatus.CONFLICT, errorResponse.getStatusCode());
+        assertEquals(exception.getMessage(), errorResponse.getBody().get("message"));
+        assertEquals(InvoiceStatusCode.VALIDEE.getCode(), persistedAfterCorrection.getInvoiceStatus().getCode());
+        assertEquals(initialInvoiceNumber, persistedAfterCorrection.getInvoiceNumber());
+    }
+
+    @Test
     void marksValidatedInvoiceAsExportableWhenAccountingEntryIsGenerated() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
 
