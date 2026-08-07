@@ -71,8 +71,12 @@ http://ocr:8000/ocr/analyze
 | Methode | Endpoint | Role |
 | --- | --- | --- |
 | `POST` | `/api/v1/invoices/upload` | Upload, OCR et sauvegarde de la facture |
+| `PATCH` | `/api/v1/invoices/{id}` | Corrige les donnees extraites et conserve les valeurs OCR brutes |
 | `POST` | `/api/v1/invoices/{id}/accounting-entry` | Genere l'ecriture comptable apres validation |
 | `GET` | `/api/v1/invoices/{id}` | Retourne la facture, l'OCR et l'ecriture si elle existe |
+
+Le endpoint `PATCH /api/v1/invoices/{id}` retourne `400` avec un message explicite si
+le payload est invalide, et `409` si le statut courant interdit la correction.
 
 ## Stockage Des Fichiers
 

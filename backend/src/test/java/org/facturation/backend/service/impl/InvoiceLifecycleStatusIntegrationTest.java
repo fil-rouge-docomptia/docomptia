@@ -8,12 +8,18 @@ import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.exception.ApiExceptionHandler;
 import org.facturation.backend.exception.InvoiceMissingRequiredFieldsException;
 import org.facturation.backend.exception.InvoiceStatusTransitionException;
+import org.facturation.backend.model.AuditLog;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.InvoiceStatusHistory;
+import org.facturation.backend.model.OcrExtraction;
+import org.facturation.backend.model.OcrExtractionField;
 import org.facturation.backend.model.User;
+import org.facturation.backend.repository.AuditLogRepository;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.InvoiceStatusHistoryRepository;
+import org.facturation.backend.repository.OcrExtractionFieldRepository;
+import org.facturation.backend.repository.OcrExtractionRepository;
 import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.InvoiceService;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
@@ -26,19 +32,25 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
 @Transactional
 class InvoiceLifecycleStatusIntegrationTest {
 
     private final InvoiceService invoiceService;
+    private final AuditLogRepository auditLogRepository;
     private final InvoiceRepository invoiceRepository;
     private final InvoiceStatusHistoryRepository invoiceStatusHistoryRepository;
+    private final OcrExtractionRepository ocrExtractionRepository;
+    private final OcrExtractionFieldRepository ocrExtractionFieldRepository;
     private final InvoiceStatusWorkflowService invoiceStatusWorkflowService;
     private final UserRepository userRepository;
     private final ApiExceptionHandler apiExceptionHandler;
@@ -46,15 +58,21 @@ class InvoiceLifecycleStatusIntegrationTest {
     @Autowired
     InvoiceLifecycleStatusIntegrationTest(
             InvoiceService invoiceService,
+            AuditLogRepository auditLogRepository,
             InvoiceRepository invoiceRepository,
             InvoiceStatusHistoryRepository invoiceStatusHistoryRepository,
+            OcrExtractionRepository ocrExtractionRepository,
+            OcrExtractionFieldRepository ocrExtractionFieldRepository,
             InvoiceStatusWorkflowService invoiceStatusWorkflowService,
             UserRepository userRepository,
             ApiExceptionHandler apiExceptionHandler
     ) {
         this.invoiceService = invoiceService;
+        this.auditLogRepository = auditLogRepository;
         this.invoiceRepository = invoiceRepository;
         this.invoiceStatusHistoryRepository = invoiceStatusHistoryRepository;
+        this.ocrExtractionRepository = ocrExtractionRepository;
+        this.ocrExtractionFieldRepository = ocrExtractionFieldRepository;
         this.invoiceStatusWorkflowService = invoiceStatusWorkflowService;
         this.userRepository = userRepository;
         this.apiExceptionHandler = apiExceptionHandler;
@@ -205,6 +223,59 @@ class InvoiceLifecycleStatusIntegrationTest {
     }
 
     @Test
+    void persistsCorrectionTraceOnInvoiceAuditAndLatestOcrExtraction() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
+        correctionRequest.setInvoiceDate("2026-08-07");
+        correctionRequest.setTotalTtc("125.50");
+
+        InvoiceDetailsResponse correctedResponse = invoiceService
+                .correctInvoice(uploadResponse.getInvoiceId(), correctionRequest)
+                .orElseThrow();
+        Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+        OcrExtraction latestExtraction = ocrExtractionRepository
+                .findTopByInvoiceInvoiceIdOrderByOcrExtractionIdDesc(uploadResponse.getInvoiceId())
+                .orElseThrow();
+        List<OcrExtractionField> extractionFields = ocrExtractionFieldRepository
+                .findByOcrExtractionOcrExtractionId(latestExtraction.getOcrExtractionId());
+        List<AuditLog> correctionLogs = auditLogRepository.findAll().stream()
+                .filter(auditLog -> "Invoice".equals(auditLog.getEntityName()))
+                .filter(auditLog -> uploadResponse.getInvoiceId().equals(auditLog.getEntityId()))
+                .filter(auditLog -> "FIELD_CORRECTION".equals(auditLog.getAction()))
+                .toList();
+
+        OcrExtractionField invoiceDateField = findExtractionField(extractionFields, "invoiceDate");
+        OcrExtractionField totalTtcField = findExtractionField(extractionFields, "totalTtc");
+
+        assertEquals("2026-08-07", correctedResponse.getInvoiceDate());
+        assertEquals("125.50", correctedResponse.getTotalTtc());
+        assertEquals("2026-08-07", persistedInvoice.getInvoiceDate().toString());
+        assertEquals("125.50", persistedInvoice.getTotalTtc().toString());
+
+        assertNull(invoiceDateField.getRawValue());
+        assertEquals("2026-08-07", invoiceDateField.getNormalizedValue());
+        assertTrue(invoiceDateField.isCorrected());
+        assertEquals(1L, invoiceDateField.getCorrectedByUser().getUserId());
+
+        assertEquals("120.00", totalTtcField.getRawValue());
+        assertEquals("125.50", totalTtcField.getNormalizedValue());
+        assertTrue(totalTtcField.isCorrected());
+        assertEquals(1L, totalTtcField.getCorrectedByUser().getUserId());
+
+        assertEquals(2, correctionLogs.size());
+        assertTrue(correctionLogs.stream().allMatch(auditLog -> auditLog.getUser().getUserId().equals(1L)));
+        assertTrue(correctionLogs.stream().allMatch(auditLog -> auditLog.getOrganization().getOrganizationId().equals(1L)));
+        assertTrue(correctionLogs.stream().anyMatch(auditLog ->
+                "invoiceDate=null".equals(auditLog.getOldValue())
+                        && "invoiceDate=2026-08-07".equals(auditLog.getNewValue())
+        ));
+        assertTrue(correctionLogs.stream().anyMatch(auditLog ->
+                "totalTtc=120.00".equals(auditLog.getOldValue())
+                        && "totalTtc=125.50".equals(auditLog.getNewValue())
+        ));
+    }
+
+    @Test
     void marksValidatedInvoiceAsExportableWhenAccountingEntryIsGenerated() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
 
@@ -279,6 +350,13 @@ class InvoiceLifecycleStatusIntegrationTest {
         return invoiceStatusHistoryRepository.findAll().stream()
                 .filter(history -> invoiceId.equals(history.getInvoice().getInvoiceId()))
                 .max(Comparator.comparing(InvoiceStatusHistory::getInvoiceStatusHistoryId))
+                .orElseThrow();
+    }
+
+    private OcrExtractionField findExtractionField(List<OcrExtractionField> extractionFields, String fieldName) {
+        return extractionFields.stream()
+                .filter(field -> fieldName.equals(field.getFieldName()))
+                .findFirst()
                 .orElseThrow();
     }
 }

@@ -116,22 +116,25 @@ public class InvoiceController {
     }
 
     @PatchMapping("/{id}")
-    @Operation(summary = "Corriger manuellement une facture")
+    @Operation(
+            summary = "Corriger manuellement une facture",
+            description = "Met a jour les donnees extraites corrigees sans ecraser les valeurs OCR brutes"
+    )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Facture corrigee"),
             @ApiResponse(responseCode = "400", description = "Donnees de correction invalides"),
             @ApiResponse(responseCode = "409", description = "Correction interdite pour le statut courant")
     })
-    public ResponseEntity<InvoiceDetailsResponse> correctInvoice(
+    public ResponseEntity<?> correctInvoice(
             @PathVariable Long id,
             @RequestBody InvoiceCorrectionRequest request
     ) {
         try {
             return invoiceService.correctInvoice(id, request)
-                    .map(ResponseEntity::ok)
+                    .<ResponseEntity<?>>map(ResponseEntity::ok)
                     .orElseGet(() -> ResponseEntity.notFound().build());
         } catch (IllegalArgumentException exception) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest().body(Map.of("message", exception.getMessage()));
         }
     }
 
