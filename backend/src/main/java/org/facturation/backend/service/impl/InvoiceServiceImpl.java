@@ -10,6 +10,7 @@ import org.facturation.backend.dto.response.OcrAnalysisResponse;
 import org.facturation.backend.exception.InvoiceOcrFailureException;
 import org.facturation.backend.mapper.InvoiceResponseMapper;
 import org.facturation.backend.model.AccountingEntry;
+import org.facturation.backend.model.AuditLog;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceFile;
 import org.facturation.backend.model.InvoiceStatus;
@@ -23,6 +24,7 @@ import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.OrganizationRepository;
 import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.AccountingEntryService;
+import org.facturation.backend.service.AuditLogService;
 import org.facturation.backend.service.InvoiceFileValidator;
 import org.facturation.backend.service.InvoiceOcrService;
 import org.facturation.backend.service.InvoiceService;
@@ -45,6 +47,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -60,6 +63,7 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     private final InvoiceRepository invoiceRepository;
     private final AccountingEntryService accountingEntryService;
+    private final AuditLogService auditLogService;
     private final InvoiceFileValidator invoiceFileValidator;
     private final InvoiceResponseMapper invoiceResponseMapper;
     private final InvoiceOcrService invoiceOcrService;
@@ -74,6 +78,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
             AccountingEntryService accountingEntryService,
+            AuditLogService auditLogService,
             InvoiceFileValidator invoiceFileValidator,
             InvoiceResponseMapper invoiceResponseMapper,
             InvoiceOcrService invoiceOcrService,
@@ -87,6 +92,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     ) {
         this.invoiceRepository = invoiceRepository;
         this.accountingEntryService = accountingEntryService;
+        this.auditLogService = auditLogService;
         this.invoiceFileValidator = invoiceFileValidator;
         this.invoiceResponseMapper = invoiceResponseMapper;
         this.invoiceOcrService = invoiceOcrService;
@@ -206,12 +212,17 @@ public class InvoiceServiceImpl implements InvoiceService {
     public Optional<InvoiceDetailsResponse> correctInvoice(Long id, InvoiceCorrectionRequest request) {
         return invoiceRepository.findById(id).map(invoice -> {
             boolean hasCorrections = hasRequestedCorrections(request);
-            invoiceStatusWorkflowService.ensureCanCorrect(invoice, hasCorrections);
-            applyInvoiceCorrections(invoice, request);
+            if (!hasCorrections) {
+                throw new IllegalArgumentException("At least one correction field is required");
+            }
+
+            User user = findDefaultUser();
+            invoiceStatusWorkflowService.ensureCanCorrect(invoice, true);
+            List<AppliedCorrection> appliedCorrections = applyInvoiceCorrections(invoice, request);
             invoice.setUpdatedAt(LocalDateTime.now());
             Invoice savedInvoice = invoiceRepository.save(invoice);
-            User user = findDefaultUser();
-            invoiceStatusWorkflowService.moveToReviewAfterCorrectionIfNeeded(savedInvoice, user, hasCorrections);
+            persistAppliedCorrections(savedInvoice, user, appliedCorrections);
+            invoiceStatusWorkflowService.moveToReviewAfterCorrectionIfNeeded(savedInvoice, user, true);
             return invoiceResponseMapper.toDetailsResponse(savedInvoice);
         });
     }
@@ -248,38 +259,133 @@ public class InvoiceServiceImpl implements InvoiceService {
         });
     }
 
-    private void applyInvoiceCorrections(Invoice invoice, InvoiceCorrectionRequest request) {
+    private List<AppliedCorrection> applyInvoiceCorrections(Invoice invoice, InvoiceCorrectionRequest request) {
+        List<AppliedCorrection> appliedCorrections = new ArrayList<>();
+
         if (request.getInvoiceNumber() != null) {
-            invoice.setInvoiceNumber(requireNotBlank(request.getInvoiceNumber(), "invoiceNumber"));
+            String invoiceNumber = requireNotBlank(request.getInvoiceNumber(), "invoiceNumber");
+            registerCorrection(appliedCorrections, "invoiceNumber", invoice.getInvoiceNumber(), invoiceNumber);
+            invoice.setInvoiceNumber(invoiceNumber);
         }
 
         if (request.getCommandReference() != null) {
-            invoice.setCommandReference(toNullableValue(request.getCommandReference()));
+            String commandReference = toNullableValue(request.getCommandReference());
+            registerCorrection(
+                    appliedCorrections,
+                    "commandReference",
+                    invoice.getCommandReference(),
+                    commandReference
+            );
+            invoice.setCommandReference(commandReference);
         }
 
         if (request.getInvoiceDate() != null) {
-            invoice.setInvoiceDate(parseRequiredDate(request.getInvoiceDate(), "invoiceDate"));
+            LocalDate invoiceDate = parseRequiredDate(request.getInvoiceDate(), "invoiceDate");
+            registerCorrection(
+                    appliedCorrections,
+                    "invoiceDate",
+                    toStringOrNull(invoice.getInvoiceDate()),
+                    invoiceDate.toString()
+            );
+            invoice.setInvoiceDate(invoiceDate);
         }
 
         if (request.getDueDate() != null) {
-            invoice.setDueDate(parseOptionalDate(request.getDueDate(), "dueDate"));
+            LocalDate dueDate = parseOptionalDate(request.getDueDate(), "dueDate");
+            registerCorrection(
+                    appliedCorrections,
+                    "dueDate",
+                    toStringOrNull(invoice.getDueDate()),
+                    toStringOrNull(dueDate)
+            );
+            invoice.setDueDate(dueDate);
         }
 
         if (request.getTotalHt() != null) {
-            invoice.setTotalHt(parsePersistableAmount(request.getTotalHt(), "totalHt"));
+            BigDecimal totalHt = parsePersistableAmount(request.getTotalHt(), "totalHt");
+            registerCorrection(
+                    appliedCorrections,
+                    "totalHt",
+                    toStringOrNull(invoice.getTotalHt()),
+                    totalHt.toString()
+            );
+            invoice.setTotalHt(totalHt);
         }
 
         if (request.getTotalTva() != null) {
-            invoice.setTotalTva(parsePersistableAmount(request.getTotalTva(), "totalTva"));
+            BigDecimal totalTva = parsePersistableAmount(request.getTotalTva(), "totalTva");
+            registerCorrection(
+                    appliedCorrections,
+                    "totalTva",
+                    toStringOrNull(invoice.getTotalTva()),
+                    totalTva.toString()
+            );
+            invoice.setTotalTva(totalTva);
         }
 
         if (request.getTotalTtc() != null) {
-            invoice.setTotalTtc(parsePersistableAmount(request.getTotalTtc(), "totalTtc"));
+            BigDecimal totalTtc = parsePersistableAmount(request.getTotalTtc(), "totalTtc");
+            registerCorrection(
+                    appliedCorrections,
+                    "totalTtc",
+                    toStringOrNull(invoice.getTotalTtc()),
+                    totalTtc.toString()
+            );
+            invoice.setTotalTtc(totalTtc);
         }
 
         if (request.getSupplierName() != null) {
-            invoice.setSupplier(supplierService.findRequiredByName(invoice, request.getSupplierName()));
+            Supplier supplier = supplierService.findRequiredByName(invoice, request.getSupplierName());
+            registerCorrection(
+                    appliedCorrections,
+                    "supplierName",
+                    extractSupplierName(invoice.getSupplier()),
+                    extractSupplierName(supplier)
+            );
+            invoice.setSupplier(supplier);
         }
+
+        return appliedCorrections;
+    }
+
+    private void persistAppliedCorrections(Invoice invoice, User user, List<AppliedCorrection> appliedCorrections) {
+        for (AppliedCorrection appliedCorrection : appliedCorrections) {
+            invoiceOcrService.saveManualCorrection(invoice, appliedCorrection.fieldName(), appliedCorrection.newValue(), user);
+            auditLogService.save(createAuditLog(invoice, user, appliedCorrection));
+        }
+    }
+
+    private AuditLog createAuditLog(Invoice invoice, User user, AppliedCorrection appliedCorrection) {
+        AuditLog auditLog = new AuditLog();
+        auditLog.setOrganization(invoice.getOrganization());
+        auditLog.setUser(user);
+        auditLog.setEntityName(Invoice.class.getSimpleName());
+        auditLog.setEntityId(invoice.getInvoiceId());
+        auditLog.setAction("FIELD_CORRECTION");
+        auditLog.setOldValue(formatAuditValue(appliedCorrection.fieldName(), appliedCorrection.oldValue()));
+        auditLog.setNewValue(formatAuditValue(appliedCorrection.fieldName(), appliedCorrection.newValue()));
+        auditLog.setCreatedAt(LocalDateTime.now());
+        return auditLog;
+    }
+
+    private String formatAuditValue(String fieldName, String value) {
+        return fieldName + "=" + (value == null ? "null" : value);
+    }
+
+    private void registerCorrection(
+            List<AppliedCorrection> appliedCorrections,
+            String fieldName,
+            String oldValue,
+            String newValue
+    ) {
+        if (Objects.equals(oldValue, newValue)) {
+            return;
+        }
+        appliedCorrections.add(new AppliedCorrection(fieldName, oldValue, newValue));
+    }
+
+    private String extractSupplierName(Supplier supplier) {
+        return supplier == null ? null : supplier.getName();
     }
 
     private Organization findDefaultOrganization() {
@@ -398,6 +504,14 @@ public class InvoiceServiceImpl implements InvoiceService {
         return value == null || value.isBlank();
     }
 
+    private String toStringOrNull(LocalDate value) {
+        return value == null ? null : value.toString();
+    }
+
+    private String toStringOrNull(BigDecimal value) {
+        return value == null ? null : value.toString();
+    }
+
     private BigDecimal parsePersistableAmount(String value, String fieldName) {
         String normalizedValue = requireNotBlank(value, fieldName);
         try {
@@ -449,6 +563,9 @@ public class InvoiceServiceImpl implements InvoiceService {
                     predicates.toArray(new Predicate[0])
             );
         };
+    }
+
+    private record AppliedCorrection(String fieldName, String oldValue, String newValue) {
     }
 
 }

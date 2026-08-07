@@ -1,14 +1,25 @@
 package org.facturation.backend.dto.request;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
+@Schema(description = "Champs corrigeables d'une facture extraite. Au moins un champ doit etre fourni.")
 public class InvoiceCorrectionRequest {
 
+    @Schema(description = "Numero de facture corrige", example = "FAC-2026-001")
     private String invoiceNumber;
+    @Schema(description = "Reference de commande corrigee. Une chaine vide supprime la valeur.", example = "CMD-2026-042")
     private String commandReference;
+    @Schema(description = "Date de facture corrigee au format ISO", example = "2026-08-07")
     private String invoiceDate;
+    @Schema(description = "Date d'echeance corrigee au format ISO. Une chaine vide supprime la valeur.", example = "2026-09-06")
     private String dueDate;
+    @Schema(description = "Montant HT corrige avec deux decimales", example = "100.00")
     private String totalHt;
+    @Schema(description = "Montant de TVA corrige avec deux decimales", example = "20.00")
     private String totalTva;
+    @Schema(description = "Montant TTC corrige avec deux decimales", example = "120.00")
     private String totalTtc;
+    @Schema(description = "Nom ou raison sociale d'un fournisseur existant dans l'organisation courante", example = "Orange")
     private String supplierName;
 
     public String getInvoiceNumber() {

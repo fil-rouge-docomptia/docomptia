@@ -7,6 +7,7 @@ import org.facturation.backend.mapper.OcrAnalysisMapper;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.OcrExtraction;
 import org.facturation.backend.model.OcrExtractionField;
+import org.facturation.backend.model.User;
 import org.facturation.backend.repository.OcrExtractionFieldRepository;
 import org.facturation.backend.repository.OcrExtractionRepository;
 import org.facturation.backend.service.InvoiceOcrService;
@@ -72,6 +73,12 @@ public class InvoiceOcrServiceImpl implements InvoiceOcrService {
     }
 
     @Override
+    public void saveManualCorrection(Invoice invoice, String fieldName, String normalizedValue, User user) {
+        ocrExtractionRepository.findTopByInvoiceInvoiceIdOrderByOcrExtractionIdDesc(invoice.getInvoiceId())
+                .ifPresent(ocrExtraction -> saveManualCorrectionField(ocrExtraction, fieldName, normalizedValue, user));
+    }
+
+    @Override
     public Optional<String> extractOptionalNormalizedValue(OcrAnalysisResponse response, String fieldName) {
         return response.getFields().stream()
                 .filter(field -> fieldName.equals(field.getFieldName()))
@@ -109,6 +116,28 @@ public class InvoiceOcrServiceImpl implements InvoiceOcrService {
         }
     }
 
+    private void saveManualCorrectionField(
+            OcrExtraction ocrExtraction,
+            String fieldName,
+            String normalizedValue,
+            User user
+    ) {
+        var existingField = ocrExtractionFieldRepository.findByOcrExtractionOcrExtractionId(ocrExtraction.getOcrExtractionId())
+                .stream()
+                .filter(field -> fieldName.equals(field.getFieldName()))
+                .findFirst();
+        if (existingField.isEmpty() && normalizedValue == null) {
+            return;
+        }
+
+        OcrExtractionField field = existingField.orElseGet(() -> createManualCorrectionField(ocrExtraction, fieldName));
+        field.setNormalizedValue(normalizedValue);
+        field.setCorrected(true);
+        field.setCorrectedByUser(user);
+        field.setUpdatedAt(LocalDateTime.now());
+        ocrExtractionFieldRepository.save(field);
+    }
+
     private OcrExtractionField createOcrExtractionField(OcrExtraction ocrExtraction, OcrFieldResponse field) {
         OcrExtractionField extractionField = new OcrExtractionField();
         extractionField.setOcrExtraction(ocrExtraction);
@@ -117,6 +146,15 @@ public class InvoiceOcrServiceImpl implements InvoiceOcrService {
         extractionField.setNormalizedValue(field.getNormalizedValue());
         extractionField.setConfidenceScore(toBigDecimal(field.getConfidenceScore()).orElse(null));
         extractionField.setCorrected(false);
+        extractionField.setCreatedAt(LocalDateTime.now());
+        extractionField.setUpdatedAt(LocalDateTime.now());
+        return extractionField;
+    }
+
+    private OcrExtractionField createManualCorrectionField(OcrExtraction ocrExtraction, String fieldName) {
+        OcrExtractionField extractionField = new OcrExtractionField();
+        extractionField.setOcrExtraction(ocrExtraction);
+        extractionField.setFieldName(fieldName);
         extractionField.setCreatedAt(LocalDateTime.now());
         extractionField.setUpdatedAt(LocalDateTime.now());
         return extractionField;
