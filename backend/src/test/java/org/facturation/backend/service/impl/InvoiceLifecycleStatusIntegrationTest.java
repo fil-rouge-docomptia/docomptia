@@ -6,6 +6,7 @@ import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.exception.ApiExceptionHandler;
+import org.facturation.backend.exception.InvoiceMissingRequiredFieldsException;
 import org.facturation.backend.exception.InvoiceStatusTransitionException;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatusCode;
@@ -149,6 +150,58 @@ class InvoiceLifecycleStatusIntegrationTest {
         assertEquals(HttpStatus.CONFLICT, errorResponse.getStatusCode());
         assertEquals(exception.getMessage(), errorResponse.getBody().get("message"));
         assertEquals(InvoiceStatusCode.REJETEE.getCode(), persistedInvoice.getInvoiceStatus().getCode());
+    }
+
+    @Test
+    void returnsExplicitErrorWhenReviewedInvoiceIsMissingRequiredFields() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        invoiceService.rejectInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+
+        InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
+        correctionRequest.setCommandReference("CMD-REVIEW-001");
+        InvoiceDetailsResponse reviewedResponse = invoiceService
+                .correctInvoice(uploadResponse.getInvoiceId(), correctionRequest)
+                .orElseThrow();
+
+        InvoiceMissingRequiredFieldsException exception = assertThrows(
+                InvoiceMissingRequiredFieldsException.class,
+                () -> invoiceService.validateInvoice(uploadResponse.getInvoiceId())
+        );
+        ResponseEntity<Map<String, String>> errorResponse =
+                apiExceptionHandler.handleInvoiceMissingRequiredFields(exception);
+        Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+
+        assertEquals(InvoiceStatusCode.A_VERIFIER.getCode(), reviewedResponse.getStatus());
+        assertEquals(
+                "Invoice " + uploadResponse.getInvoiceId()
+                        + " cannot be validated from status A_VERIFIER because required fields are missing: invoiceDate",
+                exception.getMessage()
+        );
+        assertEquals(HttpStatus.CONFLICT, errorResponse.getStatusCode());
+        assertEquals(exception.getMessage(), errorResponse.getBody().get("message"));
+        assertEquals(InvoiceStatusCode.A_VERIFIER.getCode(), persistedInvoice.getInvoiceStatus().getCode());
+    }
+
+    @Test
+    void validatesReviewedInvoiceWhenRequiredFieldsArePresent() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        invoiceService.rejectInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+
+        InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
+        correctionRequest.setInvoiceDate("2026-08-07");
+        InvoiceDetailsResponse reviewedResponse = invoiceService
+                .correctInvoice(uploadResponse.getInvoiceId(), correctionRequest)
+                .orElseThrow();
+
+        InvoiceStatusResponse validationResponse = invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+        Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+        InvoiceStatusHistory latestHistory = findLatestHistory(uploadResponse.getInvoiceId());
+
+        assertEquals(InvoiceStatusCode.A_VERIFIER.getCode(), reviewedResponse.getStatus());
+        assertEquals("2026-08-07", reviewedResponse.getInvoiceDate());
+        assertEquals(InvoiceStatusCode.VALIDEE.getCode(), validationResponse.getStatus());
+        assertEquals(InvoiceStatusCode.VALIDEE.getCode(), persistedInvoice.getInvoiceStatus().getCode());
+        assertEquals(InvoiceStatusCode.VALIDEE.getCode(), latestHistory.getInvoiceStatus().getCode());
     }
 
     @Test
