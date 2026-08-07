@@ -108,6 +108,50 @@ class InvoiceLifecycleStatusIntegrationTest {
     }
 
     @Test
+    void returnsExplicitErrorWhenInvoiceIsAlreadyValidated() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+
+        InvoiceStatusTransitionException exception = assertThrows(
+                InvoiceStatusTransitionException.class,
+                () -> invoiceService.validateInvoice(uploadResponse.getInvoiceId())
+        );
+        ResponseEntity<Map<String, String>> errorResponse =
+                apiExceptionHandler.handleInvoiceStatusTransition(exception);
+        Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+
+        assertEquals(
+                "Invoice " + uploadResponse.getInvoiceId() + " cannot be validated from status VALIDEE",
+                exception.getMessage()
+        );
+        assertEquals(HttpStatus.CONFLICT, errorResponse.getStatusCode());
+        assertEquals(exception.getMessage(), errorResponse.getBody().get("message"));
+        assertEquals(InvoiceStatusCode.VALIDEE.getCode(), persistedInvoice.getInvoiceStatus().getCode());
+    }
+
+    @Test
+    void returnsExplicitErrorWhenInvoiceIsAlreadyRejected() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        invoiceService.rejectInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+
+        InvoiceStatusTransitionException exception = assertThrows(
+                InvoiceStatusTransitionException.class,
+                () -> invoiceService.rejectInvoice(uploadResponse.getInvoiceId())
+        );
+        ResponseEntity<Map<String, String>> errorResponse =
+                apiExceptionHandler.handleInvoiceStatusTransition(exception);
+        Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+
+        assertEquals(
+                "Invoice " + uploadResponse.getInvoiceId() + " cannot be rejected from status REJETEE",
+                exception.getMessage()
+        );
+        assertEquals(HttpStatus.CONFLICT, errorResponse.getStatusCode());
+        assertEquals(exception.getMessage(), errorResponse.getBody().get("message"));
+        assertEquals(InvoiceStatusCode.REJETEE.getCode(), persistedInvoice.getInvoiceStatus().getCode());
+    }
+
+    @Test
     void marksValidatedInvoiceAsExportableWhenAccountingEntryIsGenerated() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
 
