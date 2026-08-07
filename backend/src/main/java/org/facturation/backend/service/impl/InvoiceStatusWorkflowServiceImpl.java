@@ -116,11 +116,13 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
 
     @Override
     public void validateInvoice(Invoice invoice, User user) {
+        ensureStatusChangeRequested(invoice, InvoiceStatusCode.VALIDEE, "be validated");
         transitionTo(invoice, InvoiceStatusCode.VALIDEE, user, "Invoice validated");
     }
 
     @Override
     public void rejectInvoice(Invoice invoice, User user) {
+        ensureStatusChangeRequested(invoice, InvoiceStatusCode.REJETEE, "be rejected");
         transitionTo(invoice, InvoiceStatusCode.REJETEE, user, "Invoice rejected");
     }
 
@@ -159,6 +161,17 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
         }
         ensureCanTransition(invoice, targetCode);
         updateStatus(invoice, findByCode(targetCode), user, comment);
+    }
+
+    private void ensureStatusChangeRequested(Invoice invoice, InvoiceStatusCode targetCode, String action) {
+        InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);
+        if (currentCode == targetCode) {
+            throw InvoiceStatusTransitionException.forAction(
+                    invoice.getInvoiceId(),
+                    currentCode.getCode(),
+                    action
+            );
+        }
     }
 
     private void updateStatus(Invoice invoice, InvoiceStatus status, User user, String comment) {
