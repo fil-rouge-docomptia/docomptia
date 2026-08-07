@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 
+import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -51,7 +52,10 @@ class InvoiceCorrectionControllerIntegrationTest {
                 .andExpect(jsonPath("$.invoiceId").value(uploadResponse.getInvoiceId()))
                 .andExpect(jsonPath("$.status").value("EXTRAITE"))
                 .andExpect(jsonPath("$.invoiceDate").value("2026-08-07"))
-                .andExpect(jsonPath("$.totalTtc").value("125.50"));
+                .andExpect(jsonPath("$.totalTtc").value("125.50"))
+                .andExpect(jsonPath("$.ocrAnalysis.fields[?(@.fieldName=='invoiceDate')].corrected", contains(true)))
+                .andExpect(jsonPath("$.ocrAnalysis.fields[?(@.fieldName=='totalTtc')].corrected", contains(true)))
+                .andExpect(jsonPath("$.ocrAnalysis.fields[?(@.fieldName=='supplierName')].corrected", contains(false)));
     }
 
     @Test

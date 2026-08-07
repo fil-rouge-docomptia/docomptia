@@ -28,6 +28,7 @@ public class OcrAnalysisMapper {
         response.setRawValue(field.getRawValue());
         response.setNormalizedValue(field.getNormalizedValue());
         response.setConfidenceScore(field.getConfidenceScore() == null ? null : field.getConfidenceScore().toString());
+        response.setCorrected(field.isCorrected());
         return response;
     }
 }
