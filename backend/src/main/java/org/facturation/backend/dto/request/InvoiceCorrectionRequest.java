@@ -2,7 +2,7 @@ package org.facturation.backend.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-@Schema(description = "Champs corrigeables d'une facture extraite. Au moins un champ doit etre fourni.")
+@Schema(description = "Champs corrigeables d'une facture extraite. Au moins un champ doit etre fourni et modifier une valeur.")
 public class InvoiceCorrectionRequest {
 
     @Schema(description = "Numero de facture corrige", example = "FAC-2026-001")

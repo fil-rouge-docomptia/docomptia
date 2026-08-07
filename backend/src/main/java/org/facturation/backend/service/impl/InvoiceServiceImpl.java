@@ -219,6 +219,9 @@ public class InvoiceServiceImpl implements InvoiceService {
             User user = findDefaultUser();
             invoiceStatusWorkflowService.ensureCanCorrect(invoice, true);
             List<AppliedCorrection> appliedCorrections = applyInvoiceCorrections(invoice, request);
+            if (appliedCorrections.isEmpty()) {
+                throw new IllegalArgumentException("At least one changed field is required");
+            }
             invoice.setUpdatedAt(LocalDateTime.now());
             Invoice savedInvoice = invoiceRepository.save(invoice);
             persistAppliedCorrections(savedInvoice, user, appliedCorrections);
