@@ -118,11 +118,11 @@ public class InvoiceController {
     @PatchMapping("/{id}")
     @Operation(
             summary = "Corriger manuellement une facture",
-            description = "Met a jour les donnees extraites corrigees sans ecraser les valeurs OCR brutes"
+            description = "Met a jour les donnees extraites corrigees sans ecraser les valeurs OCR brutes et enregistre la valeur avant et apres chaque champ modifie"
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Facture corrigee"),
-            @ApiResponse(responseCode = "400", description = "Donnees de correction invalides"),
+            @ApiResponse(responseCode = "400", description = "Donnees de correction invalides ou aucune modification effective"),
             @ApiResponse(responseCode = "409", description = "Correction interdite pour le statut courant")
     })
     public ResponseEntity<?> correctInvoice(

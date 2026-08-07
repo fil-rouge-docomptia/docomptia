@@ -225,12 +225,18 @@ class InvoiceLifecycleStatusIntegrationTest {
     @Test
     void persistsCorrectionTraceOnInvoiceAuditAndLatestOcrExtraction() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
-        InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
-        correctionRequest.setInvoiceDate("2026-08-07");
-        correctionRequest.setTotalTtc("125.50");
+        InvoiceCorrectionRequest firstCorrectionRequest = new InvoiceCorrectionRequest();
+        firstCorrectionRequest.setInvoiceDate("2026-08-07");
+        firstCorrectionRequest.setTotalTtc("125.50");
 
+        InvoiceDetailsResponse firstCorrectionResponse = invoiceService
+                .correctInvoice(uploadResponse.getInvoiceId(), firstCorrectionRequest)
+                .orElseThrow();
+
+        InvoiceCorrectionRequest secondCorrectionRequest = new InvoiceCorrectionRequest();
+        secondCorrectionRequest.setTotalTtc("130.00");
         InvoiceDetailsResponse correctedResponse = invoiceService
-                .correctInvoice(uploadResponse.getInvoiceId(), correctionRequest)
+                .correctInvoice(uploadResponse.getInvoiceId(), secondCorrectionRequest)
                 .orElseThrow();
         Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
         OcrExtraction latestExtraction = ocrExtractionRepository
@@ -247,10 +253,12 @@ class InvoiceLifecycleStatusIntegrationTest {
         OcrExtractionField invoiceDateField = findExtractionField(extractionFields, "invoiceDate");
         OcrExtractionField totalTtcField = findExtractionField(extractionFields, "totalTtc");
 
+        assertEquals("2026-08-07", firstCorrectionResponse.getInvoiceDate());
+        assertEquals("125.50", firstCorrectionResponse.getTotalTtc());
         assertEquals("2026-08-07", correctedResponse.getInvoiceDate());
-        assertEquals("125.50", correctedResponse.getTotalTtc());
+        assertEquals("130.00", correctedResponse.getTotalTtc());
         assertEquals("2026-08-07", persistedInvoice.getInvoiceDate().toString());
-        assertEquals("125.50", persistedInvoice.getTotalTtc().toString());
+        assertEquals("130.00", persistedInvoice.getTotalTtc().toString());
 
         assertNull(invoiceDateField.getRawValue());
         assertEquals("2026-08-07", invoiceDateField.getNormalizedValue());
@@ -258,11 +266,11 @@ class InvoiceLifecycleStatusIntegrationTest {
         assertEquals(1L, invoiceDateField.getCorrectedByUser().getUserId());
 
         assertEquals("120.00", totalTtcField.getRawValue());
-        assertEquals("125.50", totalTtcField.getNormalizedValue());
+        assertEquals("130.00", totalTtcField.getNormalizedValue());
         assertTrue(totalTtcField.isCorrected());
         assertEquals(1L, totalTtcField.getCorrectedByUser().getUserId());
 
-        assertEquals(2, correctionLogs.size());
+        assertEquals(3, correctionLogs.size());
         assertTrue(correctionLogs.stream().allMatch(auditLog -> auditLog.getUser().getUserId().equals(1L)));
         assertTrue(correctionLogs.stream().allMatch(auditLog -> auditLog.getOrganization().getOrganizationId().equals(1L)));
         assertTrue(correctionLogs.stream().anyMatch(auditLog ->
@@ -273,6 +281,37 @@ class InvoiceLifecycleStatusIntegrationTest {
                 "totalTtc=120.00".equals(auditLog.getOldValue())
                         && "totalTtc=125.50".equals(auditLog.getNewValue())
         ));
+        assertTrue(correctionLogs.stream().anyMatch(auditLog ->
+                "totalTtc=125.50".equals(auditLog.getOldValue())
+                        && "totalTtc=130.00".equals(auditLog.getNewValue())
+        ));
+    }
+
+    @Test
+    void rejectsNoOpCorrectionWithoutChangingStatusOrAuditTrace() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        invoiceService.rejectInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+        long correctionLogCountBefore = countCorrectionLogs(uploadResponse.getInvoiceId());
+        InvoiceStatusHistory latestHistoryBefore = findLatestHistory(uploadResponse.getInvoiceId());
+
+        InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
+        correctionRequest.setTotalTtc("120.00");
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> invoiceService.correctInvoice(uploadResponse.getInvoiceId(), correctionRequest)
+        );
+        Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+        InvoiceStatusHistory latestHistoryAfter = findLatestHistory(uploadResponse.getInvoiceId());
+
+        assertEquals("At least one changed field is required", exception.getMessage());
+        assertEquals(InvoiceStatusCode.REJETEE.getCode(), persistedInvoice.getInvoiceStatus().getCode());
+        assertEquals("120.00", persistedInvoice.getTotalTtc().toString());
+        assertEquals(correctionLogCountBefore, countCorrectionLogs(uploadResponse.getInvoiceId()));
+        assertEquals(
+                latestHistoryBefore.getInvoiceStatusHistoryId(),
+                latestHistoryAfter.getInvoiceStatusHistoryId()
+        );
     }
 
     @Test
@@ -358,5 +397,13 @@ class InvoiceLifecycleStatusIntegrationTest {
                 .filter(field -> fieldName.equals(field.getFieldName()))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private long countCorrectionLogs(Long invoiceId) {
+        return auditLogRepository.findAll().stream()
+                .filter(auditLog -> "Invoice".equals(auditLog.getEntityName()))
+                .filter(auditLog -> invoiceId.equals(auditLog.getEntityId()))
+                .filter(auditLog -> "FIELD_CORRECTION".equals(auditLog.getAction()))
+                .count();
     }
 }
