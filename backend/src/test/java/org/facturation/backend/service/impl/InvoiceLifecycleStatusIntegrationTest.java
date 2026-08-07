@@ -5,6 +5,7 @@ import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
+import org.facturation.backend.dto.response.OcrFieldResponse;
 import org.facturation.backend.exception.ApiExceptionHandler;
 import org.facturation.backend.exception.InvoiceMissingRequiredFieldsException;
 import org.facturation.backend.exception.InvoiceStatusTransitionException;
@@ -36,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -250,6 +252,9 @@ class InvoiceLifecycleStatusIntegrationTest {
                 .filter(auditLog -> "FIELD_CORRECTION".equals(auditLog.getAction()))
                 .toList();
 
+        OcrFieldResponse correctedInvoiceDateResponseField = findResponseField(correctedResponse, "invoiceDate");
+        OcrFieldResponse correctedTotalTtcResponseField = findResponseField(correctedResponse, "totalTtc");
+        OcrFieldResponse unchangedSupplierResponseField = findResponseField(correctedResponse, "supplierName");
         OcrExtractionField invoiceDateField = findExtractionField(extractionFields, "invoiceDate");
         OcrExtractionField totalTtcField = findExtractionField(extractionFields, "totalTtc");
 
@@ -259,6 +264,9 @@ class InvoiceLifecycleStatusIntegrationTest {
         assertEquals("130.00", correctedResponse.getTotalTtc());
         assertEquals("2026-08-07", persistedInvoice.getInvoiceDate().toString());
         assertEquals("130.00", persistedInvoice.getTotalTtc().toString());
+        assertTrue(correctedInvoiceDateResponseField.isCorrected());
+        assertTrue(correctedTotalTtcResponseField.isCorrected());
+        assertFalse(unchangedSupplierResponseField.isCorrected());
 
         assertNull(invoiceDateField.getRawValue());
         assertEquals("2026-08-07", invoiceDateField.getNormalizedValue());
@@ -394,6 +402,13 @@ class InvoiceLifecycleStatusIntegrationTest {
 
     private OcrExtractionField findExtractionField(List<OcrExtractionField> extractionFields, String fieldName) {
         return extractionFields.stream()
+                .filter(field -> fieldName.equals(field.getFieldName()))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private OcrFieldResponse findResponseField(InvoiceDetailsResponse response, String fieldName) {
+        return response.getOcrAnalysis().getFields().stream()
                 .filter(field -> fieldName.equals(field.getFieldName()))
                 .findFirst()
                 .orElseThrow();
