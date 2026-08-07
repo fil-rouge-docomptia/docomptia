@@ -46,4 +46,11 @@ public class ApiExceptionHandler {
     ) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", exception.getMessage()));
     }
+
+    @ExceptionHandler(InvoiceMissingRequiredFieldsException.class)
+    public ResponseEntity<Map<String, String>> handleInvoiceMissingRequiredFields(
+            InvoiceMissingRequiredFieldsException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", exception.getMessage()));
+    }
 }

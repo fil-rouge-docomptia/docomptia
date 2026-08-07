@@ -1,5 +1,6 @@
 package org.facturation.backend.service.impl;
 
+import org.facturation.backend.exception.InvoiceMissingRequiredFieldsException;
 import org.facturation.backend.exception.InvoiceStatusTransitionException;
 import org.facturation.backend.exception.OcrRetryNotAllowedException;
 import org.facturation.backend.model.Invoice;
@@ -13,9 +14,11 @@ import org.facturation.backend.repository.InvoiceStatusRepository;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.time.LocalDateTime;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -117,6 +120,7 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     @Override
     public void validateInvoice(Invoice invoice, User user) {
         ensureStatusChangeRequested(invoice, InvoiceStatusCode.VALIDEE, "be validated");
+        ensureRequiredFieldsBeforeLeavingReview(invoice);
         transitionTo(invoice, InvoiceStatusCode.VALIDEE, user, "Invoice validated");
     }
 
@@ -174,6 +178,41 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
         }
     }
 
+    private void ensureRequiredFieldsBeforeLeavingReview(Invoice invoice) {
+        InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);
+        if (currentCode != InvoiceStatusCode.A_VERIFIER) {
+            return;
+        }
+
+        List<String> missingFields = new ArrayList<>();
+        if (invoice.getSupplier() == null) {
+            missingFields.add("supplierName");
+        }
+        if (isBlank(invoice.getInvoiceNumber())) {
+            missingFields.add("invoiceNumber");
+        }
+        if (invoice.getInvoiceDate() == null) {
+            missingFields.add("invoiceDate");
+        }
+        if (invoice.getTotalHt() == null) {
+            missingFields.add("totalHt");
+        }
+        if (invoice.getTotalTva() == null) {
+            missingFields.add("totalTva");
+        }
+        if (invoice.getTotalTtc() == null) {
+            missingFields.add("totalTtc");
+        }
+
+        if (!missingFields.isEmpty()) {
+            throw new InvoiceMissingRequiredFieldsException(
+                    invoice.getInvoiceId(),
+                    currentCode.getCode(),
+                    missingFields
+            );
+        }
+    }
+
     private void updateStatus(Invoice invoice, InvoiceStatus status, User user, String comment) {
         invoice.setInvoiceStatus(status);
         invoice.setUpdatedAt(LocalDateTime.now());
@@ -197,6 +236,10 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
                 .map(InvoiceStatus::getCode)
                 .orElseThrow(() -> new IllegalStateException("Invoice status " + statusId + " not found"));
         return InvoiceStatusCode.fromCode(code);
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private static Map<InvoiceStatusCode, Set<InvoiceStatusCode>> buildAllowedPreviousStatuses() {

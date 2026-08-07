@@ -139,7 +139,10 @@ public class InvoiceController {
     @Operation(summary = "Valider une facture")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Facture validee"),
-            @ApiResponse(responseCode = "409", description = "Transition de statut invalide")
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "Transition de statut invalide ou champs obligatoires manquants"
+            )
     })
     public ResponseEntity<InvoiceStatusResponse> validateInvoice(@PathVariable Long id) {
         return invoiceService.validateInvoice(id)
