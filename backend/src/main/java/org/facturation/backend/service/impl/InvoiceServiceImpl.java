@@ -8,7 +8,6 @@ import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
 import org.facturation.backend.exception.InvoiceOcrFailureException;
-import org.facturation.backend.exception.OcrRetryNotAllowedException;
 import org.facturation.backend.mapper.InvoiceResponseMapper;
 import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.Invoice;
@@ -124,9 +123,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         InvoiceStatus depositedStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.DEPOSEE);
 
         Invoice invoice = createDraftInvoice(organization, user, depositedStatus);
-        invoiceStatusWorkflowService.recordStatus(invoice, depositedStatus, user, "Invoice uploaded");
+        invoiceStatusWorkflowService.recordUpload(invoice, user);
         saveInvoiceFile(invoice, file);
-        invoiceStatusWorkflowService.transitionTo(invoice, InvoiceStatusCode.OCR_EN_COURS, user, "OCR analysis started");
+        invoiceStatusWorkflowService.startOcrAnalysis(invoice, user);
 
         OcrAnalysisResponse ocrAnalysis = analyzeInvoice(invoice, user, file);
         Supplier supplier = supplierService.resolveForInvoiceUpload(supplierId, organization, ocrAnalysis);
@@ -138,14 +137,12 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     public Optional<InvoiceDetailsResponse> retryOcr(Long invoiceId) {
         return invoiceRepository.findForOcrRetryByInvoiceId(invoiceId).map(invoice -> {
-            ensureOcrRetryAllowed(invoice);
-
+            invoiceStatusWorkflowService.ensureCanRetryOcr(invoice);
             InvoiceFile invoiceFile = invoiceFileRepository.findByInvoiceInvoiceId(invoiceId)
                     .orElseThrow(() -> new IllegalStateException("Stored invoice file not found"));
             MultipartFile file = invoiceFileStorageService.load(invoiceFile);
             User user = findDefaultUser();
-            InvoiceStatus ocrInProgressStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.OCR_EN_COURS);
-            invoiceStatusWorkflowService.updateStatus(invoice, ocrInProgressStatus, user, "OCR retry started");
+            invoiceStatusWorkflowService.restartOcrAnalysis(invoice, user);
 
             OcrAnalysisResponse ocrAnalysis = analyzeInvoice(invoice, user, file);
             Supplier supplier = invoice.getSupplier() == null
@@ -161,7 +158,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         try {
             return invoiceOcrService.analyze(file);
         } catch (RuntimeException exception) {
-            invoiceStatusWorkflowService.transitionTo(invoice, InvoiceStatusCode.ERREUR_OCR, user, "OCR analysis failed");
+            invoiceStatusWorkflowService.markOcrFailure(invoice, user);
             OcrError ocrError = ocrErrorService.recordFailure(invoice, exception);
             throw new InvoiceOcrFailureException(invoice.getInvoiceId(), ocrError, exception);
         }
@@ -177,14 +174,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         Invoice savedInvoice = invoiceRepository.save(invoice);
         invoiceOcrService.saveExtraction(savedInvoice, ocrAnalysis);
 
-        invoiceStatusWorkflowService.transitionTo(savedInvoice, InvoiceStatusCode.EXTRAITE, user, "OCR analysis completed");
+        invoiceStatusWorkflowService.completeOcrAnalysis(savedInvoice, user);
         return savedInvoice;
-    }
-
-    private void ensureOcrRetryAllowed(Invoice invoice) {
-        if (!InvoiceStatusCode.ERREUR_OCR.getCode().equals(invoice.getInvoiceStatus().getCode())) {
-            throw new OcrRetryNotAllowedException(invoice.getInvoiceId());
-        }
     }
 
     @Override
@@ -214,18 +205,13 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Transactional
     public Optional<InvoiceDetailsResponse> correctInvoice(Long id, InvoiceCorrectionRequest request) {
         return invoiceRepository.findById(id).map(invoice -> {
+            boolean hasCorrections = hasRequestedCorrections(request);
+            invoiceStatusWorkflowService.ensureCanCorrect(invoice, hasCorrections);
             applyInvoiceCorrections(invoice, request);
             invoice.setUpdatedAt(LocalDateTime.now());
             Invoice savedInvoice = invoiceRepository.save(invoice);
-            if (shouldMoveToReviewAfterCorrection(savedInvoice, request)) {
-                User user = findDefaultUser();
-                invoiceStatusWorkflowService.transitionTo(
-                        savedInvoice,
-                        InvoiceStatusCode.A_VERIFIER,
-                        user,
-                        "Invoice corrected and ready for review"
-                );
-            }
+            User user = findDefaultUser();
+            invoiceStatusWorkflowService.moveToReviewAfterCorrectionIfNeeded(savedInvoice, user, hasCorrections);
             return invoiceResponseMapper.toDetailsResponse(savedInvoice);
         });
     }
@@ -233,13 +219,21 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional
     public Optional<InvoiceStatusResponse> validateInvoice(Long id) {
-        return updateInvoiceStatus(id, InvoiceStatusCode.VALIDEE, "Invoice validated");
+        return invoiceRepository.findById(id).map(invoice -> {
+            User user = findDefaultUser();
+            invoiceStatusWorkflowService.validateInvoice(invoice, user);
+            return invoiceResponseMapper.toStatusResponse(invoice);
+        });
     }
 
     @Override
     @Transactional
     public Optional<InvoiceStatusResponse> rejectInvoice(Long id) {
-        return updateInvoiceStatus(id, InvoiceStatusCode.REJETEE, "Invoice rejected");
+        return invoiceRepository.findById(id).map(invoice -> {
+            User user = findDefaultUser();
+            invoiceStatusWorkflowService.rejectInvoice(invoice, user);
+            return invoiceResponseMapper.toStatusResponse(invoice);
+        });
     }
 
     @Override
@@ -249,12 +243,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             User user = findDefaultUser();
             invoiceStatusWorkflowService.ensureCanTransition(invoice, InvoiceStatusCode.EXPORTABLE);
             AccountingEntry accountingEntry = accountingEntryService.generateFromInvoice(invoice, user);
-            invoiceStatusWorkflowService.transitionTo(
-                    invoice,
-                    InvoiceStatusCode.EXPORTABLE,
-                    user,
-                    "Accounting entry generated and invoice marked exportable"
-            );
+            invoiceStatusWorkflowService.markExportable(invoice, user);
             return invoiceResponseMapper.toAccountingEntryResponse(invoice, accountingEntry);
         });
     }
@@ -347,28 +336,6 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoiceFile.setFileSize(storedFile.fileSize());
         invoiceFile.setUploadedAt(LocalDateTime.now());
         return invoiceFileRepository.save(invoiceFile);
-    }
-
-    private Optional<InvoiceStatusResponse> updateInvoiceStatus(
-            Long invoiceId,
-            InvoiceStatusCode statusCode,
-            String comment
-    ) {
-        return invoiceRepository.findById(invoiceId).map(invoice -> {
-            User user = findDefaultUser();
-            invoiceStatusWorkflowService.transitionTo(invoice, statusCode, user, comment);
-            return invoiceResponseMapper.toStatusResponse(invoice);
-        });
-    }
-
-    private boolean shouldMoveToReviewAfterCorrection(Invoice invoice, InvoiceCorrectionRequest request) {
-        if (!hasRequestedCorrections(request)) {
-            return false;
-        }
-        return switch (InvoiceStatusCode.fromCode(invoice.getInvoiceStatus().getCode())) {
-            case ERREUR_OCR, REJETEE -> true;
-            default -> false;
-        };
     }
 
     private boolean hasRequestedCorrections(InvoiceCorrectionRequest request) {
