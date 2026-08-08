@@ -9,6 +9,8 @@ import java.util.Optional;
 
 public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpecificationExecutor<Invoice> {
 
+    boolean existsByInvoiceIdAndOrganizationOrganizationId(Long invoiceId, Long organizationId);
+
     @EntityGraph(attributePaths = {"invoiceStatus", "organization", "supplier"})
     Optional<Invoice> findForOcrRetryByInvoiceId(Long invoiceId);
 }
