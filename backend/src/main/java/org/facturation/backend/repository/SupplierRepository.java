@@ -20,4 +20,16 @@ public interface SupplierRepository extends JpaRepository<Supplier, Long> {
     Optional<Supplier> findByOrganizationOrganizationIdAndSiret(Long organizationId, String siret);
 
     Optional<Supplier> findByOrganizationOrganizationIdAndVatNumberIgnoreCase(Long organizationId, String vatNumber);
+
+    boolean existsByOrganizationOrganizationIdAndSiretAndSupplierIdNot(
+            Long organizationId,
+            String siret,
+            Long supplierId
+    );
+
+    boolean existsByOrganizationOrganizationIdAndVatNumberIgnoreCaseAndSupplierIdNot(
+            Long organizationId,
+            String vatNumber,
+            Long supplierId
+    );
 }

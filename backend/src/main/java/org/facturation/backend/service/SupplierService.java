@@ -1,6 +1,7 @@
 package org.facturation.backend.service;
 
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
+import org.facturation.backend.dto.request.SupplierUpdateRequest;
 import org.facturation.backend.dto.response.SupplierDetailsResponse;
 import org.facturation.backend.dto.response.SupplierListItemResponse;
 import org.facturation.backend.model.Invoice;
@@ -23,6 +24,8 @@ public interface SupplierService {
     Page<SupplierListItemResponse> findPage(Pageable pageable);
 
     SupplierDetailsResponse findDetailsById(Long id);
+
+    SupplierDetailsResponse update(Long id, SupplierUpdateRequest request);
 
     Supplier findRequiredByName(Invoice invoice, String supplierName);
 

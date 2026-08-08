@@ -20,6 +20,14 @@ import java.time.LocalDateTime;
                 @UniqueConstraint(
                         name = "uk_suppliers_organization_name",
                         columnNames = {"organization_id", "name"}
+                ),
+                @UniqueConstraint(
+                        name = "uk_suppliers_organization_siret",
+                        columnNames = {"organization_id", "siret"}
+                ),
+                @UniqueConstraint(
+                        name = "uk_suppliers_organization_vat_number",
+                        columnNames = {"organization_id", "vat_number"}
                 )
         }
 )
