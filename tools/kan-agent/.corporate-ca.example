@@ -1,0 +1,2 @@
+# Optional corporate CA placeholder.
+# Never commit a real certificate. Set KAN_AGENT_CA_CERTIFICATE to its local path.

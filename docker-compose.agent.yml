@@ -1,0 +1,40 @@
+name: facturation-kan-agent
+
+services:
+  kan-agent:
+    build:
+      context: ./tools/kan-agent
+      dockerfile: Dockerfile
+      args:
+        CODEX_CLI_VERSION: ${CODEX_CLI_VERSION:-0.130.0}
+      secrets:
+        - corporate_ca
+    init: true
+    user: "${KAN_AGENT_UID:-1000}:${KAN_AGENT_GID:-1000}"
+    env_file:
+      - ./tools/kan-agent/.env.local
+    environment:
+      HOME: ${HOME}
+      KAN_AGENT_CONFIG: /opt/kan-agent/config.docker.json
+      KAN_AGENT_WEB_HOST: 0.0.0.0
+      KAN_AGENT_WEB_PORT: 4310
+      OPENAI_CODEX_BIN: /usr/local/bin/codex
+    volumes:
+      - .:/workspace
+      - ${HOME}/.codex:${HOME}/.codex
+      - ${HOME}/.kan-agent:${HOME}/.kan-agent
+      - ${HOME}/.ssh:${HOME}/.ssh:ro
+    secrets:
+      - corporate_ca
+    ports:
+      - "127.0.0.1:${KAN_AGENT_PORT:-4310}:4310"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4310/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+secrets:
+  corporate_ca:
+    file: ${KAN_AGENT_CA_CERTIFICATE:-./tools/kan-agent/.corporate-ca.example}
