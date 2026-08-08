@@ -18,5 +18,7 @@ public interface SupplierService {
 
     Supplier findRequiredByName(Invoice invoice, String supplierName);
 
+    Optional<Supplier> findByLegalIdentifiers(Organization organization, String siret, String vatNumber);
+
     Supplier resolveForInvoiceUpload(Long supplierId, Organization organization, OcrAnalysisResponse ocrAnalysis);
 }
