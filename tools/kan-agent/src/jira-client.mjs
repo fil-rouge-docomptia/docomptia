@@ -35,6 +35,34 @@ function replaceJqlVariables(template, variables) {
   )
 }
 
+const transitionAliases = [
+  ['to do', 'a faire', 'à faire'],
+  ['in progress', 'en cours'],
+  ['code review', 'in review', 'en revue', 'revue de code'],
+  ['done', 'termine', 'terminé'],
+]
+
+function normalizeStatus(value) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+}
+
+export function resolveTransition(transitions, targetStatus) {
+  const normalizedTarget = normalizeStatus(targetStatus)
+  const aliasGroup = transitionAliases.find((aliases) =>
+    aliases.map(normalizeStatus).includes(normalizedTarget),
+  )
+  const acceptedStatuses = new Set(
+    (aliasGroup || [targetStatus]).map(normalizeStatus),
+  )
+  return transitions.find((candidate) =>
+    acceptedStatuses.has(normalizeStatus(candidate.name)),
+  )
+}
+
 export class JiraClient {
   constructor(config) {
     this.config = config.jira
@@ -119,9 +147,7 @@ export class JiraClient {
     const body = await this.request(
       `/rest/api/3/issue/${encodeURIComponent(issueKey)}/transitions`,
     )
-    const transition = body.transitions.find(
-      (candidate) => candidate.name.toLowerCase() === targetStatus.toLowerCase(),
-    )
+    const transition = resolveTransition(body.transitions, targetStatus)
     if (!transition) {
       const available = body.transitions.map(({ name }) => name).join(', ')
       throw new Error(
@@ -136,6 +162,7 @@ export class JiraClient {
         body: JSON.stringify({ transition: { id: transition.id } }),
       },
     )
+    return transition.name
   }
 
   async addComment(issueKey, comment) {
