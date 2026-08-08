@@ -2,6 +2,7 @@ package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
 import org.facturation.backend.dto.response.OcrFieldResponse;
+import org.facturation.backend.exception.SupplierLegalIdentifierConflictException;
 import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.Supplier;
 import org.facturation.backend.repository.OrganizationRepository;
@@ -10,6 +11,7 @@ import org.facturation.backend.service.SupplierService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +22,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
@@ -182,6 +185,48 @@ class SupplierServiceIntegrationTest {
         assertEquals(supplierCountBefore, supplierRepository.count());
     }
 
+    @Test
+    void returnsBusinessErrorWhenDatabaseRejectsDuplicateSiret() {
+        Organization organization = createOrganization("duplicate-siret-business-error");
+        createSupplier(organization, "First supplier", "38012986600014", null);
+        Supplier duplicate = supplier(organization, "Second supplier", "38012986600014", null);
+
+        SupplierLegalIdentifierConflictException exception = assertThrows(
+                SupplierLegalIdentifierConflictException.class,
+                () -> supplierService.save(duplicate)
+        );
+
+        assertEquals(
+                "Another supplier in the organization already uses this siret",
+                exception.getMessage()
+        );
+    }
+
+    @Test
+    void databaseRejectsDuplicateSiretWithinOrganization() {
+        Organization organization = createOrganization("duplicate-siret-database");
+        createSupplier(organization, "First database supplier", "38012986600014", null);
+        Supplier duplicate = supplier(organization, "Second database supplier", "38012986600014", null);
+
+        assertThrows(DataIntegrityViolationException.class, () -> supplierRepository.saveAndFlush(duplicate));
+    }
+
+    @Test
+    void databaseAllowsSameSiretInDifferentOrganizations() {
+        Organization firstOrganization = createOrganization("same-siret-first-organization");
+        Organization secondOrganization = createOrganization("same-siret-second-organization");
+
+        createSupplier(firstOrganization, "First organization supplier", "38012986600014", null);
+        Supplier secondSupplier = createSupplier(
+                secondOrganization,
+                "Second organization supplier",
+                "38012986600014",
+                null
+        );
+
+        assertNotNull(secondSupplier.getSupplierId());
+    }
+
     private Organization createOrganization(String suffix) {
         LocalDateTime now = LocalDateTime.now();
         Organization organization = new Organization();
@@ -200,6 +245,15 @@ class SupplierServiceIntegrationTest {
             String siret,
             String vatNumber
     ) {
+        return supplierRepository.save(supplier(organization, name, siret, vatNumber));
+    }
+
+    private Supplier supplier(
+            Organization organization,
+            String name,
+            String siret,
+            String vatNumber
+    ) {
         LocalDateTime now = LocalDateTime.now();
         Supplier supplier = new Supplier();
         supplier.setOrganization(organization);
@@ -209,7 +263,7 @@ class SupplierServiceIntegrationTest {
         supplier.setVatNumber(vatNumber);
         supplier.setCreatedAt(now);
         supplier.setUpdatedAt(now);
-        return supplierRepository.save(supplier);
+        return supplier;
     }
 
     private String uniqueDigits() {

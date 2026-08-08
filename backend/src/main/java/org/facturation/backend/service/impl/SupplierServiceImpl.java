@@ -16,6 +16,8 @@ import org.facturation.backend.model.User;
 import org.facturation.backend.repository.SupplierRepository;
 import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.SupplierService;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,7 @@ import java.util.regex.Pattern;
 public class SupplierServiceImpl implements SupplierService {
 
     private static final Long DEFAULT_USER_ID = 1L;
+    private static final String ORGANIZATION_SIRET_UNIQUE_CONSTRAINT = "uk_suppliers_organization_siret";
     private static final Pattern SIRET_PATTERN = Pattern.compile("\\d{14}");
     private static final Pattern FRENCH_VAT_NUMBER_PATTERN = Pattern.compile("FR[A-Z0-9]{2}\\d{9}");
 
@@ -61,7 +64,7 @@ public class SupplierServiceImpl implements SupplierService {
 
     @Override
     public Supplier save(Supplier supplier) {
-        return supplierRepository.save(supplier);
+        return saveWithSiretConflictTranslation(supplier);
     }
 
     @Override
@@ -95,7 +98,7 @@ public class SupplierServiceImpl implements SupplierService {
         }
 
         supplier.setUpdatedAt(LocalDateTime.now());
-        return supplierResponseMapper.toDetailsResponse(supplierRepository.save(supplier));
+        return supplierResponseMapper.toDetailsResponse(saveWithSiretConflictTranslation(supplier));
     }
 
     @Override
@@ -189,7 +192,7 @@ public class SupplierServiceImpl implements SupplierService {
         supplier.setVatNumber(vatNumber);
         supplier.setCreatedAt(LocalDateTime.now());
         supplier.setUpdatedAt(LocalDateTime.now());
-        return supplierRepository.save(supplier);
+        return saveWithSiretConflictTranslation(supplier);
     }
 
     private Supplier updateSupplierFromOcrIfNeeded(Supplier supplier, OcrAnalysisResponse ocrAnalysis) {
@@ -212,7 +215,32 @@ public class SupplierServiceImpl implements SupplierService {
         }
 
         supplier.setUpdatedAt(LocalDateTime.now());
-        return supplierRepository.save(supplier);
+        return saveWithSiretConflictTranslation(supplier);
+    }
+
+    private Supplier saveWithSiretConflictTranslation(Supplier supplier) {
+        try {
+            return supplierRepository.saveAndFlush(supplier);
+        } catch (DataIntegrityViolationException exception) {
+            if (isOrganizationSiretConstraintViolation(exception)) {
+                throw new SupplierLegalIdentifierConflictException("siret");
+            }
+            throw exception;
+        }
+    }
+
+    private boolean isOrganizationSiretConstraintViolation(Throwable exception) {
+        Throwable cause = exception;
+        while (cause != null) {
+            if (cause instanceof ConstraintViolationException constraintViolation) {
+                String constraintName = constraintViolation.getConstraintName();
+                return constraintName != null
+                        && constraintName.toLowerCase(Locale.ROOT)
+                        .contains(ORGANIZATION_SIRET_UNIQUE_CONSTRAINT);
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 
     private Optional<String> extractOptionalNormalizedValue(OcrAnalysisResponse response, String fieldName) {
