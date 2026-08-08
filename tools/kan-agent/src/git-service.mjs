@@ -44,6 +44,10 @@ function statusLinePath(line) {
   return renameSeparator === -1 ? path : path.slice(renameSeparator + 4)
 }
 
+function isDocumentationPath(path) {
+  return path.startsWith('docs/') || path === 'README.md' || path.endsWith('.md')
+}
+
 export function splitWorkingTreeStatus(status, ignoredPatterns = []) {
   const lines = status ? status.split('\n').filter(Boolean) : []
   const ignored = []
@@ -225,7 +229,7 @@ export class GitService {
     const branchComparison = `${this.config.remote}/${this.config.mainBranch}...${revision}`
     const [status, log, diffStat, files] = await Promise.all([
       inspectStatus
-        ? this.git(['status', '--short'], { cwd: repository })
+        ? this.git(['status', '--short', '--untracked-files=all'], { cwd: repository })
         : Promise.resolve({ stdout: '' }),
       this.git(
         [
@@ -278,6 +282,54 @@ export class GitService {
     }
 
     return { valid: problems.length === 0, problems, review }
+  }
+
+  async commitTicketChanges(issue, worktree) {
+    const status = await this.git(
+      ['status', '--short', '--untracked-files=all'],
+      { cwd: worktree },
+    )
+    const { blockingStatus } = splitWorkingTreeStatus(
+      status.stdout,
+      this.config.ignoredWorkingTreeFiles,
+    )
+    const paths = blockingStatus
+      ? blockingStatus.split('\n').map(statusLinePath)
+      : []
+
+    const forbiddenFiles = paths.filter((path) =>
+      matchesForbiddenPath(path, this.config.forbiddenFiles),
+    )
+    if (forbiddenFiles.length > 0) {
+      throw new Error(`Forbidden files cannot be committed:\n${forbiddenFiles.join('\n')}`)
+    }
+
+    const implementationPaths = paths.filter((path) => !isDocumentationPath(path))
+    const documentationPaths = paths.filter(isDocumentationPath)
+    const commits = []
+
+    if (implementationPaths.length > 0) {
+      commits.push(await this.commitPaths(
+        worktree,
+        implementationPaths,
+        `${issue.key}: ${issue.summary}`,
+      ))
+    }
+    if (documentationPaths.length > 0) {
+      commits.push(await this.commitPaths(
+        worktree,
+        documentationPaths,
+        `${issue.key}: Document ${issue.summary}`,
+      ))
+    }
+
+    return commits
+  }
+
+  async commitPaths(worktree, paths, message) {
+    await this.git(['add', '--', ...paths], { cwd: worktree })
+    await this.git(['commit', '-m', message], { cwd: worktree, inherit: true })
+    return (await this.git(['log', '-1', '--format=%h %s'], { cwd: worktree })).stdout
   }
 
   async push(branch, worktree) {

@@ -44,7 +44,7 @@ export async function buildPrompt(config, state, revisionInstruction = '') {
     EPIC_SUMMARY: state.epic?.summary,
     CONTEXT_FILES: contextFiles,
     REVISION_INSTRUCTION: revisionInstruction
-      ? `The user reviewed the previous implementation and requested this revision:\n<user-feedback>\n${revisionInstruction}\n</user-feedback>\nInspect the current branch and commits, apply the revision, rerun relevant tests, and create any necessary atomic commit.`
+      ? `The user reviewed the previous implementation and requested this revision:\n<user-feedback>\n${revisionInstruction}\n</user-feedback>\nInspect the current branch and commits, apply the revision, and rerun relevant tests. The orchestrator creates commits after your successful result.`
       : '',
   }
 

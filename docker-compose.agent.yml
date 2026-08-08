@@ -6,11 +6,14 @@ services:
       context: ./tools/kan-agent
       dockerfile: Dockerfile
       args:
-        CODEX_CLI_VERSION: ${CODEX_CLI_VERSION:-0.130.0}
+        CODEX_CLI_VERSION: ${CODEX_CLI_VERSION:-0.147.0}
       secrets:
         - corporate_ca
     init: true
     user: "${KAN_AGENT_UID:-1000}:${KAN_AGENT_GID:-1000}"
+    # Codex uses bubblewrap; Docker's default seccomp profile blocks its user namespace.
+    security_opt:
+      - seccomp=unconfined
     env_file:
       - ./tools/kan-agent/.env.local
     environment:
@@ -18,10 +21,14 @@ services:
       KAN_AGENT_CONFIG: /opt/kan-agent/config.docker.json
       KAN_AGENT_WEB_HOST: 0.0.0.0
       KAN_AGENT_WEB_PORT: 4310
+      MAVEN_USER_HOME: ${HOME}/.kan-agent/cache/maven
+      MAVEN_OPTS: -Dmaven.repo.local=${HOME}/.kan-agent/cache/maven/repository
+      KAN_AGENT_MAVEN_CACHE_SOURCE: ${HOME}/.kan-agent/cache/maven
       OPENAI_CODEX_BIN: /usr/local/bin/codex
     volumes:
       - .:/workspace
       - ${HOME}/.codex:${HOME}/.codex
+      - ./tools/kan-agent/config.codex.toml:${HOME}/.codex/config.toml:ro
       - ${HOME}/.kan-agent:${HOME}/.kan-agent
       - ${HOME}/.ssh:${HOME}/.ssh:ro
     secrets:

@@ -10,10 +10,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
+import org.facturation.backend.dto.response.InvoiceHistoryItemResponse;
 import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.exception.InvoiceNotFoundException;
+import org.facturation.backend.service.InvoiceHistoryService;
 import org.facturation.backend.service.InvoiceService;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -40,9 +42,11 @@ public class InvoiceController {
     private static final Set<String> ALLOWED_SEARCH_PARAMS = Set.of("status", "supplier", "invoiceDate");
 
     private final InvoiceService invoiceService;
+    private final InvoiceHistoryService invoiceHistoryService;
 
-    public InvoiceController(InvoiceService invoiceService) {
+    public InvoiceController(InvoiceService invoiceService, InvoiceHistoryService invoiceHistoryService) {
         this.invoiceService = invoiceService;
+        this.invoiceHistoryService = invoiceHistoryService;
     }
 
     @GetMapping
@@ -91,6 +95,13 @@ public class InvoiceController {
     @Operation(summary = "Consulter le detail d'une facture")
     public ResponseEntity<InvoiceDetailsResponse> getInvoice(@PathVariable Long id) {
         return ResponseEntity.ok(requireInvoiceResponse(invoiceService.findDetailsById(id), id));
+    }
+
+    @GetMapping("/{id}/history")
+    @Operation(summary = "Consulter l'historique des statuts et corrections d'une facture")
+    @ApiResponse(responseCode = "404", description = "Facture introuvable dans l'organisation de l'utilisateur")
+    public ResponseEntity<List<InvoiceHistoryItemResponse>> getInvoiceHistory(@PathVariable Long id) {
+        return ResponseEntity.ok(invoiceHistoryService.findByInvoiceId(id));
     }
 
     @PostMapping("/{id}/ocr/retry")

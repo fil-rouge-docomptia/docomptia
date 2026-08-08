@@ -74,6 +74,7 @@ http://ocr:8000/ocr/analyze
 | `PATCH` | `/api/v1/invoices/{id}` | Corrige les donnees extraites, conserve les valeurs OCR brutes, marque les champs OCR corriges manuellement et journalise chaque valeur avant/apres |
 | `POST` | `/api/v1/invoices/{id}/accounting-entry` | Genere l'ecriture comptable apres validation |
 | `GET` | `/api/v1/invoices/{id}` | Retourne la facture, l'OCR et l'ecriture si elle existe |
+| `GET` | `/api/v1/invoices/{id}/history` | Retourne chronologiquement les changements de statut et corrections de l'organisation courante |
 
 Le endpoint `PATCH /api/v1/invoices/{id}` retourne `400` avec un message explicite si
 le payload est invalide ou n'applique aucune modification effective, et `409` si

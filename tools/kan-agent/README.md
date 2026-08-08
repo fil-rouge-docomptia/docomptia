@@ -37,8 +37,12 @@ Le conteneur monte uniquement les ressources necessaires:
 
 - le depot courant dans `/workspace`, pour creer les branches et commits;
 - `~/.codex`, pour reutiliser l'authentification Codex CLI;
-- `~/.kan-agent`, pour conserver l'etat, les logs et l'historique;
+- `~/.kan-agent`, pour conserver l'etat, les logs, l'historique et le cache Maven;
 - `~/.ssh` en lecture seule, pour les remotes Git utilisant SSH.
+
+Le cache Maven persistant est precharge au demarrage. Avant chaque execution,
+l'agent en fournit une copie temporaire inscriptible au sandbox Codex afin que
+les tests puissent fonctionner sans acces reseau.
 
 Les chemins `~/.kan-agent` sont identiques dans le conteneur et sur l'hote. Les
 worktrees conserves apres une erreur restent donc visibles et administrables

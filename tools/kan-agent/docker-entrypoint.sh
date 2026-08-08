@@ -18,4 +18,16 @@ if [ -n "${GITHUB_TOKEN:-${GH_TOKEN:-}}" ]; then
   git config --global credential.helper /usr/local/bin/git-credential-github
 fi
 
+mkdir -p "${MAVEN_USER_HOME}"
+if [ -f /workspace/backend/mvnw ]; then
+  echo "Preparing the persistent Maven cache..."
+  if ! (
+    cd /workspace/backend
+    ./mvnw -q -DskipTests dependency:go-offline
+    ./mvnw -q -Dtest=BackendApplicationTests test
+  ); then
+    echo "Warning: Maven dependencies could not be preloaded; the agent will still start." >&2
+  fi
+fi
+
 exec node /opt/kan-agent/src/web-server.mjs

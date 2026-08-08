@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { chmod, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { delimiter, resolve } from 'node:path'
 import { buildPrompt } from './prompt-builder.mjs'
 import { runCommand } from './process.mjs'
@@ -67,6 +67,21 @@ exec ${shellQuote(whichGit.stdout)} "$@"
     )
   }
 
+  async prepareMavenEnvironment(state, environment) {
+    const source = process.env.KAN_AGENT_MAVEN_CACHE_SOURCE
+    if (!source) return null
+
+    const issueKey = state.issue.key.replace(/[^A-Za-z0-9._-]/g, '_')
+    const target = resolve('/tmp/kan-agent-maven', issueKey)
+    await rm(target, { recursive: true, force: true })
+    await mkdir(resolve(target, '..'), { recursive: true })
+    await cp(source, target, { recursive: true })
+
+    environment.MAVEN_USER_HOME = target
+    environment.MAVEN_OPTS = `-Dmaven.repo.local=${resolve(target, 'repository')}`
+    return target
+  }
+
   async run(state, revisionInstruction = '', options = {}) {
     const prompt = await buildPrompt(this.config, state, revisionInstruction)
     const runDirectory = resolve(
@@ -82,6 +97,7 @@ exec ${shellQuote(whichGit.stdout)} "$@"
     const codexCommand = await this.resolveCommand()
     const environment = sanitizedEnvironment()
     environment.PATH = `${guardDirectory}${delimiter}${environment.PATH}`
+    await this.prepareMavenEnvironment(state, environment)
 
     const args = [
       '--ask-for-approval',
