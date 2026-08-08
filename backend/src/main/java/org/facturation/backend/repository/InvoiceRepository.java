@@ -13,4 +13,11 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
 
     @EntityGraph(attributePaths = {"invoiceStatus", "organization", "supplier"})
     Optional<Invoice> findForOcrRetryByInvoiceId(Long invoiceId);
+
+    Optional<Invoice> findFirstByOrganizationOrganizationIdAndSupplierSupplierIdAndInvoiceNumberAndInvoiceIdNotOrderByInvoiceIdAsc(
+            Long organizationId,
+            Long supplierId,
+            String invoiceNumber,
+            Long invoiceId
+    );
 }

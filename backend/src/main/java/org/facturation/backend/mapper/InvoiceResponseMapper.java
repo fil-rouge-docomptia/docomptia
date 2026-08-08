@@ -2,6 +2,7 @@ package org.facturation.backend.mapper;
 
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
+import org.facturation.backend.dto.response.InvoiceDuplicateAlertResponse;
 import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
@@ -43,12 +44,21 @@ public class InvoiceResponseMapper {
         this.accountingEntryMapper = accountingEntryMapper;
     }
 
-    public InvoiceUploadResponse toUploadResponse(Invoice invoice, OcrAnalysisResponse ocrAnalysis) {
+    public InvoiceUploadResponse toUploadResponse(
+            Invoice invoice,
+            OcrAnalysisResponse ocrAnalysis,
+            Invoice duplicateInvoice
+    ) {
         InvoiceUploadResponse response = new InvoiceUploadResponse();
         response.setInvoiceId(invoice.getInvoiceId());
         response.setInvoiceNumber(invoice.getInvoiceNumber());
         response.setStatus(invoice.getInvoiceStatus().getCode());
         response.setOcrAnalysis(ocrAnalysis);
+        if (duplicateInvoice != null) {
+            InvoiceDuplicateAlertResponse duplicateAlert = new InvoiceDuplicateAlertResponse();
+            duplicateAlert.setExistingInvoiceId(duplicateInvoice.getInvoiceId());
+            response.setDuplicateAlert(duplicateAlert);
+        }
         return response;
     }
 

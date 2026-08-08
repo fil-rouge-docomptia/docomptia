@@ -6,6 +6,7 @@ public class InvoiceUploadResponse {
     private String invoiceNumber;
     private String status;
     private OcrAnalysisResponse ocrAnalysis;
+    private InvoiceDuplicateAlertResponse duplicateAlert;
 
     public Long getInvoiceId() {
         return invoiceId;
@@ -37,5 +38,13 @@ public class InvoiceUploadResponse {
 
     public void setOcrAnalysis(OcrAnalysisResponse ocrAnalysis) {
         this.ocrAnalysis = ocrAnalysis;
+    }
+
+    public InvoiceDuplicateAlertResponse getDuplicateAlert() {
+        return duplicateAlert;
+    }
+
+    public void setDuplicateAlert(InvoiceDuplicateAlertResponse duplicateAlert) {
+        this.duplicateAlert = duplicateAlert;
     }
 }

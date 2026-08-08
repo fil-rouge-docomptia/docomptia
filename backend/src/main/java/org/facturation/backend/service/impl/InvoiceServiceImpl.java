@@ -136,8 +136,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         OcrAnalysisResponse ocrAnalysis = analyzeInvoice(invoice, user, file);
         Supplier supplier = supplierService.resolveForInvoiceUpload(supplierId, organization, ocrAnalysis);
         invoice = completeOcrAnalysis(invoice, supplier, user, ocrAnalysis);
+        Invoice duplicateInvoice = findDuplicateInvoice(invoice).orElse(null);
 
-        return invoiceResponseMapper.toUploadResponse(invoice, ocrAnalysis);
+        return invoiceResponseMapper.toUploadResponse(invoice, ocrAnalysis, duplicateInvoice);
     }
 
     @Override
@@ -445,6 +446,20 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoiceFile.setFileSize(storedFile.fileSize());
         invoiceFile.setUploadedAt(LocalDateTime.now());
         return invoiceFileRepository.save(invoiceFile);
+    }
+
+    private Optional<Invoice> findDuplicateInvoice(Invoice invoice) {
+        if (invoice.getSupplier() == null || isBlank(invoice.getInvoiceNumber())) {
+            return Optional.empty();
+        }
+
+        return invoiceRepository
+                .findFirstByOrganizationOrganizationIdAndSupplierSupplierIdAndInvoiceNumberAndInvoiceIdNotOrderByInvoiceIdAsc(
+                        invoice.getOrganization().getOrganizationId(),
+                        invoice.getSupplier().getSupplierId(),
+                        invoice.getInvoiceNumber(),
+                        invoice.getInvoiceId()
+                );
     }
 
     private boolean hasRequestedCorrections(InvoiceCorrectionRequest request) {
