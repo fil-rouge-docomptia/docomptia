@@ -83,6 +83,15 @@ le statut courant interdit la correction.
 Dans les reponses OCR, `ocrAnalysis.fields[].corrected` vaut `true` lorsqu'une
 valeur normalisee provient d'une correction manuelle.
 
+## Endpoints Fournisseurs MVP
+
+| Methode | Endpoint | Role |
+| --- | --- | --- |
+| `GET` | `/api/v1/suppliers?page=0&size=20` | Retourne une page de fournisseurs de l'organisation courante |
+| `GET` | `/api/v1/suppliers/{id}` | Retourne le detail d'un fournisseur de l'organisation courante |
+
+Un fournisseur absent ou rattache a une autre organisation retourne `404`.
+
 ## Stockage Des Fichiers
 
 Deux implementations existent:
