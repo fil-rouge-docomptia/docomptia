@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
 export class StateStore {
@@ -39,5 +39,28 @@ export class StateStore {
       `${state.issue.key}-${timestamp}.json`,
     )
     await writeFile(destination, `${JSON.stringify(state, null, 2)}\n`, 'utf8')
+  }
+
+  async listHistory() {
+    const historyDirectory = resolve(this.directory, 'history')
+    let files
+    try {
+      files = await readdir(historyDirectory)
+    } catch (error) {
+      if (error.code === 'ENOENT') return []
+      throw error
+    }
+
+    const states = await Promise.all(
+      files
+        .filter((file) => file.endsWith('.json'))
+        .map(async (file) => JSON.parse(
+          await readFile(resolve(historyDirectory, file), 'utf8'),
+        )),
+    )
+    return states.sort((left, right) =>
+      new Date(right.updatedAt || right.createdAt) -
+      new Date(left.updatedAt || left.createdAt),
+    )
   }
 }
