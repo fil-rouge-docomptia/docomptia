@@ -14,16 +14,31 @@ COPY components.json ./
 COPY web ./web
 RUN npm run web:build
 
+FROM maven:3.9.11-eclipse-temurin-25 AS java-tools
+
 FROM node:22-bookworm-slim
 
-ARG CODEX_CLI_VERSION=0.130.0
+ARG CODEX_CLI_VERSION=0.147.0
+
+COPY --from=java-tools /opt/java/openjdk /opt/java/openjdk
+COPY --from=java-tools /usr/share/maven /usr/share/maven
+
+ENV JAVA_HOME=/opt/java/openjdk \
+    MAVEN_USER_HOME=/home/agent/.kan-agent/cache/maven \
+    MAVEN_OPTS=-Dmaven.repo.local=/home/agent/.kan-agent/cache/maven/repository \
+    KAN_AGENT_MAVEN_CACHE_SOURCE=/home/agent/.kan-agent/cache/maven \
+    PATH=/opt/java/openjdk/bin:/usr/share/maven/bin:${PATH}
 
 RUN --mount=type=secret,id=corporate_ca \
     set -eu; \
     apt-get update; \
-    apt-get install -y --no-install-recommends ca-certificates git openssh-client; \
+    apt-get install -y --no-install-recommends bubblewrap ca-certificates git openssh-client; \
     if grep -q "BEGIN CERTIFICATE" /run/secrets/corporate_ca; then \
       export NODE_EXTRA_CA_CERTS=/run/secrets/corporate_ca; \
+      keytool -importcert -noprompt -trustcacerts -alias corporate-ca \
+        -file /run/secrets/corporate_ca \
+        -keystore "${JAVA_HOME}/lib/security/cacerts" \
+        -storepass changeit; \
     fi; \
     npm install --global "@openai/codex@${CODEX_CLI_VERSION}"; \
     rm -rf /var/lib/apt/lists/*; \
