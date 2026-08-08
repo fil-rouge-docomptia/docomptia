@@ -101,6 +101,12 @@ async function runCodexAndSave(context, state, revisionInstruction = '') {
   state = await context.store.save({ ...state, status: 'IN_PROGRESS' })
   try {
     const execution = await context.codex.run(state, revisionInstruction)
+    if (execution.result.status === 'completed') {
+      execution.result.commits = await context.git.commitTicketChanges(
+        state.issue,
+        state.worktree,
+      )
+    }
     const nextStatus = execution.result.status === 'completed'
       ? 'REVIEW_REQUIRED'
       : 'BLOCKED'

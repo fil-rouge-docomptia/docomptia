@@ -99,10 +99,12 @@ test('GitService creates the ticket branch in the shared repository', async () =
       cwd: prepared.worktree,
     })
     await writeFile(resolve(prepared.worktree, 'feature.txt'), 'implemented\n', 'utf8')
-    await runCommand('git', ['add', 'feature.txt'], { cwd: prepared.worktree })
-    await runCommand('git', ['commit', '-m', 'KAN-123: Implement local test'], {
-      cwd: prepared.worktree,
-    })
+    await mkdir(resolve(prepared.worktree, 'docs'), { recursive: true })
+    await writeFile(resolve(prepared.worktree, 'docs', 'feature.md'), '# Feature\n', 'utf8')
+    const commits = await service.commitTicketChanges({
+      key: 'KAN-123',
+      summary: 'Implement local test',
+    }, prepared.worktree)
 
     const validation = await service.validateForApproval(
       'KAN-123',
@@ -114,10 +116,13 @@ test('GitService creates the ticket branch in the shared repository', async () =
       ['branch', '--list', 'KAN-123_implement_local_integration_test'],
       { cwd: seed },
     )
+    assert.equal(commits.length, 2)
+    assert.match(commits[0], /KAN-123: Implement local test/)
+    assert.match(commits[1], /KAN-123: Document Implement local test/)
     assert.equal(prepared.branch, 'KAN-123_implement_local_integration_test')
     assert.match(localBranch.stdout, /KAN-123_implement_local_integration_test/)
     assert.equal(validation.valid, true)
-    assert.deepEqual(validation.review.files, ['feature.txt'])
+    assert.deepEqual(validation.review.files.sort(), ['docs/feature.md', 'feature.txt'])
 
     const released = await service.releaseWorktree(prepared.worktree)
     assert.equal(released.released, true)
@@ -129,7 +134,7 @@ test('GitService creates the ticket branch in the shared repository', async () =
       prepared.branch,
     )
     assert.equal(detachedValidation.valid, true)
-    assert.deepEqual(detachedValidation.review.files, ['feature.txt'])
+    assert.deepEqual(detachedValidation.review.files.sort(), ['docs/feature.md', 'feature.txt'])
 
     await runCommand('git', ['switch', prepared.branch], { cwd: seed })
     await mkdir(resolve(seed, 'backend', 'certs'), { recursive: true })
@@ -148,7 +153,11 @@ test('GitService creates the ticket branch in the shared repository', async () =
       null,
       prepared.branch,
     )
-    assert.equal(ignoredLocalValidation.valid, true)
+    assert.equal(
+      ignoredLocalValidation.valid,
+      true,
+      ignoredLocalValidation.problems.join('\n'),
+    )
     assert.equal(ignoredLocalValidation.review.blockingStatus, '')
     assert.match(ignoredLocalValidation.review.ignoredStatus, /backend\/Dockerfile\.dev/)
     assert.match(ignoredLocalValidation.review.ignoredStatus, /netskope-ca\.pem/)

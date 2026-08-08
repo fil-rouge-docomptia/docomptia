@@ -7,7 +7,7 @@ import { StateStore } from './state-store.mjs'
 import { hasFailedTests } from './workflow-service.mjs'
 
 const TERMINAL_STATUSES = ['JIRA_UPDATED', 'ABORTED']
-const REVISION_STATUSES = ['REVIEW_REQUIRED', 'APPROVED', 'BLOCKED']
+const REVISION_STATUSES = ['IN_PROGRESS', 'REVIEW_REQUIRED', 'APPROVED', 'BLOCKED']
 
 function formatTests(tests = []) {
   return tests.length === 0
@@ -236,6 +236,20 @@ export class WebWorkflowService {
           message: text.slice(-4000),
         }),
       })
+      if (execution.result.status === 'completed') {
+        execution.result.commits = await context.git.commitTicketChanges(
+          state.issue,
+          state.worktree,
+        )
+        this.publish({
+          runId: state.runId,
+          type: 'GIT',
+          level: 'success',
+          message: execution.result.commits.length > 0
+            ? `Atomic commits created:\n${execution.result.commits.join('\n')}`
+            : 'No new changes required a commit',
+        })
+      }
       const status = execution.result.status === 'completed'
         ? 'REVIEW_REQUIRED'
         : 'BLOCKED'
