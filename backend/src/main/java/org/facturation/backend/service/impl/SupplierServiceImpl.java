@@ -91,23 +91,42 @@ public class SupplierServiceImpl implements SupplierService {
             return null;
         }
 
-        Supplier supplier = supplierRepository.findByOrganizationOrganizationIdAndNameIgnoreCase(
+        Optional<Supplier> supplierByName = supplierRepository.findByOrganizationOrganizationIdAndNameIgnoreCase(
                         organization.getOrganizationId(),
                         supplierName.get()
                 )
                 .or(() -> supplierRepository.findByOrganizationOrganizationIdAndLegalNameIgnoreCase(
                         organization.getOrganizationId(),
                         supplierName.get()
-                ))
-                .orElseGet(() -> createSupplierToVerify(organization, supplierName.get()));
-        return updateSupplierFromOcrIfNeeded(supplier, ocrAnalysis);
+                ));
+        if (supplierByName.isPresent()) {
+            return updateSupplierFromOcrIfNeeded(supplierByName.get(), ocrAnalysis);
+        }
+
+        if (siret.isEmpty() && vatNumber.isEmpty()) {
+            return null;
+        }
+
+        return createSupplierToVerify(
+                organization,
+                supplierName.get(),
+                siret.orElse(null),
+                vatNumber.orElse(null)
+        );
     }
 
-    private Supplier createSupplierToVerify(Organization organization, String supplierName) {
+    private Supplier createSupplierToVerify(
+            Organization organization,
+            String supplierName,
+            String siret,
+            String vatNumber
+    ) {
         Supplier supplier = new Supplier();
         supplier.setOrganization(organization);
         supplier.setName(supplierName);
         supplier.setLegalName(supplierName);
+        supplier.setSiret(siret);
+        supplier.setVatNumber(vatNumber);
         supplier.setCreatedAt(LocalDateTime.now());
         supplier.setUpdatedAt(LocalDateTime.now());
         return supplierRepository.save(supplier);

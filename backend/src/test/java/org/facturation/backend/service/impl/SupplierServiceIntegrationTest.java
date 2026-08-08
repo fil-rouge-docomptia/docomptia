@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
@@ -116,6 +118,68 @@ class SupplierServiceIntegrationTest {
         Supplier result = supplierService.resolveForInvoiceUpload(null, organization, ocrAnalysis);
 
         assertEquals(supplierBySiret.getSupplierId(), result.getSupplierId());
+    }
+
+    @Test
+    void createsSupplierWhenNameAndLegalIdentifierAreExtracted() {
+        Organization organization = createOrganization("automatic-creation");
+        long supplierCountBefore = supplierRepository.count();
+        OcrAnalysisResponse ocrAnalysis = new OcrAnalysisResponse();
+        ocrAnalysis.setFields(List.of(
+                ocrField("supplierName", "New supplier"),
+                ocrField("siret", "38012986600014")
+        ));
+
+        Supplier result = supplierService.resolveForInvoiceUpload(null, organization, ocrAnalysis);
+
+        assertNotNull(result);
+        assertEquals("New supplier", result.getName());
+        assertEquals("38012986600014", result.getSiret());
+        assertEquals(supplierCountBefore + 1, supplierRepository.count());
+    }
+
+    @Test
+    void doesNotCreateSupplierFromNameAlone() {
+        Organization organization = createOrganization("name-only");
+        long supplierCountBefore = supplierRepository.count();
+        OcrAnalysisResponse ocrAnalysis = new OcrAnalysisResponse();
+        ocrAnalysis.setFields(List.of(ocrField("supplierName", "Uncertain supplier")));
+
+        Supplier result = supplierService.resolveForInvoiceUpload(null, organization, ocrAnalysis);
+
+        assertNull(result);
+        assertEquals(supplierCountBefore, supplierRepository.count());
+    }
+
+    @Test
+    void doesNotCreateSupplierFromLegalIdentifierWithoutName() {
+        Organization organization = createOrganization("identifier-only");
+        long supplierCountBefore = supplierRepository.count();
+        OcrAnalysisResponse ocrAnalysis = new OcrAnalysisResponse();
+        ocrAnalysis.setFields(List.of(ocrField("vatNumber", "FR89380129866")));
+
+        Supplier result = supplierService.resolveForInvoiceUpload(null, organization, ocrAnalysis);
+
+        assertNull(result);
+        assertEquals(supplierCountBefore, supplierRepository.count());
+    }
+
+    @Test
+    void reusesExistingSupplierByNameInsteadOfCreatingOne() {
+        Organization organization = createOrganization("existing-name");
+        Supplier existingSupplier = createSupplier(organization, "Existing supplier", null, null);
+        long supplierCountBefore = supplierRepository.count();
+        OcrAnalysisResponse ocrAnalysis = new OcrAnalysisResponse();
+        ocrAnalysis.setFields(List.of(
+                ocrField("supplierName", "Existing supplier"),
+                ocrField("vatNumber", "FR89380129866")
+        ));
+
+        Supplier result = supplierService.resolveForInvoiceUpload(null, organization, ocrAnalysis);
+
+        assertEquals(existingSupplier.getSupplierId(), result.getSupplierId());
+        assertEquals("FR89380129866", result.getVatNumber());
+        assertEquals(supplierCountBefore, supplierRepository.count());
     }
 
     private Organization createOrganization(String suffix) {
