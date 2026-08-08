@@ -51,10 +51,39 @@ public class SupplierServiceImpl implements SupplierService {
     }
 
     @Override
+    public Optional<Supplier> findByLegalIdentifiers(Organization organization, String siret, String vatNumber) {
+        Long organizationId = organization.getOrganizationId();
+        Optional<Supplier> supplier = Optional.empty();
+
+        if (!isBlank(siret)) {
+            supplier = supplierRepository.findByOrganizationOrganizationIdAndSiret(organizationId, siret.trim());
+        }
+        if (supplier.isEmpty() && !isBlank(vatNumber)) {
+            supplier = supplierRepository.findByOrganizationOrganizationIdAndVatNumberIgnoreCase(
+                    organizationId,
+                    vatNumber.trim()
+            );
+        }
+
+        return supplier;
+    }
+
+    @Override
     public Supplier resolveForInvoiceUpload(Long supplierId, Organization organization, OcrAnalysisResponse ocrAnalysis) {
         if (supplierId != null) {
             return findById(supplierId)
                     .orElseThrow(() -> new SupplierNotFoundException(supplierId));
+        }
+
+        Optional<String> siret = extractOptionalNormalizedValue(ocrAnalysis, "siret");
+        Optional<String> vatNumber = extractOptionalNormalizedValue(ocrAnalysis, "vatNumber");
+        Optional<Supplier> supplierByLegalIdentifier = findByLegalIdentifiers(
+                organization,
+                siret.orElse(null),
+                vatNumber.orElse(null)
+        );
+        if (supplierByLegalIdentifier.isPresent()) {
+            return updateSupplierFromOcrIfNeeded(supplierByLegalIdentifier.get(), ocrAnalysis);
         }
 
         Optional<String> supplierName = extractOptionalNormalizedValue(ocrAnalysis, "supplierName");
