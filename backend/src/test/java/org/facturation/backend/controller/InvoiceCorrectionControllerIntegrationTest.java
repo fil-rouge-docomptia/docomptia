@@ -1,5 +1,6 @@
 package org.facturation.backend.controller;
 
+import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.exception.ApiExceptionHandler;
 import org.facturation.backend.service.InvoiceService;
@@ -13,6 +14,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.hamcrest.Matchers.contains;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -70,7 +72,36 @@ class InvoiceCorrectionControllerIntegrationTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVOICE_VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.message").value("invoiceNumber is required"));
+    }
+
+    @Test
+    void returnsNormalizedNotFoundWhenInvoiceDoesNotExist() throws Exception {
+        mockMvc.perform(get("/api/v1/invoices/{id}", Long.MAX_VALUE))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("INVOICE_NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("Invoice " + Long.MAX_VALUE + " not found"));
+    }
+
+    @Test
+    void returnsNormalizedConflictWhenCorrectionIsForbidden() throws Exception {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        InvoiceStatusResponse validationResponse = invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+
+        mockMvc.perform(patch("/api/v1/invoices/{id}", uploadResponse.getInvoiceId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "invoiceNumber": "INV-LOCKED-001"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVOICE_ACTION_NOT_ALLOWED"))
+                .andExpect(jsonPath("$.message").value(
+                        "Invoice " + validationResponse.getInvoiceId()
+                                + " cannot be corrected from status VALIDEE"
+                ));
     }
 
     private InvoiceUploadResponse uploadInvoice() {

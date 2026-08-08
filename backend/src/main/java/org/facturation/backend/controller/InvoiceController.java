@@ -13,6 +13,7 @@ import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
+import org.facturation.backend.exception.InvoiceNotFoundException;
 import org.facturation.backend.service.InvoiceService;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +29,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 @RestController
@@ -54,18 +56,20 @@ public class InvoiceController {
             @Parameter(hidden = true) @RequestParam Map<String, String> params
     ) {
         if (!ALLOWED_SEARCH_PARAMS.containsAll(params.keySet())) {
-            return ResponseEntity.badRequest().build();
+            throw new IllegalArgumentException(
+                    "Unsupported invoice search parameters: "
+                            + String.join(", ", params.keySet().stream()
+                            .filter(param -> !ALLOWED_SEARCH_PARAMS.contains(param))
+                            .sorted()
+                            .toList())
+            );
         }
 
-        try {
-            return ResponseEntity.ok(invoiceService.searchInvoices(
-                    params.get("status"),
-                    params.get("supplier"),
-                    params.get("invoiceDate")
-            ));
-        } catch (IllegalArgumentException exception) {
-            return ResponseEntity.badRequest().build();
-        }
+        return ResponseEntity.ok(invoiceService.searchInvoices(
+                params.get("status"),
+                params.get("supplier"),
+                params.get("invoiceDate")
+        ));
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -86,9 +90,7 @@ public class InvoiceController {
     @GetMapping("/{id}")
     @Operation(summary = "Consulter le detail d'une facture")
     public ResponseEntity<InvoiceDetailsResponse> getInvoice(@PathVariable Long id) {
-        return invoiceService.findDetailsById(id)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        return ResponseEntity.ok(requireInvoiceResponse(invoiceService.findDetailsById(id), id));
     }
 
     @PostMapping("/{id}/ocr/retry")
@@ -98,9 +100,7 @@ public class InvoiceController {
             @ApiResponse(responseCode = "409", description = "Relance OCR interdite pour le statut courant")
     })
     public ResponseEntity<InvoiceDetailsResponse> retryOcr(@PathVariable Long id) {
-        return invoiceService.retryOcr(id)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        return ResponseEntity.ok(requireInvoiceResponse(invoiceService.retryOcr(id), id));
     }
 
     @PostMapping("/{id}/accounting-entry")
@@ -110,9 +110,7 @@ public class InvoiceController {
             @ApiResponse(responseCode = "409", description = "Transition de statut invalide pour rendre la facture exportable")
     })
     public ResponseEntity<InvoiceAccountingEntryResponse> generateAccountingEntry(@PathVariable Long id) {
-        return invoiceService.generateAccountingEntry(id)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        return ResponseEntity.ok(requireInvoiceResponse(invoiceService.generateAccountingEntry(id), id));
     }
 
     @PatchMapping("/{id}")
@@ -125,17 +123,11 @@ public class InvoiceController {
             @ApiResponse(responseCode = "400", description = "Donnees de correction invalides ou aucune modification effective"),
             @ApiResponse(responseCode = "409", description = "Correction interdite pour le statut courant")
     })
-    public ResponseEntity<?> correctInvoice(
+    public ResponseEntity<InvoiceDetailsResponse> correctInvoice(
             @PathVariable Long id,
             @RequestBody InvoiceCorrectionRequest request
     ) {
-        try {
-            return invoiceService.correctInvoice(id, request)
-                    .<ResponseEntity<?>>map(ResponseEntity::ok)
-                    .orElseGet(() -> ResponseEntity.notFound().build());
-        } catch (IllegalArgumentException exception) {
-            return ResponseEntity.badRequest().body(Map.of("message", exception.getMessage()));
-        }
+        return ResponseEntity.ok(requireInvoiceResponse(invoiceService.correctInvoice(id, request), id));
     }
 
     @PostMapping("/{id}/validate")
@@ -148,9 +140,7 @@ public class InvoiceController {
             )
     })
     public ResponseEntity<InvoiceStatusResponse> validateInvoice(@PathVariable Long id) {
-        return invoiceService.validateInvoice(id)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        return ResponseEntity.ok(requireInvoiceResponse(invoiceService.validateInvoice(id), id));
     }
 
     @PostMapping("/{id}/reject")
@@ -160,8 +150,10 @@ public class InvoiceController {
             @ApiResponse(responseCode = "409", description = "Transition de statut invalide")
     })
     public ResponseEntity<InvoiceStatusResponse> rejectInvoice(@PathVariable Long id) {
-        return invoiceService.rejectInvoice(id)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        return ResponseEntity.ok(requireInvoiceResponse(invoiceService.rejectInvoice(id), id));
+    }
+
+    private <T> T requireInvoiceResponse(Optional<T> response, Long invoiceId) {
+        return response.orElseThrow(() -> new InvoiceNotFoundException(invoiceId));
     }
 }
