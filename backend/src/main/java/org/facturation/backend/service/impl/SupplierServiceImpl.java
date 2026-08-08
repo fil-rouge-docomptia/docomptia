@@ -2,13 +2,21 @@ package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
 import org.facturation.backend.dto.response.OcrFieldResponse;
+import org.facturation.backend.dto.response.SupplierDetailsResponse;
+import org.facturation.backend.dto.response.SupplierListItemResponse;
 import org.facturation.backend.exception.SupplierNotFoundException;
+import org.facturation.backend.mapper.SupplierResponseMapper;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.Supplier;
+import org.facturation.backend.model.User;
 import org.facturation.backend.repository.SupplierRepository;
+import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.SupplierService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -17,10 +25,20 @@ import java.util.Optional;
 @Service
 public class SupplierServiceImpl implements SupplierService {
 
-    private final SupplierRepository supplierRepository;
+    private static final Long DEFAULT_USER_ID = 1L;
 
-    public SupplierServiceImpl(SupplierRepository supplierRepository) {
+    private final SupplierRepository supplierRepository;
+    private final SupplierResponseMapper supplierResponseMapper;
+    private final UserRepository userRepository;
+
+    public SupplierServiceImpl(
+            SupplierRepository supplierRepository,
+            SupplierResponseMapper supplierResponseMapper,
+            UserRepository userRepository
+    ) {
         this.supplierRepository = supplierRepository;
+        this.supplierResponseMapper = supplierResponseMapper;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -36,6 +54,23 @@ public class SupplierServiceImpl implements SupplierService {
     @Override
     public Supplier save(Supplier supplier) {
         return supplierRepository.save(supplier);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<SupplierListItemResponse> findPage(Pageable pageable) {
+        Long organizationId = findCurrentOrganizationId();
+        return supplierRepository.findByOrganizationOrganizationId(organizationId, pageable)
+                .map(supplierResponseMapper::toListItemResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SupplierDetailsResponse findDetailsById(Long id) {
+        Long organizationId = findCurrentOrganizationId();
+        return supplierRepository.findBySupplierIdAndOrganizationOrganizationId(id, organizationId)
+                .map(supplierResponseMapper::toDetailsResponse)
+                .orElseThrow(() -> new SupplierNotFoundException(id));
     }
 
     @Override
@@ -172,5 +207,11 @@ public class SupplierServiceImpl implements SupplierService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private Long findCurrentOrganizationId() {
+        User currentUser = userRepository.findById(DEFAULT_USER_ID)
+                .orElseThrow(() -> new IllegalStateException("Default user not found"));
+        return currentUser.getOrganization().getOrganizationId();
     }
 }
