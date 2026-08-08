@@ -16,6 +16,8 @@ public class ApiExceptionHandler {
     private static final String INVOICE_VALIDATION_ERROR_CODE = "INVOICE_VALIDATION_ERROR";
     private static final String INVOICE_NOT_FOUND_CODE = "INVOICE_NOT_FOUND";
     private static final String SUPPLIER_NOT_FOUND_CODE = "SUPPLIER_NOT_FOUND";
+    private static final String SUPPLIER_VALIDATION_ERROR_CODE = "SUPPLIER_VALIDATION_ERROR";
+    private static final String SUPPLIER_LEGAL_IDENTIFIER_CONFLICT_CODE = "SUPPLIER_LEGAL_IDENTIFIER_CONFLICT";
     private static final String INVOICE_ACTION_NOT_ALLOWED_CODE = "INVOICE_ACTION_NOT_ALLOWED";
     private static final String INVOICE_REQUIRED_FIELDS_MISSING_CODE = "INVOICE_REQUIRED_FIELDS_MISSING";
 
@@ -43,6 +45,22 @@ public class ApiExceptionHandler {
     @ExceptionHandler(SupplierNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleSupplierNotFound(SupplierNotFoundException exception) {
         return errorResponse(HttpStatus.NOT_FOUND, SUPPLIER_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidSupplierException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidSupplier(InvalidSupplierException exception) {
+        return errorResponse(HttpStatus.BAD_REQUEST, SUPPLIER_VALIDATION_ERROR_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(SupplierLegalIdentifierConflictException.class)
+    public ResponseEntity<ApiErrorResponse> handleSupplierLegalIdentifierConflict(
+            SupplierLegalIdentifierConflictException exception
+    ) {
+        return errorResponse(
+                HttpStatus.CONFLICT,
+                SUPPLIER_LEGAL_IDENTIFIER_CONFLICT_CODE,
+                exception.getMessage()
+        );
     }
 
     @ExceptionHandler(InvoiceOcrFailureException.class)

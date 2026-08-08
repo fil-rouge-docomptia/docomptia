@@ -18,6 +18,7 @@ import java.time.LocalDateTime;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -95,6 +96,98 @@ class SupplierControllerIntegrationTest {
                 .andExpect(jsonPath("$.message").value(
                         "Supplier " + hiddenSupplier.getSupplierId() + " not found"
                 ));
+    }
+
+    @Test
+    void updatesAuthorizedSupplierFields() throws Exception {
+        mockMvc.perform(patch("/api/v1/suppliers/{id}", 1L)
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "name": "Orange Business",
+                                  "legalName": "Orange SA Updated",
+                                  "siret": "12345678901234",
+                                  "vatNumber": "frab123456789",
+                                  "email": "updated@orange.com",
+                                  "phone": "0123456789",
+                                  "address": "2 avenue de la Republique, Paris"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.supplierId").value(1))
+                .andExpect(jsonPath("$.name").value("Orange Business"))
+                .andExpect(jsonPath("$.legalName").value("Orange SA Updated"))
+                .andExpect(jsonPath("$.siret").value("12345678901234"))
+                .andExpect(jsonPath("$.vatNumber").value("FRAB123456789"))
+                .andExpect(jsonPath("$.email").value("updated@orange.com"))
+                .andExpect(jsonPath("$.phone").value("0123456789"))
+                .andExpect(jsonPath("$.address").value("2 avenue de la Republique, Paris"));
+    }
+
+    @Test
+    void rejectsInvalidLegalIdentifier() throws Exception {
+        mockMvc.perform(patch("/api/v1/suppliers/{id}", 1L)
+                        .contentType("application/json")
+                        .content("""
+                                {"siret": "1234"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("SUPPLIER_VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("siret must contain exactly 14 digits"));
+    }
+
+    @Test
+    void rejectsDuplicateLegalIdentifierWithinCurrentOrganization() throws Exception {
+        Organization currentOrganization = organizationRepository.findById(1L).orElseThrow();
+        createSupplier(currentOrganization, "Duplicate identifier supplier", "12345678901234");
+
+        mockMvc.perform(patch("/api/v1/suppliers/{id}", 1L)
+                        .contentType("application/json")
+                        .content("""
+                                {"siret": "12345678901234"}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SUPPLIER_LEGAL_IDENTIFIER_CONFLICT"))
+                .andExpect(jsonPath("$.message").value(
+                        "Another supplier in the organization already uses this siret"
+                ));
+    }
+
+    @Test
+    void allowsSameLegalIdentifierInAnotherOrganization() throws Exception {
+        Organization otherOrganization = createOrganization();
+        createSupplier(otherOrganization, "Other organization supplier", "12345678901234");
+
+        mockMvc.perform(patch("/api/v1/suppliers/{id}", 1L)
+                        .contentType("application/json")
+                        .content("""
+                                {"siret": "12345678901234"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.siret").value("12345678901234"));
+    }
+
+    @Test
+    void refusesUpdateForSupplierFromAnotherOrganization() throws Exception {
+        Organization otherOrganization = createOrganization();
+        Supplier hiddenSupplier = createSupplier(otherOrganization, "Hidden update supplier", "12345678901234");
+
+        mockMvc.perform(patch("/api/v1/suppliers/{id}", hiddenSupplier.getSupplierId())
+                        .contentType("application/json")
+                        .content("""
+                                {"phone": "0123456789"}
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("SUPPLIER_NOT_FOUND"));
+    }
+
+    @Test
+    void rejectsRequestWithoutEffectiveChange() throws Exception {
+        mockMvc.perform(patch("/api/v1/suppliers/{id}", 1L)
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("At least one changed field is required"));
     }
 
     private Organization createOrganization() {

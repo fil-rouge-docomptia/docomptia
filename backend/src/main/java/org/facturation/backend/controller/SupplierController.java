@@ -3,7 +3,9 @@ package org.facturation.backend.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.facturation.backend.dto.request.SupplierUpdateRequest;
 import org.facturation.backend.dto.response.SupplierDetailsResponse;
 import org.facturation.backend.dto.response.SupplierListItemResponse;
 import org.facturation.backend.service.SupplierService;
@@ -13,6 +15,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -49,5 +53,20 @@ public class SupplierController {
     @ApiResponse(responseCode = "404", description = "Fournisseur introuvable dans l'organisation de l'utilisateur")
     public ResponseEntity<SupplierDetailsResponse> getSupplier(@PathVariable Long id) {
         return ResponseEntity.ok(supplierService.findDetailsById(id));
+    }
+
+    @PatchMapping("/{id}")
+    @Operation(summary = "Modifier les informations legales et de contact d'un fournisseur")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Fournisseur modifie"),
+            @ApiResponse(responseCode = "400", description = "Donnees invalides ou aucune modification effective"),
+            @ApiResponse(responseCode = "404", description = "Fournisseur introuvable dans l'organisation de l'utilisateur"),
+            @ApiResponse(responseCode = "409", description = "SIRET ou numero de TVA deja utilise dans l'organisation")
+    })
+    public ResponseEntity<SupplierDetailsResponse> updateSupplier(
+            @PathVariable Long id,
+            @RequestBody SupplierUpdateRequest request
+    ) {
+        return ResponseEntity.ok(supplierService.update(id, request));
     }
 }

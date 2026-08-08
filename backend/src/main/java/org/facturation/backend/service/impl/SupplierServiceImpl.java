@@ -2,9 +2,12 @@ package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
 import org.facturation.backend.dto.response.OcrFieldResponse;
+import org.facturation.backend.dto.request.SupplierUpdateRequest;
 import org.facturation.backend.dto.response.SupplierDetailsResponse;
 import org.facturation.backend.dto.response.SupplierListItemResponse;
 import org.facturation.backend.exception.SupplierNotFoundException;
+import org.facturation.backend.exception.SupplierLegalIdentifierConflictException;
+import org.facturation.backend.exception.InvalidSupplierException;
 import org.facturation.backend.mapper.SupplierResponseMapper;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.Organization;
@@ -20,12 +23,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 @Service
 public class SupplierServiceImpl implements SupplierService {
 
     private static final Long DEFAULT_USER_ID = 1L;
+    private static final Pattern SIRET_PATTERN = Pattern.compile("\\d{14}");
+    private static final Pattern FRENCH_VAT_NUMBER_PATTERN = Pattern.compile("FR[A-Z0-9]{2}\\d{9}");
 
     private final SupplierRepository supplierRepository;
     private final SupplierResponseMapper supplierResponseMapper;
@@ -71,6 +79,23 @@ public class SupplierServiceImpl implements SupplierService {
         return supplierRepository.findBySupplierIdAndOrganizationOrganizationId(id, organizationId)
                 .map(supplierResponseMapper::toDetailsResponse)
                 .orElseThrow(() -> new SupplierNotFoundException(id));
+    }
+
+    @Override
+    @Transactional
+    public SupplierDetailsResponse update(Long id, SupplierUpdateRequest request) {
+        Long organizationId = findCurrentOrganizationId();
+        Supplier supplier = supplierRepository.findBySupplierIdAndOrganizationOrganizationId(id, organizationId)
+                .orElseThrow(() -> new SupplierNotFoundException(id));
+
+        validateLegalIdentifiers(request, supplier, organizationId);
+        boolean changed = applyUpdates(supplier, request);
+        if (!changed) {
+            throw new InvalidSupplierException("At least one changed field is required");
+        }
+
+        supplier.setUpdatedAt(LocalDateTime.now());
+        return supplierResponseMapper.toDetailsResponse(supplierRepository.save(supplier));
     }
 
     @Override
@@ -196,6 +221,134 @@ public class SupplierServiceImpl implements SupplierService {
                 .map(OcrFieldResponse::getNormalizedValue)
                 .filter(value -> value != null && !value.isBlank())
                 .findFirst();
+    }
+
+    private boolean applyUpdates(Supplier supplier, SupplierUpdateRequest request) {
+        boolean changed = false;
+        changed |= applyRequiredValue(request.getName(), supplier.getName(), supplier::setName, "name");
+        changed |= applyRequiredValue(
+                request.getLegalName(),
+                supplier.getLegalName(),
+                supplier::setLegalName,
+                "legalName"
+        );
+        changed |= applySiret(request.getSiret(), supplier);
+        changed |= applyVatNumber(request.getVatNumber(), supplier);
+        changed |= applyOptionalValue(request.getEmail(), supplier.getEmail(), supplier::setEmail);
+        changed |= applyOptionalValue(request.getPhone(), supplier.getPhone(), supplier::setPhone);
+        changed |= applyOptionalValue(request.getAddress(), supplier.getAddress(), supplier::setAddress);
+        return changed;
+    }
+
+    private boolean applySiret(String requestedValue, Supplier supplier) {
+        if (requestedValue == null) {
+            return false;
+        }
+        String siret = normalizeSiret(requestedValue);
+        if (Objects.equals(supplier.getSiret(), siret)) {
+            return false;
+        }
+        supplier.setSiret(siret);
+        return true;
+    }
+
+    private boolean applyVatNumber(String requestedValue, Supplier supplier) {
+        if (requestedValue == null) {
+            return false;
+        }
+        String vatNumber = normalizeVatNumber(requestedValue);
+        if (Objects.equals(supplier.getVatNumber(), vatNumber)) {
+            return false;
+        }
+        supplier.setVatNumber(vatNumber);
+        return true;
+    }
+
+    private boolean applyRequiredValue(
+            String requestedValue,
+            String currentValue,
+            java.util.function.Consumer<String> setter,
+            String fieldName
+    ) {
+        if (requestedValue == null) {
+            return false;
+        }
+        if (isBlank(requestedValue)) {
+            throw new InvalidSupplierException(fieldName + " is required");
+        }
+        String value = requestedValue.trim();
+        if (Objects.equals(currentValue, value)) {
+            return false;
+        }
+        setter.accept(value);
+        return true;
+    }
+
+    private boolean applyOptionalValue(
+            String requestedValue,
+            String currentValue,
+            java.util.function.Consumer<String> setter
+    ) {
+        if (requestedValue == null) {
+            return false;
+        }
+        String value = toNullableValue(requestedValue);
+        if (Objects.equals(currentValue, value)) {
+            return false;
+        }
+        setter.accept(value);
+        return true;
+    }
+
+    private void validateLegalIdentifiers(
+            SupplierUpdateRequest request,
+            Supplier supplier,
+            Long organizationId
+    ) {
+        String siret = request.getSiret() == null ? null : normalizeSiret(request.getSiret());
+        if (siret != null
+                && supplierRepository.existsByOrganizationOrganizationIdAndSiretAndSupplierIdNot(
+                        organizationId,
+                        siret,
+                        supplier.getSupplierId()
+                )) {
+            throw new SupplierLegalIdentifierConflictException("siret");
+        }
+
+        String vatNumber = request.getVatNumber() == null ? null : normalizeVatNumber(request.getVatNumber());
+        if (vatNumber != null
+                && supplierRepository.existsByOrganizationOrganizationIdAndVatNumberIgnoreCaseAndSupplierIdNot(
+                        organizationId,
+                        vatNumber,
+                        supplier.getSupplierId()
+                )) {
+            throw new SupplierLegalIdentifierConflictException("vatNumber");
+        }
+    }
+
+    private String normalizeSiret(String value) {
+        String siret = toNullableValue(value);
+        if (siret != null && !SIRET_PATTERN.matcher(siret).matches()) {
+            throw new InvalidSupplierException("siret must contain exactly 14 digits");
+        }
+        return siret;
+    }
+
+    private String normalizeVatNumber(String value) {
+        String vatNumber = toNullableValue(value);
+        if (vatNumber == null) {
+            return null;
+        }
+        vatNumber = vatNumber.toUpperCase(Locale.ROOT);
+        if (!FRENCH_VAT_NUMBER_PATTERN.matcher(vatNumber).matches()) {
+            throw new InvalidSupplierException("vatNumber must be a valid French VAT number");
+        }
+        return vatNumber;
+    }
+
+    private String toNullableValue(String value) {
+        String trimmedValue = value.trim();
+        return trimmedValue.isEmpty() ? null : trimmedValue;
     }
 
     private String requireNotBlank(String value, String fieldName) {
