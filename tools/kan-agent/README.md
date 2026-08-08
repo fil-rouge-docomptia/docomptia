@@ -1,8 +1,120 @@
 # KAN Agent
 
-CLI local qui orchestre Jira, Git et Codex pour implementer un ticket dans un
-worktree dedie. Codex modifie, teste et commite le code. Le CLI interdit le push
-avant une approbation explicite de l'utilisateur.
+Agent local qui orchestre Jira, Git et Codex pour implementer un ticket dans un
+worktree dedie. Une interface React permet de choisir l'epic et le ticket, suivre
+les etapes en direct, consulter la review, demander une correction, approuver et
+pousser la branche. Le CLI historique reste disponible.
+
+## Demarrage Avec Docker
+
+Le conteneur est la methode recommandee pour partager l'agent avec les autres
+developpeurs. Depuis la racine de `SourceCode`:
+
+```bash
+make agent-init
+```
+
+Completer ensuite `tools/kan-agent/.env.local`:
+
+```dotenv
+JIRA_BASE_URL=https://organisation.atlassian.net
+JIRA_EMAIL=utilisateur@entreprise.fr
+JIRA_API_TOKEN=token-api-jira
+GITHUB_TOKEN=token-github-optionnel
+GIT_USER_NAME=Prenom Nom
+GIT_USER_EMAIL=utilisateur@entreprise.fr
+```
+
+Puis lancer l'agent:
+
+```bash
+make agent
+```
+
+L'interface est disponible sur `http://127.0.0.1:4310`.
+
+Le conteneur monte uniquement les ressources necessaires:
+
+- le depot courant dans `/workspace`, pour creer les branches et commits;
+- `~/.codex`, pour reutiliser l'authentification Codex CLI;
+- `~/.kan-agent`, pour conserver l'etat, les logs et l'historique;
+- `~/.ssh` en lecture seule, pour les remotes Git utilisant SSH.
+
+Les chemins `~/.kan-agent` sont identiques dans le conteneur et sur l'hote. Les
+worktrees conserves apres une erreur restent donc visibles et administrables
+avec les commandes Git habituelles depuis `SourceCode`.
+
+Si le remote Git utilise HTTPS, renseigner un `GITHUB_TOKEN` finement limite avec
+un acces en lecture et ecriture au depot. Ce token et les identifiants Jira sont
+retires de l'environnement transmis au processus Codex.
+
+Commandes Docker utiles:
+
+```bash
+make agent
+make agent-logs
+make agent-down
+```
+
+Le port est lie a `127.0.0.1` uniquement. Pour utiliser un autre port local:
+
+```bash
+KAN_AGENT_PORT=4312 make agent
+```
+
+Le Makefile transmet automatiquement l'UID et le GID du developpeur au
+conteneur afin d'eviter la creation de fichiers appartenant a `root` dans le
+depot. Codex doit avoir ete authentifie une premiere fois sur la machine hote.
+
+### Proxy D'entreprise
+
+Si l'entreprise intercepte les connexions HTTPS, fournir son autorite de
+certification dans `tools/kan-agent/.env.local`:
+
+```dotenv
+KAN_AGENT_CA_CERTIFICATE=/chemin/absolu/ca-entreprise.pem
+```
+
+Le certificat est utilise comme secret pendant la construction puis monte en
+lecture seule au runtime. Il n'est jamais copie dans l'image ou ajoute au depot.
+Lancer ensuite normalement `make agent`. Ne pas utiliser `strict-ssl=false`.
+
+## Interface Graphique
+
+Installer une fois les dependances de l'interface depuis le dossier de l'agent:
+
+```bash
+cd tools/kan-agent
+npm install
+```
+
+Puis lancer l'API locale et React avec une seule commande:
+
+```bash
+npm run web
+```
+
+Ouvrir ensuite `http://127.0.0.1:4311`. L'API ecoute uniquement sur
+`127.0.0.1:4310`; les identifiants Jira restent dans le processus Node et ne sont
+jamais envoyes au navigateur.
+
+L'interface propose:
+
+- un diagnostic Node, Git, Codex et Jira;
+- le chargement des epics et tickets Jira;
+- une confirmation avant le lancement du ticket;
+- le suivi des statuts et des logs en direct;
+- la review des commits, fichiers et tests;
+- une demande de revision en langage naturel;
+- une approbation explicite avant le push;
+- l'historique des workflows archives.
+
+Pour servir une version compilee sur le seul port `4310`:
+
+```bash
+npm run web:build
+npm run web:server
+```
 
 ## Prerequis
 
@@ -12,7 +124,7 @@ avant une approbation explicite de l'utilisateur.
 - un compte Jira Cloud et un API token.
 
 Le lanceur `bin/kan-agent` detecte automatiquement une version Node compatible
-installee avec NVM. Le CLI n'a aucune dependance npm a installer.
+installee avec NVM. Seule l'interface graphique necessite une installation npm.
 
 Pour executer directement les scripts npm de verification, activer d'abord une
 version recente:

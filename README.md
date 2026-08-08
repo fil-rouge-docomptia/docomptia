@@ -13,6 +13,7 @@ Application MVP de facturation electronique composee d'un frontend React, d'un b
 | OCR | FastAPI, Tesseract |
 | Reverse proxy | Nginx |
 | Orchestration locale | Docker Compose |
+| Agent de developpement | Node.js, React, Codex CLI, Jira |
 
 ## Architecture Rapide
 
@@ -34,6 +35,7 @@ Documentation detaillee:
 - [Service OCR](docs/ocr.md)
 - [Stockage et base de donnees](docs/storage-and-database.md)
 - [Exploitation et commandes utiles](docs/operations.md)
+- [Agent Jira, Git et Codex](tools/kan-agent/README.md)
 
 ## Prerequis
 
@@ -90,6 +92,9 @@ make prod
 make prod-down
 make logs
 make ps
+make agent-init
+make agent
+make agent-down
 ```
 
 ## Environnements
