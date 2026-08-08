@@ -7,24 +7,32 @@ export function runCommand(command, args = [], options = {}) {
     inherit = false,
     input,
     allowFailure = false,
+    onOutput,
   } = options
 
   return new Promise((resolve, reject) => {
+    const pipeOutput = !inherit || Boolean(onOutput)
     const child = spawn(command, args, {
       cwd,
       env,
-      stdio: inherit ? ['pipe', 'inherit', 'inherit'] : ['pipe', 'pipe', 'pipe'],
+      stdio: pipeOutput ? ['pipe', 'pipe', 'pipe'] : ['pipe', 'inherit', 'inherit'],
     })
 
     let stdout = ''
     let stderr = ''
 
-    if (!inherit) {
+    if (pipeOutput) {
       child.stdout.on('data', (chunk) => {
-        stdout += chunk.toString()
+        const text = chunk.toString()
+        stdout += text
+        if (inherit) process.stdout.write(text)
+        onOutput?.({ stream: 'stdout', text })
       })
       child.stderr.on('data', (chunk) => {
-        stderr += chunk.toString()
+        const text = chunk.toString()
+        stderr += text
+        if (inherit) process.stderr.write(text)
+        onOutput?.({ stream: 'stderr', text })
       })
     }
 
