@@ -23,6 +23,7 @@
           "command": { "type": "string" },
           "status": {
             "type": "string",
+            "description": "Use failed only when tests executed and a test failed; use not_run when execution was prevented.",
             "enum": ["passed", "failed", "not_run"]
           },
           "details": { "type": "string" }

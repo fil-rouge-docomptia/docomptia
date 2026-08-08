@@ -13,6 +13,8 @@ Mandatory rules:
 - Make minimal, readable changes with clearly separated responsibilities.
 - Preserve existing API and database behavior unless the ticket explicitly changes it.
 - Run the smallest relevant tests, then the broader module tests when feasible.
+- Report `failed` only when tests actually ran and at least one test failed. Use `not_run`
+  when setup, dependencies, sandboxing, or another environment issue prevented execution.
 - Do not run git add, git commit, or git push. The orchestrator validates changed paths,
   creates small atomic commits using `{{ISSUE_KEY}}: Message`, and owns the push step.
 - Do not modify certificates, Netskope files, generated files, network workarounds, or

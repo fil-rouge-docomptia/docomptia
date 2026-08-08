@@ -31,3 +31,12 @@ test('a latest failed test result remains blocking', () => {
 
   assert.equal(hasFailedTests(tests), true)
 })
+
+test('a command that could not execute tests does not block successful results', () => {
+  const tests = [
+    { command: './mvnw test', status: 'not_run', details: 'Dependency setup failed' },
+    { command: 'junit fallback', status: 'passed', details: 'All tests passed' },
+  ]
+
+  assert.equal(hasFailedTests(tests), false)
+})
