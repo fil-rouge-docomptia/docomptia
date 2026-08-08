@@ -2,6 +2,7 @@ package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
 import org.facturation.backend.dto.response.OcrFieldResponse;
+import org.facturation.backend.exception.SupplierNotFoundException;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.Supplier;
@@ -46,14 +47,14 @@ public class SupplierServiceImpl implements SupplierService {
                         organizationId,
                         normalizedSupplierName
                 ))
-                .orElseThrow(() -> new IllegalArgumentException("Supplier not found"));
+                .orElseThrow(() -> new SupplierNotFoundException(normalizedSupplierName));
     }
 
     @Override
     public Supplier resolveForInvoiceUpload(Long supplierId, Organization organization, OcrAnalysisResponse ocrAnalysis) {
         if (supplierId != null) {
             return findById(supplierId)
-                    .orElseThrow(() -> new IllegalArgumentException("Supplier not found"));
+                    .orElseThrow(() -> new SupplierNotFoundException(supplierId));
         }
 
         Optional<String> supplierName = extractOptionalNormalizedValue(ocrAnalysis, "supplierName");

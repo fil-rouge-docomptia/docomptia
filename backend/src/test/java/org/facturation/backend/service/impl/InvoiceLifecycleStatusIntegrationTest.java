@@ -1,6 +1,7 @@
 package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
+import org.facturation.backend.dto.response.ApiErrorResponse;
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
@@ -34,7 +35,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -114,7 +114,7 @@ class InvoiceLifecycleStatusIntegrationTest {
                 InvoiceStatusTransitionException.class,
                 () -> invoiceService.correctInvoice(uploadResponse.getInvoiceId(), request)
         );
-        ResponseEntity<Map<String, String>> errorResponse =
+        ResponseEntity<ApiErrorResponse> errorResponse =
                 apiExceptionHandler.handleInvoiceStatusTransition(exception);
         Invoice persistedAfterCorrection = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
 
@@ -123,7 +123,8 @@ class InvoiceLifecycleStatusIntegrationTest {
                 exception.getMessage()
         );
         assertEquals(HttpStatus.CONFLICT, errorResponse.getStatusCode());
-        assertEquals(exception.getMessage(), errorResponse.getBody().get("message"));
+        assertEquals("INVOICE_ACTION_NOT_ALLOWED", errorResponse.getBody().getCode());
+        assertEquals(exception.getMessage(), errorResponse.getBody().getMessage());
         assertEquals(InvoiceStatusCode.VALIDEE.getCode(), persistedAfterCorrection.getInvoiceStatus().getCode());
         assertEquals(initialInvoiceNumber, persistedAfterCorrection.getInvoiceNumber());
     }
@@ -137,7 +138,7 @@ class InvoiceLifecycleStatusIntegrationTest {
                 InvoiceStatusTransitionException.class,
                 () -> invoiceService.validateInvoice(uploadResponse.getInvoiceId())
         );
-        ResponseEntity<Map<String, String>> errorResponse =
+        ResponseEntity<ApiErrorResponse> errorResponse =
                 apiExceptionHandler.handleInvoiceStatusTransition(exception);
         Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
 
@@ -146,7 +147,8 @@ class InvoiceLifecycleStatusIntegrationTest {
                 exception.getMessage()
         );
         assertEquals(HttpStatus.CONFLICT, errorResponse.getStatusCode());
-        assertEquals(exception.getMessage(), errorResponse.getBody().get("message"));
+        assertEquals("INVOICE_ACTION_NOT_ALLOWED", errorResponse.getBody().getCode());
+        assertEquals(exception.getMessage(), errorResponse.getBody().getMessage());
         assertEquals(InvoiceStatusCode.VALIDEE.getCode(), persistedInvoice.getInvoiceStatus().getCode());
     }
 
@@ -159,7 +161,7 @@ class InvoiceLifecycleStatusIntegrationTest {
                 InvoiceStatusTransitionException.class,
                 () -> invoiceService.rejectInvoice(uploadResponse.getInvoiceId())
         );
-        ResponseEntity<Map<String, String>> errorResponse =
+        ResponseEntity<ApiErrorResponse> errorResponse =
                 apiExceptionHandler.handleInvoiceStatusTransition(exception);
         Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
 
@@ -168,7 +170,8 @@ class InvoiceLifecycleStatusIntegrationTest {
                 exception.getMessage()
         );
         assertEquals(HttpStatus.CONFLICT, errorResponse.getStatusCode());
-        assertEquals(exception.getMessage(), errorResponse.getBody().get("message"));
+        assertEquals("INVOICE_ACTION_NOT_ALLOWED", errorResponse.getBody().getCode());
+        assertEquals(exception.getMessage(), errorResponse.getBody().getMessage());
         assertEquals(InvoiceStatusCode.REJETEE.getCode(), persistedInvoice.getInvoiceStatus().getCode());
     }
 
@@ -187,7 +190,7 @@ class InvoiceLifecycleStatusIntegrationTest {
                 InvoiceMissingRequiredFieldsException.class,
                 () -> invoiceService.validateInvoice(uploadResponse.getInvoiceId())
         );
-        ResponseEntity<Map<String, String>> errorResponse =
+        ResponseEntity<ApiErrorResponse> errorResponse =
                 apiExceptionHandler.handleInvoiceMissingRequiredFields(exception);
         Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
 
@@ -198,7 +201,8 @@ class InvoiceLifecycleStatusIntegrationTest {
                 exception.getMessage()
         );
         assertEquals(HttpStatus.CONFLICT, errorResponse.getStatusCode());
-        assertEquals(exception.getMessage(), errorResponse.getBody().get("message"));
+        assertEquals("INVOICE_REQUIRED_FIELDS_MISSING", errorResponse.getBody().getCode());
+        assertEquals(exception.getMessage(), errorResponse.getBody().getMessage());
         assertEquals(InvoiceStatusCode.A_VERIFIER.getCode(), persistedInvoice.getInvoiceStatus().getCode());
     }
 
@@ -347,7 +351,7 @@ class InvoiceLifecycleStatusIntegrationTest {
                 InvoiceStatusTransitionException.class,
                 () -> invoiceService.generateAccountingEntry(uploadResponse.getInvoiceId())
         );
-        ResponseEntity<Map<String, String>> errorResponse =
+        ResponseEntity<ApiErrorResponse> errorResponse =
                 apiExceptionHandler.handleInvoiceStatusTransition(exception);
 
         assertEquals(
@@ -355,7 +359,8 @@ class InvoiceLifecycleStatusIntegrationTest {
                 exception.getMessage()
         );
         assertEquals(HttpStatus.CONFLICT, errorResponse.getStatusCode());
-        assertEquals(exception.getMessage(), errorResponse.getBody().get("message"));
+        assertEquals("INVOICE_ACTION_NOT_ALLOWED", errorResponse.getBody().getCode());
+        assertEquals(exception.getMessage(), errorResponse.getBody().getMessage());
 
         invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
         invoiceService.generateAccountingEntry(uploadResponse.getInvoiceId()).orElseThrow();
