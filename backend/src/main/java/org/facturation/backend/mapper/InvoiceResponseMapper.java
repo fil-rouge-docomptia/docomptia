@@ -11,6 +11,7 @@ import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.repository.InvoiceFileRepository;
 import org.facturation.backend.service.AccountingEntryService;
+import org.facturation.backend.service.InvoiceDuplicateAlertService;
 import org.facturation.backend.service.InvoiceOcrService;
 import org.facturation.backend.service.OcrErrorService;
 import org.springframework.stereotype.Component;
@@ -26,6 +27,7 @@ public class InvoiceResponseMapper {
     private final OcrErrorMapper ocrErrorMapper;
     private final AccountingEntryService accountingEntryService;
     private final AccountingEntryMapper accountingEntryMapper;
+    private final InvoiceDuplicateAlertService duplicateAlertService;
 
     public InvoiceResponseMapper(
             InvoiceFileRepository invoiceFileRepository,
@@ -33,7 +35,8 @@ public class InvoiceResponseMapper {
             OcrErrorService ocrErrorService,
             OcrErrorMapper ocrErrorMapper,
             AccountingEntryService accountingEntryService,
-            AccountingEntryMapper accountingEntryMapper
+            AccountingEntryMapper accountingEntryMapper,
+            InvoiceDuplicateAlertService duplicateAlertService
     ) {
         this.invoiceFileRepository = invoiceFileRepository;
         this.invoiceOcrService = invoiceOcrService;
@@ -41,6 +44,7 @@ public class InvoiceResponseMapper {
         this.ocrErrorMapper = ocrErrorMapper;
         this.accountingEntryService = accountingEntryService;
         this.accountingEntryMapper = accountingEntryMapper;
+        this.duplicateAlertService = duplicateAlertService;
     }
 
     public InvoiceUploadResponse toUploadResponse(Invoice invoice, OcrAnalysisResponse ocrAnalysis) {
@@ -49,6 +53,7 @@ public class InvoiceResponseMapper {
         response.setInvoiceNumber(invoice.getInvoiceNumber());
         response.setStatus(invoice.getInvoiceStatus().getCode());
         response.setOcrAnalysis(ocrAnalysis);
+        response.setDuplicateAlerts(duplicateAlertService.findByInvoiceId(invoice.getInvoiceId()));
         return response;
     }
 
@@ -99,6 +104,7 @@ public class InvoiceResponseMapper {
         response.setTotalHt(toStringOrNull(invoice.getTotalHt()));
         response.setTotalTva(toStringOrNull(invoice.getTotalTva()));
         response.setTotalTtc(toStringOrNull(invoice.getTotalTtc()));
+        response.setDuplicateAlerts(duplicateAlertService.findByInvoiceId(invoice.getInvoiceId()));
 
         invoiceFileRepository.findByInvoiceInvoiceId(invoice.getInvoiceId())
                 .ifPresent(invoiceFile -> response.setFilePath(invoiceFile.getFilePath()));

@@ -1,5 +1,7 @@
 package org.facturation.backend.dto.response;
 
+import java.util.List;
+
 public class InvoiceDetailsResponse {
 
     private Long invoiceId;
@@ -17,6 +19,7 @@ public class InvoiceDetailsResponse {
     private OcrAnalysisResponse ocrAnalysis;
     private OcrErrorResponse ocrError;
     private AccountingEntryResponse accountingEntry;
+    private List<InvoiceDuplicateAlertResponse> duplicateAlerts;
 
     public Long getInvoiceId() {
         return invoiceId;
@@ -136,5 +139,13 @@ public class InvoiceDetailsResponse {
 
     public void setAccountingEntry(AccountingEntryResponse accountingEntry) {
         this.accountingEntry = accountingEntry;
+    }
+
+    public List<InvoiceDuplicateAlertResponse> getDuplicateAlerts() {
+        return duplicateAlerts;
+    }
+
+    public void setDuplicateAlerts(List<InvoiceDuplicateAlertResponse> duplicateAlerts) {
+        this.duplicateAlerts = duplicateAlerts;
     }
 }
