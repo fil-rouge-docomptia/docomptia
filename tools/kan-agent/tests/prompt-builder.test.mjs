@@ -45,3 +45,41 @@ test('buildPrompt falls back to context files from the shared repository', async
     await rm(directory, { recursive: true, force: true })
   }
 })
+
+test('buildPrompt accepts a legacy state without a loaded epic', async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'kan-agent-legacy-prompt-'))
+  const toolDirectory = resolve(directory, 'tool')
+  const worktree = resolve(directory, 'worktree')
+
+  try {
+    await mkdir(resolve(toolDirectory, 'prompts'), { recursive: true })
+    await mkdir(worktree, { recursive: true })
+    await writeFile(
+      resolve(toolDirectory, 'prompts', 'implement-ticket.md'),
+      '{{ISSUE_KEY}}\n{{EPIC_KEY}}\n{{EPIC_SUMMARY}}',
+    )
+
+    const prompt = await buildPrompt(
+      {
+        toolDirectory,
+        git: { baseRepositoryPath: directory },
+        codex: { contextFiles: [] },
+      },
+      {
+        worktree,
+        issue: {
+          key: 'KAN-77',
+          parentKey: 'KAN-54',
+          summary: 'Normalize errors',
+          status: 'To Do',
+          description: '',
+          acceptanceCriteria: '',
+        },
+      },
+    )
+
+    assert.match(prompt, /KAN-77\nKAN-54\nNot provided/)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
