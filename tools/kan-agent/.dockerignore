@@ -1,0 +1,8 @@
+.env.local
+config.local.json
+node_modules
+web/dist
+.agent-state
+runs
+tests
+npm-debug.log*

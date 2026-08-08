@@ -40,8 +40,8 @@ export async function buildPrompt(config, state, revisionInstruction = '') {
     ISSUE_STATUS: state.issue.status,
     ISSUE_DESCRIPTION: state.issue.description,
     ACCEPTANCE_CRITERIA: state.issue.acceptanceCriteria,
-    EPIC_KEY: state.epic.key,
-    EPIC_SUMMARY: state.epic.summary,
+    EPIC_KEY: state.epic?.key || state.issue.parentKey,
+    EPIC_SUMMARY: state.epic?.summary,
     CONTEXT_FILES: contextFiles,
     REVISION_INSTRUCTION: revisionInstruction
       ? `The user reviewed the previous implementation and requested this revision:\n<user-feedback>\n${revisionInstruction}\n</user-feedback>\nInspect the current branch and commits, apply the revision, rerun relevant tests, and create any necessary atomic commit.`

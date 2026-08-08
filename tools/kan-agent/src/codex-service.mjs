@@ -67,7 +67,7 @@ exec ${shellQuote(whichGit.stdout)} "$@"
     )
   }
 
-  async run(state, revisionInstruction = '') {
+  async run(state, revisionInstruction = '', options = {}) {
     const prompt = await buildPrompt(this.config, state, revisionInstruction)
     const runDirectory = resolve(
       this.config.state.directory,
@@ -103,6 +103,7 @@ exec ${shellQuote(whichGit.stdout)} "$@"
       env: environment,
       input: prompt,
       inherit: true,
+      onOutput: options.onOutput,
     })
 
     let result
