@@ -386,6 +386,27 @@ class InvoiceLifecycleStatusIntegrationTest {
     }
 
     @Test
+    void keepsAccountingEntryGenerationIdempotentForExportableInvoice() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+        InvoiceAccountingEntryResponse firstResponse = invoiceService
+                .generateAccountingEntry(uploadResponse.getInvoiceId())
+                .orElseThrow();
+        long accountingEntryCount = accountingEntryRepository.count();
+        long accountingEntryLineCount = accountingEntryLineRepository.count();
+
+        InvoiceAccountingEntryResponse secondResponse = invoiceService
+                .generateAccountingEntry(uploadResponse.getInvoiceId())
+                .orElseThrow();
+
+        assertEquals(firstResponse.getAccountingEntry().getAccountingEntryId(),
+                secondResponse.getAccountingEntry().getAccountingEntryId());
+        assertEquals(InvoiceStatusCode.EXPORTABLE.getCode(), secondResponse.getStatus());
+        assertEquals(accountingEntryCount, accountingEntryRepository.count());
+        assertEquals(accountingEntryLineCount, accountingEntryLineRepository.count());
+    }
+
+    @Test
     void returnsExplicitErrorForInvalidAccountingStatusAndSupportsExportAndArchiveStatuses() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
         long accountingEntryCountBefore = accountingEntryRepository.count();
