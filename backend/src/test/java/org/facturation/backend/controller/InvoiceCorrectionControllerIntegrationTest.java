@@ -177,6 +177,9 @@ class InvoiceCorrectionControllerIntegrationTest {
                 ))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("INVOICE_REQUIRED_FIELDS_MISSING"))
+                .andExpect(jsonPath("$.missingFields").isArray())
+                .andExpect(jsonPath("$.missingFields.length()").value(1))
+                .andExpect(jsonPath("$.missingFields[0]").value("invoiceDate"))
                 .andExpect(jsonPath("$.message").value(
                         "Invoice " + uploadResponse.getInvoiceId()
                                 + " cannot be submitted for validation from status EXTRAITE"
