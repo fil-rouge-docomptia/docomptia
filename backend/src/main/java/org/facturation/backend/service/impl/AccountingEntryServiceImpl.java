@@ -1,6 +1,7 @@
 package org.facturation.backend.service.impl;
 
 import jakarta.transaction.Transactional;
+import org.facturation.backend.exception.AccountingEntryPrerequisitesException;
 import org.facturation.backend.model.AccountingRule;
 import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.AccountingEntryLine;
@@ -18,6 +19,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -77,13 +79,11 @@ public class AccountingEntryServiceImpl implements AccountingEntryService {
     }
 
     private AccountingEntry createAccountingEntry(Invoice invoice, User user) {
-        AccountingRule accountingRule = findAccountingRule(invoice);
-        BigDecimal totalHt = normalizeAmount(invoice.getTotalHt());
-        BigDecimal totalTva = normalizeAmount(invoice.getTotalTva());
-        BigDecimal totalTtc = normalizeAmount(invoice.getTotalTtc());
-
-        validateInvoiceAmounts(totalHt, totalTva, totalTtc);
-        validateActiveAccounts(accountingRule);
+        AccountingEntryPrerequisites prerequisites = validatePrerequisites(invoice);
+        AccountingRule accountingRule = prerequisites.accountingRule();
+        BigDecimal totalHt = prerequisites.totalHt();
+        BigDecimal totalTva = prerequisites.totalTva();
+        BigDecimal totalTtc = prerequisites.totalTtc();
 
         AccountingEntry accountingEntry = new AccountingEntry();
         accountingEntry.setInvoice(invoice);
@@ -100,15 +100,14 @@ public class AccountingEntryServiceImpl implements AccountingEntryService {
         return savedAccountingEntry;
     }
 
-    private AccountingRule findAccountingRule(Invoice invoice) {
+    private Optional<AccountingRule> findAccountingRule(Invoice invoice) {
         return accountingRuleRepository
                 .findByOrganizationOrganizationIdAndActiveTrueOrderByPriorityAscAccountingRuleIdAsc(
                         invoice.getOrganization().getOrganizationId()
                 )
                 .stream()
                 .filter(rule -> matchesInvoice(rule, invoice))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("No accounting rule found for invoice"));
+                .findFirst();
     }
 
     private boolean matchesInvoice(AccountingRule rule, Invoice invoice) {
@@ -116,7 +115,9 @@ public class AccountingEntryServiceImpl implements AccountingEntryService {
     }
 
     private boolean matchesSupplier(AccountingRule rule, Invoice invoice) {
-        return rule.getSupplier() == null || rule.getSupplier().getSupplierId().equals(invoice.getSupplier().getSupplierId());
+        return rule.getSupplier() == null
+                || invoice.getSupplier() != null
+                && rule.getSupplier().getSupplierId().equals(invoice.getSupplier().getSupplierId());
     }
 
     private boolean matchesKeyword(AccountingRule rule, Invoice invoice) {
@@ -194,24 +195,64 @@ public class AccountingEntryServiceImpl implements AccountingEntryService {
         accountingEntryLineRepository.save(line);
     }
 
-    private void validateInvoiceAmounts(BigDecimal totalHt, BigDecimal totalTva, BigDecimal totalTtc) {
-        if (!isPositive(totalTtc)) {
-            throw new IllegalStateException("Cannot generate accounting entry without a positive total TTC");
+    private AccountingEntryPrerequisites validatePrerequisites(Invoice invoice) {
+        List<String> missingPrerequisites = new ArrayList<>();
+        BigDecimal totalHt = validateAmount(invoice.getTotalHt(), "totalHt", false, missingPrerequisites);
+        BigDecimal totalTva = validateAmount(invoice.getTotalTva(), "totalTva", false, missingPrerequisites);
+        BigDecimal totalTtc = validateAmount(invoice.getTotalTtc(), "totalTtc", true, missingPrerequisites);
+
+        if (totalHt != null && totalTva != null && totalTtc != null
+                && totalHt.add(totalTva).compareTo(totalTtc) != 0) {
+            missingPrerequisites.add("amountsBalance");
         }
-        if (totalHt.add(totalTva).compareTo(totalTtc) != 0) {
-            throw new IllegalStateException("Cannot generate a balanced accounting entry from invoice amounts");
+        if (invoice.getSupplier() == null) {
+            missingPrerequisites.add("supplier");
         }
+
+        Optional<AccountingRule> accountingRule = findAccountingRule(invoice);
+        if (accountingRule.isEmpty()) {
+            missingPrerequisites.add("accountingRule");
+        } else {
+            validateAccount(accountingRule.get().getExpenseAccount(), "expenseAccount", invoice, missingPrerequisites);
+            validateAccount(accountingRule.get().getVatAccount(), "vatAccount", invoice, missingPrerequisites);
+            validateAccount(accountingRule.get().getSupplierAccount(), "supplierAccount", invoice, missingPrerequisites);
+        }
+
+        if (!missingPrerequisites.isEmpty()) {
+            throw new AccountingEntryPrerequisitesException(invoice.getInvoiceId(), missingPrerequisites);
+        }
+        return new AccountingEntryPrerequisites(accountingRule.orElseThrow(), totalHt, totalTva, totalTtc);
     }
 
-    private void validateActiveAccounts(AccountingRule accountingRule) {
-        validateActiveAccount(accountingRule.getExpenseAccount());
-        validateActiveAccount(accountingRule.getVatAccount());
-        validateActiveAccount(accountingRule.getSupplierAccount());
+    private BigDecimal validateAmount(
+            BigDecimal amount,
+            String prerequisite,
+            boolean mustBePositive,
+            List<String> missingPrerequisites
+    ) {
+        if (amount == null) {
+            missingPrerequisites.add(prerequisite);
+            return null;
+        }
+        BigDecimal normalizedAmount = normalizeAmount(amount);
+        boolean invalid = mustBePositive
+                ? normalizedAmount.compareTo(BigDecimal.ZERO) <= 0
+                : normalizedAmount.compareTo(BigDecimal.ZERO) < 0;
+        if (invalid) {
+            missingPrerequisites.add(prerequisite);
+        }
+        return normalizedAmount;
     }
 
-    private void validateActiveAccount(ChartOfAccount account) {
-        if (!account.isActive()) {
-            throw new IllegalStateException("Chart of account " + account.getAccountNumber() + " is inactive");
+    private void validateAccount(
+            ChartOfAccount account,
+            String prerequisite,
+            Invoice invoice,
+            List<String> missingPrerequisites
+    ) {
+        if (account == null || !account.isActive()
+                || !account.getOrganization().getOrganizationId().equals(invoice.getOrganization().getOrganizationId())) {
+            missingPrerequisites.add(prerequisite);
         }
     }
 
@@ -240,5 +281,13 @@ public class AccountingEntryServiceImpl implements AccountingEntryService {
 
     private String nullSafe(String value) {
         return value == null ? "" : value;
+    }
+
+    private record AccountingEntryPrerequisites(
+            AccountingRule accountingRule,
+            BigDecimal totalHt,
+            BigDecimal totalTva,
+            BigDecimal totalTtc
+    ) {
     }
 }

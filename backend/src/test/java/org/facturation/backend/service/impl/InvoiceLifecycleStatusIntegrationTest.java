@@ -1,12 +1,14 @@
 package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
+import org.facturation.backend.dto.response.AccountingEntryPrerequisitesResponse;
 import org.facturation.backend.dto.response.ApiErrorResponse;
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.dto.response.OcrFieldResponse;
+import org.facturation.backend.exception.AccountingEntryPrerequisitesException;
 import org.facturation.backend.exception.ApiExceptionHandler;
 import org.facturation.backend.exception.InvoiceMissingRequiredFieldsException;
 import org.facturation.backend.exception.InvoiceStatusTransitionException;
@@ -19,6 +21,7 @@ import org.facturation.backend.model.OcrExtractionField;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.AccountingEntryLineRepository;
 import org.facturation.backend.repository.AccountingEntryRepository;
+import org.facturation.backend.repository.AccountingRuleRepository;
 import org.facturation.backend.repository.AuditLogRepository;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.InvoiceStatusHistoryRepository;
@@ -35,6 +38,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 
@@ -54,6 +58,7 @@ class InvoiceLifecycleStatusIntegrationTest {
     private final InvoiceService invoiceService;
     private final AccountingEntryRepository accountingEntryRepository;
     private final AccountingEntryLineRepository accountingEntryLineRepository;
+    private final AccountingRuleRepository accountingRuleRepository;
     private final AuditLogRepository auditLogRepository;
     private final InvoiceRepository invoiceRepository;
     private final InvoiceStatusHistoryRepository invoiceStatusHistoryRepository;
@@ -68,6 +73,7 @@ class InvoiceLifecycleStatusIntegrationTest {
             InvoiceService invoiceService,
             AccountingEntryRepository accountingEntryRepository,
             AccountingEntryLineRepository accountingEntryLineRepository,
+            AccountingRuleRepository accountingRuleRepository,
             AuditLogRepository auditLogRepository,
             InvoiceRepository invoiceRepository,
             InvoiceStatusHistoryRepository invoiceStatusHistoryRepository,
@@ -80,6 +86,7 @@ class InvoiceLifecycleStatusIntegrationTest {
         this.invoiceService = invoiceService;
         this.accountingEntryRepository = accountingEntryRepository;
         this.accountingEntryLineRepository = accountingEntryLineRepository;
+        this.accountingRuleRepository = accountingRuleRepository;
         this.auditLogRepository = auditLogRepository;
         this.invoiceRepository = invoiceRepository;
         this.invoiceStatusHistoryRepository = invoiceStatusHistoryRepository;
@@ -576,6 +583,56 @@ class InvoiceLifecycleStatusIntegrationTest {
         assertEquals(InvoiceStatusCode.EXPORTABLE.getCode(), secondResponse.getStatus());
         assertEquals(accountingEntryCount, accountingEntryRepository.count());
         assertEquals(accountingEntryLineCount, accountingEntryLineRepository.count());
+    }
+
+    @Test
+    void rejectsMissingOrInvalidAmountsBeforeCreatingAccountingData() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
+        invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+        Invoice invoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+        invoice.setTotalHt(null);
+        invoice.setTotalTtc(BigDecimal.ZERO);
+        invoiceRepository.save(invoice);
+        long accountingEntryCountBefore = accountingEntryRepository.count();
+        long accountingEntryLineCountBefore = accountingEntryLineRepository.count();
+
+        AccountingEntryPrerequisitesException exception = assertThrows(
+                AccountingEntryPrerequisitesException.class,
+                () -> invoiceService.generateAccountingEntry(uploadResponse.getInvoiceId())
+        );
+        ResponseEntity<ApiErrorResponse> errorResponse =
+                apiExceptionHandler.handleAccountingEntryPrerequisites(exception);
+
+        assertEquals(List.of("totalHt", "totalTtc"), exception.getMissingPrerequisites());
+        assertEquals(HttpStatus.CONFLICT, errorResponse.getStatusCode());
+        assertEquals("ACCOUNTING_ENTRY_PREREQUISITES_MISSING", errorResponse.getBody().getCode());
+        assertEquals(
+                List.of("totalHt", "totalTtc"),
+                ((AccountingEntryPrerequisitesResponse) errorResponse.getBody()).getMissingPrerequisites()
+        );
+        assertEquals(accountingEntryCountBefore, accountingEntryRepository.count());
+        assertEquals(accountingEntryLineCountBefore, accountingEntryLineRepository.count());
+    }
+
+    @Test
+    void rejectsMissingAccountingRuleBeforeCreatingAccountingData() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
+        invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+        accountingRuleRepository.findAll().forEach(rule -> rule.setActive(false));
+        accountingRuleRepository.flush();
+        long accountingEntryCountBefore = accountingEntryRepository.count();
+        long accountingEntryLineCountBefore = accountingEntryLineRepository.count();
+
+        AccountingEntryPrerequisitesException exception = assertThrows(
+                AccountingEntryPrerequisitesException.class,
+                () -> invoiceService.generateAccountingEntry(uploadResponse.getInvoiceId())
+        );
+
+        assertEquals(List.of("accountingRule"), exception.getMissingPrerequisites());
+        assertEquals(accountingEntryCountBefore, accountingEntryRepository.count());
+        assertEquals(accountingEntryLineCountBefore, accountingEntryLineRepository.count());
     }
 
     @Test
