@@ -232,7 +232,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             invoice.setUpdatedAt(LocalDateTime.now());
             Invoice savedInvoice = invoiceRepository.save(invoice);
             persistAppliedCorrections(savedInvoice, user, appliedCorrections);
-            invoiceStatusWorkflowService.moveToReviewAfterCorrectionIfNeeded(savedInvoice, user, true);
+            invoiceStatusWorkflowService.reintegrateAfterCorrectionIfNeeded(savedInvoice, user, true);
             return invoiceResponseMapper.toDetailsResponse(savedInvoice);
         });
     }
