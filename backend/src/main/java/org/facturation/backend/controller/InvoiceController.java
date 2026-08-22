@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.DuplicateAlertDecisionRequest;
+import org.facturation.backend.dto.request.InvoiceCorrectionDemandRequest;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
 import org.facturation.backend.dto.request.InvoiceRejectionRequest;
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
@@ -170,6 +171,26 @@ public class InvoiceController {
     })
     public ResponseEntity<InvoiceStatusResponse> validateInvoice(@PathVariable Long id) {
         return ResponseEntity.ok(requireInvoiceResponse(invoiceService.validateInvoice(id), id));
+    }
+
+    @PostMapping("/{id}/request-correction")
+    @Operation(
+            summary = "Demander une correction au deposant",
+            description = "Replace une facture A_VERIFIER dans le circuit de correction et historise le motif"
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Correction demandee"),
+            @ApiResponse(responseCode = "400", description = "Motif de correction manquant"),
+            @ApiResponse(responseCode = "409", description = "Action interdite pour le statut courant")
+    })
+    public ResponseEntity<InvoiceStatusResponse> requestInvoiceCorrection(
+            @PathVariable Long id,
+            @RequestBody InvoiceCorrectionDemandRequest request
+    ) {
+        return ResponseEntity.ok(requireInvoiceResponse(
+                invoiceService.requestInvoiceCorrection(id, request.getReason()),
+                id
+        ));
     }
 
     @PostMapping("/{id}/reject")

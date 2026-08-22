@@ -132,15 +132,23 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     }
 
     @Override
+    public void requestInvoiceCorrection(Invoice invoice, User user, String reason) {
+        String correctionReason = requireReason(reason, "Correction request reason is required");
+        ensureCurrentStatus(invoice, InvoiceStatusCode.A_VERIFIER, "receive a correction request");
+        transitionTo(invoice, InvoiceStatusCode.EXTRAITE, user, correctionReason);
+    }
+
+    @Override
     public void rejectInvoice(Invoice invoice, User user, String reason) {
-        String rejectionReason = requireRejectionReason(reason);
+        String rejectionReason = requireReason(reason, "Rejection reason is required");
+        ensureStatusChangeRequested(invoice, InvoiceStatusCode.REJETEE, "be rejected");
         ensureCurrentStatus(invoice, InvoiceStatusCode.A_VERIFIER, "be rejected");
         transitionTo(invoice, InvoiceStatusCode.REJETEE, user, rejectionReason);
     }
 
     @Override
     public void rejectInvoiceAsDuplicate(Invoice invoice, User user, String reason) {
-        String rejectionReason = requireRejectionReason(reason);
+        String rejectionReason = requireReason(reason, "Rejection reason is required");
         ensureStatusChangeRequested(invoice, InvoiceStatusCode.REJETEE, "be rejected as a duplicate");
         transitionTo(invoice, InvoiceStatusCode.REJETEE, user, rejectionReason);
     }
@@ -279,9 +287,9 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
         return value == null || value.isBlank();
     }
 
-    private String requireRejectionReason(String reason) {
+    private String requireReason(String reason, String missingReasonMessage) {
         if (isBlank(reason)) {
-            throw new IllegalArgumentException("Rejection reason is required");
+            throw new IllegalArgumentException(missingReasonMessage);
         }
         return reason.trim();
     }
@@ -291,10 +299,13 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
                 new EnumMap<>(InvoiceStatusCode.class);
         allowedPreviousStatuses.put(InvoiceStatusCode.OCR_EN_COURS, EnumSet.of(InvoiceStatusCode.DEPOSEE));
         allowedPreviousStatuses.put(InvoiceStatusCode.ERREUR_OCR, EnumSet.of(InvoiceStatusCode.OCR_EN_COURS));
-        allowedPreviousStatuses.put(InvoiceStatusCode.EXTRAITE, EnumSet.of(InvoiceStatusCode.OCR_EN_COURS));
+        allowedPreviousStatuses.put(
+                InvoiceStatusCode.EXTRAITE,
+                EnumSet.of(InvoiceStatusCode.OCR_EN_COURS, InvoiceStatusCode.A_VERIFIER)
+        );
         allowedPreviousStatuses.put(
                 InvoiceStatusCode.A_VERIFIER,
-                EnumSet.of(InvoiceStatusCode.EXTRAITE, InvoiceStatusCode.ERREUR_OCR, InvoiceStatusCode.EXTRAITE, InvoiceStatusCode.REJETEE)
+                EnumSet.of(InvoiceStatusCode.EXTRAITE, InvoiceStatusCode.ERREUR_OCR, InvoiceStatusCode.REJETEE)
         );
         allowedPreviousStatuses.put(
                 InvoiceStatusCode.VALIDEE,

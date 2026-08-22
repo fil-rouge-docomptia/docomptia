@@ -31,6 +31,8 @@ public interface InvoiceStatusWorkflowService {
 
     void validateInvoice(Invoice invoice, User user);
 
+    void requestInvoiceCorrection(Invoice invoice, User user, String reason);
+
     void rejectInvoice(Invoice invoice, User user, String reason);
 
     void rejectInvoiceAsDuplicate(Invoice invoice, User user, String reason);

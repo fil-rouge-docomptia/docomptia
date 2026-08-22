@@ -260,6 +260,17 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional
+    public Optional<InvoiceStatusResponse> requestInvoiceCorrection(Long id, String reason) {
+        return invoiceRepository.findById(id).map(invoice -> {
+            duplicateAlertService.ensureNoPendingAlerts(id, "receive a correction request");
+            User user = findDefaultUser();
+            invoiceStatusWorkflowService.requestInvoiceCorrection(invoice, user, reason);
+            return invoiceResponseMapper.toStatusResponse(invoice);
+        });
+    }
+
+    @Override
+    @Transactional
     public Optional<InvoiceStatusResponse> rejectInvoice(Long id, String reason) {
         return invoiceRepository.findById(id).map(invoice -> {
             duplicateAlertService.ensureNoPendingAlerts(id, "be rejected outside the duplicate decision workflow");
