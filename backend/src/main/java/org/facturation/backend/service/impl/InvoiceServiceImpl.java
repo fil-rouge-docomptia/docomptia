@@ -322,7 +322,11 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional
     public Optional<InvoiceAccountingEntryResponse> generateAccountingEntry(Long id) {
-        return invoiceRepository.findById(id).map(invoice -> {
+        return invoiceRepository.findForAccountingGenerationByInvoiceId(id).map(invoice -> {
+            Optional<AccountingEntry> existingAccountingEntry = accountingEntryService.findByInvoiceId(id);
+            if (existingAccountingEntry.isPresent()) {
+                return invoiceResponseMapper.toAccountingEntryResponse(invoice, existingAccountingEntry.get());
+            }
             duplicateAlertService.ensureNoPendingAlerts(id, "generate an accounting entry");
             User user = findDefaultUser();
             invoiceStatusWorkflowService.ensureCanGenerateAccountingEntry(invoice);

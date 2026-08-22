@@ -597,6 +597,36 @@ class InvoiceLifecycleStatusIntegrationTest {
     }
 
     @Test
+    void returnsExistingAccountingEntryAfterInvoiceStatusChanges() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
+        invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+        InvoiceAccountingEntryResponse firstResponse = invoiceService
+                .generateAccountingEntry(uploadResponse.getInvoiceId())
+                .orElseThrow();
+        Invoice invoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+        User user = userRepository.findById(1L).orElseThrow();
+        invoiceStatusWorkflowService.transitionTo(
+                invoice,
+                InvoiceStatusCode.EXPORTEE,
+                user,
+                "Accounting export completed"
+        );
+        long accountingEntryCount = accountingEntryRepository.count();
+        long accountingEntryLineCount = accountingEntryLineRepository.count();
+
+        InvoiceAccountingEntryResponse secondResponse = invoiceService
+                .generateAccountingEntry(uploadResponse.getInvoiceId())
+                .orElseThrow();
+
+        assertEquals(firstResponse.getAccountingEntry().getAccountingEntryId(),
+                secondResponse.getAccountingEntry().getAccountingEntryId());
+        assertEquals(InvoiceStatusCode.EXPORTEE.getCode(), secondResponse.getStatus());
+        assertEquals(accountingEntryCount, accountingEntryRepository.count());
+        assertEquals(accountingEntryLineCount, accountingEntryLineRepository.count());
+    }
+
+    @Test
     void rejectsMissingOrInvalidAmountsBeforeCreatingAccountingData() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
         submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
