@@ -32,7 +32,7 @@ public interface InvoiceService {
 
     Optional<InvoiceStatusResponse> validateInvoice(Long id);
 
-    Optional<InvoiceStatusResponse> rejectInvoice(Long id);
+    Optional<InvoiceStatusResponse> rejectInvoice(Long id, String reason);
 
     Optional<InvoiceAccountingEntryResponse> generateAccountingEntry(Long id);
 }

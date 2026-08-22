@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
+import org.facturation.backend.dto.request.InvoiceRejectionRequest;
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceHistoryItemResponse;
@@ -158,10 +159,14 @@ public class InvoiceController {
     @Operation(summary = "Rejeter une facture")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Facture rejetee"),
+            @ApiResponse(responseCode = "400", description = "Motif de refus manquant"),
             @ApiResponse(responseCode = "409", description = "Transition de statut invalide")
     })
-    public ResponseEntity<InvoiceStatusResponse> rejectInvoice(@PathVariable Long id) {
-        return ResponseEntity.ok(requireInvoiceResponse(invoiceService.rejectInvoice(id), id));
+    public ResponseEntity<InvoiceStatusResponse> rejectInvoice(
+            @PathVariable Long id,
+            @RequestBody InvoiceRejectionRequest request
+    ) {
+        return ResponseEntity.ok(requireInvoiceResponse(invoiceService.rejectInvoice(id, request.getReason()), id));
     }
 
     private <T> T requireInvoiceResponse(Optional<T> response, Long invoiceId) {

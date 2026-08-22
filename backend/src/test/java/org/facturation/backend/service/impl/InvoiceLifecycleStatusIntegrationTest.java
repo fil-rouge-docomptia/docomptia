@@ -47,6 +47,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Transactional
 class InvoiceLifecycleStatusIntegrationTest {
 
+    private static final String REJECTION_REASON = "Invoice amounts must be corrected";
+
     private final InvoiceService invoiceService;
     private final AuditLogRepository auditLogRepository;
     private final InvoiceRepository invoiceRepository;
@@ -83,7 +85,9 @@ class InvoiceLifecycleStatusIntegrationTest {
     @Test
     void movesRejectedInvoiceBackToReviewAfterCorrection() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
-        InvoiceStatusResponse rejectResponse = invoiceService.rejectInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+        InvoiceStatusResponse rejectResponse = invoiceService
+                .rejectInvoice(uploadResponse.getInvoiceId(), REJECTION_REASON)
+                .orElseThrow();
         InvoiceCorrectionRequest request = new InvoiceCorrectionRequest();
         request.setInvoiceNumber("INV-CORR-001");
 
@@ -99,6 +103,36 @@ class InvoiceLifecycleStatusIntegrationTest {
         assertEquals(uploadResponse.getInvoiceId(), latestHistory.getInvoice().getInvoiceId());
         assertEquals(1L, latestHistory.getChangedByUser().getUserId());
         assertEquals(1L, latestHistory.getInvoice().getOrganization().getOrganizationId());
+    }
+
+    @Test
+    void persistsRejectionDecisionAuthorDateAndReason() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+
+        InvoiceStatusResponse rejectionResponse = invoiceService
+                .rejectInvoice(uploadResponse.getInvoiceId(), "  " + REJECTION_REASON + "  ")
+                .orElseThrow();
+        InvoiceStatusHistory latestHistory = findLatestHistory(uploadResponse.getInvoiceId());
+
+        assertEquals(InvoiceStatusCode.REJETEE.getCode(), rejectionResponse.getStatus());
+        assertEquals(InvoiceStatusCode.REJETEE.getCode(), latestHistory.getInvoiceStatus().getCode());
+        assertEquals(REJECTION_REASON, latestHistory.getComment());
+        assertEquals(1L, latestHistory.getChangedByUser().getUserId());
+        assertNotNull(latestHistory.getChangedAt());
+    }
+
+    @Test
+    void requiresReasonWithoutChangingInvoiceStatus() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> invoiceService.rejectInvoice(uploadResponse.getInvoiceId(), "  ")
+        );
+        Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+
+        assertEquals("Rejection reason is required", exception.getMessage());
+        assertEquals(InvoiceStatusCode.EXTRAITE.getCode(), persistedInvoice.getInvoiceStatus().getCode());
     }
 
     @Test
@@ -155,11 +189,11 @@ class InvoiceLifecycleStatusIntegrationTest {
     @Test
     void returnsExplicitErrorWhenInvoiceIsAlreadyRejected() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
-        invoiceService.rejectInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+        invoiceService.rejectInvoice(uploadResponse.getInvoiceId(), REJECTION_REASON).orElseThrow();
 
         InvoiceStatusTransitionException exception = assertThrows(
                 InvoiceStatusTransitionException.class,
-                () -> invoiceService.rejectInvoice(uploadResponse.getInvoiceId())
+                () -> invoiceService.rejectInvoice(uploadResponse.getInvoiceId(), REJECTION_REASON)
         );
         ResponseEntity<ApiErrorResponse> errorResponse =
                 apiExceptionHandler.handleInvoiceStatusTransition(exception);
@@ -178,7 +212,7 @@ class InvoiceLifecycleStatusIntegrationTest {
     @Test
     void returnsExplicitErrorWhenReviewedInvoiceIsMissingRequiredFields() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
-        invoiceService.rejectInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+        invoiceService.rejectInvoice(uploadResponse.getInvoiceId(), REJECTION_REASON).orElseThrow();
 
         InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
         correctionRequest.setCommandReference("CMD-REVIEW-001");
@@ -209,7 +243,7 @@ class InvoiceLifecycleStatusIntegrationTest {
     @Test
     void validatesReviewedInvoiceWhenRequiredFieldsArePresent() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
-        invoiceService.rejectInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+        invoiceService.rejectInvoice(uploadResponse.getInvoiceId(), REJECTION_REASON).orElseThrow();
 
         InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
         correctionRequest.setInvoiceDate("2026-08-07");
@@ -302,7 +336,7 @@ class InvoiceLifecycleStatusIntegrationTest {
     @Test
     void rejectsNoOpCorrectionWithoutChangingStatusOrAuditTrace() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
-        invoiceService.rejectInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+        invoiceService.rejectInvoice(uploadResponse.getInvoiceId(), REJECTION_REASON).orElseThrow();
         long correctionLogCountBefore = countCorrectionLogs(uploadResponse.getInvoiceId());
         InvoiceStatusHistory latestHistoryBefore = findLatestHistory(uploadResponse.getInvoiceId());
 
