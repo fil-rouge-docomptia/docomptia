@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.facturation.backend.dto.request.DuplicateAlertDecisionRequest;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
 import org.facturation.backend.dto.request.InvoiceRejectionRequest;
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
@@ -167,6 +168,25 @@ public class InvoiceController {
             @RequestBody InvoiceRejectionRequest request
     ) {
         return ResponseEntity.ok(requireInvoiceResponse(invoiceService.rejectInvoice(id, request.getReason()), id));
+    }
+
+    @PostMapping("/{invoiceId}/duplicate-alerts/{alertId}/decision")
+    @Operation(summary = "Decider du traitement d'une alerte de doublon")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Decision enregistree et workflow mis a jour"),
+            @ApiResponse(responseCode = "400", description = "Decision ou motif invalide"),
+            @ApiResponse(responseCode = "404", description = "Facture ou alerte introuvable"),
+            @ApiResponse(responseCode = "409", description = "Alerte deja traitee ou action incompatible")
+    })
+    public ResponseEntity<InvoiceDetailsResponse> decideDuplicateAlert(
+            @PathVariable Long invoiceId,
+            @PathVariable Long alertId,
+            @RequestBody DuplicateAlertDecisionRequest request
+    ) {
+        return ResponseEntity.ok(requireInvoiceResponse(
+                invoiceService.decideDuplicateAlert(invoiceId, alertId, request),
+                invoiceId
+        ));
     }
 
     private <T> T requireInvoiceResponse(Optional<T> response, Long invoiceId) {

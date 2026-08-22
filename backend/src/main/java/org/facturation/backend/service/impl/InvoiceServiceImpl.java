@@ -1,5 +1,6 @@
 package org.facturation.backend.service.impl;
 
+import org.facturation.backend.dto.request.DuplicateAlertDecisionRequest;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
@@ -11,6 +12,7 @@ import org.facturation.backend.exception.InvoiceOcrFailureException;
 import org.facturation.backend.mapper.InvoiceResponseMapper;
 import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.AuditLog;
+import org.facturation.backend.model.DuplicateAlertDecision;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceFile;
 import org.facturation.backend.model.InvoiceStatus;
@@ -239,6 +241,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Transactional
     public Optional<InvoiceStatusResponse> validateInvoice(Long id) {
         return invoiceRepository.findById(id).map(invoice -> {
+            duplicateAlertService.ensureNoPendingAlerts(id, "be validated");
             User user = findDefaultUser();
             invoiceStatusWorkflowService.validateInvoice(invoice, user);
             return invoiceResponseMapper.toStatusResponse(invoice);
@@ -249,6 +252,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Transactional
     public Optional<InvoiceStatusResponse> rejectInvoice(Long id, String reason) {
         return invoiceRepository.findById(id).map(invoice -> {
+            duplicateAlertService.ensureNoPendingAlerts(id, "be rejected outside the duplicate decision workflow");
             User user = findDefaultUser();
             invoiceStatusWorkflowService.rejectInvoice(invoice, user, reason);
             return invoiceResponseMapper.toStatusResponse(invoice);
@@ -257,8 +261,41 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional
+    public Optional<InvoiceDetailsResponse> decideDuplicateAlert(
+            Long invoiceId,
+            Long alertId,
+            DuplicateAlertDecisionRequest request
+    ) {
+        if (!invoiceRepository.existsById(invoiceId)) {
+            return Optional.empty();
+        }
+        DuplicateAlertDecision decision = parseDuplicateAlertDecision(request);
+        Invoice invoice = duplicateAlertService.decide(
+                invoiceId,
+                alertId,
+                decision,
+                request.getReason(),
+                findDefaultUser()
+        );
+        return Optional.of(invoiceResponseMapper.toDetailsResponse(invoice));
+    }
+
+    private DuplicateAlertDecision parseDuplicateAlertDecision(DuplicateAlertDecisionRequest request) {
+        if (request == null || request.getDecision() == null || request.getDecision().isBlank()) {
+            throw new IllegalArgumentException("Duplicate alert decision is required");
+        }
+        try {
+            return DuplicateAlertDecision.valueOf(request.getDecision().trim().toUpperCase());
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("Decision must be IGNORE, CONFIRM or REJECT");
+        }
+    }
+
+    @Override
+    @Transactional
     public Optional<InvoiceAccountingEntryResponse> generateAccountingEntry(Long id) {
         return invoiceRepository.findById(id).map(invoice -> {
+            duplicateAlertService.ensureNoPendingAlerts(id, "generate an accounting entry");
             User user = findDefaultUser();
             invoiceStatusWorkflowService.ensureCanGenerateAccountingEntry(invoice);
             AccountingEntry accountingEntry = accountingEntryService.generateFromInvoice(invoice, user);
