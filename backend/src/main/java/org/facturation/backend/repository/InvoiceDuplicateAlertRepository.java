@@ -24,4 +24,11 @@ public interface InvoiceDuplicateAlertRepository extends JpaRepository<InvoiceDu
     );
 
     boolean existsByInvoiceInvoiceIdAndDecision(Long invoiceId, DuplicateAlertDecision decision);
+
+    @EntityGraph(attributePaths = "decidedByUser")
+    List<InvoiceDuplicateAlert>
+    findByInvoiceInvoiceIdAndInvoiceOrganizationOrganizationIdAndDecidedAtIsNotNullOrderByDecidedAtAscDuplicateAlertIdAsc(
+            Long invoiceId,
+            Long organizationId
+    );
 }

@@ -5,9 +5,11 @@ import org.facturation.backend.dto.response.InvoiceHistoryItemResponse;
 import org.facturation.backend.exception.InvoiceNotFoundException;
 import org.facturation.backend.model.AuditLog;
 import org.facturation.backend.model.Invoice;
+import org.facturation.backend.model.InvoiceDuplicateAlert;
 import org.facturation.backend.model.InvoiceStatusHistory;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.AuditLogRepository;
+import org.facturation.backend.repository.InvoiceDuplicateAlertRepository;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.InvoiceStatusHistoryRepository;
 import org.facturation.backend.repository.UserRepository;
@@ -24,20 +26,24 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
     private static final Long DEFAULT_USER_ID = 1L;
     private static final String CORRECTION_ACTION = "FIELD_CORRECTION";
     private static final String CORRECTION_TYPE = "CORRECTION";
+    private static final String DUPLICATE_DECISION_TYPE = "DUPLICATE_DECISION";
     private static final String STATUS_CHANGE_TYPE = "STATUS_CHANGE";
 
     private final AuditLogRepository auditLogRepository;
+    private final InvoiceDuplicateAlertRepository duplicateAlertRepository;
     private final InvoiceRepository invoiceRepository;
     private final InvoiceStatusHistoryRepository invoiceStatusHistoryRepository;
     private final UserRepository userRepository;
 
     public InvoiceHistoryServiceImpl(
             AuditLogRepository auditLogRepository,
+            InvoiceDuplicateAlertRepository duplicateAlertRepository,
             InvoiceRepository invoiceRepository,
             InvoiceStatusHistoryRepository invoiceStatusHistoryRepository,
             UserRepository userRepository
     ) {
         this.auditLogRepository = auditLogRepository;
+        this.duplicateAlertRepository = duplicateAlertRepository;
         this.invoiceRepository = invoiceRepository;
         this.invoiceStatusHistoryRepository = invoiceStatusHistoryRepository;
         this.userRepository = userRepository;
@@ -73,6 +79,14 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
                 .stream()
                 .map(this::toCorrectionHistoryItem)
                 .forEach(history::add);
+        duplicateAlertRepository
+                .findByInvoiceInvoiceIdAndInvoiceOrganizationOrganizationIdAndDecidedAtIsNotNullOrderByDecidedAtAscDuplicateAlertIdAsc(
+                        invoiceId,
+                        organizationId
+                )
+                .stream()
+                .map(this::toDuplicateDecisionHistoryItem)
+                .forEach(history::add);
 
         history.sort(Comparator.comparing(
                 InvoiceHistoryItemResponse::getDate,
@@ -100,6 +114,17 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
         response.setFieldName(extractFieldName(auditLog));
         response.setOldValue(extractValue(auditLog.getOldValue()));
         response.setNewValue(extractValue(auditLog.getNewValue()));
+        return response;
+    }
+
+    private InvoiceHistoryItemResponse toDuplicateDecisionHistoryItem(InvoiceDuplicateAlert alert) {
+        InvoiceHistoryItemResponse response = new InvoiceHistoryItemResponse();
+        response.setType(DUPLICATE_DECISION_TYPE);
+        response.setAction(alert.getDecision().name());
+        response.setDate(alert.getDecidedAt());
+        applyAuthor(response, alert.getDecidedByUser());
+        response.setComment(alert.getDecisionReason());
+        response.setDuplicateAlertId(alert.getDuplicateAlertId());
         return response;
     }
 

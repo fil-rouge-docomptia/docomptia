@@ -13,6 +13,7 @@ public class InvoiceHistoryItemResponse {
     private String oldValue;
     private String newValue;
     private String comment;
+    private Long duplicateAlertId;
 
     public String getType() {
         return type;
@@ -84,5 +85,13 @@ public class InvoiceHistoryItemResponse {
 
     public void setComment(String comment) {
         this.comment = comment;
+    }
+
+    public Long getDuplicateAlertId() {
+        return duplicateAlertId;
+    }
+
+    public void setDuplicateAlertId(Long duplicateAlertId) {
+        this.duplicateAlertId = duplicateAlertId;
     }
 }
