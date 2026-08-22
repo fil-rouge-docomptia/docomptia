@@ -12,6 +12,7 @@ import org.facturation.backend.exception.AccountingEntryPrerequisitesException;
 import org.facturation.backend.exception.ApiExceptionHandler;
 import org.facturation.backend.exception.InvoiceMissingRequiredFieldsException;
 import org.facturation.backend.exception.InvoiceStatusTransitionException;
+import org.facturation.backend.model.AccountingEntryLine;
 import org.facturation.backend.model.AuditLog;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatusCode;
@@ -562,6 +563,29 @@ class InvoiceLifecycleStatusIntegrationTest {
         assertEquals("120.00", details.getAccountingEntry().getTotalDebit());
         assertEquals("120.00", details.getAccountingEntry().getTotalCredit());
         assertTrue(details.getAccountingEntry().isBalanced());
+    }
+
+    @Test
+    void calculatesUnbalancedTotalsFromPersistedAccountingEntryLines() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
+        invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+        InvoiceAccountingEntryResponse generatedEntry = invoiceService
+                .generateAccountingEntry(uploadResponse.getInvoiceId())
+                .orElseThrow();
+        AccountingEntryLine creditLine = accountingEntryLineRepository
+                .findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(
+                        generatedEntry.getAccountingEntry().getAccountingEntryId()
+                )
+                .get(2);
+        creditLine.setCreditAmount(new BigDecimal("119.99"));
+        accountingEntryLineRepository.saveAndFlush(creditLine);
+
+        InvoiceDetailsResponse details = invoiceService.findDetailsById(uploadResponse.getInvoiceId()).orElseThrow();
+
+        assertEquals("120.00", details.getAccountingEntry().getTotalDebit());
+        assertEquals("119.99", details.getAccountingEntry().getTotalCredit());
+        assertFalse(details.getAccountingEntry().isBalanced());
     }
 
     @Test
