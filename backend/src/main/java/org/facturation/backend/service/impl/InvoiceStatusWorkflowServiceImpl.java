@@ -188,6 +188,16 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     }
 
     @Override
+    public void markAccountingEntryToCorrect(Invoice invoice, User user) {
+        transitionTo(
+                invoice,
+                InvoiceStatusCode.VALIDEE,
+                user,
+                "Accounting entry unbalanced and returned for correction"
+        );
+    }
+
+    @Override
     public void ensureCanTransition(Invoice invoice, InvoiceStatusCode targetCode) {
         InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);
         if (currentCode == targetCode) {
@@ -320,7 +330,7 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
         );
         allowedPreviousStatuses.put(
                 InvoiceStatusCode.VALIDEE,
-                EnumSet.of(InvoiceStatusCode.A_VERIFIER)
+                EnumSet.of(InvoiceStatusCode.A_VERIFIER, InvoiceStatusCode.EXPORTABLE)
         );
         allowedPreviousStatuses.put(
                 InvoiceStatusCode.REJETEE,

@@ -4,6 +4,7 @@ import org.facturation.backend.dto.response.AccountingEntryPrerequisitesResponse
 import org.facturation.backend.dto.response.ApiErrorResponse;
 import org.facturation.backend.dto.response.InvoiceMissingRequiredFieldsResponse;
 import org.facturation.backend.dto.response.InvoiceOcrFailureResponse;
+import org.facturation.backend.dto.response.UnbalancedAccountingEntryResponse;
 import org.facturation.backend.mapper.OcrErrorMapper;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.springframework.http.HttpStatus;
@@ -31,6 +32,11 @@ public class ApiExceptionHandler {
     private static final String ACCOUNTING_RULE_VALIDATION_ERROR_CODE = "ACCOUNTING_RULE_VALIDATION_ERROR";
     private static final String ACCOUNTING_ENTRY_PREREQUISITES_MISSING_CODE =
             "ACCOUNTING_ENTRY_PREREQUISITES_MISSING";
+    private static final String ACCOUNTING_ENTRY_LINE_NOT_FOUND_CODE = "ACCOUNTING_ENTRY_LINE_NOT_FOUND";
+    private static final String ACCOUNTING_ENTRY_LINE_VALIDATION_ERROR_CODE =
+            "ACCOUNTING_ENTRY_LINE_VALIDATION_ERROR";
+    private static final String ACCOUNTING_ENTRY_NOT_MODIFIABLE_CODE = "ACCOUNTING_ENTRY_NOT_MODIFIABLE";
+    private static final String ACCOUNTING_ENTRY_UNBALANCED_CODE = "ACCOUNTING_ENTRY_UNBALANCED";
 
     private final OcrErrorMapper ocrErrorMapper;
 
@@ -157,6 +163,46 @@ public class ApiExceptionHandler {
                 ACCOUNTING_ENTRY_PREREQUISITES_MISSING_CODE,
                 exception.getMessage(),
                 exception.getMissingPrerequisites()
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    @ExceptionHandler(AccountingEntryLineNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountingEntryLineNotFound(
+            AccountingEntryLineNotFoundException exception
+    ) {
+        return errorResponse(HttpStatus.NOT_FOUND, ACCOUNTING_ENTRY_LINE_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidAccountingEntryLineCorrectionException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidAccountingEntryLineCorrection(
+            InvalidAccountingEntryLineCorrectionException exception
+    ) {
+        return errorResponse(
+                HttpStatus.BAD_REQUEST,
+                ACCOUNTING_ENTRY_LINE_VALIDATION_ERROR_CODE,
+                exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(AccountingEntryNotModifiableException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountingEntryNotModifiable(
+            AccountingEntryNotModifiableException exception
+    ) {
+        return errorResponse(HttpStatus.CONFLICT, ACCOUNTING_ENTRY_NOT_MODIFIABLE_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(UnbalancedAccountingEntryException.class)
+    public ResponseEntity<UnbalancedAccountingEntryResponse> handleUnbalancedAccountingEntry(
+            UnbalancedAccountingEntryException exception
+    ) {
+        UnbalancedAccountingEntryResponse response = new UnbalancedAccountingEntryResponse(
+                ACCOUNTING_ENTRY_UNBALANCED_CODE,
+                exception.getMessage(),
+                exception.getAccountingEntryId(),
+                exception.getTotalDebit(),
+                exception.getTotalCredit(),
+                exception.getBalanceDifference()
         );
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
