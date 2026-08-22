@@ -1,9 +1,11 @@
 package org.facturation.backend.repository;
 
+import jakarta.persistence.LockModeType;
 import org.facturation.backend.model.Invoice;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -19,6 +21,9 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
 
     @EntityGraph(attributePaths = {"invoiceStatus", "organization", "supplier"})
     Optional<Invoice> findForOcrRetryByInvoiceId(Long invoiceId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<Invoice> findForAccountingGenerationByInvoiceId(Long invoiceId);
 
     List<Invoice> findByOrganizationOrganizationIdAndSupplierSupplierIdAndInvoiceDateAndTotalTtcAndInvoiceIdNot(
             Long organizationId,
