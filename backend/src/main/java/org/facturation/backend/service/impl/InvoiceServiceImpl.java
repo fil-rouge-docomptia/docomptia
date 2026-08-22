@@ -217,13 +217,16 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional
     public Optional<InvoiceDetailsResponse> correctInvoice(Long id, InvoiceCorrectionRequest request) {
-        return invoiceRepository.findById(id).map(invoice -> {
+        User user = findDefaultUser();
+        return invoiceRepository.findByInvoiceIdAndOrganizationOrganizationId(
+                id,
+                user.getOrganization().getOrganizationId()
+        ).map(invoice -> {
             boolean hasCorrections = hasRequestedCorrections(request);
             if (!hasCorrections) {
                 throw new IllegalArgumentException("At least one correction field is required");
             }
 
-            User user = findDefaultUser();
             invoiceStatusWorkflowService.ensureCanCorrect(invoice, true);
             List<AppliedCorrection> appliedCorrections = applyInvoiceCorrections(invoice, request);
             if (appliedCorrections.isEmpty()) {
