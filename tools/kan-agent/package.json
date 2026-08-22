@@ -12,7 +12,7 @@
     "web": "node src/web-dev.mjs",
     "web:server": "node src/web-server.mjs",
     "web:build": "tsc -p web/tsconfig.json && vite build --config web/vite.config.js",
-    "check": "node --check src/cli.mjs && node --check src/config.mjs && node --check src/codex-service.mjs && node --check src/event-bus.mjs && node --check src/git-service.mjs && node --check src/jira-client.mjs && node --check src/prompt-builder.mjs && node --check src/process.mjs && node --check src/state-store.mjs && node --check src/terminal.mjs && node --check src/web-dev.mjs && node --check src/web-server.mjs && node --check src/web-workflow-service.mjs && node --check src/workflow-service.mjs",
+    "check": "node --check src/cli.mjs && node --check src/config.mjs && node --check src/codex-service.mjs && node --check src/event-bus.mjs && node --check src/git-service.mjs && node --check src/jira-client.mjs && node --check src/prompt-builder.mjs && node --check src/process.mjs && node --check src/state-store.mjs && node --check src/terminal.mjs && node --check src/ticket-description-service.mjs && node --check src/web-dev.mjs && node --check src/web-server.mjs && node --check src/web-workflow-service.mjs && node --check src/workflow-service.mjs",
     "test": "node --test"
   },
   "dependencies": {
