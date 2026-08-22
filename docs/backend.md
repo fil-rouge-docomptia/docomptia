@@ -72,6 +72,8 @@ http://ocr:8000/ocr/analyze
 | --- | --- | --- |
 | `POST` | `/api/v1/invoices/upload` | Upload, OCR et sauvegarde de la facture |
 | `PATCH` | `/api/v1/invoices/{id}` | Corrige les donnees extraites, conserve les valeurs OCR brutes, marque les champs OCR corriges manuellement et journalise chaque valeur avant/apres |
+| `POST` | `/api/v1/invoices/{id}/validate` | Valide une facture eligible et historise la decision, son auteur et sa date |
+| `POST` | `/api/v1/invoices/{id}/reject` | Refuse une facture eligible avec un motif obligatoire et historise la decision, son auteur et sa date |
 | `POST` | `/api/v1/invoices/{id}/accounting-entry` | Genere l'ecriture comptable apres validation |
 | `GET` | `/api/v1/invoices/{id}` | Retourne la facture, l'OCR et l'ecriture si elle existe |
 | `GET` | `/api/v1/invoices/{id}/history` | Retourne chronologiquement les changements de statut et corrections de l'organisation courante |
