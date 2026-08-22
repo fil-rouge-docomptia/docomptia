@@ -239,6 +239,16 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional
+    public Optional<InvoiceStatusResponse> submitForValidation(Long id) {
+        return invoiceRepository.findById(id).map(invoice -> {
+            User user = findDefaultUser();
+            invoiceStatusWorkflowService.submitForValidation(invoice, user);
+            return invoiceResponseMapper.toStatusResponse(invoice);
+        });
+    }
+
+    @Override
+    @Transactional
     public Optional<InvoiceStatusResponse> validateInvoice(Long id) {
         return invoiceRepository.findById(id).map(invoice -> {
             duplicateAlertService.ensureNoPendingAlerts(id, "be validated");

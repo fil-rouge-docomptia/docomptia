@@ -143,6 +143,19 @@ public class InvoiceController {
         return ResponseEntity.ok(requireInvoiceResponse(invoiceService.correctInvoice(id, request), id));
     }
 
+    @PostMapping("/{id}/submit-for-validation")
+    @Operation(summary = "Soumettre une facture a validation")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Facture soumise a validation"),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "Transition de statut invalide ou champs obligatoires manquants"
+            )
+    })
+    public ResponseEntity<InvoiceStatusResponse> submitForValidation(@PathVariable Long id) {
+        return ResponseEntity.ok(requireInvoiceResponse(invoiceService.submitForValidation(id), id));
+    }
+
     @PostMapping("/{id}/validate")
     @Operation(summary = "Valider une facture")
     @ApiResponses({

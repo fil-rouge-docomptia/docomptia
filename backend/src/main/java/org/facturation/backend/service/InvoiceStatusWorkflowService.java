@@ -27,6 +27,8 @@ public interface InvoiceStatusWorkflowService {
 
     void moveToReviewAfterCorrectionIfNeeded(Invoice invoice, User user, boolean hasCorrections);
 
+    void submitForValidation(Invoice invoice, User user);
+
     void validateInvoice(Invoice invoice, User user);
 
     void rejectInvoice(Invoice invoice, User user, String reason);

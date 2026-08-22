@@ -118,9 +118,16 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     }
 
     @Override
+    public void submitForValidation(Invoice invoice, User user) {
+        ensureCurrentStatus(invoice, InvoiceStatusCode.EXTRAITE, "be submitted for validation");
+        ensureRequiredFields(invoice, "be submitted for validation");
+        transitionTo(invoice, InvoiceStatusCode.A_VERIFIER, user, "Invoice submitted for validation");
+    }
+
+    @Override
     public void validateInvoice(Invoice invoice, User user) {
-        ensureStatusChangeRequested(invoice, InvoiceStatusCode.VALIDEE, "be validated");
-        ensureRequiredFieldsBeforeLeavingReview(invoice);
+        ensureCurrentStatus(invoice, InvoiceStatusCode.A_VERIFIER, "be validated");
+        ensureRequiredFields(invoice, "be validated");
         transitionTo(invoice, InvoiceStatusCode.VALIDEE, user, "Invoice validated");
     }
 
@@ -193,12 +200,19 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
         }
     }
 
-    private void ensureRequiredFieldsBeforeLeavingReview(Invoice invoice) {
+    private void ensureCurrentStatus(Invoice invoice, InvoiceStatusCode expectedCode, String action) {
         InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);
-        if (currentCode != InvoiceStatusCode.A_VERIFIER) {
-            return;
+        if (currentCode != expectedCode) {
+            throw InvoiceStatusTransitionException.forAction(
+                    invoice.getInvoiceId(),
+                    currentCode.getCode(),
+                    action
+            );
         }
+    }
 
+    private void ensureRequiredFields(Invoice invoice, String action) {
+        InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);
         List<String> missingFields = new ArrayList<>();
         if (invoice.getSupplier() == null) {
             missingFields.add("supplierName");
@@ -223,7 +237,8 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
             throw new InvoiceMissingRequiredFieldsException(
                     invoice.getInvoiceId(),
                     currentCode.getCode(),
-                    missingFields
+                    missingFields,
+                    action
             );
         }
     }
@@ -272,7 +287,7 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
         allowedPreviousStatuses.put(InvoiceStatusCode.EXTRAITE, EnumSet.of(InvoiceStatusCode.OCR_EN_COURS));
         allowedPreviousStatuses.put(
                 InvoiceStatusCode.A_VERIFIER,
-                EnumSet.of(InvoiceStatusCode.ERREUR_OCR, InvoiceStatusCode.EXTRAITE, InvoiceStatusCode.REJETEE)
+                EnumSet.of(InvoiceStatusCode.EXTRAITE, InvoiceStatusCode.ERREUR_OCR, InvoiceStatusCode.EXTRAITE, InvoiceStatusCode.REJETEE)
         );
         allowedPreviousStatuses.put(
                 InvoiceStatusCode.VALIDEE,
