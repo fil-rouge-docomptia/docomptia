@@ -125,9 +125,10 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     }
 
     @Override
-    public void rejectInvoice(Invoice invoice, User user) {
+    public void rejectInvoice(Invoice invoice, User user, String reason) {
+        String rejectionReason = requireRejectionReason(reason);
         ensureStatusChangeRequested(invoice, InvoiceStatusCode.REJETEE, "be rejected");
-        transitionTo(invoice, InvoiceStatusCode.REJETEE, user, "Invoice rejected");
+        transitionTo(invoice, InvoiceStatusCode.REJETEE, user, rejectionReason);
     }
 
     @Override
@@ -240,6 +241,13 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private String requireRejectionReason(String reason) {
+        if (isBlank(reason)) {
+            throw new IllegalArgumentException("Rejection reason is required");
+        }
+        return reason.trim();
     }
 
     private static Map<InvoiceStatusCode, Set<InvoiceStatusCode>> buildAllowedPreviousStatuses() {

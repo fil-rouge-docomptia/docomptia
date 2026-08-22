@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -102,6 +103,38 @@ class InvoiceCorrectionControllerIntegrationTest {
                         "Invoice " + validationResponse.getInvoiceId()
                                 + " cannot be corrected from status VALIDEE"
                 ));
+    }
+
+    @Test
+    void rejectsInvoiceWithMandatoryReason() throws Exception {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+
+        mockMvc.perform(post("/api/v1/invoices/{id}/reject", uploadResponse.getInvoiceId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "The extracted total is incorrect"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.invoiceId").value(uploadResponse.getInvoiceId()))
+                .andExpect(jsonPath("$.status").value("REJETEE"));
+    }
+
+    @Test
+    void returnsBadRequestWhenRejectionReasonIsBlank() throws Exception {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+
+        mockMvc.perform(post("/api/v1/invoices/{id}/reject", uploadResponse.getInvoiceId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": " "
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVOICE_VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("Rejection reason is required"));
     }
 
     private InvoiceUploadResponse uploadInvoice() {

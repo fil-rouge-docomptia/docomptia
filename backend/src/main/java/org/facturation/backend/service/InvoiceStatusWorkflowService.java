@@ -29,7 +29,7 @@ public interface InvoiceStatusWorkflowService {
 
     void validateInvoice(Invoice invoice, User user);
 
-    void rejectInvoice(Invoice invoice, User user);
+    void rejectInvoice(Invoice invoice, User user, String reason);
 
     void markExportable(Invoice invoice, User user);
 

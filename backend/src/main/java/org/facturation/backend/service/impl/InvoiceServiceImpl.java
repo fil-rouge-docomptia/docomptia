@@ -247,10 +247,10 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional
-    public Optional<InvoiceStatusResponse> rejectInvoice(Long id) {
+    public Optional<InvoiceStatusResponse> rejectInvoice(Long id, String reason) {
         return invoiceRepository.findById(id).map(invoice -> {
             User user = findDefaultUser();
-            invoiceStatusWorkflowService.rejectInvoice(invoice, user);
+            invoiceStatusWorkflowService.rejectInvoice(invoice, user, reason);
             return invoiceResponseMapper.toStatusResponse(invoice);
         });
     }
