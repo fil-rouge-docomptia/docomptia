@@ -33,6 +33,8 @@ public interface InvoiceStatusWorkflowService {
 
     void rejectInvoice(Invoice invoice, User user, String reason);
 
+    void rejectInvoiceAsDuplicate(Invoice invoice, User user, String reason);
+
     void ensureCanGenerateAccountingEntry(Invoice invoice);
 
     void markExportable(Invoice invoice, User user);

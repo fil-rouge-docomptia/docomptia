@@ -93,6 +93,7 @@ class InvoiceLifecycleStatusIntegrationTest {
     @Test
     void movesRejectedInvoiceBackToReviewAfterCorrection() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
         InvoiceStatusResponse rejectResponse = invoiceService
                 .rejectInvoice(uploadResponse.getInvoiceId(), REJECTION_REASON)
                 .orElseThrow();
@@ -116,6 +117,7 @@ class InvoiceLifecycleStatusIntegrationTest {
     @Test
     void persistsRejectionDecisionAuthorDateAndReason() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
 
         InvoiceStatusResponse rejectionResponse = invoiceService
                 .rejectInvoice(uploadResponse.getInvoiceId(), "  " + REJECTION_REASON + "  ")
@@ -132,6 +134,7 @@ class InvoiceLifecycleStatusIntegrationTest {
     @Test
     void requiresReasonWithoutChangingInvoiceStatus() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
@@ -140,7 +143,7 @@ class InvoiceLifecycleStatusIntegrationTest {
         Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
 
         assertEquals("Rejection reason is required", exception.getMessage());
-        assertEquals(InvoiceStatusCode.EXTRAITE.getCode(), persistedInvoice.getInvoiceStatus().getCode());
+        assertEquals(InvoiceStatusCode.A_VERIFIER.getCode(), persistedInvoice.getInvoiceStatus().getCode());
     }
 
     @Test
@@ -207,6 +210,7 @@ class InvoiceLifecycleStatusIntegrationTest {
     @Test
     void refusesSubmissionForRejectedInvoiceWithoutChangingStatus() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
         invoiceService.rejectInvoice(uploadResponse.getInvoiceId(), REJECTION_REASON).orElseThrow();
 
         InvoiceStatusTransitionException exception = assertThrows(
@@ -296,6 +300,7 @@ class InvoiceLifecycleStatusIntegrationTest {
     @Test
     void returnsExplicitErrorWhenInvoiceIsAlreadyRejected() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
         invoiceService.rejectInvoice(uploadResponse.getInvoiceId(), REJECTION_REASON).orElseThrow();
 
         InvoiceStatusTransitionException exception = assertThrows(
@@ -319,7 +324,11 @@ class InvoiceLifecycleStatusIntegrationTest {
     @Test
     void returnsExplicitErrorWhenReviewedInvoiceIsMissingRequiredFields() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
         invoiceService.rejectInvoice(uploadResponse.getInvoiceId(), REJECTION_REASON).orElseThrow();
+        Invoice rejectedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+        rejectedInvoice.setInvoiceDate(null);
+        invoiceRepository.save(rejectedInvoice);
 
         InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
         correctionRequest.setCommandReference("CMD-REVIEW-001");
@@ -350,10 +359,11 @@ class InvoiceLifecycleStatusIntegrationTest {
     @Test
     void validatesReviewedInvoiceWhenRequiredFieldsArePresent() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
         invoiceService.rejectInvoice(uploadResponse.getInvoiceId(), REJECTION_REASON).orElseThrow();
 
         InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
-        correctionRequest.setInvoiceDate("2026-08-07");
+        correctionRequest.setInvoiceDate("2026-08-08");
         InvoiceDetailsResponse reviewedResponse = invoiceService
                 .correctInvoice(uploadResponse.getInvoiceId(), correctionRequest)
                 .orElseThrow();
@@ -363,7 +373,7 @@ class InvoiceLifecycleStatusIntegrationTest {
         InvoiceStatusHistory latestHistory = findLatestHistory(uploadResponse.getInvoiceId());
 
         assertEquals(InvoiceStatusCode.A_VERIFIER.getCode(), reviewedResponse.getStatus());
-        assertEquals("2026-08-07", reviewedResponse.getInvoiceDate());
+        assertEquals("2026-08-08", reviewedResponse.getInvoiceDate());
         assertEquals(InvoiceStatusCode.VALIDEE.getCode(), validationResponse.getStatus());
         assertEquals(InvoiceStatusCode.VALIDEE.getCode(), persistedInvoice.getInvoiceStatus().getCode());
         assertEquals(InvoiceStatusCode.VALIDEE.getCode(), latestHistory.getInvoiceStatus().getCode());
@@ -443,6 +453,7 @@ class InvoiceLifecycleStatusIntegrationTest {
     @Test
     void rejectsNoOpCorrectionWithoutChangingStatusOrAuditTrace() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
         invoiceService.rejectInvoice(uploadResponse.getInvoiceId(), REJECTION_REASON).orElseThrow();
         long correctionLogCountBefore = countCorrectionLogs(uploadResponse.getInvoiceId());
         InvoiceStatusHistory latestHistoryBefore = findLatestHistory(uploadResponse.getInvoiceId());
