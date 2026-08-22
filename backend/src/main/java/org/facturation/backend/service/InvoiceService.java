@@ -35,6 +35,8 @@ public interface InvoiceService {
 
     Optional<InvoiceStatusResponse> validateInvoice(Long id);
 
+    Optional<InvoiceStatusResponse> requestInvoiceCorrection(Long id, String reason);
+
     Optional<InvoiceStatusResponse> rejectInvoice(Long id, String reason);
 
     Optional<InvoiceDetailsResponse> decideDuplicateAlert(
