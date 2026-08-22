@@ -31,6 +31,8 @@ public interface InvoiceStatusWorkflowService {
 
     void rejectInvoice(Invoice invoice, User user, String reason);
 
+    void ensureCanGenerateAccountingEntry(Invoice invoice);
+
     void markExportable(Invoice invoice, User user);
 
     void ensureCanTransition(Invoice invoice, InvoiceStatusCode targetCode);

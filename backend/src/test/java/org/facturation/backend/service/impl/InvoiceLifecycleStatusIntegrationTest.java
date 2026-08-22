@@ -17,6 +17,8 @@ import org.facturation.backend.model.InvoiceStatusHistory;
 import org.facturation.backend.model.OcrExtraction;
 import org.facturation.backend.model.OcrExtractionField;
 import org.facturation.backend.model.User;
+import org.facturation.backend.repository.AccountingEntryLineRepository;
+import org.facturation.backend.repository.AccountingEntryRepository;
 import org.facturation.backend.repository.AuditLogRepository;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.InvoiceStatusHistoryRepository;
@@ -50,6 +52,8 @@ class InvoiceLifecycleStatusIntegrationTest {
     private static final String REJECTION_REASON = "Invoice amounts must be corrected";
 
     private final InvoiceService invoiceService;
+    private final AccountingEntryRepository accountingEntryRepository;
+    private final AccountingEntryLineRepository accountingEntryLineRepository;
     private final AuditLogRepository auditLogRepository;
     private final InvoiceRepository invoiceRepository;
     private final InvoiceStatusHistoryRepository invoiceStatusHistoryRepository;
@@ -62,6 +66,8 @@ class InvoiceLifecycleStatusIntegrationTest {
     @Autowired
     InvoiceLifecycleStatusIntegrationTest(
             InvoiceService invoiceService,
+            AccountingEntryRepository accountingEntryRepository,
+            AccountingEntryLineRepository accountingEntryLineRepository,
             AuditLogRepository auditLogRepository,
             InvoiceRepository invoiceRepository,
             InvoiceStatusHistoryRepository invoiceStatusHistoryRepository,
@@ -72,6 +78,8 @@ class InvoiceLifecycleStatusIntegrationTest {
             ApiExceptionHandler apiExceptionHandler
     ) {
         this.invoiceService = invoiceService;
+        this.accountingEntryRepository = accountingEntryRepository;
+        this.accountingEntryLineRepository = accountingEntryLineRepository;
         this.auditLogRepository = auditLogRepository;
         this.invoiceRepository = invoiceRepository;
         this.invoiceStatusHistoryRepository = invoiceStatusHistoryRepository;
@@ -380,6 +388,9 @@ class InvoiceLifecycleStatusIntegrationTest {
     @Test
     void returnsExplicitErrorForInvalidAccountingStatusAndSupportsExportAndArchiveStatuses() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
+        long accountingEntryCountBefore = accountingEntryRepository.count();
+        long accountingEntryLineCountBefore = accountingEntryLineRepository.count();
+        InvoiceStatusHistory latestHistoryBefore = findLatestHistory(uploadResponse.getInvoiceId());
 
         InvoiceStatusTransitionException exception = assertThrows(
                 InvoiceStatusTransitionException.class,
@@ -389,12 +400,19 @@ class InvoiceLifecycleStatusIntegrationTest {
                 apiExceptionHandler.handleInvoiceStatusTransition(exception);
 
         assertEquals(
-                "Invoice " + uploadResponse.getInvoiceId() + " cannot transition from EXTRAITE to EXPORTABLE",
+                "Invoice " + uploadResponse.getInvoiceId()
+                        + " cannot generate an accounting entry; expected step: validate the invoice from status EXTRAITE",
                 exception.getMessage()
         );
         assertEquals(HttpStatus.CONFLICT, errorResponse.getStatusCode());
         assertEquals("INVOICE_ACTION_NOT_ALLOWED", errorResponse.getBody().getCode());
         assertEquals(exception.getMessage(), errorResponse.getBody().getMessage());
+        assertEquals(accountingEntryCountBefore, accountingEntryRepository.count());
+        assertEquals(accountingEntryLineCountBefore, accountingEntryLineRepository.count());
+        assertEquals(
+                latestHistoryBefore.getInvoiceStatusHistoryId(),
+                findLatestHistory(uploadResponse.getInvoiceId()).getInvoiceStatusHistoryId()
+        );
 
         invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
         invoiceService.generateAccountingEntry(uploadResponse.getInvoiceId()).orElseThrow();

@@ -132,6 +132,18 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     }
 
     @Override
+    public void ensureCanGenerateAccountingEntry(Invoice invoice) {
+        InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);
+        if (currentCode != InvoiceStatusCode.VALIDEE) {
+            throw InvoiceStatusTransitionException.forAction(
+                    invoice.getInvoiceId(),
+                    currentCode.getCode(),
+                    "generate an accounting entry; expected step: validate the invoice"
+            );
+        }
+    }
+
+    @Override
     public void markExportable(Invoice invoice, User user) {
         transitionTo(
                 invoice,
