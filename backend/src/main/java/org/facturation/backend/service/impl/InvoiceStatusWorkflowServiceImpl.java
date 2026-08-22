@@ -7,11 +7,13 @@ import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatus;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.InvoiceStatusHistory;
+import org.facturation.backend.model.InvoiceValidationDecisionType;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.InvoiceStatusHistoryRepository;
 import org.facturation.backend.repository.InvoiceStatusRepository;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
+import org.facturation.backend.service.InvoiceValidationDecisionService;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -31,15 +33,18 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     private final InvoiceRepository invoiceRepository;
     private final InvoiceStatusRepository invoiceStatusRepository;
     private final InvoiceStatusHistoryRepository invoiceStatusHistoryRepository;
+    private final InvoiceValidationDecisionService validationDecisionService;
 
     public InvoiceStatusWorkflowServiceImpl(
             InvoiceRepository invoiceRepository,
             InvoiceStatusRepository invoiceStatusRepository,
-            InvoiceStatusHistoryRepository invoiceStatusHistoryRepository
+            InvoiceStatusHistoryRepository invoiceStatusHistoryRepository,
+            InvoiceValidationDecisionService validationDecisionService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.invoiceStatusRepository = invoiceStatusRepository;
         this.invoiceStatusHistoryRepository = invoiceStatusHistoryRepository;
+        this.validationDecisionService = validationDecisionService;
     }
 
     @Override
@@ -131,6 +136,7 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
         ensureCurrentStatus(invoice, InvoiceStatusCode.A_VERIFIER, "be validated");
         ensureRequiredFields(invoice, "be validated");
         transitionTo(invoice, InvoiceStatusCode.VALIDEE, user, "Invoice validated");
+        validationDecisionService.record(invoice, InvoiceValidationDecisionType.VALIDATION, user, null);
     }
 
     @Override
@@ -138,6 +144,9 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
         String correctionReason = requireReason(reason, "Correction request reason is required");
         ensureCurrentStatus(invoice, InvoiceStatusCode.A_VERIFIER, "receive a correction request");
         transitionTo(invoice, InvoiceStatusCode.EXTRAITE, user, correctionReason);
+        validationDecisionService.record(
+                invoice, InvoiceValidationDecisionType.CORRECTION_REQUEST, user, correctionReason
+        );
     }
 
     @Override
@@ -146,6 +155,7 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
         ensureStatusChangeRequested(invoice, InvoiceStatusCode.REJETEE, "be rejected");
         ensureCurrentStatus(invoice, InvoiceStatusCode.A_VERIFIER, "be rejected");
         transitionTo(invoice, InvoiceStatusCode.REJETEE, user, rejectionReason);
+        validationDecisionService.record(invoice, InvoiceValidationDecisionType.REJECTION, user, rejectionReason);
     }
 
     @Override

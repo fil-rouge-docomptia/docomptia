@@ -6,6 +6,7 @@ import org.facturation.backend.exception.ApiExceptionHandler;
 import org.facturation.backend.model.InvoiceStatusHistory;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.InvoiceStatusHistoryRepository;
+import org.facturation.backend.repository.InvoiceValidationDecisionRepository;
 import org.facturation.backend.service.InvoiceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +32,7 @@ class InvoiceCorrectionDemandControllerIntegrationTest {
     private final InvoiceRepository invoiceRepository;
     private final InvoiceService invoiceService;
     private final InvoiceStatusHistoryRepository statusHistoryRepository;
+    private final InvoiceValidationDecisionRepository validationDecisionRepository;
 
     @Autowired
     InvoiceCorrectionDemandControllerIntegrationTest(
@@ -38,7 +40,8 @@ class InvoiceCorrectionDemandControllerIntegrationTest {
             ApiExceptionHandler apiExceptionHandler,
             InvoiceRepository invoiceRepository,
             InvoiceService invoiceService,
-            InvoiceStatusHistoryRepository statusHistoryRepository
+            InvoiceStatusHistoryRepository statusHistoryRepository,
+            InvoiceValidationDecisionRepository validationDecisionRepository
     ) {
         this.mockMvc = MockMvcBuilders.standaloneSetup(invoiceController)
                 .setControllerAdvice(apiExceptionHandler)
@@ -46,6 +49,7 @@ class InvoiceCorrectionDemandControllerIntegrationTest {
         this.invoiceRepository = invoiceRepository;
         this.invoiceService = invoiceService;
         this.statusHistoryRepository = statusHistoryRepository;
+        this.validationDecisionRepository = validationDecisionRepository;
     }
 
     @Test
@@ -70,6 +74,14 @@ class InvoiceCorrectionDemandControllerIntegrationTest {
         InvoiceStatusHistory correctionRequest = history.get(history.size() - 1);
         assertEquals("EXTRAITE", correctionRequest.getInvoiceStatus().getCode());
         assertEquals("The total amount must be checked", correctionRequest.getComment());
+        var decisions = validationDecisionRepository
+                .findByInvoiceInvoiceIdAndInvoiceOrganizationOrganizationIdOrderByDecidedAtAscInvoiceValidationDecisionIdAsc(
+                        uploadResponse.getInvoiceId(),
+                        1L
+                );
+        assertEquals(1, decisions.size());
+        assertEquals("CORRECTION_REQUEST", decisions.getFirst().getDecisionType().name());
+        assertEquals("The total amount must be checked", decisions.getFirst().getReason());
 
         InvoiceCorrectionRequest correction = new InvoiceCorrectionRequest();
         correction.setTotalTtc("121.00");

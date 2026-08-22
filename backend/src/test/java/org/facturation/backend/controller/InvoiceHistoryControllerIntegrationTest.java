@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -87,6 +88,29 @@ class InvoiceHistoryControllerIntegrationTest {
                 .andExpect(jsonPath("$[*].authorId", everyItem(notNullValue())))
                 .andExpect(jsonPath("$[*].author", everyItem(notNullValue())))
                 .andExpect(jsonPath("$[0].author").value("Admin Demo"));
+    }
+
+    @Test
+    void returnsValidationDecisionsWithAuthorDateAndReason() throws Exception {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
+        correctionRequest.setInvoiceDate("2026-08-07");
+        invoiceService.correctInvoice(uploadResponse.getInvoiceId(), correctionRequest).orElseThrow();
+        invoiceService.submitForValidation(uploadResponse.getInvoiceId()).orElseThrow();
+        invoiceService.requestInvoiceCorrection(
+                uploadResponse.getInvoiceId(),
+                "The total amount must be checked"
+        ).orElseThrow();
+
+        mockMvc.perform(get("/api/v1/invoices/{id}/history", uploadResponse.getInvoiceId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.type == 'VALIDATION_DECISION')]").value(hasSize(1)))
+                .andExpect(jsonPath("$[?(@.type == 'VALIDATION_DECISION')].action").value("CORRECTION_REQUEST"))
+                .andExpect(jsonPath("$[?(@.type == 'VALIDATION_DECISION')].comment")
+                        .value("The total amount must be checked"))
+                .andExpect(jsonPath("$[?(@.type == 'VALIDATION_DECISION')].authorId").value(1))
+                .andExpect(jsonPath("$[?(@.type == 'VALIDATION_DECISION')].author").value("Admin Demo"))
+                .andExpect(jsonPath("$[?(@.type == 'VALIDATION_DECISION')].date", everyItem(notNullValue())));
     }
 
     @Test

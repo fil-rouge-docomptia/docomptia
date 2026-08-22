@@ -18,3 +18,12 @@ ALTER TABLE IF EXISTS invoice_duplicate_alerts
     ADD COLUMN IF NOT EXISTS decided_at TIMESTAMP;
 ALTER TABLE IF EXISTS invoice_duplicate_alerts
     ADD COLUMN IF NOT EXISTS decision_reason VARCHAR(255);
+
+CREATE TABLE IF NOT EXISTS invoice_validation_decisions (
+    invoice_validation_decision_id BIGSERIAL PRIMARY KEY,
+    invoice_id BIGINT NOT NULL REFERENCES invoices(invoice_id),
+    decision_type VARCHAR(30) NOT NULL,
+    decided_by_user_id BIGINT NOT NULL REFERENCES users(user_id),
+    decided_at TIMESTAMP NOT NULL,
+    reason VARCHAR(255)
+);
