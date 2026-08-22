@@ -88,6 +88,15 @@ class InvoiceCorrectionControllerIntegrationTest {
     @Test
     void returnsNormalizedConflictWhenCorrectionIsForbidden() throws Exception {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
+        mockMvc.perform(patch("/api/v1/invoices/{id}", uploadResponse.getInvoiceId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "invoiceDate": "2026-08-07"
+                                }
+                                """))
+                .andExpect(status().isOk());
+        invoiceService.submitForValidation(uploadResponse.getInvoiceId()).orElseThrow();
         InvoiceStatusResponse validationResponse = invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
 
         mockMvc.perform(patch("/api/v1/invoices/{id}", uploadResponse.getInvoiceId())

@@ -205,8 +205,45 @@ class InvoiceLifecycleStatusIntegrationTest {
     }
 
     @Test
+    void refusesSubmissionForRejectedInvoiceWithoutChangingStatus() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        invoiceService.rejectInvoice(uploadResponse.getInvoiceId(), REJECTION_REASON).orElseThrow();
+
+        InvoiceStatusTransitionException exception = assertThrows(
+                InvoiceStatusTransitionException.class,
+                () -> invoiceService.submitForValidation(uploadResponse.getInvoiceId())
+        );
+        Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+
+        assertEquals(
+                "Invoice " + uploadResponse.getInvoiceId()
+                        + " cannot be submitted for validation from status REJETEE",
+                exception.getMessage()
+        );
+        assertEquals(InvoiceStatusCode.REJETEE.getCode(), persistedInvoice.getInvoiceStatus().getCode());
+    }
+
+    @Test
+    void refusesValidationBeforeSubmissionWithoutChangingStatus() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+
+        InvoiceStatusTransitionException exception = assertThrows(
+                InvoiceStatusTransitionException.class,
+                () -> invoiceService.validateInvoice(uploadResponse.getInvoiceId())
+        );
+        Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+
+        assertEquals(
+                "Invoice " + uploadResponse.getInvoiceId() + " cannot be validated from status EXTRAITE",
+                exception.getMessage()
+        );
+        assertEquals(InvoiceStatusCode.EXTRAITE.getCode(), persistedInvoice.getInvoiceStatus().getCode());
+    }
+
+    @Test
     void rejectsCorrectionsOnceInvoiceIsValidated() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
         invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
         Invoice persistedBeforeCorrection = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
         String initialInvoiceNumber = persistedBeforeCorrection.getInvoiceNumber();
@@ -235,6 +272,7 @@ class InvoiceLifecycleStatusIntegrationTest {
     @Test
     void returnsExplicitErrorWhenInvoiceIsAlreadyValidated() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
         invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
 
         InvoiceStatusTransitionException exception = assertThrows(
@@ -433,6 +471,7 @@ class InvoiceLifecycleStatusIntegrationTest {
     void marksValidatedInvoiceAsExportableWhenAccountingEntryIsGenerated() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
 
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
         InvoiceStatusResponse validationResponse = invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
         InvoiceAccountingEntryResponse accountingEntryResponse = invoiceService
                 .generateAccountingEntry(uploadResponse.getInvoiceId())
@@ -449,6 +488,7 @@ class InvoiceLifecycleStatusIntegrationTest {
     @Test
     void keepsAccountingEntryGenerationIdempotentForExportableInvoice() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
         invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
         InvoiceAccountingEntryResponse firstResponse = invoiceService
                 .generateAccountingEntry(uploadResponse.getInvoiceId())
@@ -496,6 +536,7 @@ class InvoiceLifecycleStatusIntegrationTest {
                 findLatestHistory(uploadResponse.getInvoiceId()).getInvoiceStatusHistoryId()
         );
 
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
         invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
         invoiceService.generateAccountingEntry(uploadResponse.getInvoiceId()).orElseThrow();
         Invoice exportableInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
@@ -521,6 +562,13 @@ class InvoiceLifecycleStatusIntegrationTest {
         assertEquals(uploadResponse.getInvoiceId(), latestHistory.getInvoice().getInvoiceId());
         assertEquals(1L, latestHistory.getChangedByUser().getUserId());
         assertEquals(1L, latestHistory.getInvoice().getOrganization().getOrganizationId());
+    }
+
+    private void submitCompleteInvoiceForValidation(Long invoiceId) {
+        InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
+        correctionRequest.setInvoiceDate("2026-08-07");
+        invoiceService.correctInvoice(invoiceId, correctionRequest).orElseThrow();
+        invoiceService.submitForValidation(invoiceId).orElseThrow();
     }
 
     private InvoiceUploadResponse uploadInvoice() {
