@@ -530,12 +530,16 @@ class InvoiceLifecycleStatusIntegrationTest {
                 .generateAccountingEntry(uploadResponse.getInvoiceId())
                 .orElseThrow();
         Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+        InvoiceStatusHistory latestHistory = findLatestHistory(uploadResponse.getInvoiceId());
 
         assertEquals(InvoiceStatusCode.VALIDEE.getCode(), validationResponse.getStatus());
         assertEquals(InvoiceStatusCode.EXPORTABLE.getCode(), accountingEntryResponse.getStatus());
         assertEquals(InvoiceStatusCode.EXPORTABLE.getCode(), persistedInvoice.getInvoiceStatus().getCode());
+        assertEquals(InvoiceStatusCode.EXPORTABLE.getCode(), latestHistory.getInvoiceStatus().getCode());
+        assertEquals("Accounting entry generated and invoice marked exportable", latestHistory.getComment());
         assertNotNull(accountingEntryResponse.getAccountingEntry());
         assertNotNull(accountingEntryResponse.getAccountingEntry().getLines());
+        assertTrue(accountingEntryResponse.getAccountingEntry().isBalanced());
     }
 
     @Test
