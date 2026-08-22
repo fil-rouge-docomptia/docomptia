@@ -157,7 +157,10 @@ public class InvoiceController {
     }
 
     @PostMapping("/{id}/validate")
-    @Operation(summary = "Valider une facture")
+    @Operation(
+            summary = "Valider une facture en attente de decision",
+            description = "Passe une facture A_VERIFIER au statut VALIDEE et historise la decision"
+    )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Facture validee"),
             @ApiResponse(
