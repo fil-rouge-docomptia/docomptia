@@ -4,12 +4,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -38,16 +38,16 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    @WithMockUser
     void authenticatedRequestReachesBusinessRoute() throws Exception {
-        mockMvc.perform(get("/api/v1/invoices/999999"))
+        mockMvc.perform(get("/api/v1/invoices/999999")
+                        .with(user("security-test-user").roles("ADMIN")))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void loginComparesRawPasswordWithStoredHash() throws Exception {
         mockMvc.perform(get("/api/v1/invoices/999999")
-                        .with(httpBasic("admin@facturation-demo.fr", "password")))
+                        .with(httpBasic("admin@facturation-demo.fr", "admin123")))
                 .andExpect(status().isNotFound());
     }
 
