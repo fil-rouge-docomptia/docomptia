@@ -241,6 +241,29 @@ class InvoiceLifecycleStatusIntegrationTest {
     }
 
     @Test
+    void refusesDirectTransitionToValidatedBeforeSubmission() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        Invoice invoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+        User user = userRepository.findById(1L).orElseThrow();
+
+        InvoiceStatusTransitionException exception = assertThrows(
+                InvoiceStatusTransitionException.class,
+                () -> invoiceStatusWorkflowService.transitionTo(
+                        invoice,
+                        InvoiceStatusCode.VALIDEE,
+                        user,
+                        "Invoice validated"
+                )
+        );
+
+        assertEquals(
+                "Invoice " + uploadResponse.getInvoiceId() + " cannot transition from EXTRAITE to VALIDEE",
+                exception.getMessage()
+        );
+        assertEquals(InvoiceStatusCode.EXTRAITE.getCode(), invoice.getInvoiceStatus().getCode());
+    }
+
+    @Test
     void rejectsCorrectionsOnceInvoiceIsValidated() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
         submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
@@ -367,6 +390,9 @@ class InvoiceLifecycleStatusIntegrationTest {
         assertEquals(InvoiceStatusCode.VALIDEE.getCode(), validationResponse.getStatus());
         assertEquals(InvoiceStatusCode.VALIDEE.getCode(), persistedInvoice.getInvoiceStatus().getCode());
         assertEquals(InvoiceStatusCode.VALIDEE.getCode(), latestHistory.getInvoiceStatus().getCode());
+        assertEquals("Invoice validated", latestHistory.getComment());
+        assertEquals(1L, latestHistory.getChangedByUser().getUserId());
+        assertNotNull(latestHistory.getChangedAt());
     }
 
     @Test
