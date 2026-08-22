@@ -80,6 +80,7 @@ http://ocr:8000/ocr/analyze
 | `POST` | `/api/v1/invoices/{id}/accounting-entry` | Genere l'ecriture comptable apres validation |
 | `GET` | `/api/v1/invoices/{id}` | Retourne la facture, l'OCR et l'ecriture si elle existe |
 | `GET` | `/api/v1/invoices/{id}/history` | Retourne chronologiquement les changements de statut, corrections et decisions de doublon de l'organisation courante |
+| `PATCH` | `/api/v1/accounting-entries/{entryId}/lines/{lineId}` | Corrige le compte, le libelle, le debit ou le credit d'une ligne non exportee et historise les valeurs avant/apres |
 
 Le endpoint `PATCH /api/v1/invoices/{id}` retourne `400` avec un message explicite si
 le payload est invalide ou n'applique aucune modification effective, et `409` si
