@@ -67,6 +67,8 @@ class InvoiceDuplicateAlertIntegrationTest {
         assertEquals(first.getInvoiceId(), alerts.getFirst().getMatchingInvoice().getInvoiceId());
         assertEquals("EXACT-001", second.getDuplicateAlerts().getFirst().getMatchingInvoiceNumber());
         assertEquals(first.getInvoiceId(), second.getDuplicateAlerts().getFirst().getMatchingInvoiceId());
+        assertEquals("CERTAIN", second.getDuplicateAlerts().getFirst().getConfidenceLevel());
+        assertEquals(alerts.getFirst().getCreatedAt().toString(), second.getDuplicateAlerts().getFirst().getCreatedAt());
     }
 
     @Test
@@ -102,6 +104,8 @@ class InvoiceDuplicateAlertIntegrationTest {
         assertEquals(0, new BigDecimal("456.78").compareTo(alerts.getFirst().getTotalTtc()));
         assertEquals(1, second.getDuplicateAlerts().size());
         assertEquals("PROBABLE", second.getDuplicateAlerts().getFirst().getType());
+        assertEquals("PROBABLE", details.getDuplicateAlerts().getFirst().getConfidenceLevel());
+        assertEquals(alerts.getFirst().getCreatedAt().toString(), details.getDuplicateAlerts().getFirst().getCreatedAt());
         assertEquals(1, details.getDuplicateAlerts().size());
         assertTrue(invoiceRepository.existsById(second.getInvoiceId()));
     }

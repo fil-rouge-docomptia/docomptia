@@ -106,6 +106,8 @@ public class InvoiceDuplicateAlertServiceImpl implements InvoiceDuplicateAlertSe
         response.setSupplierId(alert.getSupplier().getSupplierId());
         response.setInvoiceDate(alert.getInvoiceDate() == null ? null : alert.getInvoiceDate().toString());
         response.setTotalTtc(alert.getTotalTtc() == null ? null : alert.getTotalTtc().toString());
+        response.setConfidenceLevel(alert.getAlertType().name());
+        response.setCreatedAt(alert.getCreatedAt().toString());
         return response;
     }
 }
