@@ -134,7 +134,14 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     @Override
     public void rejectInvoice(Invoice invoice, User user, String reason) {
         String rejectionReason = requireRejectionReason(reason);
-        ensureStatusChangeRequested(invoice, InvoiceStatusCode.REJETEE, "be rejected");
+        ensureCurrentStatus(invoice, InvoiceStatusCode.A_VERIFIER, "be rejected");
+        transitionTo(invoice, InvoiceStatusCode.REJETEE, user, rejectionReason);
+    }
+
+    @Override
+    public void rejectInvoiceAsDuplicate(Invoice invoice, User user, String reason) {
+        String rejectionReason = requireRejectionReason(reason);
+        ensureStatusChangeRequested(invoice, InvoiceStatusCode.REJETEE, "be rejected as a duplicate");
         transitionTo(invoice, InvoiceStatusCode.REJETEE, user, rejectionReason);
     }
 

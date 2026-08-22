@@ -143,12 +143,12 @@ public class InvoiceDuplicateAlertServiceImpl implements InvoiceDuplicateAlertSe
     ) {
         switch (decision) {
             case IGNORE -> continueAfterLastPendingAlert(invoice, user);
-            case CONFIRM -> invoiceStatusWorkflowService.rejectInvoice(
+            case CONFIRM -> invoiceStatusWorkflowService.rejectInvoiceAsDuplicate(
                     invoice,
                     user,
                     "Duplicate invoice confirmed"
             );
-            case REJECT -> invoiceStatusWorkflowService.rejectInvoice(invoice, user, reason);
+            case REJECT -> invoiceStatusWorkflowService.rejectInvoiceAsDuplicate(invoice, user, reason);
             case PENDING -> throw new IllegalArgumentException("A pending alert is not a decision");
         }
     }

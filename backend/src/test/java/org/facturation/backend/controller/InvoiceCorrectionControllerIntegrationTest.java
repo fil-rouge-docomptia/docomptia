@@ -1,5 +1,6 @@
 package org.facturation.backend.controller;
 
+import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.exception.ApiExceptionHandler;
@@ -117,6 +118,7 @@ class InvoiceCorrectionControllerIntegrationTest {
     @Test
     void rejectsInvoiceWithMandatoryReason() throws Exception {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
 
         mockMvc.perform(post("/api/v1/invoices/{id}/reject", uploadResponse.getInvoiceId())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -133,6 +135,7 @@ class InvoiceCorrectionControllerIntegrationTest {
     @Test
     void returnsBadRequestWhenRejectionReasonIsBlank() throws Exception {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
 
         mockMvc.perform(post("/api/v1/invoices/{id}/reject", uploadResponse.getInvoiceId())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -144,6 +147,24 @@ class InvoiceCorrectionControllerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVOICE_VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.message").value("Rejection reason is required"));
+    }
+
+    @Test
+    void refusesRejectionBeforeSubmissionWithoutChangingStatus() throws Exception {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+
+        mockMvc.perform(post("/api/v1/invoices/{id}/reject", uploadResponse.getInvoiceId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "The extracted total is incorrect"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVOICE_ACTION_NOT_ALLOWED"))
+                .andExpect(jsonPath("$.message").value(
+                        "Invoice " + uploadResponse.getInvoiceId() + " cannot be rejected from status EXTRAITE"
+                ));
     }
 
     @Test
@@ -194,5 +215,12 @@ class InvoiceCorrectionControllerIntegrationTest {
                 "image/png",
                 new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
         ), null);
+    }
+
+    private void submitCompleteInvoiceForValidation(Long invoiceId) {
+        InvoiceCorrectionRequest request = new InvoiceCorrectionRequest();
+        request.setInvoiceDate("2026-08-07");
+        invoiceService.correctInvoice(invoiceId, request).orElseThrow();
+        invoiceService.submitForValidation(invoiceId).orElseThrow();
     }
 }
