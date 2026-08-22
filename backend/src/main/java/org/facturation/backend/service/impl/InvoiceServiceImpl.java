@@ -211,7 +211,11 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional
     public Optional<InvoiceDetailsResponse> findDetailsById(Long id) {
-        return invoiceRepository.findById(id).map(invoiceResponseMapper::toDetailsResponse);
+        User user = findDefaultUser();
+        return invoiceRepository.findByInvoiceIdAndOrganizationOrganizationId(
+                id,
+                user.getOrganization().getOrganizationId()
+        ).map(invoiceResponseMapper::toDetailsResponse);
     }
 
     @Override
