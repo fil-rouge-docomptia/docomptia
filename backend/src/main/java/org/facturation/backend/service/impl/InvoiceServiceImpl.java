@@ -260,7 +260,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     public Optional<InvoiceAccountingEntryResponse> generateAccountingEntry(Long id) {
         return invoiceRepository.findById(id).map(invoice -> {
             User user = findDefaultUser();
-            invoiceStatusWorkflowService.ensureCanTransition(invoice, InvoiceStatusCode.EXPORTABLE);
+            invoiceStatusWorkflowService.ensureCanGenerateAccountingEntry(invoice);
             AccountingEntry accountingEntry = accountingEntryService.generateFromInvoice(invoice, user);
             invoiceStatusWorkflowService.markExportable(invoice, user);
             return invoiceResponseMapper.toAccountingEntryResponse(invoice, accountingEntry);
