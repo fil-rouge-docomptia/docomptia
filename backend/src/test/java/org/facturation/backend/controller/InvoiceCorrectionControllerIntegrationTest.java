@@ -137,6 +137,44 @@ class InvoiceCorrectionControllerIntegrationTest {
                 .andExpect(jsonPath("$.message").value("Rejection reason is required"));
     }
 
+    @Test
+    void submitsInvoiceForValidation() throws Exception {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        mockMvc.perform(patch("/api/v1/invoices/{id}", uploadResponse.getInvoiceId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "invoiceDate": "2026-08-07"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post(
+                        "/api/v1/invoices/{id}/submit-for-validation",
+                        uploadResponse.getInvoiceId()
+                ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.invoiceId").value(uploadResponse.getInvoiceId()))
+                .andExpect(jsonPath("$.status").value("A_VERIFIER"));
+    }
+
+    @Test
+    void returnsExplicitErrorWhenSubmittedInvoiceIsIncomplete() throws Exception {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+
+        mockMvc.perform(post(
+                        "/api/v1/invoices/{id}/submit-for-validation",
+                        uploadResponse.getInvoiceId()
+                ))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVOICE_REQUIRED_FIELDS_MISSING"))
+                .andExpect(jsonPath("$.message").value(
+                        "Invoice " + uploadResponse.getInvoiceId()
+                                + " cannot be submitted for validation from status EXTRAITE"
+                                + " because required fields are missing: invoiceDate"
+                ));
+    }
+
     private InvoiceUploadResponse uploadInvoice() {
         return invoiceService.uploadAndAnalyze(new MockMultipartFile(
                 "file",

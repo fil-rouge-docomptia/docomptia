@@ -31,6 +31,8 @@ public interface InvoiceService {
 
     Optional<InvoiceDetailsResponse> correctInvoice(Long id, InvoiceCorrectionRequest request);
 
+    Optional<InvoiceStatusResponse> submitForValidation(Long id);
+
     Optional<InvoiceStatusResponse> validateInvoice(Long id);
 
     Optional<InvoiceStatusResponse> rejectInvoice(Long id, String reason);

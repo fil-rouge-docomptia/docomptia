@@ -144,6 +144,67 @@ class InvoiceLifecycleStatusIntegrationTest {
     }
 
     @Test
+    void submitsCompleteExtractedInvoiceForValidationAndPersistsHistory() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
+        correctionRequest.setInvoiceDate("2026-08-07");
+        invoiceService.correctInvoice(uploadResponse.getInvoiceId(), correctionRequest).orElseThrow();
+
+        InvoiceStatusResponse response = invoiceService
+                .submitForValidation(uploadResponse.getInvoiceId())
+                .orElseThrow();
+        Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+        InvoiceStatusHistory latestHistory = findLatestHistory(uploadResponse.getInvoiceId());
+
+        assertEquals(InvoiceStatusCode.A_VERIFIER.getCode(), response.getStatus());
+        assertEquals(InvoiceStatusCode.A_VERIFIER.getCode(), persistedInvoice.getInvoiceStatus().getCode());
+        assertEquals(InvoiceStatusCode.A_VERIFIER.getCode(), latestHistory.getInvoiceStatus().getCode());
+        assertEquals("Invoice submitted for validation", latestHistory.getComment());
+        assertEquals(1L, latestHistory.getChangedByUser().getUserId());
+        assertNotNull(latestHistory.getChangedAt());
+    }
+
+    @Test
+    void refusesSubmissionWhenRequiredFieldsAreMissingWithoutChangingStatus() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+
+        InvoiceMissingRequiredFieldsException exception = assertThrows(
+                InvoiceMissingRequiredFieldsException.class,
+                () -> invoiceService.submitForValidation(uploadResponse.getInvoiceId())
+        );
+        Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+
+        assertEquals(
+                "Invoice " + uploadResponse.getInvoiceId()
+                        + " cannot be submitted for validation from status EXTRAITE"
+                        + " because required fields are missing: invoiceDate",
+                exception.getMessage()
+        );
+        assertEquals(List.of("invoiceDate"), exception.getMissingFields());
+        assertEquals(InvoiceStatusCode.EXTRAITE.getCode(), persistedInvoice.getInvoiceStatus().getCode());
+    }
+
+    @Test
+    void refusesSubmittingInvoiceThatIsAlreadyAwaitingValidation() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
+        correctionRequest.setInvoiceDate("2026-08-07");
+        invoiceService.correctInvoice(uploadResponse.getInvoiceId(), correctionRequest).orElseThrow();
+        invoiceService.submitForValidation(uploadResponse.getInvoiceId()).orElseThrow();
+
+        InvoiceStatusTransitionException exception = assertThrows(
+                InvoiceStatusTransitionException.class,
+                () -> invoiceService.submitForValidation(uploadResponse.getInvoiceId())
+        );
+
+        assertEquals(
+                "Invoice " + uploadResponse.getInvoiceId()
+                        + " cannot be submitted for validation from status A_VERIFIER",
+                exception.getMessage()
+        );
+    }
+
+    @Test
     void rejectsCorrectionsOnceInvoiceIsValidated() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
         invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
