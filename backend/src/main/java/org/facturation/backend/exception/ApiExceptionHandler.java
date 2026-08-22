@@ -1,5 +1,6 @@
 package org.facturation.backend.exception;
 
+import org.facturation.backend.dto.response.AccountingEntryPrerequisitesResponse;
 import org.facturation.backend.dto.response.ApiErrorResponse;
 import org.facturation.backend.dto.response.InvoiceMissingRequiredFieldsResponse;
 import org.facturation.backend.dto.response.InvoiceOcrFailureResponse;
@@ -28,6 +29,8 @@ public class ApiExceptionHandler {
     private static final String DUPLICATE_ALERT_ACTION_NOT_ALLOWED_CODE = "DUPLICATE_ALERT_ACTION_NOT_ALLOWED";
     private static final String ACCOUNTING_RULE_NOT_FOUND_CODE = "ACCOUNTING_RULE_NOT_FOUND";
     private static final String ACCOUNTING_RULE_VALIDATION_ERROR_CODE = "ACCOUNTING_RULE_VALIDATION_ERROR";
+    private static final String ACCOUNTING_ENTRY_PREREQUISITES_MISSING_CODE =
+            "ACCOUNTING_ENTRY_PREREQUISITES_MISSING";
 
     private final OcrErrorMapper ocrErrorMapper;
 
@@ -144,6 +147,18 @@ public class ApiExceptionHandler {
     @ExceptionHandler(InvalidAccountingRuleException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidAccountingRule(InvalidAccountingRuleException exception) {
         return errorResponse(HttpStatus.BAD_REQUEST, ACCOUNTING_RULE_VALIDATION_ERROR_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(AccountingEntryPrerequisitesException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountingEntryPrerequisites(
+            AccountingEntryPrerequisitesException exception
+    ) {
+        AccountingEntryPrerequisitesResponse response = new AccountingEntryPrerequisitesResponse(
+                ACCOUNTING_ENTRY_PREREQUISITES_MISSING_CODE,
+                exception.getMessage(),
+                exception.getMissingPrerequisites()
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
     private ResponseEntity<ApiErrorResponse> errorResponse(HttpStatus status, String code, String message) {
