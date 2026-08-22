@@ -4,6 +4,7 @@ public class InvoiceDuplicateAlertResponse {
 
     private String type;
     private Long matchingInvoiceId;
+    private String matchingInvoiceNumber;
     private Long supplierId;
     private String invoiceDate;
     private String totalTtc;
@@ -22,6 +23,14 @@ public class InvoiceDuplicateAlertResponse {
 
     public void setMatchingInvoiceId(Long matchingInvoiceId) {
         this.matchingInvoiceId = matchingInvoiceId;
+    }
+
+    public String getMatchingInvoiceNumber() {
+        return matchingInvoiceNumber;
+    }
+
+    public void setMatchingInvoiceNumber(String matchingInvoiceNumber) {
+        this.matchingInvoiceNumber = matchingInvoiceNumber;
     }
 
     public Long getSupplierId() {

@@ -25,6 +25,24 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
             Long invoiceId
     );
 
+    List<Invoice> findByOrganizationOrganizationIdAndSupplierSupplierIdAndInvoiceNumberAndInvoiceIdNot(
+            Long organizationId,
+            Long supplierId,
+            String invoiceNumber,
+            Long invoiceId
+    );
+
+    default List<Invoice> findCertainDuplicates(
+            Long organizationId,
+            Long supplierId,
+            String invoiceNumber,
+            Long invoiceId
+    ) {
+        return findByOrganizationOrganizationIdAndSupplierSupplierIdAndInvoiceNumberAndInvoiceIdNot(
+                organizationId, supplierId, invoiceNumber, invoiceId
+        );
+    }
+
     default List<Invoice> findProbableDuplicates(
             Long organizationId,
             Long supplierId,

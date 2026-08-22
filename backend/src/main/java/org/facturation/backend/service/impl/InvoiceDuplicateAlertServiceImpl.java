@@ -27,8 +27,33 @@ public class InvoiceDuplicateAlertServiceImpl implements InvoiceDuplicateAlertSe
     }
 
     @Override
-    public void detectProbableDuplicates(Invoice invoice) {
-        if (invoice.getSupplier() == null || invoice.getInvoiceDate() == null || invoice.getTotalTtc() == null) {
+    public void detectDuplicates(Invoice invoice) {
+        if (invoice.getSupplier() == null) {
+            return;
+        }
+
+        detectCertainDuplicates(invoice);
+        detectProbableDuplicates(invoice);
+    }
+
+    private void detectCertainDuplicates(Invoice invoice) {
+        if (invoice.getInvoiceNumber() == null) {
+            return;
+        }
+
+        invoiceRepository.findCertainDuplicates(
+                invoice.getOrganization().getOrganizationId(),
+                invoice.getSupplier().getSupplierId(),
+                invoice.getInvoiceNumber(),
+                invoice.getInvoiceId()
+        ).stream()
+                .filter(match -> !alertExists(invoice, match))
+                .map(match -> createAlert(invoice, match, DuplicateAlertType.CERTAIN))
+                .forEach(duplicateAlertRepository::save);
+    }
+
+    private void detectProbableDuplicates(Invoice invoice) {
+        if (invoice.getInvoiceDate() == null || invoice.getTotalTtc() == null) {
             return;
         }
 
@@ -39,10 +64,8 @@ public class InvoiceDuplicateAlertServiceImpl implements InvoiceDuplicateAlertSe
                 invoice.getTotalTtc(),
                 invoice.getInvoiceId()
         ).stream()
-                .filter(match -> !duplicateAlertRepository.existsByInvoiceInvoiceIdAndMatchingInvoiceInvoiceId(
-                        invoice.getInvoiceId(), match.getInvoiceId()
-                ))
-                .map(match -> createAlert(invoice, match))
+                .filter(match -> !alertExists(invoice, match))
+                .map(match -> createAlert(invoice, match, DuplicateAlertType.PROBABLE))
                 .forEach(duplicateAlertRepository::save);
     }
 
@@ -53,12 +76,22 @@ public class InvoiceDuplicateAlertServiceImpl implements InvoiceDuplicateAlertSe
                 .toList();
     }
 
-    private InvoiceDuplicateAlert createAlert(Invoice invoice, Invoice matchingInvoice) {
+    private boolean alertExists(Invoice invoice, Invoice matchingInvoice) {
+        return duplicateAlertRepository.existsByInvoiceInvoiceIdAndMatchingInvoiceInvoiceId(
+                invoice.getInvoiceId(), matchingInvoice.getInvoiceId()
+        );
+    }
+
+    private InvoiceDuplicateAlert createAlert(
+            Invoice invoice,
+            Invoice matchingInvoice,
+            DuplicateAlertType alertType
+    ) {
         InvoiceDuplicateAlert alert = new InvoiceDuplicateAlert();
         alert.setInvoice(invoice);
         alert.setMatchingInvoice(matchingInvoice);
         alert.setSupplier(invoice.getSupplier());
-        alert.setAlertType(DuplicateAlertType.PROBABLE);
+        alert.setAlertType(alertType);
         alert.setInvoiceDate(invoice.getInvoiceDate());
         alert.setTotalTtc(invoice.getTotalTtc());
         alert.setCreatedAt(LocalDateTime.now());
@@ -69,9 +102,10 @@ public class InvoiceDuplicateAlertServiceImpl implements InvoiceDuplicateAlertSe
         InvoiceDuplicateAlertResponse response = new InvoiceDuplicateAlertResponse();
         response.setType(alert.getAlertType().name());
         response.setMatchingInvoiceId(alert.getMatchingInvoice().getInvoiceId());
+        response.setMatchingInvoiceNumber(alert.getMatchingInvoice().getInvoiceNumber());
         response.setSupplierId(alert.getSupplier().getSupplierId());
-        response.setInvoiceDate(alert.getInvoiceDate().toString());
-        response.setTotalTtc(alert.getTotalTtc().toString());
+        response.setInvoiceDate(alert.getInvoiceDate() == null ? null : alert.getInvoiceDate().toString());
+        response.setTotalTtc(alert.getTotalTtc() == null ? null : alert.getTotalTtc().toString());
         return response;
     }
 }

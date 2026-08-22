@@ -40,10 +40,10 @@ public class InvoiceDuplicateAlert {
     @Column(nullable = false, length = 20)
     private DuplicateAlertType alertType;
 
-    @Column(nullable = false)
+    @Column
     private LocalDate invoiceDate;
 
-    @Column(nullable = false, precision = 12, scale = 2)
+    @Column(precision = 12, scale = 2)
     private BigDecimal totalTtc;
 
     @Column(nullable = false)

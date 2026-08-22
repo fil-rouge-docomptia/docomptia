@@ -6,9 +6,13 @@ import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
 import org.facturation.backend.dto.response.OcrFieldResponse;
 import org.facturation.backend.model.DuplicateAlertType;
+import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceDuplicateAlert;
+import org.facturation.backend.model.Organization;
+import org.facturation.backend.model.Supplier;
 import org.facturation.backend.repository.InvoiceDuplicateAlertRepository;
 import org.facturation.backend.repository.InvoiceRepository;
+import org.facturation.backend.service.InvoiceDuplicateAlertService;
 import org.facturation.backend.service.InvoiceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,18 +37,50 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class InvoiceDuplicateAlertIntegrationTest {
 
     private final InvoiceService invoiceService;
+    private final InvoiceDuplicateAlertService duplicateAlertService;
     private final InvoiceRepository invoiceRepository;
     private final InvoiceDuplicateAlertRepository duplicateAlertRepository;
 
     @Autowired
     InvoiceDuplicateAlertIntegrationTest(
             InvoiceService invoiceService,
+            InvoiceDuplicateAlertService duplicateAlertService,
             InvoiceRepository invoiceRepository,
             InvoiceDuplicateAlertRepository duplicateAlertRepository
     ) {
         this.invoiceService = invoiceService;
+        this.duplicateAlertService = duplicateAlertService;
         this.invoiceRepository = invoiceRepository;
         this.duplicateAlertRepository = duplicateAlertRepository;
+    }
+
+    @Test
+    void createsACertainAlertForTheSameSupplierAndExactInvoiceNumber() {
+        InvoiceUploadResponse first = invoiceService.uploadAndAnalyze(invoiceFile("exact-first.png"), 1L);
+        InvoiceUploadResponse second = invoiceService.uploadAndAnalyze(invoiceFile("exact-second.png"), 1L);
+
+        List<InvoiceDuplicateAlert> alerts = duplicateAlertRepository
+                .findByInvoiceInvoiceIdOrderByCreatedAtAsc(second.getInvoiceId());
+
+        assertEquals(1, alerts.size());
+        assertEquals(DuplicateAlertType.CERTAIN, alerts.getFirst().getAlertType());
+        assertEquals(first.getInvoiceId(), alerts.getFirst().getMatchingInvoice().getInvoiceId());
+        assertEquals("EXACT-001", second.getDuplicateAlerts().getFirst().getMatchingInvoiceNumber());
+        assertEquals(first.getInvoiceId(), second.getDuplicateAlerts().getFirst().getMatchingInvoiceId());
+    }
+
+    @Test
+    void doesNotMatchAnExactInvoiceNumberAcrossOrganizations() {
+        invoiceService.uploadAndAnalyze(invoiceFile("tenant-first.png"), 1L);
+        Organization otherOrganization = otherOrganization();
+        Supplier otherSupplier = otherSupplier(otherOrganization);
+        Invoice otherInvoice = otherInvoice(otherOrganization, otherSupplier);
+
+        duplicateAlertService.detectDuplicates(otherInvoice);
+
+        assertTrue(duplicateAlertRepository
+                .findByInvoiceInvoiceIdOrderByCreatedAtAsc(otherInvoice.getInvoiceId())
+                .isEmpty());
     }
 
     @Test
@@ -79,6 +115,28 @@ class InvoiceDuplicateAlertIntegrationTest {
         );
     }
 
+    private Organization otherOrganization() {
+        Organization organization = new Organization();
+        organization.setOrganizationId(94L);
+        return organization;
+    }
+
+    private Supplier otherSupplier(Organization organization) {
+        Supplier supplier = new Supplier();
+        supplier.setSupplierId(94L);
+        supplier.setOrganization(organization);
+        return supplier;
+    }
+
+    private Invoice otherInvoice(Organization organization, Supplier supplier) {
+        Invoice invoice = new Invoice();
+        invoice.setInvoiceId(94L);
+        invoice.setOrganization(organization);
+        invoice.setSupplier(supplier);
+        invoice.setInvoiceNumber("TENANT-001");
+        return invoice;
+    }
+
     static class DuplicateOcrClient implements OcrClient {
 
         private final AtomicInteger invoiceSequence = new AtomicInteger();
@@ -89,6 +147,14 @@ class InvoiceDuplicateAlertIntegrationTest {
             response.setStatus("SUCCESS");
             response.setEngineName("duplicate-test-ocr");
             response.setEngineVersion("1.0");
+            if (file.getOriginalFilename().startsWith("exact-")) {
+                response.setFields(List.of(field("invoiceNumber", "EXACT-001")));
+                return response;
+            }
+            if (file.getOriginalFilename().startsWith("tenant-")) {
+                response.setFields(List.of(field("invoiceNumber", "TENANT-001")));
+                return response;
+            }
             response.setFields(List.of(
                     field("invoiceNumber", "TEST-" + invoiceSequence.incrementAndGet()),
                     field("invoiceDate", "2099-12-31"),
