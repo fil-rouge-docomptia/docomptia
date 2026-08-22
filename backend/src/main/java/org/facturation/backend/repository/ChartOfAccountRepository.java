@@ -9,6 +9,9 @@ import java.util.Optional;
 
 public interface ChartOfAccountRepository extends JpaRepository<ChartOfAccount, Long> {
 
+    Optional<ChartOfAccount> findByAccountIdAndOrganizationOrganizationIdAndIsActiveTrue(
+            Long accountId,
+            Long organizationId
     Page<ChartOfAccount> findByOrganizationOrganizationId(Long organizationId, Pageable pageable);
 
     Optional<ChartOfAccount> findByAccountIdAndOrganizationOrganizationId(Long accountId, Long organizationId);

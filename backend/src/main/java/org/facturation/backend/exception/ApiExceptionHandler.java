@@ -26,6 +26,8 @@ public class ApiExceptionHandler {
     private static final String INVOICE_REQUIRED_FIELDS_MISSING_CODE = "INVOICE_REQUIRED_FIELDS_MISSING";
     private static final String DUPLICATE_ALERT_NOT_FOUND_CODE = "DUPLICATE_ALERT_NOT_FOUND";
     private static final String DUPLICATE_ALERT_ACTION_NOT_ALLOWED_CODE = "DUPLICATE_ALERT_ACTION_NOT_ALLOWED";
+    private static final String ACCOUNTING_RULE_NOT_FOUND_CODE = "ACCOUNTING_RULE_NOT_FOUND";
+    private static final String ACCOUNTING_RULE_VALIDATION_ERROR_CODE = "ACCOUNTING_RULE_VALIDATION_ERROR";
 
     private final OcrErrorMapper ocrErrorMapper;
 
@@ -132,6 +134,16 @@ public class ApiExceptionHandler {
     @ExceptionHandler(PendingDuplicateAlertException.class)
     public ResponseEntity<ApiErrorResponse> handlePendingDuplicateAlert(PendingDuplicateAlertException exception) {
         return errorResponse(HttpStatus.CONFLICT, DUPLICATE_ALERT_ACTION_NOT_ALLOWED_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(AccountingRuleNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountingRuleNotFound(AccountingRuleNotFoundException exception) {
+        return errorResponse(HttpStatus.NOT_FOUND, ACCOUNTING_RULE_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidAccountingRuleException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidAccountingRule(InvalidAccountingRuleException exception) {
+        return errorResponse(HttpStatus.BAD_REQUEST, ACCOUNTING_RULE_VALIDATION_ERROR_CODE, exception.getMessage());
     }
 
     private ResponseEntity<ApiErrorResponse> errorResponse(HttpStatus status, String code, String message) {
