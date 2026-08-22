@@ -1,6 +1,7 @@
 package org.facturation.backend.exception;
 
 import org.facturation.backend.dto.response.ApiErrorResponse;
+import org.facturation.backend.dto.response.InvoiceMissingRequiredFieldsResponse;
 import org.facturation.backend.dto.response.InvoiceOcrFailureResponse;
 import org.facturation.backend.mapper.OcrErrorMapper;
 import org.facturation.backend.model.InvoiceStatusCode;
@@ -92,11 +93,12 @@ public class ApiExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleInvoiceMissingRequiredFields(
             InvoiceMissingRequiredFieldsException exception
     ) {
-        return errorResponse(
-                HttpStatus.CONFLICT,
+        InvoiceMissingRequiredFieldsResponse response = new InvoiceMissingRequiredFieldsResponse(
                 INVOICE_REQUIRED_FIELDS_MISSING_CODE,
-                exception.getMessage()
+                exception.getMessage(),
+                exception.getMissingFields()
         );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
     @ExceptionHandler(DuplicateAlertNotFoundException.class)
