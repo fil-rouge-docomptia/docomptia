@@ -91,6 +91,7 @@ class AccountingEntryControllerIntegrationTest {
                 .andExpect(jsonPath("$.accountingEntryId").value(generatedLine.entryId()))
                 .andExpect(jsonPath("$.totalDebit").value("119.99"))
                 .andExpect(jsonPath("$.totalCredit").value("120.00"))
+                .andExpect(jsonPath("$.balanceDifference").value("0.01"))
                 .andExpect(jsonPath("$.balanced").value(false))
                 .andExpect(jsonPath("$.lines[0].accountingEntryLineId")
                         .value(generatedLine.line().getAccountingEntryLineId()))
@@ -106,6 +107,10 @@ class AccountingEntryControllerIntegrationTest {
         assertEquals(2L, persistedLine.getAccount().getAccountId());
         assertEquals("Achat corrige", persistedLine.getLineLabel());
         assertEquals("99.99", persistedLine.getDebitAmount().toPlainString());
+        assertEquals(
+                InvoiceStatusCode.VALIDEE.getCode(),
+                invoiceRepository.findById(generatedLine.invoiceId()).orElseThrow().getInvoiceStatus().getCode()
+        );
         assertEquals(3, correctionLogs.size());
         assertTrue(correctionLogs.stream().allMatch(log -> log.getUser().getUserId().equals(1L)));
         assertTrue(correctionLogs.stream().allMatch(log -> log.getOrganization().getOrganizationId().equals(1L)));
@@ -113,6 +118,22 @@ class AccountingEntryControllerIntegrationTest {
                 && "accountId=2".equals(log.getNewValue())));
         assertTrue(correctionLogs.stream().anyMatch(log -> "debitAmount=100.00".equals(log.getOldValue())
                 && "debitAmount=99.99".equals(log.getNewValue())));
+
+        mockMvc.perform(patch(
+                        "/api/v1/accounting-entries/{entryId}/lines/{lineId}",
+                        generatedLine.entryId(),
+                        generatedLine.line().getAccountingEntryLineId()
+                )
+                        .contentType("application/json")
+                        .content("{\"debitAmount\": 100.00}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.balanceDifference").value("0.00"))
+                .andExpect(jsonPath("$.balanced").value(true));
+
+        assertEquals(
+                InvoiceStatusCode.EXPORTABLE.getCode(),
+                invoiceRepository.findById(generatedLine.invoiceId()).orElseThrow().getInvoiceStatus().getCode()
+        );
     }
 
     @Test

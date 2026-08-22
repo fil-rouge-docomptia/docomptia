@@ -26,6 +26,7 @@ public class AccountingEntryMapper {
         BigDecimal totalCredit = sumAmounts(lines, false);
         response.setTotalDebit(formatAmount(totalDebit));
         response.setTotalCredit(formatAmount(totalCredit));
+        response.setBalanceDifference(formatAmount(totalDebit.subtract(totalCredit).abs()));
         response.setBalanced(totalDebit.compareTo(totalCredit) == 0);
         response.setLines(lines.stream().map(this::toLineResponse).toList());
         return response;

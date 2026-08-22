@@ -11,6 +11,7 @@ public class AccountingEntryResponse {
     private String status;
     private String totalDebit;
     private String totalCredit;
+    private String balanceDifference;
     private boolean balanced;
     private List<AccountingEntryLineResponse> lines;
 
@@ -68,6 +69,14 @@ public class AccountingEntryResponse {
 
     public void setTotalCredit(String totalCredit) {
         this.totalCredit = totalCredit;
+    }
+
+    public String getBalanceDifference() {
+        return balanceDifference;
+    }
+
+    public void setBalanceDifference(String balanceDifference) {
+        this.balanceDifference = balanceDifference;
     }
 
     public boolean isBalanced() {
