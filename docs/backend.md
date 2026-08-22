@@ -101,6 +101,16 @@ Un fournisseur absent ou rattache a une autre organisation retourne `404`. La mo
 retourne `400` pour un identifiant legal invalide et `409` lorsqu'un SIRET ou un numero de TVA
 est deja utilise par un autre fournisseur de l'organisation courante.
 
+## Endpoints Regles Comptables MVP
+
+| Methode | Endpoint | Role |
+| --- | --- | --- |
+| `GET` | `/api/v1/accounting-rules` | Liste les regles de l'organisation et indique si chaque configuration est complete |
+| `PATCH` | `/api/v1/accounting-rules/{id}` | Modifie les comptes de charge, TVA et fournisseur d'une regle |
+
+Une modification accepte uniquement des comptes actifs de l'organisation courante. Une regle
+existante qui reference un compte inactif reste consultable avec `configurationComplete=false`.
+
 ## Stockage Des Fichiers
 
 Deux implementations existent:
