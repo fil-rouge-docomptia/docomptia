@@ -529,6 +529,34 @@ class InvoiceLifecycleStatusIntegrationTest {
     }
 
     @Test
+    void returnsAccountingEntryLinesAndBalanceInInvoiceDetails() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
+        invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+        invoiceService.generateAccountingEntry(uploadResponse.getInvoiceId()).orElseThrow();
+
+        InvoiceDetailsResponse details = invoiceService.findDetailsById(uploadResponse.getInvoiceId()).orElseThrow();
+
+        assertNotNull(details.getAccountingEntry());
+        assertEquals(3, details.getAccountingEntry().getLines().size());
+        assertFalse(details.getAccountingEntry().getLines().get(0).getAccountNumber().isBlank());
+        assertEquals("100.00", details.getAccountingEntry().getLines().get(0).getDebitAmount());
+        assertEquals("0.00", details.getAccountingEntry().getLines().get(0).getCreditAmount());
+        assertEquals("120.00", details.getAccountingEntry().getTotalDebit());
+        assertEquals("120.00", details.getAccountingEntry().getTotalCredit());
+        assertTrue(details.getAccountingEntry().isBalanced());
+    }
+
+    @Test
+    void returnsInvoiceDetailsWithoutAccountingEntryWhenNoneExists() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+
+        InvoiceDetailsResponse details = invoiceService.findDetailsById(uploadResponse.getInvoiceId()).orElseThrow();
+
+        assertNull(details.getAccountingEntry());
+    }
+
+    @Test
     void keepsAccountingEntryGenerationIdempotentForExportableInvoice() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
         submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());

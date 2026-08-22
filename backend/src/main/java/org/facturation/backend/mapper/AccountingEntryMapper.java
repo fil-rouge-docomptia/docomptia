@@ -22,8 +22,20 @@ public class AccountingEntryMapper {
         response.setEntryDate(accountingEntry.getEntryDate() == null ? null : accountingEntry.getEntryDate().toString());
         response.setLabel(accountingEntry.getLabel());
         response.setStatus(accountingEntry.getStatus());
+        BigDecimal totalDebit = sumAmounts(lines, true);
+        BigDecimal totalCredit = sumAmounts(lines, false);
+        response.setTotalDebit(formatAmount(totalDebit));
+        response.setTotalCredit(formatAmount(totalCredit));
+        response.setBalanced(totalDebit.compareTo(totalCredit) == 0);
         response.setLines(lines.stream().map(this::toLineResponse).toList());
         return response;
+    }
+
+    private BigDecimal sumAmounts(List<AccountingEntryLine> lines, boolean debit) {
+        return lines.stream()
+                .map(line -> debit ? line.getDebitAmount() : line.getCreditAmount())
+                .filter(amount -> amount != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private AccountingEntryLineResponse toLineResponse(AccountingEntryLine line) {

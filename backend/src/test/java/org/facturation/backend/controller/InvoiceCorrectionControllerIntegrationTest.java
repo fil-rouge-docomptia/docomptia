@@ -145,6 +145,22 @@ class InvoiceCorrectionControllerIntegrationTest {
     }
 
     @Test
+    @Sql(statements = {
+            "ALTER TABLE organizations ALTER COLUMN organization_id RESTART WITH 2",
+            "ALTER TABLE users ALTER COLUMN user_id RESTART WITH 2"
+    })
+    void doesNotReturnInvoiceDetailsFromAnotherOrganization() throws Exception {
+        Invoice inaccessibleInvoice = createInvoiceInAnotherOrganization();
+
+        mockMvc.perform(get("/api/v1/invoices/{id}", inaccessibleInvoice.getInvoiceId()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("INVOICE_NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value(
+                        "Invoice " + inaccessibleInvoice.getInvoiceId() + " not found"
+                ));
+    }
+
+    @Test
     void returnsNormalizedConflictWhenCorrectionIsForbidden() throws Exception {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
         mockMvc.perform(patch("/api/v1/invoices/{id}", uploadResponse.getInvoiceId())

@@ -9,6 +9,9 @@ public class AccountingEntryResponse {
     private String entryDate;
     private String label;
     private String status;
+    private String totalDebit;
+    private String totalCredit;
+    private boolean balanced;
     private List<AccountingEntryLineResponse> lines;
 
     public Long getAccountingEntryId() {
@@ -49,6 +52,30 @@ public class AccountingEntryResponse {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getTotalDebit() {
+        return totalDebit;
+    }
+
+    public void setTotalDebit(String totalDebit) {
+        this.totalDebit = totalDebit;
+    }
+
+    public String getTotalCredit() {
+        return totalCredit;
+    }
+
+    public void setTotalCredit(String totalCredit) {
+        this.totalCredit = totalCredit;
+    }
+
+    public boolean isBalanced() {
+        return balanced;
+    }
+
+    public void setBalanced(boolean balanced) {
+        this.balanced = balanced;
     }
 
     public List<AccountingEntryLineResponse> getLines() {
