@@ -1,0 +1,45 @@
+package org.facturation.backend.config;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+class SecurityConfigIntegrationTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Test
+    void publicRouteRemainsAccessibleWithoutAuthentication() throws Exception {
+        mockMvc.perform(get("/api/hello"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("Hello World"));
+    }
+
+    @Test
+    void businessRouteRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/invoices/1"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("Authentication is required"));
+    }
+
+    @Test
+    @WithMockUser
+    void authenticatedRequestReachesBusinessRoute() throws Exception {
+        mockMvc.perform(get("/api/v1/invoices/999999"))
+                .andExpect(status().isNotFound());
+    }
+}
