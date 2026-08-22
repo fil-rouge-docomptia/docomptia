@@ -2,6 +2,7 @@ package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.request.DuplicateAlertDecisionRequest;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
+import org.facturation.backend.dto.response.AccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceListItemResponse;
@@ -9,6 +10,7 @@ import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
 import org.facturation.backend.exception.InvoiceOcrFailureException;
+import org.facturation.backend.exception.UnbalancedAccountingEntryException;
 import org.facturation.backend.mapper.InvoiceResponseMapper;
 import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.AuditLog;
@@ -320,18 +322,32 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     @Override
-    @Transactional
+    @Transactional(dontRollbackOn = UnbalancedAccountingEntryException.class)
     public Optional<InvoiceAccountingEntryResponse> generateAccountingEntry(Long id) {
         return invoiceRepository.findForAccountingGenerationByInvoiceId(id).map(invoice -> {
             Optional<AccountingEntry> existingAccountingEntry = accountingEntryService.findByInvoiceId(id);
-            if (existingAccountingEntry.isPresent()) {
-                return invoiceResponseMapper.toAccountingEntryResponse(invoice, existingAccountingEntry.get());
-            }
-            duplicateAlertService.ensureNoPendingAlerts(id, "generate an accounting entry");
             User user = findDefaultUser();
-            invoiceStatusWorkflowService.ensureCanGenerateAccountingEntry(invoice);
-            AccountingEntry accountingEntry = accountingEntryService.generateFromInvoice(invoice, user);
-            invoiceStatusWorkflowService.markExportable(invoice, user);
+            AccountingEntry accountingEntry;
+            if (existingAccountingEntry.isPresent()) {
+                accountingEntry = existingAccountingEntry.get();
+            } else {
+                duplicateAlertService.ensureNoPendingAlerts(id, "generate an accounting entry");
+                invoiceStatusWorkflowService.ensureCanGenerateAccountingEntry(invoice);
+                accountingEntry = accountingEntryService.generateFromInvoice(invoice, user);
+            }
+
+            InvoiceAccountingEntryResponse response =
+                    invoiceResponseMapper.toAccountingEntryResponse(invoice, accountingEntry);
+            AccountingEntryResponse accountingEntryResponse = response.getAccountingEntry();
+            if (!accountingEntryResponse.isBalanced()) {
+                if (InvoiceStatusCode.EXPORTABLE.getCode().equals(invoice.getInvoiceStatus().getCode())) {
+                    invoiceStatusWorkflowService.markAccountingEntryToCorrect(invoice, user);
+                }
+                throw new UnbalancedAccountingEntryException(accountingEntryResponse);
+            }
+            if (InvoiceStatusCode.VALIDEE.getCode().equals(invoice.getInvoiceStatus().getCode())) {
+                invoiceStatusWorkflowService.markExportable(invoice, user);
+            }
             return invoiceResponseMapper.toAccountingEntryResponse(invoice, accountingEntry);
         });
     }

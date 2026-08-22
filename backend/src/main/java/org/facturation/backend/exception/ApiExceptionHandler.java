@@ -4,6 +4,7 @@ import org.facturation.backend.dto.response.AccountingEntryPrerequisitesResponse
 import org.facturation.backend.dto.response.ApiErrorResponse;
 import org.facturation.backend.dto.response.InvoiceMissingRequiredFieldsResponse;
 import org.facturation.backend.dto.response.InvoiceOcrFailureResponse;
+import org.facturation.backend.dto.response.UnbalancedAccountingEntryResponse;
 import org.facturation.backend.mapper.OcrErrorMapper;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.springframework.http.HttpStatus;
@@ -35,6 +36,7 @@ public class ApiExceptionHandler {
     private static final String ACCOUNTING_ENTRY_LINE_VALIDATION_ERROR_CODE =
             "ACCOUNTING_ENTRY_LINE_VALIDATION_ERROR";
     private static final String ACCOUNTING_ENTRY_NOT_MODIFIABLE_CODE = "ACCOUNTING_ENTRY_NOT_MODIFIABLE";
+    private static final String ACCOUNTING_ENTRY_UNBALANCED_CODE = "ACCOUNTING_ENTRY_UNBALANCED";
 
     private final OcrErrorMapper ocrErrorMapper;
 
@@ -188,6 +190,21 @@ public class ApiExceptionHandler {
             AccountingEntryNotModifiableException exception
     ) {
         return errorResponse(HttpStatus.CONFLICT, ACCOUNTING_ENTRY_NOT_MODIFIABLE_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(UnbalancedAccountingEntryException.class)
+    public ResponseEntity<UnbalancedAccountingEntryResponse> handleUnbalancedAccountingEntry(
+            UnbalancedAccountingEntryException exception
+    ) {
+        UnbalancedAccountingEntryResponse response = new UnbalancedAccountingEntryResponse(
+                ACCOUNTING_ENTRY_UNBALANCED_CODE,
+                exception.getMessage(),
+                exception.getAccountingEntryId(),
+                exception.getTotalDebit(),
+                exception.getTotalCredit(),
+                exception.getBalanceDifference()
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
     private ResponseEntity<ApiErrorResponse> errorResponse(HttpStatus status, String code, String message) {

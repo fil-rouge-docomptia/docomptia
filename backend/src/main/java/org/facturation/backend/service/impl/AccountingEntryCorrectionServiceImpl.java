@@ -18,6 +18,7 @@ import org.facturation.backend.repository.ChartOfAccountRepository;
 import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.AccountingEntryCorrectionService;
 import org.facturation.backend.service.AuditLogService;
+import org.facturation.backend.service.InvoiceStatusWorkflowService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +40,7 @@ public class AccountingEntryCorrectionServiceImpl implements AccountingEntryCorr
     private final AccountingEntryMapper accountingEntryMapper;
     private final AuditLogService auditLogService;
     private final ChartOfAccountRepository chartOfAccountRepository;
+    private final InvoiceStatusWorkflowService invoiceStatusWorkflowService;
     private final UserRepository userRepository;
 
     public AccountingEntryCorrectionServiceImpl(
@@ -46,12 +48,14 @@ public class AccountingEntryCorrectionServiceImpl implements AccountingEntryCorr
             AccountingEntryMapper accountingEntryMapper,
             AuditLogService auditLogService,
             ChartOfAccountRepository chartOfAccountRepository,
+            InvoiceStatusWorkflowService invoiceStatusWorkflowService,
             UserRepository userRepository
     ) {
         this.accountingEntryLineRepository = accountingEntryLineRepository;
         this.accountingEntryMapper = accountingEntryMapper;
         this.auditLogService = auditLogService;
         this.chartOfAccountRepository = chartOfAccountRepository;
+        this.invoiceStatusWorkflowService = invoiceStatusWorkflowService;
         this.userRepository = userRepository;
     }
 
@@ -88,7 +92,20 @@ public class AccountingEntryCorrectionServiceImpl implements AccountingEntryCorr
 
         List<AccountingEntryLine> lines = accountingEntryLineRepository
                 .findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(accountingEntryId);
-        return accountingEntryMapper.toResponse(accountingEntry, lines);
+        AccountingEntryResponse response = accountingEntryMapper.toResponse(accountingEntry, lines);
+        updateInvoiceExportability(accountingEntry, user, response.isBalanced());
+        return response;
+    }
+
+    private void updateInvoiceExportability(AccountingEntry accountingEntry, User user, boolean balanced) {
+        InvoiceStatusCode invoiceStatus = InvoiceStatusCode.fromCode(
+                accountingEntry.getInvoice().getInvoiceStatus().getCode()
+        );
+        if (!balanced && invoiceStatus == InvoiceStatusCode.EXPORTABLE) {
+            invoiceStatusWorkflowService.markAccountingEntryToCorrect(accountingEntry.getInvoice(), user);
+        } else if (balanced && invoiceStatus == InvoiceStatusCode.VALIDEE) {
+            invoiceStatusWorkflowService.markExportable(accountingEntry.getInvoice(), user);
+        }
     }
 
     private List<AppliedCorrection> applyCorrections(

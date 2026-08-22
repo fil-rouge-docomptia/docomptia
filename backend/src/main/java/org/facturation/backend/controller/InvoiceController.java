@@ -123,7 +123,7 @@ public class InvoiceController {
             @ApiResponse(responseCode = "200", description = "Ecriture comptable generee"),
             @ApiResponse(
                     responseCode = "409",
-                    description = "Facture non validee ou prerequis comptables manquants ou invalides"
+                    description = "Facture non validee, prerequis comptables invalides ou ecriture desequilibree"
             )
     })
     public ResponseEntity<InvoiceAccountingEntryResponse> generateAccountingEntry(@PathVariable Long id) {

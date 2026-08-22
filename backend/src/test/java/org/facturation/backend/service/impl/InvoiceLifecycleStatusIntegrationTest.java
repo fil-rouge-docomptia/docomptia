@@ -8,10 +8,12 @@ import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.dto.response.OcrFieldResponse;
+import org.facturation.backend.dto.response.UnbalancedAccountingEntryResponse;
 import org.facturation.backend.exception.AccountingEntryPrerequisitesException;
 import org.facturation.backend.exception.ApiExceptionHandler;
 import org.facturation.backend.exception.InvoiceMissingRequiredFieldsException;
 import org.facturation.backend.exception.InvoiceStatusTransitionException;
+import org.facturation.backend.exception.UnbalancedAccountingEntryException;
 import org.facturation.backend.model.AccountingEntryLine;
 import org.facturation.backend.model.AuditLog;
 import org.facturation.backend.model.Invoice;
@@ -585,7 +587,44 @@ class InvoiceLifecycleStatusIntegrationTest {
 
         assertEquals("120.00", details.getAccountingEntry().getTotalDebit());
         assertEquals("119.99", details.getAccountingEntry().getTotalCredit());
+        assertEquals("0.01", details.getAccountingEntry().getBalanceDifference());
         assertFalse(details.getAccountingEntry().isBalanced());
+    }
+
+    @Test
+    void blocksUnbalancedAccountingEntryFromRemainingExportableAndReturnsDifference() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
+        invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+        InvoiceAccountingEntryResponse generatedEntry = invoiceService
+                .generateAccountingEntry(uploadResponse.getInvoiceId())
+                .orElseThrow();
+        AccountingEntryLine creditLine = accountingEntryLineRepository
+                .findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(
+                        generatedEntry.getAccountingEntry().getAccountingEntryId()
+                )
+                .get(2);
+        creditLine.setCreditAmount(new BigDecimal("119.99"));
+        accountingEntryLineRepository.saveAndFlush(creditLine);
+
+        UnbalancedAccountingEntryException exception = assertThrows(
+                UnbalancedAccountingEntryException.class,
+                () -> invoiceService.generateAccountingEntry(uploadResponse.getInvoiceId())
+        );
+        ResponseEntity<UnbalancedAccountingEntryResponse> errorResponse =
+                apiExceptionHandler.handleUnbalancedAccountingEntry(exception);
+        Invoice invoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+
+        assertEquals(HttpStatus.CONFLICT, errorResponse.getStatusCode());
+        assertEquals("ACCOUNTING_ENTRY_UNBALANCED", errorResponse.getBody().getCode());
+        assertEquals(
+                generatedEntry.getAccountingEntry().getAccountingEntryId(),
+                errorResponse.getBody().getAccountingEntryId()
+        );
+        assertEquals("120.00", errorResponse.getBody().getTotalDebit());
+        assertEquals("119.99", errorResponse.getBody().getTotalCredit());
+        assertEquals("0.01", errorResponse.getBody().getBalanceDifference());
+        assertEquals(InvoiceStatusCode.VALIDEE.getCode(), invoice.getInvoiceStatus().getCode());
     }
 
     @Test
