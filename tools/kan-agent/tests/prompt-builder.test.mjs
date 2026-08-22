@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { buildPrompt } from '../src/prompt-builder.mjs'
@@ -82,4 +82,17 @@ test('buildPrompt accepts a legacy state without a loaded epic', async () => {
   } finally {
     await rm(directory, { recursive: true, force: true })
   }
+})
+
+test('the implementation prompt requires fixing failing tests before finishing', async () => {
+  const template = await readFile(new URL('../prompts/implement-ticket.md', import.meta.url), 'utf8')
+
+  assert.match(
+    template,
+    /If a relevant test fails, inspect the failure, fix the implementation or the outdated test/,
+  )
+  assert.match(
+    template,
+    /rerun the failing test,\s+then rerun the\s+broader validation before finishing\./,
+  )
 })
