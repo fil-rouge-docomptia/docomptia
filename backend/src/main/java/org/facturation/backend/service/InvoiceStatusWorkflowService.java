@@ -25,7 +25,7 @@ public interface InvoiceStatusWorkflowService {
 
     void ensureCanCorrect(Invoice invoice, boolean hasCorrections);
 
-    void moveToReviewAfterCorrectionIfNeeded(Invoice invoice, User user, boolean hasCorrections);
+    void reintegrateAfterCorrectionIfNeeded(Invoice invoice, User user, boolean hasCorrections);
 
     void submitForValidation(Invoice invoice, User user);
 

@@ -106,14 +106,16 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     }
 
     @Override
-    public void moveToReviewAfterCorrectionIfNeeded(Invoice invoice, User user, boolean hasCorrections) {
+    public void reintegrateAfterCorrectionIfNeeded(Invoice invoice, User user, boolean hasCorrections) {
         if (!hasCorrections) {
             return;
         }
 
         InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);
-        if (currentCode == InvoiceStatusCode.ERREUR_OCR || currentCode == InvoiceStatusCode.REJETEE) {
+        if (currentCode == InvoiceStatusCode.ERREUR_OCR) {
             transitionTo(invoice, InvoiceStatusCode.A_VERIFIER, user, "Invoice corrected and ready for review");
+        } else if (currentCode == InvoiceStatusCode.REJETEE) {
+            transitionTo(invoice, InvoiceStatusCode.EXTRAITE, user, "Rejected invoice corrected and ready for submission");
         }
     }
 
@@ -301,11 +303,12 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
         allowedPreviousStatuses.put(InvoiceStatusCode.ERREUR_OCR, EnumSet.of(InvoiceStatusCode.OCR_EN_COURS));
         allowedPreviousStatuses.put(
                 InvoiceStatusCode.EXTRAITE,
-                EnumSet.of(InvoiceStatusCode.OCR_EN_COURS, InvoiceStatusCode.A_VERIFIER)
+                EnumSet.of(InvoiceStatusCode.OCR_EN_COURS, InvoiceStatusCode.A_VERIFIER, InvoiceStatusCode.REJETEE)
         );
+
         allowedPreviousStatuses.put(
                 InvoiceStatusCode.A_VERIFIER,
-                EnumSet.of(InvoiceStatusCode.EXTRAITE, InvoiceStatusCode.ERREUR_OCR, InvoiceStatusCode.REJETEE)
+                EnumSet.of(InvoiceStatusCode.EXTRAITE, InvoiceStatusCode.ERREUR_OCR)
         );
         allowedPreviousStatuses.put(
                 InvoiceStatusCode.VALIDEE,

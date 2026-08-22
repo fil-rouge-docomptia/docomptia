@@ -91,7 +91,7 @@ class InvoiceLifecycleStatusIntegrationTest {
     }
 
     @Test
-    void movesRejectedInvoiceBackToReviewAfterCorrection() {
+    void reintegratesCorrectedRejectedInvoiceBeforeSubmission() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
         submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
         InvoiceStatusResponse rejectResponse = invoiceService
@@ -106,9 +106,10 @@ class InvoiceLifecycleStatusIntegrationTest {
         InvoiceStatusHistory latestHistory = findLatestHistory(uploadResponse.getInvoiceId());
 
         assertEquals(InvoiceStatusCode.REJETEE.getCode(), rejectResponse.getStatus());
-        assertEquals(InvoiceStatusCode.A_VERIFIER.getCode(), correctedResponse.getStatus());
+        assertEquals(InvoiceStatusCode.EXTRAITE.getCode(), correctedResponse.getStatus());
         assertEquals("INV-CORR-001", correctedResponse.getInvoiceNumber());
-        assertEquals(InvoiceStatusCode.A_VERIFIER.getCode(), latestHistory.getInvoiceStatus().getCode());
+        assertEquals(InvoiceStatusCode.EXTRAITE.getCode(), latestHistory.getInvoiceStatus().getCode());
+        assertEquals("Rejected invoice corrected and ready for submission", latestHistory.getComment());
         assertEquals(uploadResponse.getInvoiceId(), latestHistory.getInvoice().getInvoiceId());
         assertEquals(1L, latestHistory.getChangedByUser().getUserId());
         assertEquals(1L, latestHistory.getInvoice().getOrganization().getOrganizationId());
@@ -355,28 +356,29 @@ class InvoiceLifecycleStatusIntegrationTest {
 
         InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
         correctionRequest.setCommandReference("CMD-REVIEW-001");
-        InvoiceDetailsResponse reviewedResponse = invoiceService
+        InvoiceDetailsResponse correctedResponse = invoiceService
                 .correctInvoice(uploadResponse.getInvoiceId(), correctionRequest)
                 .orElseThrow();
 
         InvoiceMissingRequiredFieldsException exception = assertThrows(
                 InvoiceMissingRequiredFieldsException.class,
-                () -> invoiceService.validateInvoice(uploadResponse.getInvoiceId())
+                () -> invoiceService.submitForValidation(uploadResponse.getInvoiceId())
         );
         ResponseEntity<ApiErrorResponse> errorResponse =
                 apiExceptionHandler.handleInvoiceMissingRequiredFields(exception);
         Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
 
-        assertEquals(InvoiceStatusCode.A_VERIFIER.getCode(), reviewedResponse.getStatus());
+        assertEquals(InvoiceStatusCode.EXTRAITE.getCode(), correctedResponse.getStatus());
         assertEquals(
                 "Invoice " + uploadResponse.getInvoiceId()
-                        + " cannot be validated from status A_VERIFIER because required fields are missing: invoiceDate",
+                        + " cannot be submitted for validation from status EXTRAITE"
+                        + " because required fields are missing: invoiceDate",
                 exception.getMessage()
         );
         assertEquals(HttpStatus.CONFLICT, errorResponse.getStatusCode());
         assertEquals("INVOICE_REQUIRED_FIELDS_MISSING", errorResponse.getBody().getCode());
         assertEquals(exception.getMessage(), errorResponse.getBody().getMessage());
-        assertEquals(InvoiceStatusCode.A_VERIFIER.getCode(), persistedInvoice.getInvoiceStatus().getCode());
+        assertEquals(InvoiceStatusCode.EXTRAITE.getCode(), persistedInvoice.getInvoiceStatus().getCode());
     }
 
     @Test
@@ -387,16 +389,20 @@ class InvoiceLifecycleStatusIntegrationTest {
 
         InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
         correctionRequest.setInvoiceDate("2026-08-08");
-        InvoiceDetailsResponse reviewedResponse = invoiceService
+        InvoiceDetailsResponse correctedResponse = invoiceService
                 .correctInvoice(uploadResponse.getInvoiceId(), correctionRequest)
                 .orElseThrow();
 
+        InvoiceStatusResponse submissionResponse = invoiceService
+                .submitForValidation(uploadResponse.getInvoiceId())
+                .orElseThrow();
         InvoiceStatusResponse validationResponse = invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
         Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
         InvoiceStatusHistory latestHistory = findLatestHistory(uploadResponse.getInvoiceId());
 
-        assertEquals(InvoiceStatusCode.A_VERIFIER.getCode(), reviewedResponse.getStatus());
-        assertEquals("2026-08-08", reviewedResponse.getInvoiceDate());
+        assertEquals(InvoiceStatusCode.EXTRAITE.getCode(), correctedResponse.getStatus());
+        assertEquals("2026-08-08", correctedResponse.getInvoiceDate());
+        assertEquals(InvoiceStatusCode.A_VERIFIER.getCode(), submissionResponse.getStatus());
         assertEquals(InvoiceStatusCode.VALIDEE.getCode(), validationResponse.getStatus());
         assertEquals(InvoiceStatusCode.VALIDEE.getCode(), persistedInvoice.getInvoiceStatus().getCode());
         assertEquals(InvoiceStatusCode.VALIDEE.getCode(), latestHistory.getInvoiceStatus().getCode());

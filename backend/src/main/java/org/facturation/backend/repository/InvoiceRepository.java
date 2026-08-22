@@ -15,6 +15,9 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
     boolean existsByInvoiceIdAndOrganizationOrganizationId(Long invoiceId, Long organizationId);
 
     @EntityGraph(attributePaths = {"invoiceStatus", "organization", "supplier"})
+    Optional<Invoice> findByInvoiceIdAndOrganizationOrganizationId(Long invoiceId, Long organizationId);
+
+    @EntityGraph(attributePaths = {"invoiceStatus", "organization", "supplier"})
     Optional<Invoice> findForOcrRetryByInvoiceId(Long invoiceId);
 
     List<Invoice> findByOrganizationOrganizationIdAndSupplierSupplierIdAndInvoiceDateAndTotalTtcAndInvoiceIdNot(
