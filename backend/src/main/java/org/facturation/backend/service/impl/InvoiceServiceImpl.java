@@ -25,6 +25,7 @@ import org.facturation.backend.repository.OrganizationRepository;
 import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.AccountingEntryService;
 import org.facturation.backend.service.AuditLogService;
+import org.facturation.backend.service.InvoiceDuplicateAlertService;
 import org.facturation.backend.service.InvoiceFileValidator;
 import org.facturation.backend.service.InvoiceOcrService;
 import org.facturation.backend.service.InvoiceService;
@@ -74,6 +75,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final UserRepository userRepository;
     private final InvoiceFileRepository invoiceFileRepository;
     private final InvoiceFileStorageService invoiceFileStorageService;
+    private final InvoiceDuplicateAlertService duplicateAlertService;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
@@ -88,7 +90,8 @@ public class InvoiceServiceImpl implements InvoiceService {
             OrganizationRepository organizationRepository,
             UserRepository userRepository,
             InvoiceFileRepository invoiceFileRepository,
-            InvoiceFileStorageService invoiceFileStorageService
+            InvoiceFileStorageService invoiceFileStorageService,
+            InvoiceDuplicateAlertService duplicateAlertService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.accountingEntryService = accountingEntryService;
@@ -103,6 +106,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.userRepository = userRepository;
         this.invoiceFileRepository = invoiceFileRepository;
         this.invoiceFileStorageService = invoiceFileStorageService;
+        this.duplicateAlertService = duplicateAlertService;
     }
 
     @Override
@@ -181,6 +185,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoiceOcrService.saveExtraction(savedInvoice, ocrAnalysis);
 
         invoiceStatusWorkflowService.completeOcrAnalysis(savedInvoice, user);
+        duplicateAlertService.detectProbableDuplicates(savedInvoice);
         return savedInvoice;
     }
 
