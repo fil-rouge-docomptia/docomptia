@@ -124,9 +124,11 @@ class AccountingEntryControllerIntegrationTest {
                         generatedLine.entryId(),
                         generatedLine.line().getAccountingEntryLineId()
                 )
-                        .contentType("application/json")
-                        .content("{\"debitAmount\": 100.00}"))
+                .contentType("application/json")
+                .content("{\"debitAmount\": 100.00}"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalDebit").value("120.00"))
+                .andExpect(jsonPath("$.totalCredit").value("120.00"))
                 .andExpect(jsonPath("$.balanceDifference").value("0.00"))
                 .andExpect(jsonPath("$.balanced").value(true));
 

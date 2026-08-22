@@ -568,7 +568,7 @@ class InvoiceLifecycleStatusIntegrationTest {
     }
 
     @Test
-    void calculatesUnbalancedTotalsFromPersistedAccountingEntryLines() {
+    void recalculatesBalanceFromAllCurrentLinesAfterEachCorrection() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
         submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
         invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
@@ -583,12 +583,14 @@ class InvoiceLifecycleStatusIntegrationTest {
         creditLine.setCreditAmount(new BigDecimal("119.99"));
         accountingEntryLineRepository.saveAndFlush(creditLine);
 
-        InvoiceDetailsResponse details = invoiceService.findDetailsById(uploadResponse.getInvoiceId()).orElseThrow();
+        InvoiceDetailsResponse unbalancedDetails = invoiceService
+                .findDetailsById(uploadResponse.getInvoiceId())
+                .orElseThrow();
 
-        assertEquals("120.00", details.getAccountingEntry().getTotalDebit());
-        assertEquals("119.99", details.getAccountingEntry().getTotalCredit());
-        assertEquals("0.01", details.getAccountingEntry().getBalanceDifference());
-        assertFalse(details.getAccountingEntry().isBalanced());
+        assertEquals("120.00", unbalancedDetails.getAccountingEntry().getTotalDebit());
+        assertEquals("119.99", unbalancedDetails.getAccountingEntry().getTotalCredit());
+        assertEquals("0.01", unbalancedDetails.getAccountingEntry().getBalanceDifference());
+        assertFalse(unbalancedDetails.getAccountingEntry().isBalanced());
     }
 
     @Test
