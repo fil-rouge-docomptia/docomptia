@@ -40,6 +40,7 @@ public class AccountingEntryMapper {
 
     private AccountingEntryLineResponse toLineResponse(AccountingEntryLine line) {
         AccountingEntryLineResponse response = new AccountingEntryLineResponse();
+        response.setAccountingEntryLineId(line.getAccountingEntryLineId());
         response.setLineNumber(line.getLineNumber());
         response.setAccountNumber(line.getAccount().getAccountNumber());
         response.setAccountLabel(line.getAccount().getAccountLabel());

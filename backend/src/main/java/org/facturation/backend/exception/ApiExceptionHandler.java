@@ -31,6 +31,10 @@ public class ApiExceptionHandler {
     private static final String ACCOUNTING_RULE_VALIDATION_ERROR_CODE = "ACCOUNTING_RULE_VALIDATION_ERROR";
     private static final String ACCOUNTING_ENTRY_PREREQUISITES_MISSING_CODE =
             "ACCOUNTING_ENTRY_PREREQUISITES_MISSING";
+    private static final String ACCOUNTING_ENTRY_LINE_NOT_FOUND_CODE = "ACCOUNTING_ENTRY_LINE_NOT_FOUND";
+    private static final String ACCOUNTING_ENTRY_LINE_VALIDATION_ERROR_CODE =
+            "ACCOUNTING_ENTRY_LINE_VALIDATION_ERROR";
+    private static final String ACCOUNTING_ENTRY_NOT_MODIFIABLE_CODE = "ACCOUNTING_ENTRY_NOT_MODIFIABLE";
 
     private final OcrErrorMapper ocrErrorMapper;
 
@@ -159,6 +163,31 @@ public class ApiExceptionHandler {
                 exception.getMissingPrerequisites()
         );
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    @ExceptionHandler(AccountingEntryLineNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountingEntryLineNotFound(
+            AccountingEntryLineNotFoundException exception
+    ) {
+        return errorResponse(HttpStatus.NOT_FOUND, ACCOUNTING_ENTRY_LINE_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidAccountingEntryLineCorrectionException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidAccountingEntryLineCorrection(
+            InvalidAccountingEntryLineCorrectionException exception
+    ) {
+        return errorResponse(
+                HttpStatus.BAD_REQUEST,
+                ACCOUNTING_ENTRY_LINE_VALIDATION_ERROR_CODE,
+                exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(AccountingEntryNotModifiableException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountingEntryNotModifiable(
+            AccountingEntryNotModifiableException exception
+    ) {
+        return errorResponse(HttpStatus.CONFLICT, ACCOUNTING_ENTRY_NOT_MODIFIABLE_CODE, exception.getMessage());
     }
 
     private ResponseEntity<ApiErrorResponse> errorResponse(HttpStatus status, String code, String message) {

@@ -2,12 +2,21 @@ package org.facturation.backend.dto.response;
 
 public class AccountingEntryLineResponse {
 
+    private Long accountingEntryLineId;
     private Integer lineNumber;
     private String accountNumber;
     private String accountLabel;
     private String lineLabel;
     private String debitAmount;
     private String creditAmount;
+
+    public Long getAccountingEntryLineId() {
+        return accountingEntryLineId;
+    }
+
+    public void setAccountingEntryLineId(Long accountingEntryLineId) {
+        this.accountingEntryLineId = accountingEntryLineId;
+    }
 
     public Integer getLineNumber() {
         return lineNumber;
