@@ -9,6 +9,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -41,5 +42,19 @@ class SecurityConfigIntegrationTest {
     void authenticatedRequestReachesBusinessRoute() throws Exception {
         mockMvc.perform(get("/api/v1/invoices/999999"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void loginComparesRawPasswordWithStoredHash() throws Exception {
+        mockMvc.perform(get("/api/v1/invoices/999999")
+                        .with(httpBasic("admin@facturation-demo.fr", "password")))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void loginRejectsInvalidPassword() throws Exception {
+        mockMvc.perform(get("/api/v1/invoices/999999")
+                        .with(httpBasic("admin@facturation-demo.fr", "wrong-password")))
+                .andExpect(status().isUnauthorized());
     }
 }

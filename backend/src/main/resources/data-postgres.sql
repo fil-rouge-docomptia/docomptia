@@ -64,7 +64,7 @@ VALUES (11, 'ARCHIVEE', 'Archivee', 'Facture archivee en lecture seule')
 ON CONFLICT (invoice_status_id) DO NOTHING;
 
 INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, password_hash, is_active, created_at, updated_at)
-VALUES (1, 1, 1, 'Admin', 'Demo', 'admin@facturation-demo.fr', 'admin123', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+VALUES (1, 1, 1, 'Admin', 'Demo', 'admin@facturation-demo.fr', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT (user_id) DO NOTHING;
 
 INSERT INTO suppliers (supplier_id, organization_id, name, legal_name, siret, vat_number, email, phone, address, created_at, updated_at)
