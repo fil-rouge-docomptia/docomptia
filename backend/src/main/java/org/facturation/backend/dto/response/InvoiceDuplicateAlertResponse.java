@@ -8,6 +8,8 @@ public class InvoiceDuplicateAlertResponse {
     private Long supplierId;
     private String invoiceDate;
     private String totalTtc;
+    private String confidenceLevel;
+    private String createdAt;
 
     public String getType() {
         return type;
@@ -55,5 +57,21 @@ public class InvoiceDuplicateAlertResponse {
 
     public void setTotalTtc(String totalTtc) {
         this.totalTtc = totalTtc;
+    }
+
+    public String getConfidenceLevel() {
+        return confidenceLevel;
+    }
+
+    public void setConfidenceLevel(String confidenceLevel) {
+        this.confidenceLevel = confidenceLevel;
+    }
+
+    public String getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(String createdAt) {
+        this.createdAt = createdAt;
     }
 }
