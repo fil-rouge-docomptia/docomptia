@@ -19,6 +19,9 @@ public class ApiExceptionHandler {
     private static final String SUPPLIER_NOT_FOUND_CODE = "SUPPLIER_NOT_FOUND";
     private static final String SUPPLIER_VALIDATION_ERROR_CODE = "SUPPLIER_VALIDATION_ERROR";
     private static final String SUPPLIER_LEGAL_IDENTIFIER_CONFLICT_CODE = "SUPPLIER_LEGAL_IDENTIFIER_CONFLICT";
+    private static final String CHART_OF_ACCOUNT_NOT_FOUND_CODE = "CHART_OF_ACCOUNT_NOT_FOUND";
+    private static final String CHART_OF_ACCOUNT_VALIDATION_ERROR_CODE = "CHART_OF_ACCOUNT_VALIDATION_ERROR";
+    private static final String CHART_OF_ACCOUNT_CONFLICT_CODE = "CHART_OF_ACCOUNT_CONFLICT";
     private static final String INVOICE_ACTION_NOT_ALLOWED_CODE = "INVOICE_ACTION_NOT_ALLOWED";
     private static final String INVOICE_REQUIRED_FIELDS_MISSING_CODE = "INVOICE_REQUIRED_FIELDS_MISSING";
     private static final String DUPLICATE_ALERT_NOT_FOUND_CODE = "DUPLICATE_ALERT_NOT_FOUND";
@@ -66,6 +69,21 @@ public class ApiExceptionHandler {
                 SUPPLIER_LEGAL_IDENTIFIER_CONFLICT_CODE,
                 exception.getMessage()
         );
+    }
+
+    @ExceptionHandler(ChartOfAccountNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleChartOfAccountNotFound(ChartOfAccountNotFoundException exception) {
+        return errorResponse(HttpStatus.NOT_FOUND, CHART_OF_ACCOUNT_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidChartOfAccountException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidChartOfAccount(InvalidChartOfAccountException exception) {
+        return errorResponse(HttpStatus.BAD_REQUEST, CHART_OF_ACCOUNT_VALIDATION_ERROR_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(ChartOfAccountConflictException.class)
+    public ResponseEntity<ApiErrorResponse> handleChartOfAccountConflict(ChartOfAccountConflictException exception) {
+        return errorResponse(HttpStatus.CONFLICT, CHART_OF_ACCOUNT_CONFLICT_CODE, exception.getMessage());
     }
 
     @ExceptionHandler(InvoiceOcrFailureException.class)

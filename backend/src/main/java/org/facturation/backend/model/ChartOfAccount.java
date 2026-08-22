@@ -17,7 +17,10 @@ import java.time.LocalDateTime;
 @Table(
         name = "chart_of_accounts",
         uniqueConstraints = {
-                @UniqueConstraint(columnNames = {"organization_id", "accountNumber"})
+                @UniqueConstraint(
+                        name = "uk_chart_of_accounts_organization_account_number",
+                        columnNames = {"organization_id", "account_number"}
+                )
         }
 )
 public class ChartOfAccount {

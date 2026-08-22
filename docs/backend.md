@@ -101,15 +101,19 @@ Un fournisseur absent ou rattache a une autre organisation retourne `404`. La mo
 retourne `400` pour un identifiant legal invalide et `409` lorsqu'un SIRET ou un numero de TVA
 est deja utilise par un autre fournisseur de l'organisation courante.
 
-## Endpoints Regles Comptables MVP
+## Endpoints Plan Comptable MVP
 
 | Methode | Endpoint | Role |
 | --- | --- | --- |
-| `GET` | `/api/v1/accounting-rules` | Liste les regles de l'organisation et indique si chaque configuration est complete |
-| `PATCH` | `/api/v1/accounting-rules/{id}` | Modifie les comptes de charge, TVA et fournisseur d'une regle |
+| `POST` | `/api/v1/chart-of-accounts` | Cree un compte actif dans l'organisation courante |
+| `GET` | `/api/v1/chart-of-accounts?page=0&size=20` | Retourne une page de comptes de l'organisation courante |
+| `GET` | `/api/v1/chart-of-accounts/{id}` | Retourne le detail d'un compte de l'organisation courante |
+| `PATCH` | `/api/v1/chart-of-accounts/{id}` | Modifie le numero, le libelle ou le type d'un compte |
+| `POST` | `/api/v1/chart-of-accounts/{id}/deactivate` | Desactive un compte sans le supprimer |
 
-Une modification accepte uniquement des comptes actifs de l'organisation courante. Une regle
-existante qui reference un compte inactif reste consultable avec `configurationComplete=false`.
+Un numero de compte est unique dans une organisation. Un compte absent ou rattache a une autre
+organisation retourne `404`; un numero deja utilise retourne `409`. La desactivation conserve les
+regles et lignes comptables qui referencent le compte.
 
 ## Stockage Des Fichiers
 
