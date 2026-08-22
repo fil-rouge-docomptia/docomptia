@@ -566,7 +566,7 @@ class InvoiceLifecycleStatusIntegrationTest {
     }
 
     @Test
-    void calculatesUnbalancedTotalsFromPersistedAccountingEntryLines() {
+    void recalculatesBalanceFromAllCurrentLinesAfterEachCorrection() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
         submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
         invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
@@ -581,11 +581,24 @@ class InvoiceLifecycleStatusIntegrationTest {
         creditLine.setCreditAmount(new BigDecimal("119.99"));
         accountingEntryLineRepository.saveAndFlush(creditLine);
 
-        InvoiceDetailsResponse details = invoiceService.findDetailsById(uploadResponse.getInvoiceId()).orElseThrow();
+        InvoiceDetailsResponse unbalancedDetails = invoiceService
+                .findDetailsById(uploadResponse.getInvoiceId())
+                .orElseThrow();
 
-        assertEquals("120.00", details.getAccountingEntry().getTotalDebit());
-        assertEquals("119.99", details.getAccountingEntry().getTotalCredit());
-        assertFalse(details.getAccountingEntry().isBalanced());
+        assertEquals("120.00", unbalancedDetails.getAccountingEntry().getTotalDebit());
+        assertEquals("119.99", unbalancedDetails.getAccountingEntry().getTotalCredit());
+        assertFalse(unbalancedDetails.getAccountingEntry().isBalanced());
+
+        creditLine.setCreditAmount(new BigDecimal("120.00"));
+        accountingEntryLineRepository.saveAndFlush(creditLine);
+
+        InvoiceDetailsResponse rebalancedDetails = invoiceService
+                .findDetailsById(uploadResponse.getInvoiceId())
+                .orElseThrow();
+
+        assertEquals("120.00", rebalancedDetails.getAccountingEntry().getTotalDebit());
+        assertEquals("120.00", rebalancedDetails.getAccountingEntry().getTotalCredit());
+        assertTrue(rebalancedDetails.getAccountingEntry().isBalanced());
     }
 
     @Test
