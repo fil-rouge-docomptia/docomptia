@@ -25,9 +25,14 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -154,6 +159,36 @@ class InvoiceDuplicateDecisionControllerIntegrationTest {
                 .andExpect(jsonPath("$.status").value("REJETEE"))
                 .andExpect(jsonPath("$.duplicateAlerts[0].decision").value("REJECT"))
                 .andExpect(jsonPath("$.duplicateAlerts[0].decisionReason").value("Document sent by mistake"));
+    }
+
+    @Test
+    void returnsDuplicateDecisionInInvoiceHistory() throws Exception {
+        DuplicateFixture fixture = duplicateFixture();
+
+        mockMvc.perform(post(
+                                "/api/v1/invoices/{invoiceId}/duplicate-alerts/{alertId}/decision",
+                                fixture.invoiceId(),
+                                fixture.alertId()
+                        )
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"decision": "IGNORE", "reason": "Two distinct purchases"}
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/invoices/{invoiceId}/history", fixture.invoiceId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.type == 'DUPLICATE_DECISION')]").value(hasSize(1)))
+                .andExpect(jsonPath("$[?(@.type == 'DUPLICATE_DECISION')].action").value(hasItem("IGNORE")))
+                .andExpect(jsonPath("$[?(@.type == 'DUPLICATE_DECISION')].duplicateAlertId")
+                        .value(hasItem(fixture.alertId().intValue())))
+                .andExpect(jsonPath("$[?(@.type == 'DUPLICATE_DECISION')].authorId").value(hasItem(1)))
+                .andExpect(jsonPath("$[?(@.type == 'DUPLICATE_DECISION')].author")
+                        .value(hasItem("Admin Demo")))
+                .andExpect(jsonPath("$[?(@.type == 'DUPLICATE_DECISION')].date")
+                        .value(everyItem(notNullValue())))
+                .andExpect(jsonPath("$[?(@.type == 'DUPLICATE_DECISION')].comment")
+                        .value(hasItem("Two distinct purchases")));
     }
 
     private DuplicateFixture duplicateFixture() {
