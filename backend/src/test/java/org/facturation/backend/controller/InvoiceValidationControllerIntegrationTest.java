@@ -4,6 +4,7 @@ import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.exception.ApiExceptionHandler;
 import org.facturation.backend.repository.InvoiceRepository;
+import org.facturation.backend.repository.InvoiceValidationDecisionRepository;
 import org.facturation.backend.service.InvoiceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,19 +26,22 @@ class InvoiceValidationControllerIntegrationTest {
     private final MockMvc mockMvc;
     private final InvoiceRepository invoiceRepository;
     private final InvoiceService invoiceService;
+    private final InvoiceValidationDecisionRepository validationDecisionRepository;
 
     @Autowired
     InvoiceValidationControllerIntegrationTest(
             InvoiceController invoiceController,
             ApiExceptionHandler apiExceptionHandler,
             InvoiceRepository invoiceRepository,
-            InvoiceService invoiceService
+            InvoiceService invoiceService,
+            InvoiceValidationDecisionRepository validationDecisionRepository
     ) {
         this.mockMvc = MockMvcBuilders.standaloneSetup(invoiceController)
                 .setControllerAdvice(apiExceptionHandler)
                 .build();
         this.invoiceRepository = invoiceRepository;
         this.invoiceService = invoiceService;
+        this.validationDecisionRepository = validationDecisionRepository;
     }
 
     @Test
@@ -55,6 +59,15 @@ class InvoiceValidationControllerIntegrationTest {
                 .getInvoiceStatus()
                 .getCode();
         assertEquals("VALIDEE", persistedStatus);
+        var decisions = validationDecisionRepository
+                .findByInvoiceInvoiceIdAndInvoiceOrganizationOrganizationIdOrderByDecidedAtAscInvoiceValidationDecisionIdAsc(
+                        uploadResponse.getInvoiceId(),
+                        1L
+                );
+        assertEquals(1, decisions.size());
+        assertEquals("VALIDATION", decisions.getFirst().getDecisionType().name());
+        assertEquals(1L, decisions.getFirst().getDecidedByUser().getUserId());
+        assertEquals(null, decisions.getFirst().getReason());
     }
 
     @Test

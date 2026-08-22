@@ -12,6 +12,7 @@ import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.OrganizationRepository;
 import org.facturation.backend.repository.RoleRepository;
 import org.facturation.backend.repository.UserRepository;
+import org.facturation.backend.repository.InvoiceValidationDecisionRepository;
 import org.facturation.backend.service.InvoiceService;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,7 @@ class InvoiceCorrectionControllerIntegrationTest {
     private final OrganizationRepository organizationRepository;
     private final RoleRepository roleRepository;
     private final UserRepository userRepository;
+    private final InvoiceValidationDecisionRepository validationDecisionRepository;
 
     @Autowired
     InvoiceCorrectionControllerIntegrationTest(
@@ -55,7 +57,8 @@ class InvoiceCorrectionControllerIntegrationTest {
             InvoiceStatusWorkflowService invoiceStatusWorkflowService,
             OrganizationRepository organizationRepository,
             RoleRepository roleRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            InvoiceValidationDecisionRepository validationDecisionRepository
     ) {
         this.mockMvc = MockMvcBuilders.standaloneSetup(invoiceController)
                 .setControllerAdvice(apiExceptionHandler)
@@ -66,6 +69,7 @@ class InvoiceCorrectionControllerIntegrationTest {
         this.organizationRepository = organizationRepository;
         this.roleRepository = roleRepository;
         this.userRepository = userRepository;
+        this.validationDecisionRepository = validationDecisionRepository;
     }
 
     @Test
@@ -184,6 +188,15 @@ class InvoiceCorrectionControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.invoiceId").value(uploadResponse.getInvoiceId()))
                 .andExpect(jsonPath("$.status").value("REJETEE"));
+
+        var decisions = validationDecisionRepository
+                .findByInvoiceInvoiceIdAndInvoiceOrganizationOrganizationIdOrderByDecidedAtAscInvoiceValidationDecisionIdAsc(
+                        uploadResponse.getInvoiceId(),
+                        1L
+                );
+        assertEquals(1, decisions.size());
+        assertEquals("REJECTION", decisions.getFirst().getDecisionType().name());
+        assertEquals("The extracted total is incorrect", decisions.getFirst().getReason());
     }
 
     @Test

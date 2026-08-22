@@ -7,11 +7,13 @@ import org.facturation.backend.model.AuditLog;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceDuplicateAlert;
 import org.facturation.backend.model.InvoiceStatusHistory;
+import org.facturation.backend.model.InvoiceValidationDecision;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.AuditLogRepository;
 import org.facturation.backend.repository.InvoiceDuplicateAlertRepository;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.InvoiceStatusHistoryRepository;
+import org.facturation.backend.repository.InvoiceValidationDecisionRepository;
 import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.InvoiceHistoryService;
 import org.springframework.stereotype.Service;
@@ -28,11 +30,13 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
     private static final String CORRECTION_TYPE = "CORRECTION";
     private static final String DUPLICATE_DECISION_TYPE = "DUPLICATE_DECISION";
     private static final String STATUS_CHANGE_TYPE = "STATUS_CHANGE";
+    private static final String VALIDATION_DECISION_TYPE = "VALIDATION_DECISION";
 
     private final AuditLogRepository auditLogRepository;
     private final InvoiceDuplicateAlertRepository duplicateAlertRepository;
     private final InvoiceRepository invoiceRepository;
     private final InvoiceStatusHistoryRepository invoiceStatusHistoryRepository;
+    private final InvoiceValidationDecisionRepository validationDecisionRepository;
     private final UserRepository userRepository;
 
     public InvoiceHistoryServiceImpl(
@@ -40,12 +44,14 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
             InvoiceDuplicateAlertRepository duplicateAlertRepository,
             InvoiceRepository invoiceRepository,
             InvoiceStatusHistoryRepository invoiceStatusHistoryRepository,
+            InvoiceValidationDecisionRepository validationDecisionRepository,
             UserRepository userRepository
     ) {
         this.auditLogRepository = auditLogRepository;
         this.duplicateAlertRepository = duplicateAlertRepository;
         this.invoiceRepository = invoiceRepository;
         this.invoiceStatusHistoryRepository = invoiceStatusHistoryRepository;
+        this.validationDecisionRepository = validationDecisionRepository;
         this.userRepository = userRepository;
     }
 
@@ -87,6 +93,14 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
                 .stream()
                 .map(this::toDuplicateDecisionHistoryItem)
                 .forEach(history::add);
+        validationDecisionRepository
+                .findByInvoiceInvoiceIdAndInvoiceOrganizationOrganizationIdOrderByDecidedAtAscInvoiceValidationDecisionIdAsc(
+                        invoiceId,
+                        organizationId
+                )
+                .stream()
+                .map(this::toValidationDecisionHistoryItem)
+                .forEach(history::add);
 
         history.sort(Comparator.comparing(
                 InvoiceHistoryItemResponse::getDate,
@@ -125,6 +139,16 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
         applyAuthor(response, alert.getDecidedByUser());
         response.setComment(alert.getDecisionReason());
         response.setDuplicateAlertId(alert.getDuplicateAlertId());
+        return response;
+    }
+
+    private InvoiceHistoryItemResponse toValidationDecisionHistoryItem(InvoiceValidationDecision decision) {
+        InvoiceHistoryItemResponse response = new InvoiceHistoryItemResponse();
+        response.setType(VALIDATION_DECISION_TYPE);
+        response.setAction(decision.getDecisionType().name());
+        response.setDate(decision.getDecidedAt());
+        applyAuthor(response, decision.getDecidedByUser());
+        response.setComment(decision.getReason());
         return response;
     }
 
