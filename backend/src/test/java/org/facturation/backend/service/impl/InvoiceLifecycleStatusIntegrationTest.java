@@ -546,7 +546,17 @@ class InvoiceLifecycleStatusIntegrationTest {
 
         assertNotNull(details.getAccountingEntry());
         assertEquals(3, details.getAccountingEntry().getLines().size());
-        assertFalse(details.getAccountingEntry().getLines().get(0).getAccountNumber().isBlank());
+        assertEquals(
+                List.of(1, 2, 3),
+                details.getAccountingEntry().getLines().stream().map(line -> line.getLineNumber()).toList()
+        );
+        details.getAccountingEntry().getLines().forEach(line -> {
+            assertFalse(line.getAccountNumber().isBlank());
+            assertFalse(line.getAccountLabel().isBlank());
+            assertFalse(line.getLineLabel().isBlank());
+            assertNotNull(line.getDebitAmount());
+            assertNotNull(line.getCreditAmount());
+        });
         assertEquals("100.00", details.getAccountingEntry().getLines().get(0).getDebitAmount());
         assertEquals("0.00", details.getAccountingEntry().getLines().get(0).getCreditAmount());
         assertEquals("120.00", details.getAccountingEntry().getTotalDebit());
