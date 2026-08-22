@@ -7,7 +7,7 @@ import java.util.List;
 
 public interface InvoiceDuplicateAlertService {
 
-    void detectProbableDuplicates(Invoice invoice);
+    void detectDuplicates(Invoice invoice);
 
     List<InvoiceDuplicateAlertResponse> findByInvoiceId(Long invoiceId);
 }

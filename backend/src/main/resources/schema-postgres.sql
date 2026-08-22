@@ -4,3 +4,6 @@ ALTER TABLE invoices ALTER COLUMN invoice_date DROP NOT NULL;
 ALTER TABLE invoices ALTER COLUMN total_ht DROP NOT NULL;
 ALTER TABLE invoices ALTER COLUMN total_tva DROP NOT NULL;
 ALTER TABLE invoices ALTER COLUMN total_ttc DROP NOT NULL;
+
+ALTER TABLE IF EXISTS invoice_duplicate_alerts ALTER COLUMN invoice_date DROP NOT NULL;
+ALTER TABLE IF EXISTS invoice_duplicate_alerts ALTER COLUMN total_ttc DROP NOT NULL;

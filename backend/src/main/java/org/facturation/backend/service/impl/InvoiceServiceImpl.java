@@ -185,7 +185,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoiceOcrService.saveExtraction(savedInvoice, ocrAnalysis);
 
         invoiceStatusWorkflowService.completeOcrAnalysis(savedInvoice, user);
-        duplicateAlertService.detectProbableDuplicates(savedInvoice);
+        duplicateAlertService.detectDuplicates(savedInvoice);
         return savedInvoice;
     }
 
