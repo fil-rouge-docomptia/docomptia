@@ -158,9 +158,7 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     @Override
     public void ensureCanGenerateAccountingEntry(Invoice invoice) {
         InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);
-        if (currentCode != InvoiceStatusCode.VALIDEE
-                && currentCode != InvoiceStatusCode.COMPTABILISEE
-                && currentCode != InvoiceStatusCode.EXPORTABLE) {
+        if (currentCode != InvoiceStatusCode.VALIDEE) {
             throw InvoiceStatusTransitionException.forAction(
                     invoice.getInvoiceId(),
                     currentCode.getCode(),

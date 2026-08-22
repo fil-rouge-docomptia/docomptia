@@ -121,7 +121,7 @@ public class InvoiceController {
     @Operation(summary = "Generer l'ecriture comptable d'une facture")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Ecriture comptable generee"),
-            @ApiResponse(responseCode = "409", description = "Transition de statut invalide pour rendre la facture exportable")
+            @ApiResponse(responseCode = "409", description = "Facture non validee ou transition de statut invalide")
     })
     public ResponseEntity<InvoiceAccountingEntryResponse> generateAccountingEntry(@PathVariable Long id) {
         return ResponseEntity.ok(requireInvoiceResponse(invoiceService.generateAccountingEntry(id), id));
