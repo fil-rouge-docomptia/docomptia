@@ -20,6 +20,8 @@ public class ApiExceptionHandler {
     private static final String SUPPLIER_LEGAL_IDENTIFIER_CONFLICT_CODE = "SUPPLIER_LEGAL_IDENTIFIER_CONFLICT";
     private static final String INVOICE_ACTION_NOT_ALLOWED_CODE = "INVOICE_ACTION_NOT_ALLOWED";
     private static final String INVOICE_REQUIRED_FIELDS_MISSING_CODE = "INVOICE_REQUIRED_FIELDS_MISSING";
+    private static final String DUPLICATE_ALERT_NOT_FOUND_CODE = "DUPLICATE_ALERT_NOT_FOUND";
+    private static final String DUPLICATE_ALERT_ACTION_NOT_ALLOWED_CODE = "DUPLICATE_ALERT_ACTION_NOT_ALLOWED";
 
     private final OcrErrorMapper ocrErrorMapper;
 
@@ -95,6 +97,21 @@ public class ApiExceptionHandler {
                 INVOICE_REQUIRED_FIELDS_MISSING_CODE,
                 exception.getMessage()
         );
+    }
+
+    @ExceptionHandler(DuplicateAlertNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleDuplicateAlertNotFound(DuplicateAlertNotFoundException exception) {
+        return errorResponse(HttpStatus.NOT_FOUND, DUPLICATE_ALERT_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(DuplicateAlertDecisionException.class)
+    public ResponseEntity<ApiErrorResponse> handleDuplicateAlertDecision(DuplicateAlertDecisionException exception) {
+        return errorResponse(HttpStatus.CONFLICT, DUPLICATE_ALERT_ACTION_NOT_ALLOWED_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(PendingDuplicateAlertException.class)
+    public ResponseEntity<ApiErrorResponse> handlePendingDuplicateAlert(PendingDuplicateAlertException exception) {
+        return errorResponse(HttpStatus.CONFLICT, DUPLICATE_ALERT_ACTION_NOT_ALLOWED_CODE, exception.getMessage());
     }
 
     private ResponseEntity<ApiErrorResponse> errorResponse(HttpStatus status, String code, String message) {

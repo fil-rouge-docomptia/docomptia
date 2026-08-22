@@ -49,6 +49,18 @@ public class InvoiceDuplicateAlert {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private DuplicateAlertDecision decision = DuplicateAlertDecision.PENDING;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "decided_by_user_id")
+    private User decidedByUser;
+
+    private LocalDateTime decidedAt;
+
+    private String decisionReason;
+
     public Long getDuplicateAlertId() {
         return duplicateAlertId;
     }
@@ -107,5 +119,37 @@ public class InvoiceDuplicateAlert {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public DuplicateAlertDecision getDecision() {
+        return decision;
+    }
+
+    public void setDecision(DuplicateAlertDecision decision) {
+        this.decision = decision;
+    }
+
+    public User getDecidedByUser() {
+        return decidedByUser;
+    }
+
+    public void setDecidedByUser(User decidedByUser) {
+        this.decidedByUser = decidedByUser;
+    }
+
+    public LocalDateTime getDecidedAt() {
+        return decidedAt;
+    }
+
+    public void setDecidedAt(LocalDateTime decidedAt) {
+        this.decidedAt = decidedAt;
+    }
+
+    public String getDecisionReason() {
+        return decisionReason;
+    }
+
+    public void setDecisionReason(String decisionReason) {
+        this.decisionReason = decisionReason;
     }
 }

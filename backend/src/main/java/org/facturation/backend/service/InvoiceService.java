@@ -1,5 +1,6 @@
 package org.facturation.backend.service;
 
+import org.facturation.backend.dto.request.DuplicateAlertDecisionRequest;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
@@ -33,6 +34,12 @@ public interface InvoiceService {
     Optional<InvoiceStatusResponse> validateInvoice(Long id);
 
     Optional<InvoiceStatusResponse> rejectInvoice(Long id, String reason);
+
+    Optional<InvoiceDetailsResponse> decideDuplicateAlert(
+            Long invoiceId,
+            Long alertId,
+            DuplicateAlertDecisionRequest request
+    );
 
     Optional<InvoiceAccountingEntryResponse> generateAccountingEntry(Long id);
 }
