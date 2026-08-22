@@ -564,23 +564,24 @@ class InvoiceLifecycleStatusIntegrationTest {
     }
 
     @Test
-    void keepsAccountingEntryGenerationIdempotentForExportableInvoice() {
+    void rejectsAccountingEntryGenerationForExportableInvoiceWithoutCreatingAccountingData() {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
         submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
         invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
-        InvoiceAccountingEntryResponse firstResponse = invoiceService
-                .generateAccountingEntry(uploadResponse.getInvoiceId())
-                .orElseThrow();
+        invoiceService.generateAccountingEntry(uploadResponse.getInvoiceId()).orElseThrow();
         long accountingEntryCount = accountingEntryRepository.count();
         long accountingEntryLineCount = accountingEntryLineRepository.count();
 
-        InvoiceAccountingEntryResponse secondResponse = invoiceService
-                .generateAccountingEntry(uploadResponse.getInvoiceId())
-                .orElseThrow();
+        InvoiceStatusTransitionException exception = assertThrows(
+                InvoiceStatusTransitionException.class,
+                () -> invoiceService.generateAccountingEntry(uploadResponse.getInvoiceId())
+        );
 
-        assertEquals(firstResponse.getAccountingEntry().getAccountingEntryId(),
-                secondResponse.getAccountingEntry().getAccountingEntryId());
-        assertEquals(InvoiceStatusCode.EXPORTABLE.getCode(), secondResponse.getStatus());
+        assertEquals(
+                "Invoice " + uploadResponse.getInvoiceId()
+                        + " cannot generate an accounting entry; expected step: validate the invoice from status EXPORTABLE",
+                exception.getMessage()
+        );
         assertEquals(accountingEntryCount, accountingEntryRepository.count());
         assertEquals(accountingEntryLineCount, accountingEntryLineRepository.count());
     }
