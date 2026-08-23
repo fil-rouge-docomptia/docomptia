@@ -236,6 +236,14 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional
+    public Optional<MultipartFile> downloadFile(Long id) {
+        Long organizationId = currentUserService.getCurrentUser().getOrganization().getOrganizationId();
+        return invoiceFileRepository.findByInvoiceInvoiceIdAndInvoiceOrganizationOrganizationId(id, organizationId)
+                .map(invoiceFileStorageService::load);
+    }
+
+    @Override
+    @Transactional
     public Optional<InvoiceDetailsResponse> correctInvoice(Long id, InvoiceCorrectionRequest request) {
         User user = currentUserService.getCurrentUser();
         return invoiceRepository.findByInvoiceIdAndOrganizationOrganizationId(

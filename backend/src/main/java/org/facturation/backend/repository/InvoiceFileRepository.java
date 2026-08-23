@@ -8,4 +8,9 @@ import java.util.Optional;
 public interface InvoiceFileRepository extends JpaRepository<InvoiceFile, Long> {
 
     Optional<InvoiceFile> findByInvoiceInvoiceId(Long invoiceId);
+
+    Optional<InvoiceFile> findByInvoiceInvoiceIdAndInvoiceOrganizationOrganizationId(
+            Long invoiceId,
+            Long organizationId
+    );
 }

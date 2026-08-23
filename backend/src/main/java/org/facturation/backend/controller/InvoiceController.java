@@ -20,6 +20,8 @@ import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.exception.InvoiceNotFoundException;
 import org.facturation.backend.service.InvoiceHistoryService;
 import org.facturation.backend.service.InvoiceService;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,6 +34,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -98,6 +102,32 @@ public class InvoiceController {
     @Operation(summary = "Consulter le detail d'une facture")
     public ResponseEntity<InvoiceDetailsResponse> getInvoice(@PathVariable Long id) {
         return ResponseEntity.ok(requireInvoiceResponse(invoiceService.findDetailsById(id), id));
+    }
+
+    @GetMapping("/{id}/file")
+    @Operation(summary = "Telecharger le fichier original d'une facture")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Fichier original retourne"),
+            @ApiResponse(responseCode = "404", description = "Facture introuvable dans l'organisation de l'utilisateur")
+    })
+    public ResponseEntity<byte[]> downloadInvoiceFile(@PathVariable Long id) throws IOException {
+        MultipartFile file = requireInvoiceResponse(invoiceService.downloadFile(id), id);
+        String fileName = file.getOriginalFilename() == null ? "invoice-file" : file.getOriginalFilename();
+        MediaType mediaType = file.getContentType() == null
+                ? MediaType.APPLICATION_OCTET_STREAM
+                : MediaType.parseMediaType(file.getContentType());
+
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .contentLength(file.getSize())
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename(fileName, StandardCharsets.UTF_8)
+                                .build()
+                                .toString()
+                )
+                .body(file.getBytes());
     }
 
     @GetMapping("/{id}/history")
