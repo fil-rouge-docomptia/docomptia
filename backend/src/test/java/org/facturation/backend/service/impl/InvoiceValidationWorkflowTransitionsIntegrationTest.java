@@ -32,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
 @Transactional
+@org.springframework.security.test.context.support.WithMockUser(username = "admin@facturation-demo.fr")
 class InvoiceValidationWorkflowTransitionsIntegrationTest {
 
     private static final long ORGANIZATION_ID = 1L;

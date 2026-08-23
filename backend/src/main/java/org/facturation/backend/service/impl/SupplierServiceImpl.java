@@ -12,9 +12,8 @@ import org.facturation.backend.mapper.SupplierResponseMapper;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.Supplier;
-import org.facturation.backend.model.User;
 import org.facturation.backend.repository.SupplierRepository;
-import org.facturation.backend.repository.UserRepository;
+import org.facturation.backend.service.CurrentUserService;
 import org.facturation.backend.service.SupplierService;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -33,23 +32,22 @@ import java.util.regex.Pattern;
 @Service
 public class SupplierServiceImpl implements SupplierService {
 
-    private static final Long DEFAULT_USER_ID = 1L;
     private static final String ORGANIZATION_SIRET_UNIQUE_CONSTRAINT = "uk_suppliers_organization_siret";
     private static final Pattern SIRET_PATTERN = Pattern.compile("\\d{14}");
     private static final Pattern FRENCH_VAT_NUMBER_PATTERN = Pattern.compile("FR[A-Z0-9]{2}\\d{9}");
 
     private final SupplierRepository supplierRepository;
     private final SupplierResponseMapper supplierResponseMapper;
-    private final UserRepository userRepository;
+    private final CurrentUserService currentUserService;
 
     public SupplierServiceImpl(
             SupplierRepository supplierRepository,
             SupplierResponseMapper supplierResponseMapper,
-            UserRepository userRepository
+            CurrentUserService currentUserService
     ) {
         this.supplierRepository = supplierRepository;
         this.supplierResponseMapper = supplierResponseMapper;
-        this.userRepository = userRepository;
+        this.currentUserService = currentUserService;
     }
 
     @Override
@@ -391,8 +389,6 @@ public class SupplierServiceImpl implements SupplierService {
     }
 
     private Long findCurrentOrganizationId() {
-        User currentUser = userRepository.findById(DEFAULT_USER_ID)
-                .orElseThrow(() -> new IllegalStateException("Default user not found"));
-        return currentUser.getOrganization().getOrganizationId();
+        return currentUserService.getCurrentUser().getOrganization().getOrganizationId();
     }
 }

@@ -20,10 +20,13 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
     Optional<Invoice> findByInvoiceIdAndOrganizationOrganizationId(Long invoiceId, Long organizationId);
 
     @EntityGraph(attributePaths = {"invoiceStatus", "organization", "supplier"})
-    Optional<Invoice> findForOcrRetryByInvoiceId(Long invoiceId);
+    Optional<Invoice> findForOcrRetryByInvoiceIdAndOrganizationOrganizationId(Long invoiceId, Long organizationId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    Optional<Invoice> findForAccountingGenerationByInvoiceId(Long invoiceId);
+    Optional<Invoice> findForAccountingGenerationByInvoiceIdAndOrganizationOrganizationId(
+            Long invoiceId,
+            Long organizationId
+    );
 
     List<Invoice> findByOrganizationOrganizationIdAndSupplierSupplierIdAndInvoiceDateAndTotalTtcAndInvoiceIdNot(
             Long organizationId,

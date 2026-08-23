@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
 @Import(InvoiceMissingOcrFieldsIntegrationTest.MissingOcrConfiguration.class)
+@org.springframework.security.test.context.support.WithMockUser(username = "admin@facturation-demo.fr")
 class InvoiceMissingOcrFieldsIntegrationTest {
 
     private final InvoiceService invoiceService;

@@ -9,10 +9,9 @@ import org.facturation.backend.exception.InvalidChartOfAccountException;
 import org.facturation.backend.mapper.ChartOfAccountResponseMapper;
 import org.facturation.backend.model.ChartOfAccount;
 import org.facturation.backend.model.Organization;
-import org.facturation.backend.model.User;
 import org.facturation.backend.repository.ChartOfAccountRepository;
-import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.ChartOfAccountService;
+import org.facturation.backend.service.CurrentUserService;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,20 +26,18 @@ import java.util.Optional;
 @Service
 public class ChartOfAccountServiceImpl implements ChartOfAccountService {
 
-    private static final Long DEFAULT_USER_ID = 1L;
-
     private final ChartOfAccountRepository chartOfAccountRepository;
     private final ChartOfAccountResponseMapper chartOfAccountResponseMapper;
-    private final UserRepository userRepository;
+    private final CurrentUserService currentUserService;
 
     public ChartOfAccountServiceImpl(
             ChartOfAccountRepository chartOfAccountRepository,
             ChartOfAccountResponseMapper chartOfAccountResponseMapper,
-            UserRepository userRepository
+            CurrentUserService currentUserService
     ) {
         this.chartOfAccountRepository = chartOfAccountRepository;
         this.chartOfAccountResponseMapper = chartOfAccountResponseMapper;
-        this.userRepository = userRepository;
+        this.currentUserService = currentUserService;
     }
 
     @Override
@@ -189,8 +186,6 @@ public class ChartOfAccountServiceImpl implements ChartOfAccountService {
     }
 
     private Organization findCurrentOrganization() {
-        User currentUser = userRepository.findById(DEFAULT_USER_ID)
-                .orElseThrow(() -> new IllegalStateException("Default user not found"));
-        return currentUser.getOrganization();
+        return currentUserService.getCurrentUser().getOrganization();
     }
 }

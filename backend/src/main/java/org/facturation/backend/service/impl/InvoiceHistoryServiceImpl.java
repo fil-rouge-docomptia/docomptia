@@ -14,7 +14,7 @@ import org.facturation.backend.repository.InvoiceDuplicateAlertRepository;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.InvoiceStatusHistoryRepository;
 import org.facturation.backend.repository.InvoiceValidationDecisionRepository;
-import org.facturation.backend.repository.UserRepository;
+import org.facturation.backend.service.CurrentUserService;
 import org.facturation.backend.service.InvoiceHistoryService;
 import org.springframework.stereotype.Service;
 
@@ -25,7 +25,6 @@ import java.util.List;
 @Service
 public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
 
-    private static final Long DEFAULT_USER_ID = 1L;
     private static final String CORRECTION_ACTION = "FIELD_CORRECTION";
     private static final String CORRECTION_TYPE = "CORRECTION";
     private static final String DUPLICATE_DECISION_TYPE = "DUPLICATE_DECISION";
@@ -37,7 +36,7 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
     private final InvoiceRepository invoiceRepository;
     private final InvoiceStatusHistoryRepository invoiceStatusHistoryRepository;
     private final InvoiceValidationDecisionRepository validationDecisionRepository;
-    private final UserRepository userRepository;
+    private final CurrentUserService currentUserService;
 
     public InvoiceHistoryServiceImpl(
             AuditLogRepository auditLogRepository,
@@ -45,21 +44,20 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
             InvoiceRepository invoiceRepository,
             InvoiceStatusHistoryRepository invoiceStatusHistoryRepository,
             InvoiceValidationDecisionRepository validationDecisionRepository,
-            UserRepository userRepository
+            CurrentUserService currentUserService
     ) {
         this.auditLogRepository = auditLogRepository;
         this.duplicateAlertRepository = duplicateAlertRepository;
         this.invoiceRepository = invoiceRepository;
         this.invoiceStatusHistoryRepository = invoiceStatusHistoryRepository;
         this.validationDecisionRepository = validationDecisionRepository;
-        this.userRepository = userRepository;
+        this.currentUserService = currentUserService;
     }
 
     @Override
     @Transactional
     public List<InvoiceHistoryItemResponse> findByInvoiceId(Long invoiceId) {
-        User currentUser = userRepository.findById(DEFAULT_USER_ID)
-                .orElseThrow(() -> new IllegalStateException("Default user not found"));
+        User currentUser = currentUserService.getCurrentUser();
         Long organizationId = currentUser.getOrganization().getOrganizationId();
 
         if (!invoiceRepository.existsByInvoiceIdAndOrganizationOrganizationId(invoiceId, organizationId)) {
