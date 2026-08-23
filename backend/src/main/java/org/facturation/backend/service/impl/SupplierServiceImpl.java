@@ -112,6 +112,15 @@ public class SupplierServiceImpl implements SupplierService {
     }
 
     @Override
+    public Supplier findRequiredByIdForOrganization(Long supplierId, Organization organization) {
+        return supplierRepository.findBySupplierIdAndOrganizationOrganizationId(
+                        supplierId,
+                        organization.getOrganizationId()
+                )
+                .orElseThrow(() -> new SupplierNotFoundException(supplierId));
+    }
+
+    @Override
     public Optional<Supplier> findByLegalIdentifiers(Organization organization, String siret, String vatNumber) {
         Long organizationId = organization.getOrganizationId();
         Optional<Supplier> supplier = Optional.empty();
@@ -132,8 +141,7 @@ public class SupplierServiceImpl implements SupplierService {
     @Override
     public Supplier resolveForInvoiceUpload(Long supplierId, Organization organization, OcrAnalysisResponse ocrAnalysis) {
         if (supplierId != null) {
-            return findById(supplierId)
-                    .orElseThrow(() -> new SupplierNotFoundException(supplierId));
+            return findRequiredByIdForOrganization(supplierId, organization);
         }
 
         Optional<String> siret = extractOptionalNormalizedValue(ocrAnalysis, "siret");

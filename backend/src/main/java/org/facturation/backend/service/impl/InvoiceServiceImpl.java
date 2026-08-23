@@ -130,6 +130,9 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         User user = currentUserService.getCurrentUser();
         Organization organization = user.getOrganization();
+        Supplier selectedSupplier = supplierId == null
+                ? null
+                : supplierService.findRequiredByIdForOrganization(supplierId, organization);
         InvoiceStatus depositedStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.DEPOSEE);
 
         Invoice invoice = createDraftInvoice(organization, user, depositedStatus);
@@ -138,7 +141,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoiceStatusWorkflowService.startOcrAnalysis(invoice, user);
 
         OcrAnalysisResponse ocrAnalysis = analyzeInvoice(invoice, user, file);
-        Supplier supplier = supplierService.resolveForInvoiceUpload(supplierId, organization, ocrAnalysis);
+        Supplier supplier = selectedSupplier == null
+                ? supplierService.resolveForInvoiceUpload(null, organization, ocrAnalysis)
+                : selectedSupplier;
         invoice = completeOcrAnalysis(invoice, supplier, user, ocrAnalysis);
 
         return invoiceResponseMapper.toUploadResponse(invoice, ocrAnalysis);
@@ -196,18 +201,26 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional
     public List<InvoiceListItemResponse> searchInvoices(String status, String supplier, String invoiceDate) {
+        Long organizationId = currentUserService.getCurrentUser().getOrganization().getOrganizationId();
         String statusFilter = toNullableValue(status);
         String supplierFilter = toNullableValue(supplier);
         LocalDate invoiceDateFilter = parseOptionalDateFilter(invoiceDate);
 
-        return invoiceRepository.findAll(buildInvoiceSearchSpecification(
+        return invoiceRepository.findAll(byOrganization(organizationId).and(buildInvoiceSearchSpecification(
                         statusFilter,
                         supplierFilter,
                         invoiceDateFilter
-                ))
+                )))
                 .stream()
                 .map(invoiceResponseMapper::toListItemResponse)
                 .toList();
+    }
+
+    private Specification<Invoice> byOrganization(Long organizationId) {
+        return (root, query, criteriaBuilder) -> criteriaBuilder.equal(
+                root.get("organization").get("organizationId"),
+                organizationId
+        );
     }
 
     @Override
