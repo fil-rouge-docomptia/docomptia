@@ -11,6 +11,8 @@ public interface UserService {
 
     Optional<User> findById(Long id);
 
+    User findByEmail(String email);
+
     User save(User user);
 
     User changePassword(Long id, String rawPassword);

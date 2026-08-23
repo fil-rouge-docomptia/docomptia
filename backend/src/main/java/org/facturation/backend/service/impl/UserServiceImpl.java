@@ -3,6 +3,7 @@ package org.facturation.backend.service.impl;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.UserService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -28,6 +29,12 @@ public class UserServiceImpl implements UserService {
     @Override
     public Optional<User> findById(Long id) {
         return userRepository.findById(id);
+    }
+
+    @Override
+    public User findByEmail(String email) {
+        return userRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new UsernameNotFoundException("Authenticated user not found"));
     }
 
     @Override
