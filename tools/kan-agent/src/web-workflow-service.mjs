@@ -4,7 +4,11 @@ import { EventBus } from './event-bus.mjs'
 import { GitService } from './git-service.mjs'
 import { JiraClient } from './jira-client.mjs'
 import { StateStore } from './state-store.mjs'
-import { hasFailedTests } from './workflow-service.mjs'
+import {
+  buildAutomaticTestFixInstruction,
+  hasFailedTests,
+  MAX_AUTOMATIC_TEST_FIX_ATTEMPTS,
+} from './workflow-service.mjs'
 
 const TERMINAL_STATUSES = ['JIRA_UPDATED', 'ABORTED']
 const REVISION_STATUSES = ['IN_PROGRESS', 'REVIEW_REQUIRED', 'APPROVED', 'BLOCKED']
@@ -216,33 +220,53 @@ export class WebWorkflowService {
   }
 
   async runCodex(context, state, revisionInstruction = '') {
-    state = await this.ensureEpic(context, state)
-    state = await this.saveWithEvent(context, {
-      ...state,
-      status: 'IN_PROGRESS',
-      executionError: null,
-    }, {
-      type: 'STATE',
-      status: 'IN_PROGRESS',
-      message: revisionInstruction ? 'Revision started' : 'Codex implementation started',
-    })
+    let currentState = await this.ensureEpic(context, state)
+    let currentRevisionRequest = revisionInstruction
+    let automaticRetryCount = currentState.automaticRetryCount || 0
 
-    try {
-      const execution = await context.codex.run(state, revisionInstruction, {
-        onOutput: ({ stream, text }) => this.publish({
-          runId: state.runId,
-          type: 'LOG',
-          level: stream === 'stderr' ? 'warning' : 'info',
-          message: text.slice(-4000),
-        }),
+    while (true) {
+      currentState = await this.saveWithEvent(context, {
+        ...currentState,
+        status: 'IN_PROGRESS',
+        executionError: null,
+        automaticRetryCount,
+      }, {
+        type: 'STATE',
+        status: 'IN_PROGRESS',
+        message: currentRevisionRequest
+          ? typeof currentRevisionRequest === 'string'
+            ? 'Revision started'
+            : 'Automatic test-fix retry started'
+          : 'Codex implementation started',
       })
-      if (execution.result.status === 'completed') {
+
+      let execution
+      try {
+        execution = await context.codex.run(currentState, currentRevisionRequest, {
+          onOutput: ({ stream, text }) => this.publish({
+            runId: currentState.runId,
+            type: 'LOG',
+            level: stream === 'stderr' ? 'warning' : 'info',
+            message: text.slice(-4000),
+          }),
+        })
+      } catch (error) {
+        await this.blockWorkflow(context, currentState, error)
+        return
+      }
+
+      const automaticRevision = execution.result.status === 'completed'
+        ? buildAutomaticTestFixInstruction(execution.result.tests)
+        : null
+      const shouldRetry = automaticRevision && automaticRetryCount < MAX_AUTOMATIC_TEST_FIX_ATTEMPTS
+
+      if (execution.result.status === 'completed' && !automaticRevision) {
         execution.result.commits = await context.git.commitTicketChanges(
-          state.issue,
-          state.worktree,
+          currentState.issue,
+          currentState.worktree,
         )
         this.publish({
-          runId: state.runId,
+          runId: currentState.runId,
           type: 'GIT',
           level: 'success',
           message: execution.result.commits.length > 0
@@ -250,26 +274,57 @@ export class WebWorkflowService {
             : 'No new changes required a commit',
         })
       }
-      const status = execution.result.status === 'completed'
+
+      if (shouldRetry) {
+        automaticRetryCount += 1
+        currentState = await this.saveWithEvent(context, {
+          ...currentState,
+          status: 'IN_PROGRESS',
+          agentResult: execution.result,
+          resultFile: execution.outputFile,
+          automaticRetryCount,
+        }, {
+          type: 'STEP',
+          level: 'warning',
+          message: `Automatic retry ${automaticRetryCount}/${MAX_AUTOMATIC_TEST_FIX_ATTEMPTS} because latest tests still failed`,
+        })
+        currentRevisionRequest = automaticRevision
+        continue
+      }
+
+      if (execution.result.status === 'completed' && automaticRevision) {
+        const blocker = [
+          `Automatic test-fix limit reached after ${automaticRetryCount} retry attempt(s).`,
+          'Latest failing tests:',
+          ...execution.result.tests
+            .filter((test) => test.status === 'failed')
+            .map((test) => `- ${test.command}: ${test.details}`),
+        ].join('\n')
+        execution.result = {
+          ...execution.result,
+          summary: `${execution.result.summary}\n${blocker}`,
+          blocker: execution.result.blocker || blocker,
+        }
+      }
+
+      const status = execution.result.status === 'completed' && !automaticRevision
         ? 'REVIEW_REQUIRED'
         : 'BLOCKED'
-      state = await this.saveWithEvent(context, {
-        ...state,
+      currentState = await this.saveWithEvent(context, {
+        ...currentState,
         status,
         agentResult: execution.result,
         resultFile: execution.outputFile,
+        automaticRetryCount,
       }, {
         type: 'STATE',
         status,
         level: status === 'BLOCKED' ? 'warning' : 'success',
         message: execution.result.summary,
       })
-    } catch (error) {
-      await this.blockWorkflow(context, state, error)
-      return
+      await this.releaseWorktree(context, currentState)
+      return currentState
     }
-
-    await this.releaseWorktree(context, state)
   }
 
   async blockWorkflow(context, state, error) {

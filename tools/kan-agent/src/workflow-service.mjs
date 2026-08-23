@@ -16,6 +16,8 @@ async function services() {
   }
 }
 
+export const MAX_AUTOMATIC_TEST_FIX_ATTEMPTS = 3
+
 export function latestTestsByCommand(tests = []) {
   const latestTests = new Map()
   tests.forEach((test) => latestTests.set(test.command, test))
@@ -24,6 +26,37 @@ export function latestTestsByCommand(tests = []) {
 
 export function hasFailedTests(tests = []) {
   return latestTestsByCommand(tests).some((test) => test.status === 'failed')
+}
+
+export function latestFailedTests(tests = []) {
+  return latestTestsByCommand(tests).filter((test) => test.status === 'failed')
+}
+
+export function buildAutomaticTestFixInstruction(tests = []) {
+  const failedTests = latestFailedTests(tests)
+  if (failedTests.length === 0) return null
+
+  return {
+    source: 'agent',
+    message: [
+      `The latest test run still reports ${failedTests.length} failing command(s).`,
+      'Inspect the current branch state, fix the underlying problem without discarding valid changes, rerun the failing command(s) first, then rerun the broader validation.',
+      '',
+      'Latest failing tests:',
+      ...failedTests.map((test) => `- ${test.command}: ${test.details}`),
+    ].join('\n'),
+  }
+}
+
+function buildAutomaticRetryBlocker(tests = [], attemptCount = MAX_AUTOMATIC_TEST_FIX_ATTEMPTS) {
+  const failedTests = latestFailedTests(tests)
+  if (failedTests.length === 0) return null
+
+  return [
+    `Automatic test-fix limit reached after ${attemptCount} retry attempt(s).`,
+    'Latest failing tests:',
+    ...failedTests.map((test) => `- ${test.command}: ${test.details}`),
+  ].join('\n')
 }
 
 function formatTests(tests = []) {
@@ -97,45 +130,91 @@ async function ensureTaskWorktree(context, state) {
   })
 }
 
-async function runCodexAndSave(context, state, revisionInstruction = '') {
-  state = await context.store.save({ ...state, status: 'IN_PROGRESS' })
+async function runCodexAndSave(context, state, revisionRequest = '') {
+  let currentState = state
+  let currentRevisionRequest = revisionRequest
+  let automaticRetryCount = currentState.automaticRetryCount || 0
+
   try {
-    const execution = await context.codex.run(state, revisionInstruction)
-    if (execution.result.status === 'completed') {
-      execution.result.commits = await context.git.commitTicketChanges(
-        state.issue,
-        state.worktree,
-      )
+    while (true) {
+      currentState = await context.store.save({
+        ...currentState,
+        status: 'IN_PROGRESS',
+        executionError: null,
+        automaticRetryCount,
+      })
+
+      const execution = await context.codex.run(currentState, currentRevisionRequest)
+      const automaticRevision = execution.result.status === 'completed'
+        ? buildAutomaticTestFixInstruction(execution.result.tests)
+        : null
+      const shouldRetry = automaticRevision && automaticRetryCount < MAX_AUTOMATIC_TEST_FIX_ATTEMPTS
+
+      if (execution.result.status === 'completed' && !automaticRevision) {
+        execution.result.commits = await context.git.commitTicketChanges(
+          currentState.issue,
+          currentState.worktree,
+        )
+      }
+
+      if (shouldRetry) {
+        automaticRetryCount += 1
+        console.warn(
+          `Automatic retry ${automaticRetryCount}/${MAX_AUTOMATIC_TEST_FIX_ATTEMPTS}: latest tests still failed.`,
+        )
+        currentState = await context.store.save({
+          ...currentState,
+          status: 'IN_PROGRESS',
+          agentResult: execution.result,
+          resultFile: execution.outputFile,
+          automaticRetryCount,
+        })
+        currentRevisionRequest = automaticRevision
+        continue
+      }
+
+      if (execution.result.status === 'completed' && automaticRevision) {
+        const blocker = buildAutomaticRetryBlocker(execution.result.tests, automaticRetryCount)
+        execution.result = {
+          ...execution.result,
+          summary: `${execution.result.summary}\n${blocker}`,
+          blocker: execution.result.blocker || blocker,
+        }
+      }
+
+      const nextStatus = execution.result.status === 'completed' && !automaticRevision
+        ? 'REVIEW_REQUIRED'
+        : 'BLOCKED'
+      currentState = await context.store.save({
+        ...currentState,
+        status: nextStatus,
+        agentResult: execution.result,
+        resultFile: execution.outputFile,
+        automaticRetryCount,
+      })
+      break
     }
-    const nextStatus = execution.result.status === 'completed'
-      ? 'REVIEW_REQUIRED'
-      : 'BLOCKED'
-    state = await context.store.save({
-      ...state,
-      status: nextStatus,
-      agentResult: execution.result,
-      resultFile: execution.outputFile,
-    })
   } catch (error) {
-    state = await context.store.save({
-      ...state,
+    currentState = await context.store.save({
+      ...currentState,
       status: 'BLOCKED',
       executionError: error.message,
+      automaticRetryCount,
     })
-    await releaseTaskWorktree(context, state)
+    await releaseTaskWorktree(context, currentState)
     throw error
   }
 
-  state = await releaseTaskWorktree(context, state)
+  currentState = await releaseTaskWorktree(context, currentState)
 
-  printSection('Agent result', state.agentResult.summary)
-  printSection('Tests', formatTests(state.agentResult.tests))
-  if (state.agentResult.blocker) {
-    printSection('Blocker', state.agentResult.blocker)
+  printSection('Agent result', currentState.agentResult.summary)
+  printSection('Tests', formatTests(currentState.agentResult.tests))
+  if (currentState.agentResult.blocker) {
+    printSection('Blocker', currentState.agentResult.blocker)
   }
-  console.log(`\nState: ${state.status}`)
+  console.log(`\nState: ${currentState.status}`)
   console.log('No push was performed.')
-  return state
+  return currentState
 }
 
 export async function initAgent() {

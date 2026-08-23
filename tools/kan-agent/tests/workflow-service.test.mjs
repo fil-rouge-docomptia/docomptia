@@ -1,8 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  buildAutomaticTestFixInstruction,
   hasFailedTests,
+  latestFailedTests,
   latestTestsByCommand,
+  MAX_AUTOMATIC_TEST_FIX_ATTEMPTS,
 } from '../src/workflow-service.mjs'
 
 test('the latest result decides whether a repeated test command failed', () => {
@@ -39,4 +42,36 @@ test('a command that could not execute tests does not block successful results',
   ]
 
   assert.equal(hasFailedTests(tests), false)
+})
+
+test('latestFailedTests keeps only the latest failing command results', () => {
+  const tests = [
+    { command: './mvnw test', status: 'failed', details: 'Initial failure' },
+    { command: './mvnw test', status: 'passed', details: 'Recovered' },
+    { command: './mvnw -Dtest=UserServiceImplTest test', status: 'failed', details: 'Mockito setup failed' },
+  ]
+
+  assert.deepEqual(latestFailedTests(tests), [
+    {
+      command: './mvnw -Dtest=UserServiceImplTest test',
+      status: 'failed',
+      details: 'Mockito setup failed',
+    },
+  ])
+})
+
+test('buildAutomaticTestFixInstruction summarizes the remaining failing tests', () => {
+  const instruction = buildAutomaticTestFixInstruction([
+    { command: './mvnw test', status: 'failed', details: 'JwtTokenServiceTest failed' },
+    { command: './mvnw -Dtest=UserServiceImplTest test', status: 'failed', details: 'Mockito setup failed' },
+  ])
+
+  assert.equal(instruction.source, 'agent')
+  assert.match(instruction.message, /still reports 2 failing command/)
+  assert.match(instruction.message, /JwtTokenServiceTest failed/)
+  assert.match(instruction.message, /Mockito setup failed/)
+})
+
+test('automatic test-fix retries are capped to avoid infinite loops', () => {
+  assert.equal(MAX_AUTOMATIC_TEST_FIX_ATTEMPTS, 3)
 })

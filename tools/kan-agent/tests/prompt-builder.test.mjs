@@ -104,3 +104,47 @@ test('the implementation prompt requires fixing failing tests before finishing',
     /Keep `not_run` only if the retry is still blocked and report the exact environment\s+cause\./,
   )
 })
+
+test('buildPrompt supports agent-driven automatic revisions', async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'kan-agent-agent-revision-prompt-'))
+  const toolDirectory = resolve(directory, 'tool')
+  const worktree = resolve(directory, 'worktree')
+
+  try {
+    await mkdir(resolve(toolDirectory, 'prompts'), { recursive: true })
+    await mkdir(worktree, { recursive: true })
+    await writeFile(
+      resolve(toolDirectory, 'prompts', 'implement-ticket.md'),
+      '{{REVISION_INSTRUCTION}}',
+    )
+
+    const prompt = await buildPrompt(
+      {
+        toolDirectory,
+        git: { baseRepositoryPath: directory },
+        codex: { contextFiles: [] },
+      },
+      {
+        worktree,
+        issue: {
+          key: 'KAN-161',
+          parentKey: 'KAN-54',
+          summary: 'Align roles',
+          status: 'In Progress',
+          description: '',
+          acceptanceCriteria: '',
+        },
+      },
+      {
+        source: 'agent',
+        message: 'Latest failing tests:\n- ./mvnw test: Mockito setup failed',
+      },
+    )
+
+    assert.match(prompt, /The previous execution still has failing test results/)
+    assert.match(prompt, /<agent-feedback>/)
+    assert.doesNotMatch(prompt, /The user reviewed the previous implementation/)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
