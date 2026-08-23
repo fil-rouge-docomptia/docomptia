@@ -65,6 +65,8 @@ public class SecurityConfig {
                         ).permitAll()
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/accounting-rules/**")
                         .hasRole(RoleCode.ADMIN.getCode())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/users")
+                        .hasRole(RoleCode.ADMIN.getCode())
                         .anyRequest().authenticated()
                 )
                 .httpBasic(AbstractHttpConfigurer::disable)

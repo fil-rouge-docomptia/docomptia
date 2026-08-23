@@ -1,11 +1,16 @@
 package org.facturation.backend.service.impl;
 
 import org.facturation.backend.model.User;
+import org.facturation.backend.dto.response.UserListItemResponse;
+import org.facturation.backend.mapper.UserResponseMapper;
 import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.UserService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -15,10 +20,16 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UserResponseMapper userResponseMapper;
 
-    public UserServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserServiceImpl(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            UserResponseMapper userResponseMapper
+    ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.userResponseMapper = userResponseMapper;
     }
 
     @Override
@@ -51,6 +62,13 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + id));
         user.setPasswordHash(passwordEncoder.encode(rawPassword));
         return userRepository.save(user);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<UserListItemResponse> findPageForOrganization(Long organizationId, Pageable pageable) {
+        return userRepository.findByOrganizationOrganizationId(organizationId, pageable)
+                .map(userResponseMapper::toListItemResponse);
     }
 
     private boolean isBcryptHash(String password) {

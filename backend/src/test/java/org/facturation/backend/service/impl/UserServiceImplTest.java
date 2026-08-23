@@ -2,6 +2,7 @@ package org.facturation.backend.service.impl;
 
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.UserRepository;
+import org.facturation.backend.mapper.UserResponseMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -26,7 +27,7 @@ class UserServiceImplTest {
     void setUp() {
         userRepository = mock(UserRepository.class);
         passwordEncoder = new BCryptPasswordEncoder();
-        userService = new UserServiceImpl(userRepository, passwordEncoder);
+        userService = new UserServiceImpl(userRepository, passwordEncoder, new UserResponseMapper());
     }
 
     @Test
