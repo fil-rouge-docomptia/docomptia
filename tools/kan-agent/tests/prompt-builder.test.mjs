@@ -95,4 +95,12 @@ test('the implementation prompt requires fixing failing tests before finishing',
     template,
     /rerun the failing test,\s+then rerun the\s+broader validation before finishing\./,
   )
+  assert.match(
+    template,
+    /If a Maven or Docker-based test is blocked before execution by dependency resolution, DNS, or\s+cache warmup, retry it once/,
+  )
+  assert.match(
+    template,
+    /Keep `not_run` only if the retry is still blocked and report the exact environment\s+cause\./,
+  )
 })

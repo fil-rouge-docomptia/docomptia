@@ -16,6 +16,10 @@ Mandatory rules:
 - If a relevant test fails, inspect the failure, fix the implementation or the outdated test
   when it no longer matches the new intended behavior, rerun the failing test, then rerun the
   broader validation before finishing.
+- If a Maven or Docker-based test is blocked before execution by dependency resolution, DNS, or
+  cache warmup, retry it once after reusing the same command or preloading dependencies when
+  possible. Keep `not_run` only if the retry is still blocked and report the exact environment
+  cause.
 - Report `failed` only when tests actually ran and at least one test failed. Use `not_run`
   when setup, dependencies, sandboxing, or another environment issue prevented execution.
 - Do not run git add, git commit, or git push. The orchestrator validates changed paths,
