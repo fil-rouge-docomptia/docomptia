@@ -130,6 +130,9 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         User user = currentUserService.getCurrentUser();
         Organization organization = user.getOrganization();
+        Supplier selectedSupplier = supplierId == null
+                ? null
+                : supplierService.findRequiredByIdForOrganization(supplierId, organization);
         InvoiceStatus depositedStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.DEPOSEE);
 
         Invoice invoice = createDraftInvoice(organization, user, depositedStatus);
@@ -138,7 +141,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoiceStatusWorkflowService.startOcrAnalysis(invoice, user);
 
         OcrAnalysisResponse ocrAnalysis = analyzeInvoice(invoice, user, file);
-        Supplier supplier = supplierService.resolveForInvoiceUpload(supplierId, organization, ocrAnalysis);
+        Supplier supplier = selectedSupplier == null
+                ? supplierService.resolveForInvoiceUpload(null, organization, ocrAnalysis)
+                : selectedSupplier;
         invoice = completeOcrAnalysis(invoice, supplier, user, ocrAnalysis);
 
         return invoiceResponseMapper.toUploadResponse(invoice, ocrAnalysis);

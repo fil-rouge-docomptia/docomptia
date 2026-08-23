@@ -98,7 +98,11 @@ class AuthenticatedInvoiceAuthorIntegrationTest {
                     + "true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
     })
     void rejectsSupplierFromAnotherOrganizationDuringUpload() {
+        long invoiceCountBefore = invoiceRepository.count();
+
         assertThrows(SupplierNotFoundException.class, () -> invoiceService.uploadAndAnalyze(invoiceFile(), 1L));
+
+        assertEquals(invoiceCountBefore, invoiceRepository.count());
     }
 
     @Test
