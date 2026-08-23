@@ -131,6 +131,22 @@ class SecurityConfigIntegrationTest {
                 .andExpect(jsonPath("$.message").value("Access is denied"));
     }
 
+    @Test
+    @Sql(statements = "INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, "
+            + "password_hash, is_active, created_at, updated_at) VALUES (901, 1, 2, 'Operator', 'Users', "
+            + "'operator-users@facturation-demo.fr', '$2y$10$KUfJnN7ROhgbS3HTUJbNQeyesH5EFAlgvhkyw3Kf9UdX.DdsROjd6', "
+            + "true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)")
+    void userListRequiresAdminRole() throws Exception {
+        String token = new JwtTokenService(jwtSecret, Duration.ofHours(1)).generate(
+                userRepository.findByEmailIgnoreCase("operator-users@facturation-demo.fr").orElseThrow()
+        );
+
+        mockMvc.perform(get("/api/v1/users")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
     private String loginAndGetToken() throws Exception {
         String response = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
