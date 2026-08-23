@@ -64,8 +64,10 @@ VALUES (11, 'ARCHIVEE', 'Archivee', 'Facture archivee en lecture seule')
 ON CONFLICT (invoice_status_id) DO NOTHING;
 
 INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, password_hash, is_active, created_at, updated_at)
-VALUES (1, 1, 1, 'Admin', 'Demo', 'admin@facturation-demo.fr', 'admin123', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-ON CONFLICT (user_id) DO NOTHING;
+VALUES (1, 1, 1, 'Admin', 'Demo', 'admin@facturation-demo.fr', '$2y$10$KUfJnN7ROhgbS3HTUJbNQeyesH5EFAlgvhkyw3Kf9UdX.DdsROjd6', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON CONFLICT (user_id) DO UPDATE
+SET password_hash = EXCLUDED.password_hash
+WHERE users.password_hash NOT LIKE '$2%';
 
 INSERT INTO suppliers (supplier_id, organization_id, name, legal_name, siret, vat_number, email, phone, address, created_at, updated_at)
 VALUES (1, 1, 'Orange', 'Orange SA', '38012986600014', 'FR89380129866', 'factures@orange.com', '3900', '111 quai du President Roosevelt, 92130 Issy-les-Moulineaux', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
