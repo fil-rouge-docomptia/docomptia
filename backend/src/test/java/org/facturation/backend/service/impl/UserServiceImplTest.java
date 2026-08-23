@@ -1,8 +1,14 @@
 package org.facturation.backend.service.impl;
 
+import org.facturation.backend.dto.request.UserCreateRequest;
+import org.facturation.backend.exception.UserEmailConflictException;
+import org.facturation.backend.mapper.UserResponseMapper;
+import org.facturation.backend.model.Organization;
+import org.facturation.backend.model.Role;
+import org.facturation.backend.model.RoleCode;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.UserRepository;
-import org.facturation.backend.mapper.UserResponseMapper;
+import org.facturation.backend.service.RoleService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -10,9 +16,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -22,12 +32,14 @@ class UserServiceImplTest {
     private UserRepository userRepository;
     private PasswordEncoder passwordEncoder;
     private UserServiceImpl userService;
+    private RoleService roleService;
 
     @BeforeEach
     void setUp() {
         userRepository = mock(UserRepository.class);
+        roleService = mock(RoleService.class);
         passwordEncoder = new BCryptPasswordEncoder();
-        userService = new UserServiceImpl(userRepository, passwordEncoder, new UserResponseMapper());
+        userService = new UserServiceImpl(userRepository, passwordEncoder, new UserResponseMapper(), roleService);
     }
 
     @Test
@@ -56,5 +68,54 @@ class UserServiceImplTest {
         assertNotEquals(previousHash, user.getPasswordHash());
         assertTrue(passwordEncoder.matches("new-password", user.getPasswordHash()));
         assertFalse(passwordEncoder.matches("old-password", user.getPasswordHash()));
+    }
+
+    @Test
+    void invitesInactiveUserInAdministratorsOrganizationWithAllowedRole() {
+        Organization organization = new Organization();
+        Role role = new Role();
+        role.setRoleId(2L);
+        role.setCode(RoleCode.OPERATEUR_COMPTABLE.getCode());
+        role.setLabel("Operateur comptable");
+        UserCreateRequest request = request(" NEW.USER@Example.com ", "OPERATEUR_COMPTABLE");
+
+        when(userRepository.existsByEmailIgnoreCase("new.user@example.com")).thenReturn(false);
+        when(roleService.findByCode(RoleCode.OPERATEUR_COMPTABLE)).thenReturn(role);
+        when(userRepository.saveAndFlush(any(User.class))).thenAnswer(invocation -> {
+            User savedUser = invocation.getArgument(0);
+            savedUser.setUserId(10L);
+            return savedUser;
+        });
+
+        var response = userService.invite(request, organization);
+
+        assertEquals(10L, response.id());
+        assertEquals("new.user@example.com", response.email());
+        assertEquals("OPERATEUR_COMPTABLE", response.role().code());
+        assertFalse(response.active());
+        verify(userRepository).saveAndFlush(argThat(user ->
+                user.getOrganization() == organization
+                        && user.getRole() == role
+                        && !user.isActive()
+                        && user.getPasswordHash().startsWith("$2")
+        ));
+    }
+
+    @Test
+    void rejectsEmailAlreadyUsedWithDifferentCase() {
+        Organization organization = new Organization();
+        UserCreateRequest request = request("ADMIN@facturation-demo.fr", "ADMIN");
+        when(userRepository.existsByEmailIgnoreCase("admin@facturation-demo.fr")).thenReturn(true);
+
+        assertThrows(UserEmailConflictException.class, () -> userService.invite(request, organization));
+    }
+
+    private UserCreateRequest request(String email, String roleCode) {
+        UserCreateRequest request = new UserCreateRequest();
+        request.setFirstName("New");
+        request.setLastName("User");
+        request.setEmail(email);
+        request.setRoleCode(roleCode);
+        return request;
     }
 }

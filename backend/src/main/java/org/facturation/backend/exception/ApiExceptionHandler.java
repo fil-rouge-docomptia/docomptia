@@ -38,6 +38,8 @@ public class ApiExceptionHandler {
     private static final String ACCOUNTING_ENTRY_NOT_MODIFIABLE_CODE = "ACCOUNTING_ENTRY_NOT_MODIFIABLE";
     private static final String ACCOUNTING_ENTRY_UNBALANCED_CODE = "ACCOUNTING_ENTRY_UNBALANCED";
     private static final String INVALID_CREDENTIALS_CODE = "INVALID_CREDENTIALS";
+    private static final String USER_VALIDATION_ERROR_CODE = "USER_VALIDATION_ERROR";
+    private static final String USER_EMAIL_CONFLICT_CODE = "USER_EMAIL_CONFLICT";
 
     private final OcrErrorMapper ocrErrorMapper;
 
@@ -53,6 +55,16 @@ public class ApiExceptionHandler {
     @ExceptionHandler(InvalidLoginException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidLogin(InvalidLoginException exception) {
         return errorResponse(HttpStatus.UNAUTHORIZED, INVALID_CREDENTIALS_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidUserException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidUser(InvalidUserException exception) {
+        return errorResponse(HttpStatus.BAD_REQUEST, USER_VALIDATION_ERROR_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(UserEmailConflictException.class)
+    public ResponseEntity<ApiErrorResponse> handleUserEmailConflict(UserEmailConflictException exception) {
+        return errorResponse(HttpStatus.CONFLICT, USER_EMAIL_CONFLICT_CODE, exception.getMessage());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

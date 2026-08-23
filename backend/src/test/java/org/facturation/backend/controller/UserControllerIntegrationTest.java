@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,7 +16,9 @@ import java.time.Duration;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -75,6 +78,68 @@ class UserControllerIntegrationTest {
                         .header("Authorization", "Bearer " + adminToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[*].email", not(hasItem("hidden-user@example.com"))));
+    }
+
+    @Test
+    void adminInvitesInactiveUserInCurrentOrganization() throws Exception {
+        mockMvc.perform(post("/api/v1/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "firstName": " Marie ",
+                                  "lastName": " Martin ",
+                                  "email": " MARIE.MARTIN@Example.com ",
+                                  "roleCode": "OPERATEUR_COMPTABLE"
+                                }
+                                """)
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.firstName").value("Marie"))
+                .andExpect(jsonPath("$.lastName").value("Martin"))
+                .andExpect(jsonPath("$.email").value("marie.martin@example.com"))
+                .andExpect(jsonPath("$.role.code").value("OPERATEUR_COMPTABLE"))
+                .andExpect(jsonPath("$.active").value(false))
+                .andExpect(jsonPath("$.passwordHash").doesNotExist())
+                .andExpect(jsonPath("$.organization").doesNotExist());
+
+        var invitedUser = userRepository.findByEmailIgnoreCase("marie.martin@example.com").orElseThrow();
+        assertThat(invitedUser.getOrganization().getOrganizationId()).isEqualTo(1L);
+        assertThat(invitedUser.getPasswordHash()).startsWith("$2");
+    }
+
+    @Test
+    void rejectsEmailAlreadyUsedRegardlessOfCase() throws Exception {
+        mockMvc.perform(post("/api/v1/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "firstName": "Other",
+                                  "lastName": "Admin",
+                                  "email": "ADMIN@FACTURATION-DEMO.FR",
+                                  "roleCode": "ADMIN"
+                                }
+                                """)
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("USER_EMAIL_CONFLICT"));
+    }
+
+    @Test
+    void rejectsRoleOutsideMvpRoles() throws Exception {
+        mockMvc.perform(post("/api/v1/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "firstName": "Invalid",
+                                  "lastName": "Role",
+                                  "email": "invalid-role@example.com",
+                                  "roleCode": "SUPER_ADMIN"
+                                }
+                                """)
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("USER_VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("roleCode is not allowed"));
     }
 
     private String adminToken() {

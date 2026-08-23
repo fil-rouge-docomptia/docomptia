@@ -30,6 +30,7 @@ class BusinessPermissionTest {
         assertThat(BusinessPermission.VIEW_ACCOUNTING_CONFIGURATION.getRoles()).isEqualTo(ALL_ROLES);
         assertThat(BusinessPermission.MANAGE_ACCOUNTING_CONFIGURATION.getRoles())
                 .containsExactly(RoleCode.ADMIN);
+        assertThat(BusinessPermission.MANAGE_USERS.getRoles()).containsExactly(RoleCode.ADMIN);
     }
 
     @Test
