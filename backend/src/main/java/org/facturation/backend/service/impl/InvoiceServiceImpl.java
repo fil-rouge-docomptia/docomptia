@@ -196,18 +196,26 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional
     public List<InvoiceListItemResponse> searchInvoices(String status, String supplier, String invoiceDate) {
+        Long organizationId = currentUserService.getCurrentUser().getOrganization().getOrganizationId();
         String statusFilter = toNullableValue(status);
         String supplierFilter = toNullableValue(supplier);
         LocalDate invoiceDateFilter = parseOptionalDateFilter(invoiceDate);
 
-        return invoiceRepository.findAll(buildInvoiceSearchSpecification(
+        return invoiceRepository.findAll(byOrganization(organizationId).and(buildInvoiceSearchSpecification(
                         statusFilter,
                         supplierFilter,
                         invoiceDateFilter
-                ))
+                )))
                 .stream()
                 .map(invoiceResponseMapper::toListItemResponse)
                 .toList();
+    }
+
+    private Specification<Invoice> byOrganization(Long organizationId) {
+        return (root, query, criteriaBuilder) -> criteriaBuilder.equal(
+                root.get("organization").get("organizationId"),
+                organizationId
+        );
     }
 
     @Override

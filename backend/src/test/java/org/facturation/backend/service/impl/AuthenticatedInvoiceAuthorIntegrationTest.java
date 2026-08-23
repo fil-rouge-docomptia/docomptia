@@ -110,6 +110,21 @@ class AuthenticatedInvoiceAuthorIntegrationTest {
             "INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, password_hash, "
                     + "is_active, created_at, updated_at) VALUES (201, 2, 1, 'Other', 'User', "
                     + "'outsider@facturation-demo.fr', '$2y$10$KUfJnN7ROhgbS3HTUJbNQeyesH5EFAlgvhkyw3Kf9UdX.DdsROjd6', "
+                    + "true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+    })
+    void listsOnlyInvoicesFromAuthenticatedUserOrganization() {
+        assertTrue(invoiceService.searchInvoices(null, null, null).isEmpty());
+    }
+
+    @Test
+    @WithMockUser(username = "outsider@facturation-demo.fr")
+    @Sql(statements = {
+            "INSERT INTO organizations (organization_id, name, legal_name, siret, email, created_at, updated_at) "
+                    + "VALUES (2, 'Other organization', 'Other organization SARL', '98765432109876', "
+                    + "'contact@other-organization.fr', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            "INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, password_hash, "
+                    + "is_active, created_at, updated_at) VALUES (201, 2, 1, 'Other', 'User', "
+                    + "'outsider@facturation-demo.fr', '$2y$10$KUfJnN7ROhgbS3HTUJbNQeyesH5EFAlgvhkyw3Kf9UdX.DdsROjd6', "
                     + "true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
             "INSERT INTO invoices (invoice_id, organization_id, supplier_id, invoice_status_id, created_by_user_id, "
                     + "invoice_number, invoice_date, currency_code, total_ht, total_tva, total_ttc, created_at, updated_at) "
