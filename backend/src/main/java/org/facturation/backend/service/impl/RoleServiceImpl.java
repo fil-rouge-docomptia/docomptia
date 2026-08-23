@@ -1,6 +1,7 @@
 package org.facturation.backend.service.impl;
 
 import org.facturation.backend.model.Role;
+import org.facturation.backend.model.RoleCode;
 import org.facturation.backend.repository.RoleRepository;
 import org.facturation.backend.service.RoleService;
 import org.springframework.stereotype.Service;
@@ -28,7 +29,19 @@ public class RoleServiceImpl implements RoleService {
     }
 
     @Override
+    public Role findByCode(RoleCode code) {
+        return roleRepository.findByCode(code.getCode())
+                .orElseThrow(() -> new IllegalStateException("Role " + code.getCode() + " not found"));
+    }
+
+    @Override
+    public Role findByCode(String code) {
+        return findByCode(RoleCode.fromCode(code));
+    }
+
+    @Override
     public Role save(Role role) {
+        RoleCode.fromCode(role.getCode());
         return roleRepository.save(role);
     }
 }
