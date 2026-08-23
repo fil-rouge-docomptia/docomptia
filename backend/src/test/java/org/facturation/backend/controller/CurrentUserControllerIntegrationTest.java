@@ -7,8 +7,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -22,8 +22,10 @@ class CurrentUserControllerIntegrationTest {
 
     @Test
     void returnsTheAuthenticatedUserProfileRoleAndOrganization() throws Exception {
+        String token = loginAndGetToken();
+
         mockMvc.perform(get("/api/v1/users/me")
-                        .with(httpBasic("admin@facturation-demo.fr", "admin123")))
+                        .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.id").value(1))
@@ -41,5 +43,16 @@ class CurrentUserControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/users/me"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    private String loginAndGetToken() throws Exception {
+        String response = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"admin@facturation-demo.fr","password":"admin123"}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return new com.fasterxml.jackson.databind.ObjectMapper().readTree(response).get("token").asText();
     }
 }
