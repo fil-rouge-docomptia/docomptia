@@ -3,6 +3,7 @@ package org.facturation.backend.config;
 import org.facturation.backend.security.ApiAccessDeniedHandler;
 import org.facturation.backend.security.ApiAuthenticationEntryPoint;
 import org.facturation.backend.security.JwtAuthenticationFilter;
+import org.facturation.backend.model.RoleCode;
 import org.facturation.backend.repository.UserRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -38,7 +39,7 @@ public class SecurityConfig {
         return email -> userRepository.findByEmailIgnoreCase(email)
                 .map(user -> User.withUsername(user.getEmail())
                         .password(user.getPasswordHash())
-                        .roles(user.getRole().getCode())
+                        .roles(RoleCode.fromCode(user.getRole().getCode()).getCode())
                         .disabled(!user.isActive())
                         .build())
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
@@ -62,7 +63,8 @@ public class SecurityConfig {
                         "/swagger-ui.html",
                         "/swagger-ui/**"
                         ).permitAll()
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/accounting-rules/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/accounting-rules/**")
+                        .hasRole(RoleCode.ADMIN.getCode())
                         .anyRequest().authenticated()
                 )
                 .httpBasic(AbstractHttpConfigurer::disable)
