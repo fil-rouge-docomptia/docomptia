@@ -2,7 +2,10 @@ package org.facturation.backend.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.facturation.backend.dto.request.UserCreateRequest;
 import org.facturation.backend.dto.response.UserListItemResponse;
 import org.facturation.backend.model.User;
 import org.facturation.backend.service.CurrentUserService;
@@ -10,8 +13,11 @@ import org.facturation.backend.service.UserService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -60,5 +66,18 @@ public class UserController {
         User currentUser = currentUserService.getCurrentUser();
         Long organizationId = currentUser.getOrganization().getOrganizationId();
         return ResponseEntity.ok(userService.findPageForOrganization(organizationId, pageRequest));
+    }
+
+    @PostMapping
+    @Operation(summary = "Inviter un utilisateur dans l'organisation")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Utilisateur invite"),
+            @ApiResponse(responseCode = "400", description = "Donnees invalides ou role non autorise"),
+            @ApiResponse(responseCode = "409", description = "Adresse email deja utilisee")
+    })
+    public ResponseEntity<UserListItemResponse> inviteUser(@RequestBody UserCreateRequest request) {
+        User currentUser = currentUserService.getCurrentUser();
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(userService.invite(request, currentUser.getOrganization()));
     }
 }

@@ -178,17 +178,30 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    @Sql(statements = "INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, "
-            + "password_hash, is_active, created_at, updated_at) VALUES (901, 1, 2, 'Operator', 'Users', "
-            + "'operator-users@facturation-demo.fr', '$2y$10$KUfJnN7ROhgbS3HTUJbNQeyesH5EFAlgvhkyw3Kf9UdX.DdsROjd6', "
-            + "true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)")
     void userListRequiresAdminRole() throws Exception {
-        String token = new JwtTokenService(jwtSecret, Duration.ofHours(1)).generate(
-                userRepository.findByEmailIgnoreCase("operator-users@facturation-demo.fr").orElseThrow()
-        );
-
         mockMvc.perform(get("/api/v1/users")
-                        .header("Authorization", "Bearer " + token))
+                        .header("Authorization", "Bearer " + tokenFor(
+                                "operator-security@facturation-demo.fr"
+                        )))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void userInvitationRequiresAdminRole() throws Exception {
+        mockMvc.perform(post("/api/v1/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "firstName": "Blocked",
+                                  "lastName": "Invitation",
+                                  "email": "blocked-invitation@example.com",
+                                  "roleCode": "OPERATEUR_COMPTABLE"
+                                }
+                                """)
+                        .header("Authorization", "Bearer " + tokenFor(
+                                "operator-security@facturation-demo.fr"
+                        )))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
