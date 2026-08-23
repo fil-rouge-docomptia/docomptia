@@ -95,6 +95,24 @@ retourne `404`.
 Dans les reponses OCR, `ocrAnalysis.fields[].corrected` vaut `true` lorsqu'une
 valeur normalisee provient d'une correction manuelle.
 
+## Matrice Des Permissions MVP
+
+Le backend centralise les autorisations dans `BusinessPermission`. Toute nouvelle route
+metier doit etre rattachee explicitement a une permission; une route non declaree est refusee
+par defaut.
+
+| Permission | Actions concernees | `ADMIN` | `OPERATEUR_COMPTABLE` | `RESPONSABLE_COMPTABLE` |
+| --- | --- | --- | --- | --- |
+| `VIEW_OWN_PROFILE` | Consulter son profil | Oui | Oui | Oui |
+| `VIEW_INVOICES` | Rechercher, consulter, telecharger une facture et son historique | Oui | Oui | Oui |
+| `PROCESS_INVOICES` | Deposer, corriger, relancer l'OCR, soumettre et traiter un doublon | Oui | Oui | Non |
+| `VALIDATE_INVOICES` | Valider, refuser ou demander une correction | Oui | Non | Oui |
+| `MANAGE_ACCOUNTING_ENTRIES` | Generer une ecriture et corriger ses lignes | Oui | Oui | Oui |
+| `VIEW_SUPPLIERS` | Lister et consulter les fournisseurs | Oui | Oui | Oui |
+| `MANAGE_SUPPLIERS` | Modifier un fournisseur | Oui | Oui | Non |
+| `VIEW_ACCOUNTING_CONFIGURATION` | Consulter le plan et les regles comptables | Oui | Oui | Oui |
+| `MANAGE_ACCOUNTING_CONFIGURATION` | Creer, modifier ou desactiver un compte et modifier une regle | Oui | Non | Non |
+
 ## Endpoints Fournisseurs MVP
 
 | Methode | Endpoint | Role |

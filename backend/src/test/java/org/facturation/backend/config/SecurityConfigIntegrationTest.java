@@ -22,6 +22,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@Sql(executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS, statements = {
+        "INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, password_hash, "
+                + "is_active, created_at, updated_at) VALUES (900, 1, 2, 'Operator', 'Security', "
+                + "'operator-security@facturation-demo.fr', "
+                + "'$2y$10$KUfJnN7ROhgbS3HTUJbNQeyesH5EFAlgvhkyw3Kf9UdX.DdsROjd6', true, "
+                + "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        "INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, password_hash, "
+                + "is_active, created_at, updated_at) VALUES (901, 1, 3, 'Manager', 'Security', "
+                + "'manager-security@facturation-demo.fr', "
+                + "'$2y$10$KUfJnN7ROhgbS3HTUJbNQeyesH5EFAlgvhkyw3Kf9UdX.DdsROjd6', true, "
+                + "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+})
 class SecurityConfigIntegrationTest {
 
     @Autowired
@@ -112,14 +124,8 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    @Sql(statements = "INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, "
-            + "password_hash, is_active, created_at, updated_at) VALUES (900, 1, 2, 'Operator', 'Security', "
-            + "'operator-security@facturation-demo.fr', '$2y$10$KUfJnN7ROhgbS3HTUJbNQeyesH5EFAlgvhkyw3Kf9UdX.DdsROjd6', "
-            + "true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)")
     void authenticatedUserWithoutAdminRoleReceivesCommonForbiddenError() throws Exception {
-        String token = new JwtTokenService(jwtSecret, Duration.ofHours(1)).generate(
-                userRepository.findByEmailIgnoreCase("operator-security@facturation-demo.fr").orElseThrow()
-        );
+        String token = tokenFor("operator-security@facturation-demo.fr");
 
         mockMvc.perform(patch("/api/v1/accounting-rules/1")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -129,6 +135,46 @@ class SecurityConfigIntegrationTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"))
                 .andExpect(jsonPath("$.message").value("Access is denied"));
+    }
+
+    @Test
+    void operatorCanProcessInvoicesButCannotValidateThem() throws Exception {
+        String token = tokenFor("operator-security@facturation-demo.fr");
+
+        mockMvc.perform(patch("/api/v1/invoices/999999")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"invoiceNumber\":\"INV-001\"}")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(post("/api/v1/invoices/999999/validate")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void accountingManagerCanValidateInvoicesButCannotProcessThem() throws Exception {
+        String token = tokenFor("manager-security@facturation-demo.fr");
+
+        mockMvc.perform(post("/api/v1/invoices/999999/validate")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(patch("/api/v1/invoices/999999")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"invoiceNumber\":\"INV-001\"}")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void authenticatedRequestToUnmappedBusinessRouteIsDenied() throws Exception {
+        mockMvc.perform(get("/api/v1/unmapped")
+                        .header("Authorization", "Bearer " + loginAndGetToken()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     @Test
@@ -156,5 +202,11 @@ class SecurityConfigIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         return new com.fasterxml.jackson.databind.ObjectMapper().readTree(response).get("token").asText();
+    }
+
+    private String tokenFor(String email) {
+        return new JwtTokenService(jwtSecret, Duration.ofHours(1)).generate(
+                userRepository.findByEmailIgnoreCase(email).orElseThrow()
+        );
     }
 }

@@ -2,6 +2,7 @@ package org.facturation.backend.config;
 
 import org.facturation.backend.security.ApiAccessDeniedHandler;
 import org.facturation.backend.security.ApiAuthenticationEntryPoint;
+import org.facturation.backend.security.BusinessPermission;
 import org.facturation.backend.security.JwtAuthenticationFilter;
 import org.facturation.backend.model.RoleCode;
 import org.facturation.backend.repository.UserRepository;
@@ -63,11 +64,44 @@ public class SecurityConfig {
                         "/swagger-ui.html",
                         "/swagger-ui/**"
                         ).permitAll()
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/accounting-rules/**")
-                        .hasRole(RoleCode.ADMIN.getCode())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/users/me")
+                        .hasAnyRole(BusinessPermission.VIEW_OWN_PROFILE.roleCodes())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/invoices", "/api/v1/invoices/**")
+                        .hasAnyRole(BusinessPermission.VIEW_INVOICES.roleCodes())
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/invoices/*/validate",
+                                "/api/v1/invoices/*/request-correction",
+                                "/api/v1/invoices/*/reject"
+                        )
+                        .hasAnyRole(BusinessPermission.VALIDATE_INVOICES.roleCodes())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/accounting-entry")
+                        .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/accounting-entries/**")
+                        .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/invoices/upload",
+                                "/api/v1/invoices/*/ocr/retry",
+                                "/api/v1/invoices/*/submit-for-validation",
+                                "/api/v1/invoices/*/duplicate-alerts/*/decision"
+                        )
+                        .hasAnyRole(BusinessPermission.PROCESS_INVOICES.roleCodes())
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/invoices/*")
+                        .hasAnyRole(BusinessPermission.PROCESS_INVOICES.roleCodes())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/suppliers", "/api/v1/suppliers/**")
+                        .hasAnyRole(BusinessPermission.VIEW_SUPPLIERS.roleCodes())
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/suppliers/*")
+                        .hasAnyRole(BusinessPermission.MANAGE_SUPPLIERS.roleCodes())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/chart-of-accounts", "/api/v1/chart-of-accounts/**")
+                        .hasAnyRole(BusinessPermission.VIEW_ACCOUNTING_CONFIGURATION.roleCodes())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/accounting-rules", "/api/v1/accounting-rules/**")
+                        .hasAnyRole(BusinessPermission.VIEW_ACCOUNTING_CONFIGURATION.roleCodes())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/chart-of-accounts", "/api/v1/chart-of-accounts/*/deactivate")
+                        .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_CONFIGURATION.roleCodes())
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/chart-of-accounts/**", "/api/v1/accounting-rules/**")
+                        .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_CONFIGURATION.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/users")
                         .hasRole(RoleCode.ADMIN.getCode())
-                        .anyRequest().authenticated()
+                        .anyRequest().denyAll()
                 )
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
