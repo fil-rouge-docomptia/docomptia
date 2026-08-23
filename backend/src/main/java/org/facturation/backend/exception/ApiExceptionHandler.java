@@ -37,6 +37,7 @@ public class ApiExceptionHandler {
             "ACCOUNTING_ENTRY_LINE_VALIDATION_ERROR";
     private static final String ACCOUNTING_ENTRY_NOT_MODIFIABLE_CODE = "ACCOUNTING_ENTRY_NOT_MODIFIABLE";
     private static final String ACCOUNTING_ENTRY_UNBALANCED_CODE = "ACCOUNTING_ENTRY_UNBALANCED";
+    private static final String INVALID_CREDENTIALS_CODE = "INVALID_CREDENTIALS";
 
     private final OcrErrorMapper ocrErrorMapper;
 
@@ -47,6 +48,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(InvalidInvoiceFileException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidInvoiceFile(InvalidInvoiceFileException exception) {
         return errorResponse(HttpStatus.BAD_REQUEST, INVALID_INVOICE_FILE_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidLoginException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidLogin(InvalidLoginException exception) {
+        return errorResponse(HttpStatus.UNAUTHORIZED, INVALID_CREDENTIALS_CODE, exception.getMessage());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
