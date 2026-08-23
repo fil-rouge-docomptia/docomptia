@@ -9,10 +9,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.test.context.jdbc.Sql;
 
 import java.time.Duration;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -60,7 +62,10 @@ class SecurityConfigIntegrationTest {
     void httpBasicDoesNotAuthenticateProtectedRoute() throws Exception {
         mockMvc.perform(get("/api/v1/invoices/999999")
                         .header("Authorization", "Basic YWRtaW5AZmFjdHVyYXRpb24tZGVtby5mcjphZG1pbjEyMw=="))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("Authentication is required"));
     }
 
     @Test
@@ -80,7 +85,10 @@ class SecurityConfigIntegrationTest {
 
         mockMvc.perform(get("/api/v1/invoices/999999")
                         .header("Authorization", "Bearer " + expiredToken))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("Authentication is required"));
     }
 
     @Test
@@ -93,11 +101,34 @@ class SecurityConfigIntegrationTest {
         try {
             mockMvc.perform(get("/api/v1/invoices/999999")
                             .header("Authorization", "Bearer " + token))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                    .andExpect(jsonPath("$.message").value("Authentication is required"));
         } finally {
             user.setActive(true);
             userRepository.saveAndFlush(user);
         }
+    }
+
+    @Test
+    @Sql(statements = "INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, "
+            + "password_hash, is_active, created_at, updated_at) VALUES (900, 1, 2, 'Operator', 'Security', "
+            + "'operator-security@facturation-demo.fr', '$2y$10$KUfJnN7ROhgbS3HTUJbNQeyesH5EFAlgvhkyw3Kf9UdX.DdsROjd6', "
+            + "true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)")
+    void authenticatedUserWithoutAdminRoleReceivesCommonForbiddenError() throws Exception {
+        String token = new JwtTokenService(jwtSecret, Duration.ofHours(1)).generate(
+                userRepository.findByEmailIgnoreCase("operator-security@facturation-demo.fr").orElseThrow()
+        );
+
+        mockMvc.perform(patch("/api/v1/accounting-rules/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("Access is denied"));
     }
 
     private String loginAndGetToken() throws Exception {
