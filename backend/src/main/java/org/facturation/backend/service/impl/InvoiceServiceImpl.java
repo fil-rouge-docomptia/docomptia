@@ -207,6 +207,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         LocalDate invoiceDateFilter = parseOptionalDateFilter(invoiceDate);
 
         return invoiceRepository.findAll(byOrganization(organizationId).and(buildInvoiceSearchSpecification(
+                        organizationId,
                         statusFilter,
                         supplierFilter,
                         invoiceDateFilter
@@ -635,6 +636,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     private Specification<Invoice> buildInvoiceSearchSpecification(
+            Long organizationId,
             String status,
             String supplier,
             LocalDate invoiceDate
@@ -642,6 +644,10 @@ public class InvoiceServiceImpl implements InvoiceService {
         return (root, query, criteriaBuilder) -> {
             query.orderBy(criteriaBuilder.desc(root.get("createdAt")));
             List<Predicate> predicates = new ArrayList<>();
+            predicates.add(criteriaBuilder.equal(
+                    root.get("organization").get("organizationId"),
+                    organizationId
+            ));
 
             if (status != null) {
                 predicates.add(criteriaBuilder.equal(
