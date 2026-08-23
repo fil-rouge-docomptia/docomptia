@@ -147,7 +147,9 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     public Optional<InvoiceDetailsResponse> retryOcr(Long invoiceId) {
         User user = currentUserService.getCurrentUser();
-        return invoiceRepository.findForOcrRetryByInvoiceId(invoiceId).map(invoice -> {
+        Long organizationId = user.getOrganization().getOrganizationId();
+        return invoiceRepository.findForOcrRetryByInvoiceIdAndOrganizationOrganizationId(invoiceId, organizationId)
+                .map(invoice -> {
             invoiceStatusWorkflowService.ensureCanRetryOcr(invoice);
             InvoiceFile invoiceFile = invoiceFileRepository.findByInvoiceInvoiceId(invoiceId)
                     .orElseThrow(() -> new IllegalStateException("Stored invoice file not found"));
@@ -159,7 +161,9 @@ public class InvoiceServiceImpl implements InvoiceService {
                     ? supplierService.resolveForInvoiceUpload(null, invoice.getOrganization(), ocrAnalysis)
                     : invoice.getSupplier();
             completeOcrAnalysis(invoice, supplier, user, ocrAnalysis);
-            Invoice responseInvoice = invoiceRepository.findForOcrRetryByInvoiceId(invoiceId).orElseThrow();
+            Invoice responseInvoice = invoiceRepository
+                    .findForOcrRetryByInvoiceIdAndOrganizationOrganizationId(invoiceId, organizationId)
+                    .orElseThrow();
             return invoiceResponseMapper.toDetailsResponse(responseInvoice);
         });
     }
@@ -246,7 +250,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Transactional
     public Optional<InvoiceStatusResponse> submitForValidation(Long id) {
         User user = currentUserService.getCurrentUser();
-        return invoiceRepository.findById(id).map(invoice -> {
+        return findInvoiceForCurrentOrganization(id, user).map(invoice -> {
             invoiceStatusWorkflowService.submitForValidation(invoice, user);
             return invoiceResponseMapper.toStatusResponse(invoice);
         });
@@ -256,7 +260,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Transactional
     public Optional<InvoiceStatusResponse> validateInvoice(Long id) {
         User user = currentUserService.getCurrentUser();
-        return invoiceRepository.findById(id).map(invoice -> {
+        return findInvoiceForCurrentOrganization(id, user).map(invoice -> {
             duplicateAlertService.ensureNoPendingAlerts(id, "be validated");
             invoiceStatusWorkflowService.validateInvoice(invoice, user);
             return invoiceResponseMapper.toStatusResponse(invoice);
@@ -267,7 +271,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Transactional
     public Optional<InvoiceStatusResponse> requestInvoiceCorrection(Long id, String reason) {
         User user = currentUserService.getCurrentUser();
-        return invoiceRepository.findById(id).map(invoice -> {
+        return findInvoiceForCurrentOrganization(id, user).map(invoice -> {
             duplicateAlertService.ensureNoPendingAlerts(id, "receive a correction request");
             invoiceStatusWorkflowService.requestInvoiceCorrection(invoice, user, reason);
             return invoiceResponseMapper.toStatusResponse(invoice);
@@ -278,7 +282,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Transactional
     public Optional<InvoiceStatusResponse> rejectInvoice(Long id, String reason) {
         User user = currentUserService.getCurrentUser();
-        return invoiceRepository.findById(id).map(invoice -> {
+        return findInvoiceForCurrentOrganization(id, user).map(invoice -> {
             duplicateAlertService.ensureNoPendingAlerts(id, "be rejected outside the duplicate decision workflow");
             invoiceStatusWorkflowService.rejectInvoice(invoice, user, reason);
             return invoiceResponseMapper.toStatusResponse(invoice);
@@ -293,7 +297,10 @@ public class InvoiceServiceImpl implements InvoiceService {
             DuplicateAlertDecisionRequest request
     ) {
         User user = currentUserService.getCurrentUser();
-        if (!invoiceRepository.existsById(invoiceId)) {
+        if (!invoiceRepository.existsByInvoiceIdAndOrganizationOrganizationId(
+                invoiceId,
+                user.getOrganization().getOrganizationId()
+        )) {
             return Optional.empty();
         }
         DuplicateAlertDecision decision = parseDuplicateAlertDecision(request);
@@ -322,7 +329,9 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Transactional(dontRollbackOn = UnbalancedAccountingEntryException.class)
     public Optional<InvoiceAccountingEntryResponse> generateAccountingEntry(Long id) {
         User user = currentUserService.getCurrentUser();
-        return invoiceRepository.findForAccountingGenerationByInvoiceId(id).map(invoice -> {
+        Long organizationId = user.getOrganization().getOrganizationId();
+        return invoiceRepository.findForAccountingGenerationByInvoiceIdAndOrganizationOrganizationId(id, organizationId)
+                .map(invoice -> {
             Optional<AccountingEntry> existingAccountingEntry = accountingEntryService.findByInvoiceId(id);
             AccountingEntry accountingEntry;
             if (existingAccountingEntry.isPresent()) {
@@ -347,6 +356,13 @@ public class InvoiceServiceImpl implements InvoiceService {
             }
             return invoiceResponseMapper.toAccountingEntryResponse(invoice, accountingEntry);
         });
+    }
+
+    private Optional<Invoice> findInvoiceForCurrentOrganization(Long invoiceId, User user) {
+        return invoiceRepository.findByInvoiceIdAndOrganizationOrganizationId(
+                invoiceId,
+                user.getOrganization().getOrganizationId()
+        );
     }
 
     private List<AppliedCorrection> applyInvoiceCorrections(Invoice invoice, InvoiceCorrectionRequest request) {
