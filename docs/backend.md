@@ -121,6 +121,12 @@ Un numero de compte est unique dans une organisation. Un compte absent ou rattac
 organisation retourne `404`; un numero deja utilise retourne `409`. La desactivation conserve les
 regles et lignes comptables qui referencent le compte.
 
+## Endpoints Utilisateurs MVP
+
+| Methode | Endpoint | Role |
+| --- | --- | --- |
+| `GET` | `/api/v1/users?page=0&size=20&sortBy=lastName&direction=ASC` | Retourne aux administrateurs une page d'utilisateurs de l'organisation courante avec leur role et leur etat |
+
 ## Stockage Des Fichiers
 
 Deux implementations existent:
