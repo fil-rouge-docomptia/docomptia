@@ -112,6 +112,7 @@ par defaut.
 | `MANAGE_SUPPLIERS` | Modifier un fournisseur | Oui | Oui | Non |
 | `VIEW_ACCOUNTING_CONFIGURATION` | Consulter le plan et les regles comptables | Oui | Oui | Oui |
 | `MANAGE_ACCOUNTING_CONFIGURATION` | Creer, modifier ou desactiver un compte et modifier une regle | Oui | Non | Non |
+| `MANAGE_USERS` | Inviter un utilisateur dans l'organisation | Oui | Non | Non |
 
 ## Endpoints Fournisseurs MVP
 
@@ -144,6 +145,11 @@ regles et lignes comptables qui referencent le compte.
 | Methode | Endpoint | Role |
 | --- | --- | --- |
 | `GET` | `/api/v1/users?page=0&size=20&sortBy=lastName&direction=ASC` | Retourne aux administrateurs une page d'utilisateurs de l'organisation courante avec leur role et leur etat |
+| `POST` | `/api/v1/users` | Invite un utilisateur inactif dans l'organisation de l'administrateur avec son identite, son email unique et un role MVP autorise |
+
+Une invitation normalise l'email en minuscules et retourne `409` lorsqu'il est deja utilise,
+y compris avec une casse differente. Le compte reste inactif jusqu'a ce qu'un futur parcours
+d'acceptation d'invitation permette a l'utilisateur de definir son mot de passe.
 
 ## Stockage Des Fichiers
 
