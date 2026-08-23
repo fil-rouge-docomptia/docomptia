@@ -132,7 +132,10 @@ public class SupplierServiceImpl implements SupplierService {
     @Override
     public Supplier resolveForInvoiceUpload(Long supplierId, Organization organization, OcrAnalysisResponse ocrAnalysis) {
         if (supplierId != null) {
-            return findById(supplierId)
+            return supplierRepository.findBySupplierIdAndOrganizationOrganizationId(
+                            supplierId,
+                            organization.getOrganizationId()
+                    )
                     .orElseThrow(() -> new SupplierNotFoundException(supplierId));
         }
 
