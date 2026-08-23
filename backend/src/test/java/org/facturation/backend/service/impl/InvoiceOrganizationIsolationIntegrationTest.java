@@ -1,0 +1,149 @@
+package org.facturation.backend.service.impl;
+
+import org.facturation.backend.dto.response.InvoiceListItemResponse;
+import org.facturation.backend.model.Invoice;
+import org.facturation.backend.model.InvoiceStatus;
+import org.facturation.backend.model.Organization;
+import org.facturation.backend.model.Supplier;
+import org.facturation.backend.model.User;
+import org.facturation.backend.repository.InvoiceRepository;
+import org.facturation.backend.repository.InvoiceStatusRepository;
+import org.facturation.backend.repository.OrganizationRepository;
+import org.facturation.backend.repository.RoleRepository;
+import org.facturation.backend.repository.SupplierRepository;
+import org.facturation.backend.repository.UserRepository;
+import org.facturation.backend.service.InvoiceService;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.jdbc.Sql;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+@SpringBootTest
+@Transactional
+@WithMockUser(username = "admin@facturation-demo.fr")
+@Sql(statements = {
+        "ALTER TABLE organizations ALTER COLUMN organization_id RESTART WITH 1000",
+        "ALTER TABLE users ALTER COLUMN user_id RESTART WITH 1000",
+        "ALTER TABLE suppliers ALTER COLUMN supplier_id RESTART WITH 1000",
+        "ALTER TABLE invoices ALTER COLUMN invoice_id RESTART WITH 1000"
+})
+class InvoiceOrganizationIsolationIntegrationTest {
+
+    private final InvoiceService invoiceService;
+    private final InvoiceRepository invoiceRepository;
+    private final InvoiceStatusRepository invoiceStatusRepository;
+    private final OrganizationRepository organizationRepository;
+    private final RoleRepository roleRepository;
+    private final SupplierRepository supplierRepository;
+    private final UserRepository userRepository;
+
+    @Autowired
+    InvoiceOrganizationIsolationIntegrationTest(
+            InvoiceService invoiceService,
+            InvoiceRepository invoiceRepository,
+            InvoiceStatusRepository invoiceStatusRepository,
+            OrganizationRepository organizationRepository,
+            RoleRepository roleRepository,
+            SupplierRepository supplierRepository,
+            UserRepository userRepository
+    ) {
+        this.invoiceService = invoiceService;
+        this.invoiceRepository = invoiceRepository;
+        this.invoiceStatusRepository = invoiceStatusRepository;
+        this.organizationRepository = organizationRepository;
+        this.roleRepository = roleRepository;
+        this.supplierRepository = supplierRepository;
+        this.userRepository = userRepository;
+    }
+
+    @Test
+    void searchesInvoicesOnlyWithinCurrentOrganization() {
+        Organization currentOrganization = organizationRepository.findById(1L).orElseThrow();
+        User currentUser = userRepository.findById(1L).orElseThrow();
+        Supplier currentSupplier = createSupplier(currentOrganization, "Shared supplier", "11111111111111");
+        Invoice visibleInvoice = createInvoice(currentOrganization, currentUser, currentSupplier, "VISIBLE-156");
+
+        Organization otherOrganization = createOrganization();
+        User otherUser = createUser(otherOrganization);
+        Supplier otherSupplier = createSupplier(otherOrganization, "Shared supplier", "22222222222222");
+        createInvoice(otherOrganization, otherUser, otherSupplier, "HIDDEN-156");
+
+        List<InvoiceListItemResponse> results = invoiceService.searchInvoices(null, "Shared supplier", null);
+
+        assertEquals(List.of(visibleInvoice.getInvoiceId()), results.stream()
+                .map(InvoiceListItemResponse::getInvoiceId)
+                .toList());
+    }
+
+    private Organization createOrganization() {
+        LocalDateTime now = LocalDateTime.now();
+        Organization organization = new Organization();
+        organization.setName("Other organization");
+        organization.setLegalName("Other organization SAS");
+        organization.setSiret("99999999999999");
+        organization.setEmail("other-organization@example.com");
+        organization.setCreatedAt(now);
+        organization.setUpdatedAt(now);
+        return organizationRepository.save(organization);
+    }
+
+    private User createUser(Organization organization) {
+        LocalDateTime now = LocalDateTime.now();
+        User user = new User();
+        user.setOrganization(organization);
+        user.setRole(roleRepository.findById(1L).orElseThrow());
+        user.setFirstName("Other");
+        user.setLastName("User");
+        user.setEmail("other-user@example.com");
+        user.setPasswordHash("not-used");
+        user.setActive(true);
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
+        return userRepository.save(user);
+    }
+
+    private Supplier createSupplier(Organization organization, String name, String siret) {
+        LocalDateTime now = LocalDateTime.now();
+        Supplier supplier = new Supplier();
+        supplier.setOrganization(organization);
+        supplier.setName(name);
+        supplier.setLegalName(name + " SAS");
+        supplier.setSiret(siret);
+        supplier.setCreatedAt(now);
+        supplier.setUpdatedAt(now);
+        return supplierRepository.save(supplier);
+    }
+
+    private Invoice createInvoice(
+            Organization organization,
+            User user,
+            Supplier supplier,
+            String invoiceNumber
+    ) {
+        LocalDateTime now = LocalDateTime.now();
+        InvoiceStatus status = invoiceStatusRepository.findByCode("EXTRAITE").orElseThrow();
+        Invoice invoice = new Invoice();
+        invoice.setOrganization(organization);
+        invoice.setSupplier(supplier);
+        invoice.setInvoiceStatus(status);
+        invoice.setCreatedByUser(user);
+        invoice.setInvoiceNumber(invoiceNumber);
+        invoice.setInvoiceDate(LocalDate.of(2026, 8, 23));
+        invoice.setCurrencyCode("EUR");
+        invoice.setTotalHt(new BigDecimal("100.00"));
+        invoice.setTotalTva(new BigDecimal("20.00"));
+        invoice.setTotalTtc(new BigDecimal("120.00"));
+        invoice.setCreatedAt(now);
+        invoice.setUpdatedAt(now);
+        return invoiceRepository.save(invoice);
+    }
+}
