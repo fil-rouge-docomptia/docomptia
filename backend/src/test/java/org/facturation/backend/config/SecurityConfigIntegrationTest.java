@@ -67,7 +67,10 @@ class SecurityConfigIntegrationTest {
     void invalidJwtIsRejected() throws Exception {
         mockMvc.perform(get("/api/v1/invoices/999999")
                         .header("Authorization", "Bearer invalid-token"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("Authentication is required"));
     }
 
     @Test
