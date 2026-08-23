@@ -10,4 +10,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @EntityGraph(attributePaths = {"role", "organization"})
     Optional<User> findByEmailIgnoreCase(String email);
+
+    @Override
+    @EntityGraph(attributePaths = {"role", "organization"})
+    Optional<User> findById(Long userId);
 }
