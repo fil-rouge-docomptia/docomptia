@@ -22,7 +22,40 @@ async function resolveContextFile(config, state, path) {
   return await exists(repositoryPath) ? repositoryPath : `${path} (missing)`
 }
 
-export async function buildPrompt(config, state, revisionInstruction = '') {
+function buildRevisionInstruction(revisionRequest = '') {
+  if (!revisionRequest) return ''
+
+  const revision = typeof revisionRequest === 'string'
+    ? { source: 'user', message: revisionRequest }
+    : {
+      source: revisionRequest.source || 'user',
+      message: revisionRequest.message || '',
+    }
+  if (!revision.message.trim()) return ''
+
+  if (revision.source === 'agent') {
+    return [
+      'The previous execution still has failing test results and needs another implementation pass:',
+      '<agent-feedback>',
+      revision.message.trim(),
+      '</agent-feedback>',
+      'Inspect the current branch and commits, fix the reported failures, and rerun the relevant tests.',
+      'Finish only when the latest reported test results pass or you reach a real blocker.',
+      'The orchestrator creates commits after your successful result.',
+    ].join('\n')
+  }
+
+  return [
+    'The user reviewed the previous implementation and requested this revision:',
+    '<user-feedback>',
+    revision.message.trim(),
+    '</user-feedback>',
+    'Inspect the current branch and commits, apply the revision, and rerun relevant tests.',
+    'The orchestrator creates commits after your successful result.',
+  ].join('\n')
+}
+
+export async function buildPrompt(config, state, revisionRequest = '') {
   const template = await readFile(
     resolve(config.toolDirectory, 'prompts', 'implement-ticket.md'),
     'utf8',
@@ -43,9 +76,7 @@ export async function buildPrompt(config, state, revisionInstruction = '') {
     EPIC_KEY: state.epic?.key || state.issue.parentKey,
     EPIC_SUMMARY: state.epic?.summary,
     CONTEXT_FILES: contextFiles,
-    REVISION_INSTRUCTION: revisionInstruction
-      ? `The user reviewed the previous implementation and requested this revision:\n<user-feedback>\n${revisionInstruction}\n</user-feedback>\nInspect the current branch and commits, apply the revision, and rerun relevant tests. The orchestrator creates commits after your successful result.`
-      : '',
+    REVISION_INSTRUCTION: buildRevisionInstruction(revisionRequest),
   }
 
   return Object.entries(values).reduce(
