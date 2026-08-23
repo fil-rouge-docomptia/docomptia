@@ -9,8 +9,8 @@ import org.facturation.backend.model.AccountingRule;
 import org.facturation.backend.model.ChartOfAccount;
 import org.facturation.backend.repository.AccountingRuleRepository;
 import org.facturation.backend.repository.ChartOfAccountRepository;
-import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.AccountingRuleService;
+import org.facturation.backend.service.CurrentUserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,18 +20,17 @@ import java.util.Objects;
 
 @Service
 public class AccountingRuleServiceImpl implements AccountingRuleService {
-    private static final Long DEFAULT_USER_ID = 1L;
     private final AccountingRuleRepository accountingRuleRepository;
     private final ChartOfAccountRepository chartOfAccountRepository;
-    private final UserRepository userRepository;
+    private final CurrentUserService currentUserService;
     private final AccountingRuleResponseMapper accountingRuleResponseMapper;
 
     public AccountingRuleServiceImpl(AccountingRuleRepository accountingRuleRepository,
-            ChartOfAccountRepository chartOfAccountRepository, UserRepository userRepository,
+            ChartOfAccountRepository chartOfAccountRepository, CurrentUserService currentUserService,
             AccountingRuleResponseMapper accountingRuleResponseMapper) {
         this.accountingRuleRepository = accountingRuleRepository;
         this.chartOfAccountRepository = chartOfAccountRepository;
-        this.userRepository = userRepository;
+        this.currentUserService = currentUserService;
         this.accountingRuleResponseMapper = accountingRuleResponseMapper;
     }
 
@@ -75,8 +74,7 @@ public class AccountingRuleServiceImpl implements AccountingRuleService {
     }
 
     private Long findCurrentOrganizationId() {
-        return userRepository.findById(DEFAULT_USER_ID)
-                .orElseThrow(() -> new IllegalStateException("Default user not found"))
+        return currentUserService.getCurrentUser()
                 .getOrganization().getOrganizationId();
     }
 }

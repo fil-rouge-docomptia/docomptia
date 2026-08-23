@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.concurrent.DelegatingSecurityContextExecutorService;
 import org.springframework.test.annotation.DirtiesContext;
 
 import java.util.ArrayList;
@@ -23,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @SpringBootTest
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@org.springframework.security.test.context.support.WithMockUser(username = "admin@facturation-demo.fr")
 class AccountingEntryGenerationConcurrencyIntegrationTest {
 
     private static final int CONCURRENT_CALL_COUNT = 4;
@@ -50,7 +52,9 @@ class AccountingEntryGenerationConcurrencyIntegrationTest {
         CountDownLatch ready = new CountDownLatch(CONCURRENT_CALL_COUNT);
         CountDownLatch start = new CountDownLatch(1);
 
-        try (ExecutorService executor = Executors.newFixedThreadPool(CONCURRENT_CALL_COUNT)) {
+        try (ExecutorService executor = new DelegatingSecurityContextExecutorService(
+                Executors.newFixedThreadPool(CONCURRENT_CALL_COUNT)
+        )) {
             List<Future<InvoiceAccountingEntryResponse>> futures = new ArrayList<>();
             for (int call = 0; call < CONCURRENT_CALL_COUNT; call++) {
                 futures.add(executor.submit(() -> {

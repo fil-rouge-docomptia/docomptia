@@ -46,6 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
 @Import(InvoiceOcrRetryIntegrationTest.RetryOcrConfiguration.class)
+@org.springframework.security.test.context.support.WithMockUser(username = "admin@facturation-demo.fr")
 class InvoiceOcrRetryIntegrationTest {
 
     private final InvoiceService invoiceService;

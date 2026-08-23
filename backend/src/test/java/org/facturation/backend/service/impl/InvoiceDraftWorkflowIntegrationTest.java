@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
 @Import(InvoiceDraftWorkflowIntegrationTest.FailingOcrConfiguration.class)
+@org.springframework.security.test.context.support.WithMockUser(username = "admin@facturation-demo.fr")
 class InvoiceDraftWorkflowIntegrationTest {
 
     private final InvoiceService invoiceService;

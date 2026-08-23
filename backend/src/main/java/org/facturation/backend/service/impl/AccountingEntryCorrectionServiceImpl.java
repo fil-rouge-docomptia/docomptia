@@ -15,9 +15,9 @@ import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.AccountingEntryLineRepository;
 import org.facturation.backend.repository.ChartOfAccountRepository;
-import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.AccountingEntryCorrectionService;
 import org.facturation.backend.service.AuditLogService;
+import org.facturation.backend.service.CurrentUserService;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,7 +33,6 @@ import java.util.Objects;
 public class AccountingEntryCorrectionServiceImpl implements AccountingEntryCorrectionService {
 
     private static final int AMOUNT_SCALE = 2;
-    private static final Long DEFAULT_USER_ID = 1L;
     private static final String LINE_CORRECTION_ACTION = "LINE_CORRECTION";
 
     private final AccountingEntryLineRepository accountingEntryLineRepository;
@@ -41,7 +40,7 @@ public class AccountingEntryCorrectionServiceImpl implements AccountingEntryCorr
     private final AuditLogService auditLogService;
     private final ChartOfAccountRepository chartOfAccountRepository;
     private final InvoiceStatusWorkflowService invoiceStatusWorkflowService;
-    private final UserRepository userRepository;
+    private final CurrentUserService currentUserService;
 
     public AccountingEntryCorrectionServiceImpl(
             AccountingEntryLineRepository accountingEntryLineRepository,
@@ -49,14 +48,14 @@ public class AccountingEntryCorrectionServiceImpl implements AccountingEntryCorr
             AuditLogService auditLogService,
             ChartOfAccountRepository chartOfAccountRepository,
             InvoiceStatusWorkflowService invoiceStatusWorkflowService,
-            UserRepository userRepository
+            CurrentUserService currentUserService
     ) {
         this.accountingEntryLineRepository = accountingEntryLineRepository;
         this.accountingEntryMapper = accountingEntryMapper;
         this.auditLogService = auditLogService;
         this.chartOfAccountRepository = chartOfAccountRepository;
         this.invoiceStatusWorkflowService = invoiceStatusWorkflowService;
-        this.userRepository = userRepository;
+        this.currentUserService = currentUserService;
     }
 
     @Override
@@ -66,7 +65,7 @@ public class AccountingEntryCorrectionServiceImpl implements AccountingEntryCorr
             Long accountingEntryLineId,
             AccountingEntryLineCorrectionRequest request
     ) {
-        User user = findCurrentUser();
+        User user = currentUserService.getCurrentUser();
         Long organizationId = user.getOrganization().getOrganizationId();
         AccountingEntryLine line = accountingEntryLineRepository
                 .findByAccountingEntryLineIdAndAccountingEntryAccountingEntryIdAndAccountingEntryInvoiceOrganizationOrganizationId(
@@ -209,11 +208,6 @@ public class AccountingEntryCorrectionServiceImpl implements AccountingEntryCorr
                 || invoiceStatus == InvoiceStatusCode.ARCHIVEE) {
             throw new AccountingEntryNotModifiableException(accountingEntry.getAccountingEntryId());
         }
-    }
-
-    private User findCurrentUser() {
-        return userRepository.findById(DEFAULT_USER_ID)
-                .orElseThrow(() -> new IllegalStateException("Default user not found"));
     }
 
     private void saveAuditLog(AccountingEntryLine line, User user, AppliedCorrection correction) {

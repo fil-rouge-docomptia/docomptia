@@ -33,6 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "ALTER TABLE organizations ALTER COLUMN organization_id RESTART WITH 1000",
         "ALTER TABLE chart_of_accounts ALTER COLUMN account_id RESTART WITH 1000"
 })
+@org.springframework.security.test.context.support.WithMockUser(username = "admin@facturation-demo.fr")
 class ChartOfAccountControllerIntegrationTest {
 
     private final MockMvc mockMvc;

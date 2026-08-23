@@ -54,6 +54,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
 @Transactional
+@org.springframework.security.test.context.support.WithMockUser(username = "admin@facturation-demo.fr")
 class InvoiceLifecycleStatusIntegrationTest {
 
     private static final String REJECTION_REASON = "Invoice amounts must be corrected";

@@ -28,6 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "ALTER TABLE organizations ALTER COLUMN organization_id RESTART WITH 1000",
         "ALTER TABLE suppliers ALTER COLUMN supplier_id RESTART WITH 1000"
 })
+@org.springframework.security.test.context.support.WithMockUser(username = "admin@facturation-demo.fr")
 class SupplierControllerIntegrationTest {
 
     private final MockMvc mockMvc;

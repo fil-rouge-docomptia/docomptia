@@ -34,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
 @Import(InvoiceDuplicateAlertIntegrationTest.DuplicateOcrConfiguration.class)
+@org.springframework.security.test.context.support.WithMockUser(username = "admin@facturation-demo.fr")
 class InvoiceDuplicateAlertIntegrationTest {
 
     private final InvoiceService invoiceService;
