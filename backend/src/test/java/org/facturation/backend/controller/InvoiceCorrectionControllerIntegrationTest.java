@@ -5,9 +5,11 @@ import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.exception.ApiExceptionHandler;
 import org.facturation.backend.model.Invoice;
+import org.facturation.backend.model.InvoiceFile;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.User;
+import org.facturation.backend.repository.InvoiceFileRepository;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.OrganizationRepository;
 import org.facturation.backend.repository.RoleRepository;
@@ -28,11 +30,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -43,6 +48,7 @@ class InvoiceCorrectionControllerIntegrationTest {
     private final MockMvc mockMvc;
     private final InvoiceService invoiceService;
     private final InvoiceRepository invoiceRepository;
+    private final InvoiceFileRepository invoiceFileRepository;
     private final InvoiceStatusWorkflowService invoiceStatusWorkflowService;
     private final OrganizationRepository organizationRepository;
     private final RoleRepository roleRepository;
@@ -55,6 +61,7 @@ class InvoiceCorrectionControllerIntegrationTest {
             ApiExceptionHandler apiExceptionHandler,
             InvoiceService invoiceService,
             InvoiceRepository invoiceRepository,
+            InvoiceFileRepository invoiceFileRepository,
             InvoiceStatusWorkflowService invoiceStatusWorkflowService,
             OrganizationRepository organizationRepository,
             RoleRepository roleRepository,
@@ -66,6 +73,7 @@ class InvoiceCorrectionControllerIntegrationTest {
                 .build();
         this.invoiceService = invoiceService;
         this.invoiceRepository = invoiceRepository;
+        this.invoiceFileRepository = invoiceFileRepository;
         this.invoiceStatusWorkflowService = invoiceStatusWorkflowService;
         this.organizationRepository = organizationRepository;
         this.roleRepository = roleRepository;
@@ -154,6 +162,36 @@ class InvoiceCorrectionControllerIntegrationTest {
         Invoice inaccessibleInvoice = createInvoiceInAnotherOrganization();
 
         mockMvc.perform(get("/api/v1/invoices/{id}", inaccessibleInvoice.getInvoiceId()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("INVOICE_NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value(
+                        "Invoice " + inaccessibleInvoice.getInvoiceId() + " not found"
+                ));
+    }
+
+    @Test
+    void downloadsInvoiceFileFromCurrentOrganization() throws Exception {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+
+        mockMvc.perform(get("/api/v1/invoices/{id}/file", uploadResponse.getInvoiceId()))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("invoice.png")))
+                .andExpect(content().contentType(MediaType.IMAGE_PNG))
+                .andExpect(content().bytes(new byte[]{
+                        (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A
+                }));
+    }
+
+    @Test
+    @Sql(statements = {
+            "ALTER TABLE organizations ALTER COLUMN organization_id RESTART WITH 2",
+            "ALTER TABLE users ALTER COLUMN user_id RESTART WITH 2"
+    })
+    void doesNotDownloadInvoiceFileFromAnotherOrganization() throws Exception {
+        Invoice inaccessibleInvoice = createInvoiceInAnotherOrganization();
+        createInvoiceFile(inaccessibleInvoice);
+
+        mockMvc.perform(get("/api/v1/invoices/{id}/file", inaccessibleInvoice.getInvoiceId()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("INVOICE_NOT_FOUND"))
                 .andExpect(jsonPath("$.message").value(
@@ -340,5 +378,17 @@ class InvoiceCorrectionControllerIntegrationTest {
         invoice.setCreatedAt(now);
         invoice.setUpdatedAt(now);
         return invoiceRepository.save(invoice);
+    }
+
+    private void createInvoiceFile(Invoice invoice) {
+        InvoiceFile invoiceFile = new InvoiceFile();
+        invoiceFile.setInvoice(invoice);
+        invoiceFile.setOriginalFileName("external-secret.pdf");
+        invoiceFile.setStoredFileName("external-secret.pdf");
+        invoiceFile.setFilePath("/not-readable/external-secret.pdf");
+        invoiceFile.setMimeType(MediaType.APPLICATION_PDF_VALUE);
+        invoiceFile.setFileSize(42L);
+        invoiceFile.setUploadedAt(LocalDateTime.now());
+        invoiceFileRepository.save(invoiceFile);
     }
 }

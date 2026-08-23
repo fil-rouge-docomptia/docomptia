@@ -29,6 +29,8 @@ public interface InvoiceService {
 
     Optional<InvoiceDetailsResponse> findDetailsById(Long id);
 
+    Optional<MultipartFile> downloadFile(Long id);
+
     Optional<InvoiceDetailsResponse> correctInvoice(Long id, InvoiceCorrectionRequest request);
 
     Optional<InvoiceStatusResponse> submitForValidation(Long id);
