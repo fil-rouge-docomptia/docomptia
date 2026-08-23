@@ -4,12 +4,14 @@ import org.facturation.backend.model.User;
 import org.facturation.backend.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Map;
@@ -36,6 +38,12 @@ class AuthenticationControllerIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Value("${app.jwt.secret}")
+    private String jwtSecret;
+
+    @Value("${app.jwt.validity}")
+    private Duration jwtValidity;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -69,14 +77,17 @@ class AuthenticationControllerIntegrationTest {
                 new TypeReference<>() { }
         );
         assertEquals("1", claims.get("sub"));
-        assertTrue(((Number) claims.get("exp")).longValue() > Instant.now().getEpochSecond());
+        long issuedAt = ((Number) claims.get("iat")).longValue();
+        long expiration = ((Number) claims.get("exp")).longValue();
+        assertTrue(expiration > Instant.now().getEpochSecond());
+        assertEquals(jwtValidity.toSeconds(), expiration - issuedAt);
         assertFalse(claims.containsKey("email"));
         assertFalse(claims.containsKey("password"));
         assertFalse(claims.containsKey("passwordHash"));
 
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(
-                "local-development-jwt-secret-change-me".getBytes(StandardCharsets.UTF_8),
+                jwtSecret.getBytes(StandardCharsets.UTF_8),
                 "HmacSHA256"
         ));
         String expectedSignature = Base64.getUrlEncoder().withoutPadding()
