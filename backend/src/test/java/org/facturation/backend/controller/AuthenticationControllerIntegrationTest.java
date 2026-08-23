@@ -9,9 +9,23 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Base64;
+import java.util.Map;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -22,6 +36,8 @@ class AuthenticationControllerIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
     void logsInActiveUserWithValidCredentials() throws Exception {
@@ -37,8 +53,35 @@ class AuthenticationControllerIntegrationTest {
                 .andExpect(jsonPath("$.lastName").value("Demo"))
                 .andExpect(jsonPath("$.role").value("ADMIN"))
                 .andExpect(jsonPath("$.organizationId").value(1))
+                .andExpect(result -> assertValidUserToken(
+                        objectMapper.readTree(result.getResponse().getContentAsString()).get("token").asText()
+                ))
                 .andExpect(jsonPath("$.password").doesNotExist())
                 .andExpect(jsonPath("$.passwordHash").doesNotExist());
+    }
+
+    private void assertValidUserToken(String token) throws Exception {
+        String[] parts = token.split("\\.");
+        assertEquals(3, parts.length);
+
+        Map<String, Object> claims = objectMapper.readValue(
+                Base64.getUrlDecoder().decode(parts[1]),
+                new TypeReference<>() { }
+        );
+        assertEquals("1", claims.get("sub"));
+        assertTrue(((Number) claims.get("exp")).longValue() > Instant.now().getEpochSecond());
+        assertFalse(claims.containsKey("email"));
+        assertFalse(claims.containsKey("password"));
+        assertFalse(claims.containsKey("passwordHash"));
+
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(
+                "local-development-jwt-secret-change-me".getBytes(StandardCharsets.UTF_8),
+                "HmacSHA256"
+        ));
+        String expectedSignature = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(mac.doFinal((parts[0] + "." + parts[1]).getBytes(StandardCharsets.UTF_8)));
+        assertEquals(expectedSignature, parts[2]);
     }
 
     @Test

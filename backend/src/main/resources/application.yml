@@ -28,6 +28,9 @@ springdoc:
     path: /swagger-ui.html
 
 app:
+  jwt:
+    secret: ${APP_JWT_SECRET:local-development-jwt-secret-change-me}
+    validity: ${APP_JWT_VALIDITY:1h}
   invoice-upload:
     max-file-size: 10MB
   cors:
