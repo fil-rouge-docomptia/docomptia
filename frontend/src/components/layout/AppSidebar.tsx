@@ -1,4 +1,4 @@
-import { Bell, CircleHelp, Search } from 'lucide-react'
+import { Bell, CircleHelp, LogOut, Search } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
@@ -31,6 +31,7 @@ export type ShellIdentity = {
 
 type AppSidebarProps = {
   identity?: ShellIdentity
+  onSignOut: () => void
   role?: RoleCode
 }
 
@@ -38,7 +39,7 @@ function isPathActive(currentPath: string, itemPath: string) {
   return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`)
 }
 
-export function AppSidebar({ identity, role }: AppSidebarProps) {
+export function AppSidebar({ identity, onSignOut, role }: AppSidebarProps) {
   const location = useLocation()
   const { setOpenMobile } = useSidebar()
   const navigationGroups = role ? getNavigationGroups(role) : []
@@ -162,6 +163,19 @@ export function AppSidebar({ identity, role }: AppSidebarProps) {
                     <span className="truncate font-medium">{identity.name}</span>
                     <span className="truncate text-xs text-muted-foreground">{identity.email}</span>
                   </span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  className="h-10 px-3 text-destructive hover:bg-destructive/10 hover:text-destructive group-data-[collapsible=icon]:!size-10 group-data-[collapsible=icon]:!p-2.5"
+                  onClick={() => {
+                    setOpenMobile(false)
+                    onSignOut()
+                  }}
+                  tooltip="Sign out"
+                >
+                  <LogOut className="!size-5" aria-hidden="true" />
+                  <span>Sign out</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

@@ -94,7 +94,7 @@ function GlobalHeader() {
 }
 
 export function AppShell() {
-  const { user } = useAuth()
+  const { signOut, user } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1280)
   const identity = user ? toShellIdentity(user) : undefined
 
@@ -118,7 +118,7 @@ export function AppShell() {
         } as CSSProperties
       }
     >
-      <AppSidebar identity={identity} role={user?.role.code} />
+      <AppSidebar identity={identity} onSignOut={signOut} role={user?.role.code} />
       <SidebarInset className="min-w-0">
         <GlobalHeader />
         <main className="min-w-0 flex-1 bg-background p-4 md:p-6 xl:p-8">
