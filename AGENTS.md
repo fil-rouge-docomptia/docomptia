@@ -93,11 +93,20 @@ Avoid creating:
 ### React & TypeScript
 
 * Prefer functional components.
-* Follow existing component patterns.
-* Keep components focused and easy to understand.
-* Avoid unnecessary custom hooks.
-* Avoid premature state management abstractions.
-* Prefer existing project libraries and patterns.
+* Follow existing component, styling, and file-organization patterns.
+* Keep components small and focused.
+* Prefer composition over complex component abstractions.
+* Use TypeScript types explicitly; avoid `any` unless justified.
+* Reuse existing API clients, shared types, and UI components.
+* Keep state as local as practical.
+* Do not introduce global state management unless clearly necessary.
+* Avoid unnecessary custom hooks; extract a hook only when logic is reused or materially improves readability.
+* Avoid storing derived values in state.
+* Use effects only for synchronization with external systems.
+* Handle loading, empty, and error states where relevant.
+* Preserve existing component props and API contracts.
+* Maintain basic accessibility: semantic HTML, labels, keyboard support, and meaningful button text.
+* Add or update focused tests when the project already tests similar behavior.
 
 ### Dependencies
 
