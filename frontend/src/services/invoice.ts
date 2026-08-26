@@ -1,4 +1,5 @@
 import { apiBaseUrl } from '@/lib/env'
+import { authenticatedFetch } from '@/services/api'
 import type { InvoiceUploadResponse } from '@/types/invoice'
 
 export async function uploadInvoice(file: File, supplierId?: string): Promise<InvoiceUploadResponse> {
@@ -9,7 +10,7 @@ export async function uploadInvoice(file: File, supplierId?: string): Promise<In
     formData.append('supplierId', supplierId)
   }
 
-  const response = await fetch(`${apiBaseUrl}/v1/invoices/upload`, {
+  const response = await authenticatedFetch(`${apiBaseUrl}/v1/invoices/upload`, {
     method: 'POST',
     body: formData,
   })

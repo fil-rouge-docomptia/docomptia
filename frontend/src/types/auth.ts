@@ -12,3 +12,24 @@ export type LoginResponse = {
   organizationId: number
   token: string
 }
+
+export type CurrentUserRole = {
+  id: number
+  code: string
+  label: string
+}
+
+export type CurrentUserOrganization = {
+  id: number
+  name: string
+  legalName: string
+}
+
+export type CurrentUser = {
+  id: number
+  firstName: string
+  lastName: string
+  email: string
+  role: CurrentUserRole
+  organization: CurrentUserOrganization
+}
