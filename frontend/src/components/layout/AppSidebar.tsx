@@ -1,10 +1,11 @@
 import { Bell, CircleHelp, Search } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 
-import { navigationGroups } from '@/config/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { getNavigationGroups } from '@/config/navigation'
+import type { RoleCode } from '@/types/auth'
 import {
   Sidebar,
   SidebarContent,
@@ -30,15 +31,17 @@ export type ShellIdentity = {
 
 type AppSidebarProps = {
   identity?: ShellIdentity
+  role?: RoleCode
 }
 
 function isPathActive(currentPath: string, itemPath: string) {
   return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`)
 }
 
-export function AppSidebar({ identity }: AppSidebarProps) {
+export function AppSidebar({ identity, role }: AppSidebarProps) {
   const location = useLocation()
   const { setOpenMobile } = useSidebar()
+  const navigationGroups = role ? getNavigationGroups(role) : []
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
