@@ -1,8 +1,8 @@
 import { LoaderCircle } from 'lucide-react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 
-import { ErrorState } from '@/components/states/ErrorState'
 import { useAuth } from '@/hooks/use-auth'
+import UnauthorizedPage from '@/pages/UnauthorizedPage'
 
 function RouteLoadingState() {
   return (
@@ -29,15 +29,7 @@ export function ProtectedRoute() {
   }
 
   if (status === 'error') {
-    return (
-      <ErrorState
-        actionLabel="Return to sign in"
-        actionPath="/login"
-        code={401}
-        description="We could not verify your session. Sign in again to continue."
-        title="Session unavailable"
-      />
-    )
+    return <UnauthorizedPage />
   }
 
   return <Outlet />
