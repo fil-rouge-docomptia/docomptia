@@ -9,14 +9,14 @@ import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { login } from '@/services/auth'
+import { useAuth } from '@/hooks/use-auth'
 
-const AUTH_TOKEN_STORAGE_KEY = 'docomptia.authToken'
 const LOGIN_ERROR_MESSAGE = 'Unable to sign in. Check your credentials and try again.'
 const ssoProviders = ['Google', 'Microsoft', 'Apple']
 
 export default function LoginRoutePage() {
   const navigate = useNavigate()
+  const { signIn } = useAuth()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -28,12 +28,11 @@ export default function LoginRoutePage() {
     const formData = new FormData(event.currentTarget)
 
     try {
-      const session = await login({
+      await signIn({
         email: String(formData.get('email')).trim(),
         password: String(formData.get('password')),
       })
 
-      sessionStorage.setItem(AUTH_TOKEN_STORAGE_KEY, session.token)
       navigate('/dashboard', { replace: true })
     } catch {
       setErrorMessage(LOGIN_ERROR_MESSAGE)
