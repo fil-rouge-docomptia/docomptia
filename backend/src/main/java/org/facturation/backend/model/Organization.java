@@ -37,6 +37,9 @@ public class Organization {
 
     private String address;
 
+    @Column(nullable = false, length = 3, columnDefinition = "varchar(3) default 'EUR'")
+    private String defaultCurrencyCode = "EUR";
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
@@ -95,6 +98,14 @@ public class Organization {
 
     public void setAddress(String address) {
         this.address = address;
+    }
+
+    public String getDefaultCurrencyCode() {
+        return defaultCurrencyCode;
+    }
+
+    public void setDefaultCurrencyCode(String defaultCurrencyCode) {
+        this.defaultCurrencyCode = defaultCurrencyCode;
     }
 
     public LocalDateTime getCreatedAt() {

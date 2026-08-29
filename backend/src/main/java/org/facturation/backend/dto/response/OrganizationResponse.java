@@ -7,6 +7,7 @@ public record OrganizationResponse(
         String siret,
         String email,
         String phone,
-        String address
+        String address,
+        String defaultCurrencyCode
 ) {
 }

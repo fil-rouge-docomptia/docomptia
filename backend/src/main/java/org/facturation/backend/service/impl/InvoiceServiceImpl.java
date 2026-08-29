@@ -525,7 +525,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice.setOrganization(organization);
         invoice.setCreatedByUser(user);
         invoice.setInvoiceStatus(invoiceStatus);
-        invoice.setCurrencyCode("EUR");
+        invoice.setCurrencyCode(organization.getDefaultCurrencyCode());
         invoice.setDescription("Invoice uploaded for OCR analysis");
         invoice.setCreatedAt(LocalDateTime.now());
         invoice.setUpdatedAt(LocalDateTime.now());

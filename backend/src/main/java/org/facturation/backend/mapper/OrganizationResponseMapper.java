@@ -15,7 +15,8 @@ public class OrganizationResponseMapper {
                 organization.getSiret(),
                 organization.getEmail(),
                 organization.getPhone(),
-                organization.getAddress()
+                organization.getAddress(),
+                organization.getDefaultCurrencyCode()
         );
     }
 }
