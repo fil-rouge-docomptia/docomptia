@@ -11,6 +11,7 @@ import ModulePlaceholderPage from '@/pages/ModulePlaceholderPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import OrganizationOnboardingPage from '@/pages/OrganizationOnboardingPage'
 import RegisterPage from '@/pages/RegisterPage'
+import TeamOnboardingPage from '@/pages/TeamOnboardingPage'
 import WorkflowOnboardingPage from '@/pages/WorkflowOnboardingPage'
 
 export const publicRoutes = [
@@ -161,6 +162,10 @@ export const router = createBrowserRouter([
       {
         path: '/onboarding/workflow',
         element: <WorkflowOnboardingPage />,
+      },
+      {
+        path: '/onboarding/team',
+        element: <TeamOnboardingPage />,
       },
       {
         path: '/',
