@@ -40,6 +40,9 @@ public class ApiExceptionHandler {
     private static final String INVALID_CREDENTIALS_CODE = "INVALID_CREDENTIALS";
     private static final String USER_VALIDATION_ERROR_CODE = "USER_VALIDATION_ERROR";
     private static final String USER_EMAIL_CONFLICT_CODE = "USER_EMAIL_CONFLICT";
+    private static final String REGISTRATION_VALIDATION_ERROR_CODE = "REGISTRATION_VALIDATION_ERROR";
+    private static final String ORGANIZATION_LEGAL_IDENTIFIER_CONFLICT_CODE =
+            "ORGANIZATION_LEGAL_IDENTIFIER_CONFLICT";
 
     private final OcrErrorMapper ocrErrorMapper;
 
@@ -65,6 +68,22 @@ public class ApiExceptionHandler {
     @ExceptionHandler(UserEmailConflictException.class)
     public ResponseEntity<ApiErrorResponse> handleUserEmailConflict(UserEmailConflictException exception) {
         return errorResponse(HttpStatus.CONFLICT, USER_EMAIL_CONFLICT_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidRegistrationException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidRegistration(InvalidRegistrationException exception) {
+        return errorResponse(HttpStatus.BAD_REQUEST, REGISTRATION_VALIDATION_ERROR_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(OrganizationLegalIdentifierConflictException.class)
+    public ResponseEntity<ApiErrorResponse> handleOrganizationLegalIdentifierConflict(
+            OrganizationLegalIdentifierConflictException exception
+    ) {
+        return errorResponse(
+                HttpStatus.CONFLICT,
+                ORGANIZATION_LEGAL_IDENTIFIER_CONFLICT_CODE,
+                exception.getMessage()
+        );
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
