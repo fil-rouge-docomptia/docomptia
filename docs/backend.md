@@ -120,11 +120,13 @@ par defaut.
 
 | Methode | Endpoint | Role |
 | --- | --- | --- |
-| `GET` | `/api/v1/organizations/current` | Retourne les informations legales et de contact de l'organisation de l'utilisateur connecte |
-| `PATCH` | `/api/v1/organizations/current` | Modifie les informations legales et de contact de l'organisation de l'administrateur connecte |
+| `GET` | `/api/v1/organizations/current` | Retourne les informations legales, de contact et la devise par defaut de l'organisation de l'utilisateur connecte |
+| `PATCH` | `/api/v1/organizations/current` | Modifie les informations legales, de contact et la devise par defaut de l'organisation de l'administrateur connecte |
 
 La route ne prend aucun identifiant d'organisation afin d'empecher la consultation d'une autre
-organisation. La modification accepte `name`, `legalName`, `siret`, `email`, `phone` et `address`,
+organisation. La modification accepte `name`, `legalName`, `siret`, `email`, `phone`, `address` et
+`defaultCurrencyCode`. La devise est normalisee et validee comme code ISO 4217 reconnu; elle est
+utilisee par les nouvelles factures de l'organisation. La modification
 retourne `400` si une valeur est invalide ou inchangee et `409` si le SIRET est deja utilise par
 une autre organisation. Chaque champ modifie est journalise avec sa valeur avant/apres et
 l'administrateur responsable.
