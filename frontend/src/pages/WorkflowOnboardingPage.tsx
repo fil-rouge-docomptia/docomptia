@@ -4,25 +4,25 @@ import { useNavigate } from 'react-router-dom'
 
 import { OnboardingLayout } from '@/components/onboarding/OnboardingLayout'
 import { OnboardingStepHeader } from '@/components/onboarding/OnboardingStepHeader'
-import { OrganizationInformationForm } from '@/components/onboarding/OrganizationInformationForm'
+import { WorkflowSetupForm } from '@/components/onboarding/WorkflowSetupForm'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { getCurrentOrganization } from '@/services/organization'
-import type { Organization } from '@/types/organization'
+import { getValidationPreferences } from '@/services/onboarding'
+import type { ValidationPreferences } from '@/types/onboarding'
 
-export default function OrganizationOnboardingPage() {
+export default function WorkflowOnboardingPage() {
   const navigate = useNavigate()
-  const [organization, setOrganization] = useState<Organization | null>(null)
+  const [preferences, setPreferences] = useState<ValidationPreferences | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [hasLoadingError, setHasLoadingError] = useState(false)
 
   useEffect(() => {
     let isActive = true
 
-    getCurrentOrganization()
-      .then((currentOrganization) => {
+    getValidationPreferences()
+      .then((currentPreferences) => {
         if (isActive) {
-          setOrganization(currentOrganization)
+          setPreferences(currentPreferences)
         }
       })
       .catch(() => {
@@ -46,7 +46,7 @@ export default function OrganizationOnboardingPage() {
     setHasLoadingError(false)
 
     try {
-      setOrganization(await getCurrentOrganization())
+      setPreferences(await getValidationPreferences())
     } catch {
       setHasLoadingError(true)
     } finally {
@@ -57,12 +57,16 @@ export default function OrganizationOnboardingPage() {
   return (
     <OnboardingLayout>
       <div className="flex flex-col gap-6">
-        <OnboardingStepHeader currentStep={1} stepLabel="Company" title="Company information" />
+        <OnboardingStepHeader
+          currentStep={3}
+          stepLabel="Workflow"
+          title="Approval workflow preset"
+        />
 
         {isLoading ? (
           <div
             aria-busy="true"
-            aria-label="Loading company information"
+            aria-label="Loading approval workflow"
             className="flex min-h-64 items-center justify-center"
           >
             <LoaderCircle aria-hidden="true" className="size-6 animate-spin text-primary" />
@@ -72,7 +76,7 @@ export default function OrganizationOnboardingPage() {
         {hasLoadingError ? (
           <Alert className="border-destructive/30 bg-destructive/5" variant="destructive">
             <CircleAlert aria-hidden="true" className="size-4" />
-            <AlertTitle>Unable to load company information</AlertTitle>
+            <AlertTitle>Unable to load the approval workflow</AlertTitle>
             <AlertDescription className="flex flex-col items-start gap-3">
               <span>Check your connection and try again.</span>
               <Button onClick={() => void retryLoading()} size="sm" variant="outline">
@@ -82,11 +86,11 @@ export default function OrganizationOnboardingPage() {
           </Alert>
         ) : null}
 
-        {organization && !isLoading ? (
-          <OrganizationInformationForm
-            onBack={() => navigate('/dashboard')}
-            onComplete={() => navigate('/onboarding/accounting')}
-            organization={organization}
+        {preferences && !isLoading ? (
+          <WorkflowSetupForm
+            onBack={() => navigate('/onboarding/accounting')}
+            onComplete={() => navigate('/onboarding/team')}
+            preferences={preferences}
           />
         ) : null}
       </div>

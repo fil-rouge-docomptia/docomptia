@@ -2,6 +2,7 @@ import { Navigate, createBrowserRouter } from 'react-router-dom'
 
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth/RouteGuard'
 import { AppShell } from '@/components/layout/AppShell'
+import AccountingOnboardingPage from '@/pages/AccountingOnboardingPage'
 import DashboardPage from '@/pages/DashboardPage'
 import InvoiceUploadPage from '@/pages/InvoiceUploadPage'
 import EmailVerificationPage from '@/pages/EmailVerificationPage'
@@ -10,6 +11,9 @@ import ModulePlaceholderPage from '@/pages/ModulePlaceholderPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import OrganizationOnboardingPage from '@/pages/OrganizationOnboardingPage'
 import RegisterPage from '@/pages/RegisterPage'
+import TeamOnboardingPage from '@/pages/TeamOnboardingPage'
+import WorkflowOnboardingPage from '@/pages/WorkflowOnboardingPage'
+import WorkspaceReadyOnboardingPage from '@/pages/WorkspaceReadyOnboardingPage'
 
 export const publicRoutes = [
   {
@@ -151,6 +155,22 @@ export const router = createBrowserRouter([
       {
         path: '/onboarding/company',
         element: <OrganizationOnboardingPage />,
+      },
+      {
+        path: '/onboarding/accounting',
+        element: <AccountingOnboardingPage />,
+      },
+      {
+        path: '/onboarding/workflow',
+        element: <WorkflowOnboardingPage />,
+      },
+      {
+        path: '/onboarding/team',
+        element: <TeamOnboardingPage />,
+      },
+      {
+        path: '/onboarding/ready',
+        element: <WorkspaceReadyOnboardingPage />,
       },
       {
         path: '/',

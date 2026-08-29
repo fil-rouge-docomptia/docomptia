@@ -10,7 +10,10 @@ export type Organization = {
 }
 
 export type OrganizationUpdate = Partial<
-  Pick<Organization, 'name' | 'legalName' | 'siret' | 'email' | 'phone' | 'address'>
+  Pick<
+    Organization,
+    'name' | 'legalName' | 'siret' | 'email' | 'phone' | 'address' | 'defaultCurrencyCode'
+  >
 >
 
 export type OnboardingStep = {

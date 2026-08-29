@@ -4,25 +4,39 @@ import { useNavigate } from 'react-router-dom'
 
 import { OnboardingLayout } from '@/components/onboarding/OnboardingLayout'
 import { OnboardingStepHeader } from '@/components/onboarding/OnboardingStepHeader'
-import { OrganizationInformationForm } from '@/components/onboarding/OrganizationInformationForm'
+import { TeamInvitationForm } from '@/components/onboarding/TeamInvitationForm'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { getCurrentOrganization } from '@/services/organization'
-import type { Organization } from '@/types/organization'
+import { getOrganizationUsers, getRoles } from '@/services/onboarding'
+import type { OrganizationUser, ReferenceItem } from '@/types/onboarding'
 
-export default function OrganizationOnboardingPage() {
+type TeamSetupData = {
+  invitations: OrganizationUser[]
+  roles: ReferenceItem[]
+}
+
+async function loadTeamSetup(): Promise<TeamSetupData> {
+  const [roles, users] = await Promise.all([getRoles(), getOrganizationUsers()])
+
+  return {
+    invitations: users.filter((user) => !user.active),
+    roles,
+  }
+}
+
+export default function TeamOnboardingPage() {
   const navigate = useNavigate()
-  const [organization, setOrganization] = useState<Organization | null>(null)
+  const [data, setData] = useState<TeamSetupData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [hasLoadingError, setHasLoadingError] = useState(false)
 
   useEffect(() => {
     let isActive = true
 
-    getCurrentOrganization()
-      .then((currentOrganization) => {
+    loadTeamSetup()
+      .then((setupData) => {
         if (isActive) {
-          setOrganization(currentOrganization)
+          setData(setupData)
         }
       })
       .catch(() => {
@@ -46,7 +60,7 @@ export default function OrganizationOnboardingPage() {
     setHasLoadingError(false)
 
     try {
-      setOrganization(await getCurrentOrganization())
+      setData(await loadTeamSetup())
     } catch {
       setHasLoadingError(true)
     } finally {
@@ -57,12 +71,12 @@ export default function OrganizationOnboardingPage() {
   return (
     <OnboardingLayout>
       <div className="flex flex-col gap-6">
-        <OnboardingStepHeader currentStep={1} stepLabel="Company" title="Company information" />
+        <OnboardingStepHeader currentStep={4} stepLabel="Team" title="Invite your team" />
 
         {isLoading ? (
           <div
             aria-busy="true"
-            aria-label="Loading company information"
+            aria-label="Loading team invitations"
             className="flex min-h-64 items-center justify-center"
           >
             <LoaderCircle aria-hidden="true" className="size-6 animate-spin text-primary" />
@@ -72,7 +86,7 @@ export default function OrganizationOnboardingPage() {
         {hasLoadingError ? (
           <Alert className="border-destructive/30 bg-destructive/5" variant="destructive">
             <CircleAlert aria-hidden="true" className="size-4" />
-            <AlertTitle>Unable to load company information</AlertTitle>
+            <AlertTitle>Unable to load team invitations</AlertTitle>
             <AlertDescription className="flex flex-col items-start gap-3">
               <span>Check your connection and try again.</span>
               <Button onClick={() => void retryLoading()} size="sm" variant="outline">
@@ -82,11 +96,12 @@ export default function OrganizationOnboardingPage() {
           </Alert>
         ) : null}
 
-        {organization && !isLoading ? (
-          <OrganizationInformationForm
-            onBack={() => navigate('/dashboard')}
-            onComplete={() => navigate('/onboarding/accounting')}
-            organization={organization}
+        {data && !isLoading ? (
+          <TeamInvitationForm
+            initialInvitations={data.invitations}
+            onBack={() => navigate('/onboarding/workflow')}
+            onComplete={() => navigate('/onboarding/ready')}
+            roles={data.roles}
           />
         ) : null}
       </div>
