@@ -11,6 +11,7 @@ import ModulePlaceholderPage from '@/pages/ModulePlaceholderPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import OrganizationOnboardingPage from '@/pages/OrganizationOnboardingPage'
 import RegisterPage from '@/pages/RegisterPage'
+import WorkflowOnboardingPage from '@/pages/WorkflowOnboardingPage'
 
 export const publicRoutes = [
   {
@@ -156,6 +157,10 @@ export const router = createBrowserRouter([
       {
         path: '/onboarding/accounting',
         element: <AccountingOnboardingPage />,
+      },
+      {
+        path: '/onboarding/workflow',
+        element: <WorkflowOnboardingPage />,
       },
       {
         path: '/',
