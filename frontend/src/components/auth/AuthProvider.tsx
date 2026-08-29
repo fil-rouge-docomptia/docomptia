@@ -66,13 +66,20 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }, [])
 
+  const signOut = useCallback(() => {
+    clearAuthToken()
+    setUser(null)
+    setStatus('anonymous')
+  }, [])
+
   const value = useMemo(
     () => ({
       status,
       user,
       signIn,
+      signOut,
     }),
-    [signIn, status, user],
+    [signIn, signOut, status, user],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

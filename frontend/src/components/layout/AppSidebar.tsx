@@ -1,10 +1,11 @@
-import { Bell, CircleHelp, Search } from 'lucide-react'
+import { Bell, CircleHelp, LogOut, Search } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 
-import { navigationGroups } from '@/config/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { getNavigationGroups } from '@/config/navigation'
+import type { RoleCode } from '@/types/auth'
 import {
   Sidebar,
   SidebarContent,
@@ -30,15 +31,18 @@ export type ShellIdentity = {
 
 type AppSidebarProps = {
   identity?: ShellIdentity
+  onSignOut: () => void
+  role?: RoleCode
 }
 
 function isPathActive(currentPath: string, itemPath: string) {
   return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`)
 }
 
-export function AppSidebar({ identity }: AppSidebarProps) {
+export function AppSidebar({ identity, onSignOut, role }: AppSidebarProps) {
   const location = useLocation()
   const { setOpenMobile } = useSidebar()
+  const navigationGroups = role ? getNavigationGroups(role) : []
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -159,6 +163,19 @@ export function AppSidebar({ identity }: AppSidebarProps) {
                     <span className="truncate font-medium">{identity.name}</span>
                     <span className="truncate text-xs text-muted-foreground">{identity.email}</span>
                   </span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  className="h-10 px-3 text-destructive hover:bg-destructive/10 hover:text-destructive group-data-[collapsible=icon]:!size-10 group-data-[collapsible=icon]:!p-2.5"
+                  onClick={() => {
+                    setOpenMobile(false)
+                    onSignOut()
+                  }}
+                  tooltip="Sign out"
+                >
+                  <LogOut className="!size-5" aria-hidden="true" />
+                  <span>Sign out</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

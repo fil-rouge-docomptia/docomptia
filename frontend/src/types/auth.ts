@@ -3,19 +3,21 @@ export type LoginCredentials = {
   password: string
 }
 
+export type RoleCode = 'ADMIN' | 'OPERATEUR_COMPTABLE' | 'RESPONSABLE_COMPTABLE'
+
 export type LoginResponse = {
   userId: number
   email: string
   firstName: string
   lastName: string
-  role: string
+  role: RoleCode
   organizationId: number
   token: string
 }
 
 export type CurrentUserRole = {
   id: number
-  code: string
+  code: RoleCode
   label: string
 }
 

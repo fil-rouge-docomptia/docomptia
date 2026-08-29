@@ -14,8 +14,15 @@ import {
   Truck,
   Users,
 } from 'lucide-react'
+import type { RoleCode } from '@/types/auth'
+
+const allRoles: RoleCode[] = ['ADMIN', 'OPERATEUR_COMPTABLE', 'RESPONSABLE_COMPTABLE']
+const processingRoles: RoleCode[] = ['ADMIN', 'OPERATEUR_COMPTABLE']
+const validationRoles: RoleCode[] = ['ADMIN', 'RESPONSABLE_COMPTABLE']
+const administrationRoles: RoleCode[] = ['ADMIN']
 
 export type NavigationItem = {
+  allowedRoles: RoleCode[]
   icon: LucideIcon
   label: string
   path: string
@@ -30,32 +37,63 @@ export const navigationGroups: NavigationGroup[] = [
   {
     label: 'Workspace',
     items: [
-      { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-      { icon: Inbox, label: 'Inbox', path: '/inbox' },
-      { icon: ReceiptText, label: 'Invoices', path: '/invoices' },
-      { icon: BadgeCheck, label: 'Approvals', path: '/approvals' },
-      { icon: Calculator, label: 'Accounting', path: '/accounting' },
-      { icon: FileOutput, label: 'Exports', path: '/exports' },
-      { icon: Files, label: 'Documents', path: '/documents' },
+      {
+        allowedRoles: allRoles,
+        icon: LayoutDashboard,
+        label: 'Dashboard',
+        path: '/dashboard',
+      },
+      { allowedRoles: processingRoles, icon: Inbox, label: 'Inbox', path: '/inbox' },
+      { allowedRoles: allRoles, icon: ReceiptText, label: 'Invoices', path: '/invoices' },
+      {
+        allowedRoles: validationRoles,
+        icon: BadgeCheck,
+        label: 'Approvals',
+        path: '/approvals',
+      },
+      { allowedRoles: allRoles, icon: Calculator, label: 'Accounting', path: '/accounting' },
+      { allowedRoles: allRoles, icon: FileOutput, label: 'Exports', path: '/exports' },
+      { allowedRoles: allRoles, icon: Files, label: 'Documents', path: '/documents' },
     ],
   },
   {
     label: 'Directory',
     items: [
-      { icon: Truck, label: 'Suppliers', path: '/suppliers' },
-      { icon: Users, label: 'Clients', path: '/clients' },
-      { icon: MapPin, label: 'Projects / Sites', path: '/projects' },
+      { allowedRoles: allRoles, icon: Truck, label: 'Suppliers', path: '/suppliers' },
+      { allowedRoles: allRoles, icon: Users, label: 'Clients', path: '/clients' },
+      { allowedRoles: allRoles, icon: MapPin, label: 'Projects / Sites', path: '/projects' },
     ],
   },
   {
     label: 'Analytics',
-    items: [{ icon: ChartNoAxesColumn, label: 'Reports', path: '/reports' }],
+    items: [
+      { allowedRoles: allRoles, icon: ChartNoAxesColumn, label: 'Reports', path: '/reports' },
+    ],
   },
   {
     label: 'Administration',
     items: [
-      { icon: Plug, label: 'Integrations', path: '/integrations' },
-      { icon: Settings, label: 'Settings', path: '/settings' },
+      {
+        allowedRoles: administrationRoles,
+        icon: Plug,
+        label: 'Integrations',
+        path: '/integrations',
+      },
+      {
+        allowedRoles: administrationRoles,
+        icon: Settings,
+        label: 'Settings',
+        path: '/settings',
+      },
     ],
   },
 ]
+
+export function getNavigationGroups(role: RoleCode) {
+  return navigationGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => item.allowedRoles.includes(role)),
+    }))
+    .filter((group) => group.items.length > 0)
+}
