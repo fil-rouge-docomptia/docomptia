@@ -4,14 +4,24 @@ import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth/RouteGuard'
 import { AppShell } from '@/components/layout/AppShell'
 import DashboardPage from '@/pages/DashboardPage'
 import InvoiceUploadPage from '@/pages/InvoiceUploadPage'
+import EmailVerificationPage from '@/pages/EmailVerificationPage'
 import LoginRoutePage from '@/pages/LoginRoutePage'
 import ModulePlaceholderPage from '@/pages/ModulePlaceholderPage'
 import NotFoundPage from '@/pages/NotFoundPage'
+import RegisterPage from '@/pages/RegisterPage'
 
 export const publicRoutes = [
   {
     path: '/login',
     element: <LoginRoutePage />,
+  },
+  {
+    path: '/register',
+    element: <RegisterPage />,
+  },
+  {
+    path: '/verify-email',
+    element: <EmailVerificationPage />,
   },
 ]
 

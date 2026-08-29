@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { CircleAlert, LoaderCircle } from 'lucide-react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import type { Location } from 'react-router-dom'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -22,6 +22,9 @@ export default function LoginRoutePage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const requestedLocation = (location.state as { from?: Location } | null)?.from
+  const registrationComplete = Boolean(
+    (location.state as { registrationComplete?: boolean } | null)?.registrationComplete,
+  )
   const redirectPath = requestedLocation
     ? `${requestedLocation.pathname}${requestedLocation.search}${requestedLocation.hash}`
     : '/dashboard'
@@ -66,6 +69,14 @@ export default function LoginRoutePage() {
 
           <CardContent className="p-6 md:p-8 md:pt-6">
             <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
+              {registrationComplete ? (
+                <Alert className="border-success/30 bg-success-muted text-success">
+                  <AlertDescription>
+                    Your email is verified. Sign in to continue.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+
               <div className="flex flex-col gap-2">
                 <Label className="text-xs leading-4 tracking-[0.1px]" htmlFor="email">
                   Work email
@@ -116,6 +127,13 @@ export default function LoginRoutePage() {
                   'Continue'
                 )}
               </Button>
+
+              <p className="text-center text-xs leading-4 text-muted-foreground">
+                New to Docomptia?{' '}
+                <Link className="font-medium text-primary underline-offset-4 hover:underline" to="/register">
+                  Create an account
+                </Link>
+              </p>
 
               <div className="flex items-center gap-3">
                 <Separator className="flex-1" />

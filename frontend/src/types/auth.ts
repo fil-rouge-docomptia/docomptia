@@ -15,6 +15,23 @@ export type LoginResponse = {
   token: string
 }
 
+export type RegistrationDetails = {
+  organizationName: string
+  legalName: string
+  siret: string
+  firstName: string
+  lastName: string
+  email: string
+  password: string
+}
+
+export type RegistrationResponse = {
+  organizationId: number
+  userId: number
+  email: string
+  role: RoleCode
+}
+
 export type CurrentUserRole = {
   id: number
   code: RoleCode
