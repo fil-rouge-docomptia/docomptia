@@ -104,6 +104,7 @@ par defaut.
 | Permission | Actions concernees | `ADMIN` | `OPERATEUR_COMPTABLE` | `RESPONSABLE_COMPTABLE` |
 | --- | --- | --- | --- | --- |
 | `VIEW_OWN_PROFILE` | Consulter son profil | Oui | Oui | Oui |
+| `VIEW_REFERENCE_DATA` | Consulter les referentiels frontend | Oui | Oui | Oui |
 | `VIEW_ORGANIZATION` | Consulter l'organisation courante | Oui | Oui | Oui |
 | `MANAGE_ORGANIZATION` | Modifier les informations legales de l'organisation | Oui | Non | Non |
 | `VIEW_INVOICES` | Rechercher, consulter, telecharger une facture et son historique | Oui | Oui | Oui |
@@ -115,6 +116,16 @@ par defaut.
 | `VIEW_ACCOUNTING_CONFIGURATION` | Consulter le plan et les regles comptables | Oui | Oui | Oui |
 | `MANAGE_ACCOUNTING_CONFIGURATION` | Creer, modifier ou desactiver un compte et modifier une regle | Oui | Non | Non |
 | `MANAGE_USERS` | Inviter ou modifier un utilisateur dans l'organisation | Oui | Non | Non |
+
+## Endpoint Referentiels MVP
+
+| Methode | Endpoint | Role |
+| --- | --- | --- |
+| `GET` | `/api/v1/reference-data` | Retourne aux utilisateurs authentifies les statuts de facture, roles MVP, devises ISO 4217 et formats de fichier acceptes avec leur code et leur libelle |
+
+La reponse exclut les identifiants techniques, descriptions internes, permissions et details de
+validation des fichiers. Les formats retournes correspondent aux formats controles lors de
+l'upload d'une facture.
 
 ## Endpoint Organisation MVP
 
