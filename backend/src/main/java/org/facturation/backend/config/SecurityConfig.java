@@ -115,7 +115,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/chart-of-accounts/**", "/api/v1/accounting-rules/**")
                         .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_CONFIGURATION.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/users")
-                        .hasRole(RoleCode.ADMIN.getCode())
+                        .hasAnyRole(BusinessPermission.MANAGE_USERS.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/roles")
                         .hasAnyRole(BusinessPermission.MANAGE_USERS.roleCodes())
                         .requestMatchers(HttpMethod.POST, "/api/v1/users")

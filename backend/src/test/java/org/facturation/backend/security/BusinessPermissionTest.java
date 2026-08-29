@@ -18,6 +18,7 @@ class BusinessPermissionTest {
     @Test
     void definesTheMvpPermissionMatrix() {
         assertThat(BusinessPermission.VIEW_OWN_PROFILE.getRoles()).isEqualTo(ALL_ROLES);
+        assertThat(BusinessPermission.VIEW_REFERENCE_DATA.getRoles()).isEqualTo(ALL_ROLES);
         assertThat(BusinessPermission.VIEW_ORGANIZATION.getRoles()).isEqualTo(ALL_ROLES);
         assertThat(BusinessPermission.MANAGE_ORGANIZATION.getRoles()).containsExactly(RoleCode.ADMIN);
         assertThat(BusinessPermission.VIEW_INVOICES.getRoles()).isEqualTo(ALL_ROLES);
