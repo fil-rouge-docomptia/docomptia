@@ -9,6 +9,7 @@ import {
   subscribeToAuthSession,
 } from '@/lib/auth-session'
 import { getCurrentUser, login } from '@/services/auth'
+import { getOrganizationOnboardingStatus } from '@/services/organization'
 import type { CurrentUser, LoginCredentials } from '@/types/auth'
 
 export function AuthProvider({ children }: PropsWithChildren) {
@@ -56,8 +57,23 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     try {
       const currentUser = await getCurrentUser()
+      let needsCompanyInformation = false
+
+      if (currentUser.role.code === 'ADMIN') {
+        try {
+          const onboarding = await getOrganizationOnboardingStatus()
+          needsCompanyInformation = onboarding.remainingActions.some(
+            (action) => action.code === 'ORGANIZATION_INFORMATION',
+          )
+        } catch {
+          needsCompanyInformation = false
+        }
+      }
+
       setUser(currentUser)
       setStatus('authenticated')
+
+      return { needsCompanyInformation }
     } catch (error) {
       clearAuthToken()
       setUser(null)

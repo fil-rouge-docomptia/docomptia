@@ -25,9 +25,9 @@ export default function LoginRoutePage() {
   const registrationComplete = Boolean(
     (location.state as { registrationComplete?: boolean } | null)?.registrationComplete,
   )
-  const redirectPath = requestedLocation
+  const requestedPath = requestedLocation
     ? `${requestedLocation.pathname}${requestedLocation.search}${requestedLocation.hash}`
-    : '/dashboard'
+    : null
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -37,12 +37,19 @@ export default function LoginRoutePage() {
     const formData = new FormData(event.currentTarget)
 
     try {
-      await signIn({
+      const session = await signIn({
         email: String(formData.get('email')).trim(),
         password: String(formData.get('password')),
       })
 
-      navigate(redirectPath, { replace: true })
+      if (requestedPath) {
+        navigate(requestedPath, { replace: true })
+        return
+      }
+
+      navigate(session.needsCompanyInformation ? '/onboarding/company' : '/dashboard', {
+        replace: true,
+      })
     } catch {
       setErrorMessage(LOGIN_ERROR_MESSAGE)
     } finally {
