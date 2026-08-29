@@ -4,10 +4,14 @@ import type { CurrentUser, LoginCredentials } from '@/types/auth'
 
 export type AuthStatus = 'loading' | 'authenticated' | 'anonymous' | 'error'
 
+export type SignInResult = {
+  needsCompanyInformation: boolean
+}
+
 export type AuthContextValue = {
   status: AuthStatus
   user: CurrentUser | null
-  signIn: (credentials: LoginCredentials) => Promise<void>
+  signIn: (credentials: LoginCredentials) => Promise<SignInResult>
   signOut: () => void
 }
 

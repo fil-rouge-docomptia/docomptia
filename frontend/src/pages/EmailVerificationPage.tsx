@@ -71,7 +71,7 @@ export default function EmailVerificationPage() {
       if (routeState?.credentials) {
         await signIn(routeState.credentials)
         clearPendingRegistrationEmail()
-        navigate('/dashboard', { replace: true })
+        navigate('/onboarding/company', { replace: true })
         return
       }
 
