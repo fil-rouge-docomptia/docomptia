@@ -199,10 +199,7 @@ class SecurityConfigIntegrationTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound());
 
-        mockMvc.perform(post("/api/v1/invoices/999999/validate")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        assertInvoiceValidationRoutesAreForbidden(token);
     }
 
     @Test
@@ -225,36 +222,21 @@ class SecurityConfigIntegrationTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound());
 
-        mockMvc.perform(patch("/api/v1/invoices/999999")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"invoiceNumber\":\"INV-001\"}")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        assertInvoiceProcessingRoutesAreForbidden(token);
     }
 
     @Test
     void administratorCannotMakeInvoiceValidationDecisions() throws Exception {
         String token = loginAndGetToken();
 
-        mockMvc.perform(post("/api/v1/invoices/999999/validate")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        assertInvoiceValidationRoutesAreForbidden(token);
+    }
 
-        mockMvc.perform(post("/api/v1/invoices/999999/request-correction")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"reason\":\"The amount must be checked\"}")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
-
-        mockMvc.perform(post("/api/v1/invoices/999999/reject")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"reason\":\"The invoice is invalid\"}")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    @Test
+    void accountingManagerCannotUpdateSuppliers() throws Exception {
+        assertForbidden(patch("/api/v1/suppliers/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"), tokenFor("manager-security@facturation-demo.fr"));
     }
 
     @Test
@@ -360,6 +342,24 @@ class SecurityConfigIntegrationTest {
         assertForbidden(patch("/api/v1/users/1").contentType(MediaType.APPLICATION_JSON).content("{}"), token);
         assertForbidden(patch("/api/v1/users/1/status").contentType(MediaType.APPLICATION_JSON).content("{}"), token);
         assertForbidden(patch("/api/v1/users/1/role").contentType(MediaType.APPLICATION_JSON).content("{}"), token);
+    }
+
+    private void assertInvoiceProcessingRoutesAreForbidden(String token) throws Exception {
+        assertForbidden(post("/api/v1/invoices/upload"), token);
+        assertForbidden(post("/api/v1/invoices/999999/ocr/retry"), token);
+        assertForbidden(post("/api/v1/invoices/999999/submit-for-validation"), token);
+        assertForbidden(post("/api/v1/invoices/999999/duplicate-alerts/999999/decision")
+                .contentType(MediaType.APPLICATION_JSON).content("{}"), token);
+        assertForbidden(patch("/api/v1/invoices/999999")
+                .contentType(MediaType.APPLICATION_JSON).content("{}"), token);
+    }
+
+    private void assertInvoiceValidationRoutesAreForbidden(String token) throws Exception {
+        assertForbidden(post("/api/v1/invoices/999999/validate"), token);
+        assertForbidden(post("/api/v1/invoices/999999/request-correction")
+                .contentType(MediaType.APPLICATION_JSON).content("{}"), token);
+        assertForbidden(post("/api/v1/invoices/999999/reject")
+                .contentType(MediaType.APPLICATION_JSON).content("{}"), token);
     }
 
     private void assertForbidden(
