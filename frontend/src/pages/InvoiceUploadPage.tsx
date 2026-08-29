@@ -11,7 +11,6 @@ const acceptedMimeTypes = ['application/pdf', 'image/png', 'image/jpeg']
 
 export default function InvoiceUploadPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [supplierId, setSupplierId] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [uploadResponse, setUploadResponse] = useState<InvoiceUploadResponse | null>(null)
@@ -46,7 +45,7 @@ export default function InvoiceUploadPage() {
     setErrorMessage('')
 
     try {
-      const data = await uploadInvoice(selectedFile, supplierId)
+      const data = await uploadInvoice(selectedFile)
       setUploadResponse(data)
     } catch (error) {
       setUploadResponse(null)
@@ -67,8 +66,6 @@ export default function InvoiceUploadPage() {
           onFileChange={handleFileChange}
           onSubmit={handleSubmit}
           selectedFile={selectedFile}
-          supplierId={supplierId}
-          onSupplierIdChange={setSupplierId}
         />
 
         <ResultPanel uploadResponse={uploadResponse} />
