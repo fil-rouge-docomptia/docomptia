@@ -109,7 +109,7 @@ par defaut.
 | `MANAGE_ORGANIZATION` | Modifier les informations legales de l'organisation | Oui | Non | Non |
 | `VIEW_INVOICES` | Rechercher, consulter, telecharger une facture et son historique | Oui | Oui | Oui |
 | `PROCESS_INVOICES` | Deposer, corriger, relancer l'OCR, soumettre et traiter un doublon | Oui | Oui | Non |
-| `VALIDATE_INVOICES` | Valider, refuser ou demander une correction | Oui | Non | Oui |
+| `VALIDATE_INVOICES` | Valider, refuser ou demander une correction | Non | Non | Oui |
 | `MANAGE_ACCOUNTING_ENTRIES` | Generer une ecriture et corriger ses lignes | Oui | Oui | Oui |
 | `VIEW_SUPPLIERS` | Lister et consulter les fournisseurs | Oui | Oui | Oui |
 | `MANAGE_SUPPLIERS` | Modifier un fournisseur | Oui | Oui | Non |
