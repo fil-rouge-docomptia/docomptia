@@ -104,6 +104,7 @@ par defaut.
 | Permission | Actions concernees | `ADMIN` | `OPERATEUR_COMPTABLE` | `RESPONSABLE_COMPTABLE` |
 | --- | --- | --- | --- | --- |
 | `VIEW_OWN_PROFILE` | Consulter son profil | Oui | Oui | Oui |
+| `VIEW_ORGANIZATION` | Consulter l'organisation courante | Oui | Oui | Oui |
 | `VIEW_INVOICES` | Rechercher, consulter, telecharger une facture et son historique | Oui | Oui | Oui |
 | `PROCESS_INVOICES` | Deposer, corriger, relancer l'OCR, soumettre et traiter un doublon | Oui | Oui | Non |
 | `VALIDATE_INVOICES` | Valider, refuser ou demander une correction | Oui | Non | Oui |
@@ -113,6 +114,15 @@ par defaut.
 | `VIEW_ACCOUNTING_CONFIGURATION` | Consulter le plan et les regles comptables | Oui | Oui | Oui |
 | `MANAGE_ACCOUNTING_CONFIGURATION` | Creer, modifier ou desactiver un compte et modifier une regle | Oui | Non | Non |
 | `MANAGE_USERS` | Inviter ou modifier un utilisateur dans l'organisation | Oui | Non | Non |
+
+## Endpoint Organisation MVP
+
+| Methode | Endpoint | Role |
+| --- | --- | --- |
+| `GET` | `/api/v1/organizations/current` | Retourne les informations legales et de contact de l'organisation de l'utilisateur connecte |
+
+La route ne prend aucun identifiant d'organisation afin d'empecher la consultation d'une autre
+organisation.
 
 ## Endpoints Fournisseurs MVP
 
