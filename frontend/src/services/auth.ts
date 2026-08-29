@@ -1,6 +1,12 @@
 import { apiBaseUrl } from '@/lib/env'
-import type { CurrentUser, LoginCredentials, LoginResponse } from '@/types/auth'
-import { authenticatedFetch } from '@/services/api'
+import type {
+  CurrentUser,
+  LoginCredentials,
+  LoginResponse,
+  RegistrationDetails,
+  RegistrationResponse,
+} from '@/types/auth'
+import { authenticatedFetch, createApiError } from '@/services/api'
 
 export async function login(credentials: LoginCredentials): Promise<LoginResponse> {
   const response = await fetch(`${apiBaseUrl}/v1/auth/login`, {
@@ -16,6 +22,22 @@ export async function login(credentials: LoginCredentials): Promise<LoginRespons
   }
 
   return (await response.json()) as LoginResponse
+}
+
+export async function register(details: RegistrationDetails): Promise<RegistrationResponse> {
+  const response = await fetch(`${apiBaseUrl}/v1/auth/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(details),
+  })
+
+  if (!response.ok) {
+    throw await createApiError(response)
+  }
+
+  return (await response.json()) as RegistrationResponse
 }
 
 export async function getCurrentUser(): Promise<CurrentUser> {
