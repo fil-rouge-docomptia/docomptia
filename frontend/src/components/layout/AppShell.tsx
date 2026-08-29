@@ -6,9 +6,30 @@ import { Outlet } from 'react-router-dom'
 import { AppSidebar, type ShellIdentity } from '@/components/layout/AppSidebar'
 import { Button } from '@/components/ui/button'
 import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
+import { useAuth } from '@/hooks/use-auth'
+import type { CurrentUser } from '@/types/auth'
 
-type AppShellProps = {
-  identity?: ShellIdentity
+function getInitials(value: string) {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+}
+
+function toShellIdentity(user: CurrentUser): ShellIdentity {
+  const name = `${user.firstName} ${user.lastName}`.trim() || user.email
+  const organization = user.organization.name || user.organization.legalName
+
+  return {
+    email: user.email,
+    initials: getInitials(name),
+    name,
+    organization,
+    organizationInitials: getInitials(organization),
+  }
 }
 
 function GlobalHeader() {
@@ -72,8 +93,10 @@ function GlobalHeader() {
   )
 }
 
-export function AppShell({ identity }: AppShellProps) {
+export function AppShell() {
+  const { user } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1280)
+  const identity = user ? toShellIdentity(user) : undefined
 
   useEffect(() => {
     const desktopQuery = window.matchMedia('(min-width: 1280px)')
