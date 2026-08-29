@@ -8,6 +8,7 @@ import EmailVerificationPage from '@/pages/EmailVerificationPage'
 import LoginRoutePage from '@/pages/LoginRoutePage'
 import ModulePlaceholderPage from '@/pages/ModulePlaceholderPage'
 import NotFoundPage from '@/pages/NotFoundPage'
+import OrganizationOnboardingPage from '@/pages/OrganizationOnboardingPage'
 import RegisterPage from '@/pages/RegisterPage'
 
 export const publicRoutes = [
@@ -147,6 +148,10 @@ export const router = createBrowserRouter([
   {
     element: <ProtectedRoute />,
     children: [
+      {
+        path: '/onboarding/company',
+        element: <OrganizationOnboardingPage />,
+      },
       {
         path: '/',
         element: <AppShell />,
