@@ -67,6 +67,14 @@ PostgreSQL:    localhost:5432
 
 ## Staging
 
+Preparer les variables:
+
+```bash
+cp env/.env.staging.example env/.env.staging
+```
+
+Remplacer les secrets et le domaine d'exemple avant le demarrage.
+
 Commande:
 
 ```bash
@@ -102,6 +110,8 @@ Modifier toutes les valeurs sensibles:
 ```text
 POSTGRES_PASSWORD
 MINIO_ROOT_PASSWORD
+APP_JWT_SECRET
+APP_CORS_ALLOWED_ORIGINS
 HTTP_PORT
 ```
 

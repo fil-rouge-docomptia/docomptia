@@ -103,19 +103,22 @@ Les variables sont regroupees dans:
 
 ```text
 env/.env.dev
-env/.env.staging
+env/.env.staging.example
 env/.env.prod.example
 ```
 
-Pour la production:
+Pour le staging ou la production:
 
 ```bash
+cp env/.env.staging.example env/.env.staging
 cp env/.env.prod.example env/.env.prod
 ```
 
-Puis remplacer toutes les valeurs `change-me` avant de lancer:
+Puis remplacer toutes les valeurs `change-me` et les domaines d'exemple avant
+de lancer l'environnement concerne:
 
 ```bash
+make staging
 make prod
 ```
 
