@@ -196,6 +196,9 @@ y compris avec une casse differente. Le compte invite reste initialement inactif
 desactive ne peut ni se connecter ni reutiliser un JWT existant sur une route securisee.
 La modification normalise egalement l'email en minuscules, preserve son unicite et retourne
 `404` lorsqu'un utilisateur appartient a une autre organisation.
+La desactivation ou le changement de role du dernier administrateur actif est refuse avec un
+conflit `LAST_ACTIVE_ADMINISTRATOR`; l'operation reste autorisee si un autre administrateur actif
+existe dans l'organisation.
 
 ## Endpoint D'Inscription MVP
 
