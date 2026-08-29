@@ -11,6 +11,7 @@ import org.facturation.backend.model.RoleCode;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.OrganizationRepository;
 import org.facturation.backend.repository.UserRepository;
+import org.facturation.backend.service.FrenchLegalIdentifierValidator;
 import org.facturation.backend.service.RegistrationService;
 import org.facturation.backend.service.RoleService;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -26,23 +27,24 @@ import java.util.regex.Pattern;
 public class RegistrationServiceImpl implements RegistrationService {
 
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
-    private static final Pattern SIRET_PATTERN = Pattern.compile("\\d{14}");
-
     private final OrganizationRepository organizationRepository;
     private final UserRepository userRepository;
     private final RoleService roleService;
     private final PasswordEncoder passwordEncoder;
+    private final FrenchLegalIdentifierValidator legalIdentifierValidator;
 
     public RegistrationServiceImpl(
             OrganizationRepository organizationRepository,
             UserRepository userRepository,
             RoleService roleService,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            FrenchLegalIdentifierValidator legalIdentifierValidator
     ) {
         this.organizationRepository = organizationRepository;
         this.userRepository = userRepository;
         this.roleService = roleService;
         this.passwordEncoder = passwordEncoder;
+        this.legalIdentifierValidator = legalIdentifierValidator;
     }
 
     @Override
@@ -60,8 +62,8 @@ public class RegistrationServiceImpl implements RegistrationService {
         String email = normalizeEmail(request.getEmail());
         String password = requireValue(request.getPassword(), "password");
 
-        if (!SIRET_PATTERN.matcher(siret).matches()) {
-            throw new InvalidRegistrationException("siret must contain exactly 14 digits");
+        if (!legalIdentifierValidator.isValidSiret(siret)) {
+            throw new InvalidRegistrationException("siret must be a valid French SIRET");
         }
         if (userRepository.existsByEmailIgnoreCase(email)) {
             throw new UserEmailConflictException();

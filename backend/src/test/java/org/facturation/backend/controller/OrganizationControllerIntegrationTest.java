@@ -56,7 +56,7 @@ class OrganizationControllerIntegrationTest {
                 .andExpect(jsonPath("$.organizationId").value(1))
                 .andExpect(jsonPath("$.name").value("Facturation Demo"))
                 .andExpect(jsonPath("$.legalName").value("Facturation Demo SARL"))
-                .andExpect(jsonPath("$.siret").value("12345678901234"))
+                .andExpect(jsonPath("$.siret").value("55210055400013"))
                 .andExpect(jsonPath("$.email").value("contact@facturation-demo.fr"))
                 .andExpect(jsonPath("$.phone").value("0102030405"))
                 .andExpect(jsonPath("$.address").value("10 rue de Paris, 75001 Paris"));
@@ -72,7 +72,7 @@ class OrganizationControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.organizationId").value(user.getOrganization().getOrganizationId()))
                 .andExpect(jsonPath("$.name").value("Another organization"))
-                .andExpect(jsonPath("$.siret").value("73282932000077"));
+                .andExpect(jsonPath("$.siret").value("38012986600014"));
     }
 
     @Test
@@ -159,7 +159,7 @@ class OrganizationControllerIntegrationTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("ORGANIZATION_VALIDATION_ERROR"))
-                .andExpect(jsonPath("$.message").value("siret must contain exactly 14 digits"));
+                .andExpect(jsonPath("$.message").value("siret must be a valid French SIRET"));
 
         Organization organization = organizationRepository.findById(1L).orElseThrow();
         List<AuditLog> auditLogs = auditLogRepository
@@ -171,7 +171,7 @@ class OrganizationControllerIntegrationTest {
                 );
 
         org.assertj.core.api.Assertions.assertThat(organization.getName()).isEqualTo("Facturation Demo");
-        org.assertj.core.api.Assertions.assertThat(organization.getSiret()).isEqualTo("12345678901234");
+        org.assertj.core.api.Assertions.assertThat(organization.getSiret()).isEqualTo("55210055400013");
         org.assertj.core.api.Assertions.assertThat(auditLogs).isEmpty();
     }
 
@@ -183,13 +183,13 @@ class OrganizationControllerIntegrationTest {
                         .header("Authorization", "Bearer " + loginAndGetToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"siret":"73282932000077"}
+                                {"siret":"38012986600014"}
                                 """))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("ORGANIZATION_LEGAL_IDENTIFIER_CONFLICT"));
 
         org.assertj.core.api.Assertions.assertThat(organizationRepository.findById(1L).orElseThrow().getSiret())
-                .isEqualTo("12345678901234");
+                .isEqualTo("55210055400013");
     }
 
     @Test
@@ -223,7 +223,7 @@ class OrganizationControllerIntegrationTest {
         Organization organization = new Organization();
         organization.setName("Another organization");
         organization.setLegalName("Another organization SAS");
-        organization.setSiret("73282932000077");
+        organization.setSiret("38012986600014");
         organization.setEmail("contact@another-organization.fr");
         organization.setCreatedAt(now);
         organization.setUpdatedAt(now);

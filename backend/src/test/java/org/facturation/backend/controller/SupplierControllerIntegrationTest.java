@@ -107,8 +107,8 @@ class SupplierControllerIntegrationTest {
                                 {
                                   "name": "Orange Business",
                                   "legalName": "Orange SA Updated",
-                                  "siret": "12345678901234",
-                                  "vatNumber": "frab123456789",
+                                  "siret": "73282932000074",
+                                  "vatNumber": "frab732829320",
                                   "email": "updated@orange.com",
                                   "phone": "0123456789",
                                   "address": "2 avenue de la Republique, Paris"
@@ -118,8 +118,8 @@ class SupplierControllerIntegrationTest {
                 .andExpect(jsonPath("$.supplierId").value(1))
                 .andExpect(jsonPath("$.name").value("Orange Business"))
                 .andExpect(jsonPath("$.legalName").value("Orange SA Updated"))
-                .andExpect(jsonPath("$.siret").value("12345678901234"))
-                .andExpect(jsonPath("$.vatNumber").value("FRAB123456789"))
+                .andExpect(jsonPath("$.siret").value("73282932000074"))
+                .andExpect(jsonPath("$.vatNumber").value("FRAB732829320"))
                 .andExpect(jsonPath("$.email").value("updated@orange.com"))
                 .andExpect(jsonPath("$.phone").value("0123456789"))
                 .andExpect(jsonPath("$.address").value("2 avenue de la Republique, Paris"));
@@ -134,18 +134,46 @@ class SupplierControllerIntegrationTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("SUPPLIER_VALIDATION_ERROR"))
-                .andExpect(jsonPath("$.message").value("siret must contain exactly 14 digits"));
+                .andExpect(jsonPath("$.message").value("siret must be a valid French SIRET"));
+
+    }
+
+    @Test
+    void rejectsVatNumberWithInvalidKey() throws Exception {
+        mockMvc.perform(patch("/api/v1/suppliers/{id}", 1L)
+                        .contentType("application/json")
+                        .content("""
+                                {"vatNumber": "FR88380129866"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("SUPPLIER_VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("vatNumber must be a valid French VAT number"));
+
+    }
+
+    @Test
+    void rejectsLegalIdentifiersThatReferToDifferentCompanies() throws Exception {
+        mockMvc.perform(patch("/api/v1/suppliers/{id}", 1L)
+                        .contentType("application/json")
+                        .content("""
+                                {"siret": "73282932000074"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("SUPPLIER_VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value(
+                        "siret must refer to the same company as the other legal identifier"
+                ));
     }
 
     @Test
     void rejectsDuplicateLegalIdentifierWithinCurrentOrganization() throws Exception {
         Organization currentOrganization = organizationRepository.findById(1L).orElseThrow();
-        createSupplier(currentOrganization, "Duplicate identifier supplier", "12345678901234");
+        createSupplier(currentOrganization, "Duplicate identifier supplier", "73282932000074");
 
         mockMvc.perform(patch("/api/v1/suppliers/{id}", 1L)
                         .contentType("application/json")
                         .content("""
-                                {"siret": "12345678901234"}
+                                {"siret": "73282932000074", "vatNumber": ""}
                                 """))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("SUPPLIER_LEGAL_IDENTIFIER_CONFLICT"))
@@ -157,15 +185,15 @@ class SupplierControllerIntegrationTest {
     @Test
     void allowsSameLegalIdentifierInAnotherOrganization() throws Exception {
         Organization otherOrganization = createOrganization();
-        createSupplier(otherOrganization, "Other organization supplier", "12345678901234");
+        createSupplier(otherOrganization, "Other organization supplier", "73282932000074");
 
         mockMvc.perform(patch("/api/v1/suppliers/{id}", 1L)
                         .contentType("application/json")
                         .content("""
-                                {"siret": "12345678901234"}
+                                {"siret": "73282932000074", "vatNumber": ""}
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.siret").value("12345678901234"));
+                .andExpect(jsonPath("$.siret").value("73282932000074"));
     }
 
     @Test

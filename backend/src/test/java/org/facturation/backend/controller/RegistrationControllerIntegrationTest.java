@@ -67,7 +67,7 @@ class RegistrationControllerIntegrationTest {
                         .content(registrationPayload(
                                 "Duplicate email organization",
                                 "Duplicate email organization SAS",
-                                "73282932000075",
+                                "73282932000074",
                                 "ADMIN@FACTURATION-DEMO.FR"
                         )))
                 .andExpect(status().isConflict())
@@ -85,7 +85,7 @@ class RegistrationControllerIntegrationTest {
                         .content(registrationPayload(
                                 "Duplicate SIRET organization",
                                 "Duplicate SIRET organization SAS",
-                                "12345678901234",
+                                "55210055400013",
                                 "unique-registration@example.com"
                         )))
                 .andExpect(status().isConflict())
@@ -106,7 +106,23 @@ class RegistrationControllerIntegrationTest {
                         )))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("REGISTRATION_VALIDATION_ERROR"))
-                .andExpect(jsonPath("$.message").value("siret must contain exactly 14 digits"));
+                .andExpect(jsonPath("$.message").value("siret must be a valid French SIRET"));
+
+    }
+
+    @Test
+    void rejectsSiretWithInvalidChecksum() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(registrationPayload(
+                                "Invalid organization",
+                                "Invalid organization SAS",
+                                "73282932000075",
+                                "invalid-siret-checksum@example.com"
+                        )))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("REGISTRATION_VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("siret must be a valid French SIRET"));
     }
 
     private String registrationPayload(

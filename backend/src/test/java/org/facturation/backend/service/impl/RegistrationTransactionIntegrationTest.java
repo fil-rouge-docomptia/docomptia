@@ -38,14 +38,14 @@ class RegistrationTransactionIntegrationTest {
                 .isInstanceOf(UserEmailConflictException.class);
 
         assertThat(organizationRepository.count()).isEqualTo(organizationCount);
-        assertThat(organizationRepository.existsBySiret("73282932000076")).isFalse();
+        assertThat(organizationRepository.existsBySiret("44306184100047")).isFalse();
     }
 
     private RegistrationRequest registrationRequest() {
         RegistrationRequest request = new RegistrationRequest();
         request.setOrganizationName("Rollback organization");
         request.setLegalName("Rollback organization SAS");
-        request.setSiret("73282932000076");
+        request.setSiret("44306184100047");
         request.setFirstName("Rollback");
         request.setLastName("Admin");
         request.setEmail("rollback@example.com");

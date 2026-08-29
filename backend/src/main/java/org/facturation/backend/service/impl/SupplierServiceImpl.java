@@ -14,6 +14,7 @@ import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.Supplier;
 import org.facturation.backend.repository.SupplierRepository;
 import org.facturation.backend.service.CurrentUserService;
+import org.facturation.backend.service.FrenchLegalIdentifierValidator;
 import org.facturation.backend.service.SupplierService;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -27,27 +28,26 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.regex.Pattern;
 
 @Service
 public class SupplierServiceImpl implements SupplierService {
 
     private static final String ORGANIZATION_SIRET_UNIQUE_CONSTRAINT = "uk_suppliers_organization_siret";
-    private static final Pattern SIRET_PATTERN = Pattern.compile("\\d{14}");
-    private static final Pattern FRENCH_VAT_NUMBER_PATTERN = Pattern.compile("FR[A-Z0-9]{2}\\d{9}");
-
     private final SupplierRepository supplierRepository;
     private final SupplierResponseMapper supplierResponseMapper;
     private final CurrentUserService currentUserService;
+    private final FrenchLegalIdentifierValidator legalIdentifierValidator;
 
     public SupplierServiceImpl(
             SupplierRepository supplierRepository,
             SupplierResponseMapper supplierResponseMapper,
-            CurrentUserService currentUserService
+            CurrentUserService currentUserService,
+            FrenchLegalIdentifierValidator legalIdentifierValidator
     ) {
         this.supplierRepository = supplierRepository;
         this.supplierResponseMapper = supplierResponseMapper;
         this.currentUserService = currentUserService;
+        this.legalIdentifierValidator = legalIdentifierValidator;
     }
 
     @Override
@@ -62,6 +62,7 @@ public class SupplierServiceImpl implements SupplierService {
 
     @Override
     public Supplier save(Supplier supplier) {
+        validateLegalIdentifierValues(supplier.getSiret(), supplier.getVatNumber(), "vatNumber");
         return saveWithSiretConflictTranslation(supplier);
     }
 
@@ -144,8 +145,10 @@ public class SupplierServiceImpl implements SupplierService {
             return findRequiredByIdForOrganization(supplierId, organization);
         }
 
-        Optional<String> siret = extractOptionalNormalizedValue(ocrAnalysis, "siret");
-        Optional<String> vatNumber = extractOptionalNormalizedValue(ocrAnalysis, "vatNumber");
+        Optional<String> siret = extractOptionalNormalizedValue(ocrAnalysis, "siret").map(this::normalizeSiret);
+        Optional<String> vatNumber = extractOptionalNormalizedValue(ocrAnalysis, "vatNumber")
+                .map(this::normalizeVatNumber);
+        validateLegalIdentifierValues(siret.orElse(null), vatNumber.orElse(null), "vatNumber");
         Optional<Supplier> supplierByLegalIdentifier = findByLegalIdentifiers(
                 organization,
                 siret.orElse(null),
@@ -202,24 +205,23 @@ public class SupplierServiceImpl implements SupplierService {
     }
 
     private Supplier updateSupplierFromOcrIfNeeded(Supplier supplier, OcrAnalysisResponse ocrAnalysis) {
-        boolean updated = false;
-
-        Optional<String> siret = extractOptionalNormalizedValue(ocrAnalysis, "siret");
-        if (isBlank(supplier.getSiret()) && siret.isPresent()) {
-            supplier.setSiret(siret.get());
-            updated = true;
-        }
-
-        Optional<String> vatNumber = extractOptionalNormalizedValue(ocrAnalysis, "vatNumber");
-        if (isBlank(supplier.getVatNumber()) && vatNumber.isPresent()) {
-            supplier.setVatNumber(vatNumber.get());
-            updated = true;
-        }
-
-        if (!updated) {
+        Optional<String> extractedSiret = extractOptionalNormalizedValue(ocrAnalysis, "siret")
+                .map(this::normalizeSiret);
+        Optional<String> extractedVatNumber = extractOptionalNormalizedValue(ocrAnalysis, "vatNumber")
+                .map(this::normalizeVatNumber);
+        boolean updateSiret = isBlank(supplier.getSiret()) && extractedSiret.isPresent();
+        boolean updateVatNumber = isBlank(supplier.getVatNumber()) && extractedVatNumber.isPresent();
+        if (!updateSiret && !updateVatNumber) {
             return supplier;
         }
 
+        String siret = updateSiret ? extractedSiret.get() : supplier.getSiret();
+        String vatNumber = updateVatNumber ? extractedVatNumber.get() : supplier.getVatNumber();
+        String inconsistentField = extractedVatNumber.isPresent() ? "vatNumber" : "siret";
+        validateLegalIdentifierValues(siret, vatNumber, inconsistentField);
+
+        supplier.setSiret(siret);
+        supplier.setVatNumber(vatNumber);
         supplier.setUpdatedAt(LocalDateTime.now());
         return saveWithSiretConflictTranslation(supplier);
     }
@@ -358,12 +360,17 @@ public class SupplierServiceImpl implements SupplierService {
                 )) {
             throw new SupplierLegalIdentifierConflictException("vatNumber");
         }
+
+        String resultingSiret = request.getSiret() == null ? supplier.getSiret() : siret;
+        String resultingVatNumber = request.getVatNumber() == null ? supplier.getVatNumber() : vatNumber;
+        String inconsistentField = request.getVatNumber() == null ? "siret" : "vatNumber";
+        validateLegalIdentifierValues(resultingSiret, resultingVatNumber, inconsistentField);
     }
 
     private String normalizeSiret(String value) {
         String siret = toNullableValue(value);
-        if (siret != null && !SIRET_PATTERN.matcher(siret).matches()) {
-            throw new InvalidSupplierException("siret must contain exactly 14 digits");
+        if (siret != null && !legalIdentifierValidator.isValidSiret(siret)) {
+            throw new InvalidSupplierException("siret must be a valid French SIRET");
         }
         return siret;
     }
@@ -374,10 +381,25 @@ public class SupplierServiceImpl implements SupplierService {
             return null;
         }
         vatNumber = vatNumber.toUpperCase(Locale.ROOT);
-        if (!FRENCH_VAT_NUMBER_PATTERN.matcher(vatNumber).matches()) {
+        if (!legalIdentifierValidator.isValidVatNumber(vatNumber)) {
             throw new InvalidSupplierException("vatNumber must be a valid French VAT number");
         }
         return vatNumber;
+    }
+
+    private void validateLegalIdentifierValues(String siret, String vatNumber, String inconsistentField) {
+        if (siret != null) {
+            normalizeSiret(siret);
+        }
+        if (vatNumber != null) {
+            normalizeVatNumber(vatNumber);
+        }
+        if (siret != null && vatNumber != null
+                && !legalIdentifierValidator.referToSameCompany(siret, vatNumber)) {
+            throw new InvalidSupplierException(
+                    inconsistentField + " must refer to the same company as the other legal identifier"
+            );
+        }
     }
 
     private String toNullableValue(String value) {
