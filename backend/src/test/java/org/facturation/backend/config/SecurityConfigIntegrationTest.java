@@ -11,6 +11,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.time.Duration;
 
@@ -301,6 +302,71 @@ class SecurityConfigIntegrationTest {
                         .header("Authorization", "Bearer " + tokenFor(
                                 "operator-security@facturation-demo.fr"
                         )))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void administrationRoutesAreForbiddenToAccountingOperators() throws Exception {
+        assertAdministrationRoutesAreForbiddenTo("operator-security@facturation-demo.fr");
+    }
+
+    @Test
+    void administrationRoutesAreForbiddenToAccountingManagers() throws Exception {
+        assertAdministrationRoutesAreForbiddenTo("manager-security@facturation-demo.fr");
+    }
+
+    @Test
+    void nonAdministrativeReadsRemainAvailableToBusinessRoles() throws Exception {
+        for (String email : new String[]{
+                "operator-security@facturation-demo.fr",
+                "manager-security@facturation-demo.fr"
+        }) {
+            String token = tokenFor(email);
+
+            mockMvc.perform(get("/api/v1/organizations/current")
+                            .header("Authorization", "Bearer " + token))
+                    .andExpect(status().isOk());
+            mockMvc.perform(get("/api/v1/organizations/current/validation-preferences")
+                            .header("Authorization", "Bearer " + token))
+                    .andExpect(status().isOk());
+            mockMvc.perform(get("/api/v1/chart-of-accounts")
+                            .header("Authorization", "Bearer " + token))
+                    .andExpect(status().isOk());
+            mockMvc.perform(get("/api/v1/accounting-rules")
+                            .header("Authorization", "Bearer " + token))
+                    .andExpect(status().isOk());
+        }
+    }
+
+    private void assertAdministrationRoutesAreForbiddenTo(String email) throws Exception {
+        String token = tokenFor(email);
+
+        assertForbidden(get("/api/v1/organizations/current/onboarding"), token);
+        assertForbidden(patch("/api/v1/organizations/current")
+                .contentType(MediaType.APPLICATION_JSON).content("{}"), token);
+        assertForbidden(patch("/api/v1/organizations/current/validation-preferences")
+                .contentType(MediaType.APPLICATION_JSON).content("{}"), token);
+        assertForbidden(post("/api/v1/chart-of-accounts")
+                .contentType(MediaType.APPLICATION_JSON).content("{}"), token);
+        assertForbidden(patch("/api/v1/chart-of-accounts/1")
+                .contentType(MediaType.APPLICATION_JSON).content("{}"), token);
+        assertForbidden(post("/api/v1/chart-of-accounts/1/deactivate"), token);
+        assertForbidden(patch("/api/v1/accounting-rules/1")
+                .contentType(MediaType.APPLICATION_JSON).content("{}"), token);
+        assertForbidden(get("/api/v1/users"), token);
+        assertForbidden(get("/api/v1/roles"), token);
+        assertForbidden(post("/api/v1/users").contentType(MediaType.APPLICATION_JSON).content("{}"), token);
+        assertForbidden(patch("/api/v1/users/1").contentType(MediaType.APPLICATION_JSON).content("{}"), token);
+        assertForbidden(patch("/api/v1/users/1/status").contentType(MediaType.APPLICATION_JSON).content("{}"), token);
+        assertForbidden(patch("/api/v1/users/1/role").contentType(MediaType.APPLICATION_JSON).content("{}"), token);
+    }
+
+    private void assertForbidden(
+            MockHttpServletRequestBuilder request,
+            String token
+    ) throws Exception {
+        mockMvc.perform(request.header("Authorization", "Bearer " + token))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
