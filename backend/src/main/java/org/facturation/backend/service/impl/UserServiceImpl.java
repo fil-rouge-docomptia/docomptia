@@ -1,9 +1,11 @@
 package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.request.UserCreateRequest;
+import org.facturation.backend.dto.request.UserUpdateRequest;
 import org.facturation.backend.dto.response.UserListItemResponse;
 import org.facturation.backend.exception.InvalidUserException;
 import org.facturation.backend.exception.UserEmailConflictException;
+import org.facturation.backend.exception.UserNotFoundException;
 import org.facturation.backend.mapper.UserResponseMapper;
 import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.Role;
@@ -23,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -95,10 +98,7 @@ public class UserServiceImpl implements UserService {
             throw new InvalidUserException("Request body is required");
         }
 
-        String email = requireValue(request.getEmail(), "email").toLowerCase(Locale.ROOT);
-        if (!EMAIL_PATTERN.matcher(email).matches()) {
-            throw new InvalidUserException("email must be valid");
-        }
+        String email = normalizeEmail(request.getEmail());
         if (userRepository.existsByEmailIgnoreCase(email)) {
             throw new UserEmailConflictException();
         }
@@ -123,6 +123,53 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    @Override
+    @Transactional
+    public UserListItemResponse update(Long id, UserUpdateRequest request, Long organizationId) {
+        if (request == null) {
+            throw new InvalidUserException("Request body is required");
+        }
+
+        User user = userRepository.findByUserIdAndOrganizationOrganizationId(id, organizationId)
+                .orElseThrow(() -> new UserNotFoundException(id));
+
+        boolean changed = false;
+        if (request.getFirstName() != null) {
+            String firstName = requireValue(request.getFirstName(), "firstName");
+            if (!Objects.equals(user.getFirstName(), firstName)) {
+                user.setFirstName(firstName);
+                changed = true;
+            }
+        }
+        if (request.getLastName() != null) {
+            String lastName = requireValue(request.getLastName(), "lastName");
+            if (!Objects.equals(user.getLastName(), lastName)) {
+                user.setLastName(lastName);
+                changed = true;
+            }
+        }
+        if (request.getEmail() != null) {
+            String email = normalizeEmail(request.getEmail());
+            if (!Objects.equals(user.getEmail(), email)) {
+                if (userRepository.existsByEmailIgnoreCaseAndUserIdNot(email, id)) {
+                    throw new UserEmailConflictException();
+                }
+                user.setEmail(email);
+                changed = true;
+            }
+        }
+        if (!changed) {
+            throw new InvalidUserException("At least one changed field is required");
+        }
+
+        user.setUpdatedAt(LocalDateTime.now());
+        try {
+            return userResponseMapper.toListItemResponse(userRepository.saveAndFlush(user));
+        } catch (DataIntegrityViolationException exception) {
+            throw new UserEmailConflictException();
+        }
+    }
+
     private Role findAllowedRole(String requestedRoleCode) {
         String roleCode = requireValue(requestedRoleCode, "roleCode").toUpperCase(Locale.ROOT);
         RoleCode allowedRole;
@@ -139,6 +186,14 @@ public class UserServiceImpl implements UserService {
             throw new InvalidUserException(fieldName + " is required");
         }
         return requestedValue.trim();
+    }
+
+    private String normalizeEmail(String requestedEmail) {
+        String email = requireValue(requestedEmail, "email").toLowerCase(Locale.ROOT);
+        if (!EMAIL_PATTERN.matcher(email).matches()) {
+            throw new InvalidUserException("email must be valid");
+        }
+        return email;
     }
 
     private boolean isBcryptHash(String password) {

@@ -231,6 +231,18 @@ class SecurityConfigIntegrationTest {
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
+    @Test
+    void userUpdateRequiresAdminRole() throws Exception {
+        mockMvc.perform(patch("/api/v1/users/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"firstName\":\"Blocked\"}")
+                        .header("Authorization", "Bearer " + tokenFor(
+                                "operator-security@facturation-demo.fr"
+                        )))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
     private String loginAndGetToken() throws Exception {
         String response = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

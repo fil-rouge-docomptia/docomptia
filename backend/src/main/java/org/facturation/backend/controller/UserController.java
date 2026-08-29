@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.UserCreateRequest;
+import org.facturation.backend.dto.request.UserUpdateRequest;
 import org.facturation.backend.dto.response.UserListItemResponse;
 import org.facturation.backend.model.User;
 import org.facturation.backend.service.CurrentUserService;
@@ -16,6 +17,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -79,5 +82,25 @@ public class UserController {
         User currentUser = currentUserService.getCurrentUser();
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(userService.invite(request, currentUser.getOrganization()));
+    }
+
+    @PatchMapping("/{id}")
+    @Operation(summary = "Modifier les informations d'identite d'un utilisateur")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Utilisateur modifie"),
+            @ApiResponse(responseCode = "400", description = "Donnees invalides ou aucune modification effective"),
+            @ApiResponse(responseCode = "404", description = "Utilisateur introuvable dans l'organisation"),
+            @ApiResponse(responseCode = "409", description = "Adresse email deja utilisee")
+    })
+    public ResponseEntity<UserListItemResponse> updateUser(
+            @PathVariable Long id,
+            @RequestBody UserUpdateRequest request
+    ) {
+        User currentUser = currentUserService.getCurrentUser();
+        return ResponseEntity.ok(userService.update(
+                id,
+                request,
+                currentUser.getOrganization().getOrganizationId()
+        ));
     }
 }
