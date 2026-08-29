@@ -105,6 +105,7 @@ par defaut.
 | --- | --- | --- | --- | --- |
 | `VIEW_OWN_PROFILE` | Consulter son profil | Oui | Oui | Oui |
 | `VIEW_ORGANIZATION` | Consulter l'organisation courante | Oui | Oui | Oui |
+| `MANAGE_ORGANIZATION` | Modifier les informations legales de l'organisation | Oui | Non | Non |
 | `VIEW_INVOICES` | Rechercher, consulter, telecharger une facture et son historique | Oui | Oui | Oui |
 | `PROCESS_INVOICES` | Deposer, corriger, relancer l'OCR, soumettre et traiter un doublon | Oui | Oui | Non |
 | `VALIDATE_INVOICES` | Valider, refuser ou demander une correction | Oui | Non | Oui |
@@ -120,9 +121,13 @@ par defaut.
 | Methode | Endpoint | Role |
 | --- | --- | --- |
 | `GET` | `/api/v1/organizations/current` | Retourne les informations legales et de contact de l'organisation de l'utilisateur connecte |
+| `PATCH` | `/api/v1/organizations/current` | Modifie les informations legales et de contact de l'organisation de l'administrateur connecte |
 
 La route ne prend aucun identifiant d'organisation afin d'empecher la consultation d'une autre
-organisation.
+organisation. La modification accepte `name`, `legalName`, `siret`, `email`, `phone` et `address`,
+retourne `400` si une valeur est invalide ou inchangee et `409` si le SIRET est deja utilise par
+une autre organisation. Chaque champ modifie est journalise avec sa valeur avant/apres et
+l'administrateur responsable.
 
 ## Endpoints Fournisseurs MVP
 
