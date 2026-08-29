@@ -3,7 +3,7 @@ import { CircleAlert, LoaderCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 import { OnboardingLayout } from '@/components/onboarding/OnboardingLayout'
-import { OnboardingProgress } from '@/components/onboarding/OnboardingProgress'
+import { OnboardingStepHeader } from '@/components/onboarding/OnboardingStepHeader'
 import { OrganizationInformationForm } from '@/components/onboarding/OrganizationInformationForm'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -57,14 +57,7 @@ export default function OrganizationOnboardingPage() {
   return (
     <OnboardingLayout>
       <div className="flex flex-col gap-6">
-        <header className="flex flex-col gap-1">
-          <h1 className="text-xl font-semibold leading-7 tracking-[-0.25px]">
-            Company information
-          </h1>
-          <p className="text-xs leading-4 text-muted-foreground">Step 1 of 5 · Company</p>
-        </header>
-
-        <OnboardingProgress />
+        <OnboardingStepHeader currentStep={1} stepLabel="Company" title="Company information" />
 
         {isLoading ? (
           <div
