@@ -44,6 +44,7 @@ public class ApiExceptionHandler {
     private static final String REGISTRATION_VALIDATION_ERROR_CODE = "REGISTRATION_VALIDATION_ERROR";
     private static final String ORGANIZATION_LEGAL_IDENTIFIER_CONFLICT_CODE =
             "ORGANIZATION_LEGAL_IDENTIFIER_CONFLICT";
+    private static final String ORGANIZATION_VALIDATION_ERROR_CODE = "ORGANIZATION_VALIDATION_ERROR";
 
     private final OcrErrorMapper ocrErrorMapper;
 
@@ -90,6 +91,11 @@ public class ApiExceptionHandler {
                 ORGANIZATION_LEGAL_IDENTIFIER_CONFLICT_CODE,
                 exception.getMessage()
         );
+    }
+
+    @ExceptionHandler(InvalidOrganizationException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidOrganization(InvalidOrganizationException exception) {
+        return errorResponse(HttpStatus.BAD_REQUEST, ORGANIZATION_VALIDATION_ERROR_CODE, exception.getMessage());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

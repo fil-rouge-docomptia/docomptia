@@ -1,5 +1,6 @@
 package org.facturation.backend.service;
 
+import org.facturation.backend.dto.request.OrganizationUpdateRequest;
 import org.facturation.backend.dto.response.OrganizationResponse;
 import org.facturation.backend.model.Organization;
 
@@ -15,4 +16,6 @@ public interface OrganizationService {
     Organization save(Organization organization);
 
     OrganizationResponse findCurrentOrganization();
+
+    OrganizationResponse updateCurrentOrganization(OrganizationUpdateRequest request);
 }

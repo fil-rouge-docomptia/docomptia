@@ -1,32 +1,49 @@
 package org.facturation.backend.service.impl;
 
+import org.facturation.backend.dto.request.OrganizationUpdateRequest;
 import org.facturation.backend.dto.response.OrganizationResponse;
+import org.facturation.backend.exception.InvalidOrganizationException;
+import org.facturation.backend.exception.OrganizationLegalIdentifierConflictException;
 import org.facturation.backend.mapper.OrganizationResponseMapper;
+import org.facturation.backend.model.AuditLog;
 import org.facturation.backend.model.Organization;
+import org.facturation.backend.model.User;
 import org.facturation.backend.repository.OrganizationRepository;
+import org.facturation.backend.service.AuditLogService;
 import org.facturation.backend.service.CurrentUserService;
 import org.facturation.backend.service.OrganizationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 @Service
 public class OrganizationServiceImpl implements OrganizationService {
 
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
+    private static final Pattern SIRET_PATTERN = Pattern.compile("\\d{14}");
+
     private final OrganizationRepository organizationRepository;
     private final CurrentUserService currentUserService;
     private final OrganizationResponseMapper organizationResponseMapper;
+    private final AuditLogService auditLogService;
 
     public OrganizationServiceImpl(
             OrganizationRepository organizationRepository,
             CurrentUserService currentUserService,
-            OrganizationResponseMapper organizationResponseMapper
+            OrganizationResponseMapper organizationResponseMapper,
+            AuditLogService auditLogService
     ) {
         this.organizationRepository = organizationRepository;
         this.currentUserService = currentUserService;
         this.organizationResponseMapper = organizationResponseMapper;
+        this.auditLogService = auditLogService;
     }
 
     @Override
@@ -48,5 +65,182 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Transactional(readOnly = true)
     public OrganizationResponse findCurrentOrganization() {
         return organizationResponseMapper.toResponse(currentUserService.getCurrentUser().getOrganization());
+    }
+
+    @Override
+    @Transactional
+    public OrganizationResponse updateCurrentOrganization(OrganizationUpdateRequest request) {
+        if (request == null) {
+            throw new InvalidOrganizationException("Request body is required");
+        }
+
+        User user = currentUserService.getCurrentUser();
+        Organization organization = user.getOrganization();
+        NormalizedOrganizationUpdate update = normalize(request);
+        validateSiretAvailability(update.siret(), organization.getOrganizationId());
+
+        LocalDateTime now = LocalDateTime.now();
+        List<AuditLog> auditLogs = applyUpdates(organization, user, update, now);
+        if (auditLogs.isEmpty()) {
+            throw new InvalidOrganizationException("At least one changed field is required");
+        }
+
+        organization.setUpdatedAt(now);
+        Organization savedOrganization;
+        try {
+            savedOrganization = organizationRepository.saveAndFlush(organization);
+        } catch (org.springframework.dao.DataIntegrityViolationException exception) {
+            throw new OrganizationLegalIdentifierConflictException();
+        }
+        auditLogs.forEach(auditLogService::save);
+        return organizationResponseMapper.toResponse(savedOrganization);
+    }
+
+    private NormalizedOrganizationUpdate normalize(OrganizationUpdateRequest request) {
+        String name = normalizeRequired(request.getName(), "name");
+        String legalName = normalizeRequired(request.getLegalName(), "legalName");
+        String siret = normalizeSiret(request.getSiret());
+        String email = normalizeEmail(request.getEmail());
+        String phone = normalizeOptional(request.getPhone());
+        String address = normalizeOptional(request.getAddress());
+        return new NormalizedOrganizationUpdate(name, legalName, siret, email, phone, address);
+    }
+
+    private String normalizeRequired(String value, String fieldName) {
+        if (value == null) {
+            return null;
+        }
+        if (value.isBlank()) {
+            throw new InvalidOrganizationException(fieldName + " is required");
+        }
+        return value.trim();
+    }
+
+    private String normalizeSiret(String value) {
+        String siret = normalizeRequired(value, "siret");
+        if (siret != null && !SIRET_PATTERN.matcher(siret).matches()) {
+            throw new InvalidOrganizationException("siret must contain exactly 14 digits");
+        }
+        return siret;
+    }
+
+    private String normalizeEmail(String value) {
+        String email = normalizeRequired(value, "email");
+        if (email == null) {
+            return null;
+        }
+        email = email.toLowerCase(Locale.ROOT);
+        if (!EMAIL_PATTERN.matcher(email).matches()) {
+            throw new InvalidOrganizationException("email must be valid");
+        }
+        return email;
+    }
+
+    private String normalizeOptional(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalizedValue = value.trim();
+        return normalizedValue.isEmpty() ? "" : normalizedValue;
+    }
+
+    private void validateSiretAvailability(String siret, Long organizationId) {
+        if (siret != null && organizationRepository.existsBySiretAndOrganizationIdNot(siret, organizationId)) {
+            throw new OrganizationLegalIdentifierConflictException();
+        }
+    }
+
+    private List<AuditLog> applyUpdates(
+            Organization organization,
+            User user,
+            NormalizedOrganizationUpdate update,
+            LocalDateTime changedAt
+    ) {
+        List<AuditLog> auditLogs = new ArrayList<>();
+        applyValue(organization, user, "name", organization.getName(), update.name(), organization::setName,
+                changedAt, auditLogs);
+        applyValue(organization, user, "legalName", organization.getLegalName(), update.legalName(),
+                organization::setLegalName, changedAt, auditLogs);
+        applyValue(organization, user, "siret", organization.getSiret(), update.siret(), organization::setSiret,
+                changedAt, auditLogs);
+        applyValue(organization, user, "email", organization.getEmail(), update.email(), organization::setEmail,
+                changedAt, auditLogs);
+        applyOptionalValue(organization, user, "phone", organization.getPhone(), update.phone(),
+                organization::setPhone, changedAt, auditLogs);
+        applyOptionalValue(organization, user, "address", organization.getAddress(), update.address(),
+                organization::setAddress, changedAt, auditLogs);
+        return auditLogs;
+    }
+
+    private void applyOptionalValue(
+            Organization organization,
+            User user,
+            String fieldName,
+            String currentValue,
+            String requestedValue,
+            java.util.function.Consumer<String> setter,
+            LocalDateTime changedAt,
+            List<AuditLog> auditLogs
+    ) {
+        if (requestedValue == null) {
+            return;
+        }
+        String nullableValue = toNullable(requestedValue);
+        if (Objects.equals(currentValue, nullableValue)) {
+            return;
+        }
+        setter.accept(nullableValue);
+        auditLogs.add(createAuditLog(organization, user, fieldName, currentValue, nullableValue, changedAt));
+    }
+
+    private void applyValue(
+            Organization organization,
+            User user,
+            String fieldName,
+            String currentValue,
+            String requestedValue,
+            java.util.function.Consumer<String> setter,
+            LocalDateTime changedAt,
+            List<AuditLog> auditLogs
+    ) {
+        if (requestedValue == null || Objects.equals(currentValue, requestedValue)) {
+            return;
+        }
+        setter.accept(requestedValue);
+        auditLogs.add(createAuditLog(organization, user, fieldName, currentValue, requestedValue, changedAt));
+    }
+
+    private String toNullable(String value) {
+        return value != null && value.isEmpty() ? null : value;
+    }
+
+    private AuditLog createAuditLog(
+            Organization organization,
+            User user,
+            String fieldName,
+            String oldValue,
+            String newValue,
+            LocalDateTime changedAt
+    ) {
+        AuditLog auditLog = new AuditLog();
+        auditLog.setOrganization(organization);
+        auditLog.setUser(user);
+        auditLog.setEntityName(Organization.class.getSimpleName());
+        auditLog.setEntityId(organization.getOrganizationId());
+        auditLog.setAction("UPDATED");
+        auditLog.setOldValue(fieldName + "=" + Objects.toString(oldValue, ""));
+        auditLog.setNewValue(fieldName + "=" + Objects.toString(newValue, ""));
+        auditLog.setCreatedAt(changedAt);
+        return auditLog;
+    }
+
+    private record NormalizedOrganizationUpdate(
+            String name,
+            String legalName,
+            String siret,
+            String email,
+            String phone,
+            String address
+    ) {
     }
 }
