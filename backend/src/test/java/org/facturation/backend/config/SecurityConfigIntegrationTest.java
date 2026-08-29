@@ -212,9 +212,45 @@ class SecurityConfigIntegrationTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound());
 
+        mockMvc.perform(post("/api/v1/invoices/999999/request-correction")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"The amount must be checked\"}")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(post("/api/v1/invoices/999999/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"The invoice is invalid\"}")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+
         mockMvc.perform(patch("/api/v1/invoices/999999")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"invoiceNumber\":\"INV-001\"}")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void administratorCannotMakeInvoiceValidationDecisions() throws Exception {
+        String token = loginAndGetToken();
+
+        mockMvc.perform(post("/api/v1/invoices/999999/validate")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        mockMvc.perform(post("/api/v1/invoices/999999/request-correction")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"The amount must be checked\"}")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        mockMvc.perform(post("/api/v1/invoices/999999/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"The invoice is invalid\"}")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
