@@ -11,6 +11,7 @@ import org.facturation.backend.model.User;
 import org.facturation.backend.repository.OrganizationRepository;
 import org.facturation.backend.service.AuditLogService;
 import org.facturation.backend.service.CurrentUserService;
+import org.facturation.backend.service.FrenchLegalIdentifierValidator;
 import org.facturation.backend.service.OrganizationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,23 +28,24 @@ import java.util.regex.Pattern;
 public class OrganizationServiceImpl implements OrganizationService {
 
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
-    private static final Pattern SIRET_PATTERN = Pattern.compile("\\d{14}");
-
     private final OrganizationRepository organizationRepository;
     private final CurrentUserService currentUserService;
     private final OrganizationResponseMapper organizationResponseMapper;
     private final AuditLogService auditLogService;
+    private final FrenchLegalIdentifierValidator legalIdentifierValidator;
 
     public OrganizationServiceImpl(
             OrganizationRepository organizationRepository,
             CurrentUserService currentUserService,
             OrganizationResponseMapper organizationResponseMapper,
-            AuditLogService auditLogService
+            AuditLogService auditLogService,
+            FrenchLegalIdentifierValidator legalIdentifierValidator
     ) {
         this.organizationRepository = organizationRepository;
         this.currentUserService = currentUserService;
         this.organizationResponseMapper = organizationResponseMapper;
         this.auditLogService = auditLogService;
+        this.legalIdentifierValidator = legalIdentifierValidator;
     }
 
     @Override
@@ -118,8 +120,8 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     private String normalizeSiret(String value) {
         String siret = normalizeRequired(value, "siret");
-        if (siret != null && !SIRET_PATTERN.matcher(siret).matches()) {
-            throw new InvalidOrganizationException("siret must contain exactly 14 digits");
+        if (siret != null && !legalIdentifierValidator.isValidSiret(siret)) {
+            throw new InvalidOrganizationException("siret must be a valid French SIRET");
         }
         return siret;
     }

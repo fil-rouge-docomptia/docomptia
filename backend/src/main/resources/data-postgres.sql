@@ -4,7 +4,7 @@ ALTER COLUMN raw_text TYPE TEXT;
 DROP TABLE IF EXISTS accounting_entry_line_templates;
 
 INSERT INTO organizations (organization_id, name, legal_name, siret, email, phone, address, created_at, updated_at)
-VALUES (1, 'Facturation Demo', 'Facturation Demo SARL', '12345678901234', 'contact@facturation-demo.fr', '0102030405', '10 rue de Paris, 75001 Paris', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+VALUES (1, 'Facturation Demo', 'Facturation Demo SARL', '55210055400013', 'contact@facturation-demo.fr', '0102030405', '10 rue de Paris, 75001 Paris', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT (organization_id) DO NOTHING;
 
 INSERT INTO roles (role_id, code, label, description)

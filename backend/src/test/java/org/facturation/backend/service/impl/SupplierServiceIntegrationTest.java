@@ -2,6 +2,7 @@ package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
 import org.facturation.backend.dto.response.OcrFieldResponse;
+import org.facturation.backend.exception.InvalidSupplierException;
 import org.facturation.backend.exception.SupplierLegalIdentifierConflictException;
 import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.Supplier;
@@ -139,6 +140,44 @@ class SupplierServiceIntegrationTest {
         assertEquals("New supplier", result.getName());
         assertEquals("38012986600014", result.getSiret());
         assertEquals(supplierCountBefore + 1, supplierRepository.count());
+    }
+
+    @Test
+    void rejectsAutomaticCreationWithInvalidSiret() {
+        Organization organization = createOrganization("invalid-automatic-creation");
+        OcrAnalysisResponse ocrAnalysis = new OcrAnalysisResponse();
+        ocrAnalysis.setFields(List.of(
+                ocrField("supplierName", "Invalid supplier"),
+                ocrField("siret", "38012986600015")
+        ));
+
+        InvalidSupplierException exception = assertThrows(
+                InvalidSupplierException.class,
+                () -> supplierService.resolveForInvoiceUpload(null, organization, ocrAnalysis)
+        );
+
+        assertEquals("siret must be a valid French SIRET", exception.getMessage());
+    }
+
+    @Test
+    void rejectsAutomaticCreationWithInconsistentLegalIdentifiers() {
+        Organization organization = createOrganization("inconsistent-automatic-creation");
+        OcrAnalysisResponse ocrAnalysis = new OcrAnalysisResponse();
+        ocrAnalysis.setFields(List.of(
+                ocrField("supplierName", "Inconsistent supplier"),
+                ocrField("siret", "73282932000074"),
+                ocrField("vatNumber", "FR89380129866")
+        ));
+
+        InvalidSupplierException exception = assertThrows(
+                InvalidSupplierException.class,
+                () -> supplierService.resolveForInvoiceUpload(null, organization, ocrAnalysis)
+        );
+
+        assertEquals(
+                "vatNumber must refer to the same company as the other legal identifier",
+                exception.getMessage()
+        );
     }
 
     @Test
