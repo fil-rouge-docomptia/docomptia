@@ -4,7 +4,7 @@
 
 This project consists of:
 
-* Backend: Java 21 + Spring Boot
+* Backend: Java 25 + Spring Boot
 * Frontend: React + TypeScript
 
 The project is currently in the MVP phase. Prioritize delivering working solutions quickly while keeping the codebase clean and maintainable.

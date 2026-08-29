@@ -472,7 +472,7 @@ Ces valeurs doivent etre mesurees sur un environnement et un corpus documentes.
 | Composant | Responsabilite | Technologie |
 | --- | --- | --- |
 | Frontend | Interface et parcours utilisateur | React, TypeScript, Vite |
-| Backend | API, metier, transactions et orchestration | Java 21, Spring Boot |
+| Backend | API, metier, transactions et orchestration | Java 25, Spring Boot |
 | OCR | Pretraitement, Tesseract et extraction | FastAPI, Python |
 | Donnees | Entites et contraintes metier | PostgreSQL |
 | Documents | Stockage objet | MinIO compatible S3 |

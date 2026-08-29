@@ -13,6 +13,7 @@ make dev
 Staging:
 
 ```bash
+cp env/.env.staging.example env/.env.staging
 make staging
 ```
 
