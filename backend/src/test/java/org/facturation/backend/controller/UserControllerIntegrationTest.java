@@ -261,9 +261,77 @@ class UserControllerIntegrationTest {
         assertThat(userRepository.findById(9633L).orElseThrow().isActive()).isFalse();
     }
 
+    @Test
+    void adminReplacesUserRoleInCurrentOrganizationAndAuditsChange() throws Exception {
+        mockMvc.perform(patch("/api/v1/users/9631/role")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roleCode\":\"responsable_comptable\"}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(9631))
+                .andExpect(jsonPath("$.role.code").value("RESPONSABLE_COMPTABLE"));
+
+        assertThat(userRepository.findById(9631L).orElseThrow().getRole().getCode())
+                .isEqualTo("RESPONSABLE_COMPTABLE");
+        var auditLog = auditLogRepository
+                .findByOrganizationOrganizationIdAndEntityNameAndEntityIdAndActionOrderByCreatedAtAscAuditLogIdAsc(
+                        1L,
+                        "User",
+                        9631L,
+                        "ROLE_CHANGED"
+                )
+                .getFirst();
+        assertThat(auditLog.getUser().getUserId()).isEqualTo(1L);
+        assertThat(auditLog.getOldValue()).isEqualTo("role=OPERATEUR_COMPTABLE");
+        assertThat(auditLog.getNewValue()).isEqualTo("role=RESPONSABLE_COMPTABLE");
+    }
+
+    @Test
+    void adminCannotChangeRoleForUserFromAnotherOrganization() throws Exception {
+        mockMvc.perform(patch("/api/v1/users/9632/role")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roleCode\":\"OPERATEUR_COMPTABLE\"}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("USER_NOT_FOUND"));
+    }
+
+    @Test
+    void rejectsRoleOutsideMvpRolesDuringRoleChange() throws Exception {
+        mockMvc.perform(patch("/api/v1/users/9631/role")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roleCode\":\"SUPER_ADMIN\"}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("USER_VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("roleCode is not allowed"));
+    }
+
+    @Test
+    void appliesChangedRoleImmediatelyToExistingToken() throws Exception {
+        String existingToken = tokenFor("active-user@example.com");
+
+        mockMvc.perform(get("/api/v1/roles")
+                        .header("Authorization", "Bearer " + existingToken))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(patch("/api/v1/users/9633/role")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roleCode\":\"ADMIN\"}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/roles")
+                        .header("Authorization", "Bearer " + existingToken))
+                .andExpect(status().isOk());
+    }
+
     private String adminToken() {
+        return tokenFor("admin@facturation-demo.fr");
+    }
+
+    private String tokenFor(String email) {
         return new JwtTokenService(jwtSecret, Duration.ofHours(1)).generate(
-                userRepository.findByEmailIgnoreCase("admin@facturation-demo.fr").orElseThrow()
-        );
+                userRepository.findByEmailIgnoreCase(email).orElseThrow());
     }
 }

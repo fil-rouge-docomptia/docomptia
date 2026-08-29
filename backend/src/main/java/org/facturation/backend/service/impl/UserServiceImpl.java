@@ -3,6 +3,7 @@ package org.facturation.backend.service.impl;
 import org.facturation.backend.dto.request.UserCreateRequest;
 import org.facturation.backend.dto.request.UserUpdateRequest;
 import org.facturation.backend.dto.request.UserStatusUpdateRequest;
+import org.facturation.backend.dto.request.UserRoleUpdateRequest;
 import org.facturation.backend.dto.response.UserListItemResponse;
 import org.facturation.backend.exception.InvalidUserException;
 import org.facturation.backend.exception.UserEmailConflictException;
@@ -200,6 +201,30 @@ public class UserServiceImpl implements UserService {
         return userResponseMapper.toListItemResponse(savedUser);
     }
 
+    @Override
+    @Transactional
+    public UserListItemResponse updateRole(Long id, UserRoleUpdateRequest request, User administrator) {
+        if (request == null) {
+            throw new InvalidUserException("Request body is required");
+        }
+
+        Long organizationId = administrator.getOrganization().getOrganizationId();
+        User user = userRepository.findByUserIdAndOrganizationOrganizationId(id, organizationId)
+                .orElseThrow(() -> new UserNotFoundException(id));
+        Role role = findAllowedRole(request.getRoleCode());
+        if (user.getRole().getCode().equals(role.getCode())) {
+            throw new InvalidUserException("User already has the requested role");
+        }
+
+        String previousRoleCode = user.getRole().getCode();
+        LocalDateTime now = LocalDateTime.now();
+        user.setRole(role);
+        user.setUpdatedAt(now);
+        User savedUser = userRepository.save(user);
+        auditLogService.save(createRoleAuditLog(savedUser, administrator, previousRoleCode, now));
+        return userResponseMapper.toListItemResponse(savedUser);
+    }
+
     private AuditLog createStatusAuditLog(
             User user,
             User administrator,
@@ -214,6 +239,24 @@ public class UserServiceImpl implements UserService {
         auditLog.setAction("STATUS_CHANGED");
         auditLog.setOldValue("active=" + previousStatus);
         auditLog.setNewValue("active=" + user.isActive());
+        auditLog.setCreatedAt(changedAt);
+        return auditLog;
+    }
+
+    private AuditLog createRoleAuditLog(
+            User user,
+            User administrator,
+            String previousRoleCode,
+            LocalDateTime changedAt
+    ) {
+        AuditLog auditLog = new AuditLog();
+        auditLog.setOrganization(user.getOrganization());
+        auditLog.setUser(administrator);
+        auditLog.setEntityName(User.class.getSimpleName());
+        auditLog.setEntityId(user.getUserId());
+        auditLog.setAction("ROLE_CHANGED");
+        auditLog.setOldValue("role=" + previousRoleCode);
+        auditLog.setNewValue("role=" + user.getRole().getCode());
         auditLog.setCreatedAt(changedAt);
         return auditLog;
     }

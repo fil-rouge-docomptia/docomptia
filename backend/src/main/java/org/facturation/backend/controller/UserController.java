@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.UserCreateRequest;
 import org.facturation.backend.dto.request.UserStatusUpdateRequest;
+import org.facturation.backend.dto.request.UserRoleUpdateRequest;
 import org.facturation.backend.dto.request.UserUpdateRequest;
 import org.facturation.backend.dto.response.UserListItemResponse;
 import org.facturation.backend.model.User;
@@ -97,6 +98,20 @@ public class UserController {
             @RequestBody UserStatusUpdateRequest request
     ) {
         return ResponseEntity.ok(userService.updateStatus(id, request, currentUserService.getCurrentUser()));
+    }
+
+    @PatchMapping("/{id}/role")
+    @Operation(summary = "Remplacer le role d'un utilisateur")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Role de l'utilisateur modifie"),
+            @ApiResponse(responseCode = "400", description = "Role manquant, non autorise ou deja attribue"),
+            @ApiResponse(responseCode = "404", description = "Utilisateur introuvable dans l'organisation")
+    })
+    public ResponseEntity<UserListItemResponse> updateRole(
+            @PathVariable Long id,
+            @RequestBody UserRoleUpdateRequest request
+    ) {
+        return ResponseEntity.ok(userService.updateRole(id, request, currentUserService.getCurrentUser()));
     }
 
     @PatchMapping("/{id}")
