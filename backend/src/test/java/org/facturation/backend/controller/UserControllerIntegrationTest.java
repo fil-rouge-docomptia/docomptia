@@ -1,6 +1,7 @@
 package org.facturation.backend.controller;
 
 import org.facturation.backend.repository.UserRepository;
+import org.facturation.backend.repository.AuditLogRepository;
 import org.facturation.backend.service.JwtTokenService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,7 +36,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 + "'zoe-accountant@example.com', 'not-returned', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
         "INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, password_hash, "
                 + "is_active, created_at, updated_at) VALUES (9632, 9630, 1, 'Hidden', 'User', "
-                + "'hidden-user@example.com', 'not-returned', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                + "'hidden-user@example.com', 'not-returned', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        "INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, password_hash, "
+                + "is_active, created_at, updated_at) VALUES (9633, 1, 2, 'Active', 'User', "
+                + "'active-user@example.com', 'not-returned', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
 })
 class UserControllerIntegrationTest {
 
@@ -44,6 +48,9 @@ class UserControllerIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private AuditLogRepository auditLogRepository;
 
     @Value("${app.jwt.secret}")
     private String jwtSecret;
@@ -207,6 +214,51 @@ class UserControllerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("USER_VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.message").value("At least one changed field is required"));
+    }
+
+    @Test
+    void adminActivatesUserInCurrentOrganizationAndAuditsChange() throws Exception {
+        mockMvc.perform(patch("/api/v1/users/9631/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"active\":true}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(9631))
+                .andExpect(jsonPath("$.active").value(true));
+
+        var auditLog = auditLogRepository
+                .findByOrganizationOrganizationIdAndEntityNameAndEntityIdAndActionOrderByCreatedAtAscAuditLogIdAsc(
+                        1L,
+                        "User",
+                        9631L,
+                        "STATUS_CHANGED"
+                )
+                .getFirst();
+        assertThat(auditLog.getUser().getUserId()).isEqualTo(1L);
+        assertThat(auditLog.getOldValue()).isEqualTo("active=false");
+        assertThat(auditLog.getNewValue()).isEqualTo("active=true");
+    }
+
+    @Test
+    void adminCannotChangeUserFromAnotherOrganization() throws Exception {
+        mockMvc.perform(patch("/api/v1/users/9632/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"active\":false}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("USER_NOT_FOUND"));
+    }
+
+    @Test
+    void adminDeactivatesUserInCurrentOrganization() throws Exception {
+        mockMvc.perform(patch("/api/v1/users/9633/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"active\":false}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false));
+
+        assertThat(userRepository.findById(9633L).orElseThrow().isActive()).isFalse();
     }
 
     private String adminToken() {

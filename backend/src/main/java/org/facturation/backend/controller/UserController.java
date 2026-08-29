@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.UserCreateRequest;
+import org.facturation.backend.dto.request.UserStatusUpdateRequest;
 import org.facturation.backend.dto.request.UserUpdateRequest;
 import org.facturation.backend.dto.response.UserListItemResponse;
 import org.facturation.backend.model.User;
@@ -82,6 +83,20 @@ public class UserController {
         User currentUser = currentUserService.getCurrentUser();
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(userService.invite(request, currentUser.getOrganization()));
+    }
+
+    @PatchMapping("/{id}/status")
+    @Operation(summary = "Activer ou desactiver un utilisateur")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Etat de l'utilisateur modifie"),
+            @ApiResponse(responseCode = "400", description = "Etat manquant ou deja applique"),
+            @ApiResponse(responseCode = "404", description = "Utilisateur introuvable dans l'organisation")
+    })
+    public ResponseEntity<UserListItemResponse> updateStatus(
+            @PathVariable Long id,
+            @RequestBody UserStatusUpdateRequest request
+    ) {
+        return ResponseEntity.ok(userService.updateStatus(id, request, currentUserService.getCurrentUser()));
     }
 
     @PatchMapping("/{id}")

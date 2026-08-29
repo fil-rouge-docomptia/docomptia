@@ -2,16 +2,19 @@ package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.request.UserCreateRequest;
 import org.facturation.backend.dto.request.UserUpdateRequest;
+import org.facturation.backend.dto.request.UserStatusUpdateRequest;
 import org.facturation.backend.dto.response.UserListItemResponse;
 import org.facturation.backend.exception.InvalidUserException;
 import org.facturation.backend.exception.UserEmailConflictException;
 import org.facturation.backend.exception.UserNotFoundException;
 import org.facturation.backend.mapper.UserResponseMapper;
+import org.facturation.backend.model.AuditLog;
 import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.Role;
 import org.facturation.backend.model.RoleCode;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.UserRepository;
+import org.facturation.backend.service.AuditLogService;
 import org.facturation.backend.service.RoleService;
 import org.facturation.backend.service.UserService;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -39,17 +42,20 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final UserResponseMapper userResponseMapper;
     private final RoleService roleService;
+    private final AuditLogService auditLogService;
 
     public UserServiceImpl(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             UserResponseMapper userResponseMapper,
-            RoleService roleService
+            RoleService roleService,
+            AuditLogService auditLogService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.userResponseMapper = userResponseMapper;
         this.roleService = roleService;
+        this.auditLogService = auditLogService;
     }
 
     @Override
@@ -168,6 +174,48 @@ public class UserServiceImpl implements UserService {
         } catch (DataIntegrityViolationException exception) {
             throw new UserEmailConflictException();
         }
+    }
+
+    @Override
+    @Transactional
+    public UserListItemResponse updateStatus(Long id, UserStatusUpdateRequest request, User administrator) {
+        if (request == null || request.getActive() == null) {
+            throw new InvalidUserException("active is required");
+        }
+
+        Long organizationId = administrator.getOrganization().getOrganizationId();
+        User user = userRepository.findByUserIdAndOrganizationOrganizationId(id, organizationId)
+                .orElseThrow(() -> new UserNotFoundException(id));
+        boolean requestedStatus = request.getActive();
+        if (user.isActive() == requestedStatus) {
+            throw new InvalidUserException("User already has the requested status");
+        }
+
+        boolean previousStatus = user.isActive();
+        LocalDateTime now = LocalDateTime.now();
+        user.setActive(requestedStatus);
+        user.setUpdatedAt(now);
+        User savedUser = userRepository.save(user);
+        auditLogService.save(createStatusAuditLog(savedUser, administrator, previousStatus, now));
+        return userResponseMapper.toListItemResponse(savedUser);
+    }
+
+    private AuditLog createStatusAuditLog(
+            User user,
+            User administrator,
+            boolean previousStatus,
+            LocalDateTime changedAt
+    ) {
+        AuditLog auditLog = new AuditLog();
+        auditLog.setOrganization(user.getOrganization());
+        auditLog.setUser(administrator);
+        auditLog.setEntityName(User.class.getSimpleName());
+        auditLog.setEntityId(user.getUserId());
+        auditLog.setAction("STATUS_CHANGED");
+        auditLog.setOldValue("active=" + previousStatus);
+        auditLog.setNewValue("active=" + user.isActive());
+        auditLog.setCreatedAt(changedAt);
+        return auditLog;
     }
 
     private Role findAllowedRole(String requestedRoleCode) {

@@ -20,7 +20,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @EntityGraph(attributePaths = "role")
     Page<User> findByOrganizationOrganizationId(Long organizationId, Pageable pageable);
 
-    @EntityGraph(attributePaths = "role")
+    @EntityGraph(attributePaths = {"role", "organization"})
     Optional<User> findByUserIdAndOrganizationOrganizationId(Long userId, Long organizationId);
 
     @Override

@@ -11,6 +11,7 @@ import org.facturation.backend.model.RoleCode;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.RoleService;
+import org.facturation.backend.service.AuditLogService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -41,7 +42,13 @@ class UserServiceImplTest {
         userRepository = mock(UserRepository.class);
         roleService = mock(RoleService.class);
         passwordEncoder = new BCryptPasswordEncoder();
-        userService = new UserServiceImpl(userRepository, passwordEncoder, new UserResponseMapper(), roleService);
+        userService = new UserServiceImpl(
+                userRepository,
+                passwordEncoder,
+                new UserResponseMapper(),
+                roleService,
+                mock(AuditLogService.class)
+        );
     }
 
     @Test
