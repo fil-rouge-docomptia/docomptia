@@ -187,6 +187,7 @@ regles et lignes comptables qui referencent le compte.
 | `GET` | `/api/v1/users?page=0&size=20&sortBy=lastName&direction=ASC` | Retourne aux administrateurs une page d'utilisateurs de l'organisation courante avec leur role et leur etat |
 | `POST` | `/api/v1/users` | Invite un utilisateur inactif dans l'organisation de l'administrateur avec son identite, son email unique et un role MVP autorise |
 | `PATCH` | `/api/v1/users/{id}/status` | Active ou desactive un utilisateur de l'organisation courante et historise le changement |
+| `PATCH` | `/api/v1/users/{id}/role` | Remplace le role d'un utilisateur de l'organisation courante par un role MVP autorise et historise le changement |
 | `PATCH` | `/api/v1/users/{id}` | Modifie le prenom, le nom ou l'email d'un utilisateur de l'organisation courante |
 | `GET` | `/api/v1/roles` | Retourne aux administrateurs les roles MVP attribuables avec leur code et leur libelle |
 

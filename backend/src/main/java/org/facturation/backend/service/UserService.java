@@ -4,6 +4,7 @@ import org.facturation.backend.model.User;
 import org.facturation.backend.model.Organization;
 import org.facturation.backend.dto.request.UserCreateRequest;
 import org.facturation.backend.dto.request.UserStatusUpdateRequest;
+import org.facturation.backend.dto.request.UserRoleUpdateRequest;
 import org.facturation.backend.dto.request.UserUpdateRequest;
 import org.facturation.backend.dto.response.UserListItemResponse;
 import org.springframework.data.domain.Page;
@@ -29,6 +30,8 @@ public interface UserService {
     UserListItemResponse invite(UserCreateRequest request, Organization organization);
 
     UserListItemResponse updateStatus(Long id, UserStatusUpdateRequest request, User administrator);
+
+    UserListItemResponse updateRole(Long id, UserRoleUpdateRequest request, User administrator);
 
     UserListItemResponse update(Long id, UserUpdateRequest request, Long organizationId);
 }

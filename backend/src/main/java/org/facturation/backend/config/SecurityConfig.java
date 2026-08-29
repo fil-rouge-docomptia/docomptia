@@ -124,6 +124,8 @@ public class SecurityConfig {
                         .hasAnyRole(BusinessPermission.MANAGE_USERS.roleCodes())
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/users/*/status")
                         .hasAnyRole(BusinessPermission.MANAGE_USERS.roleCodes())
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/users/*/role")
+                        .hasAnyRole(BusinessPermission.MANAGE_USERS.roleCodes())
                         .anyRequest().denyAll()
                 )
                 .httpBasic(AbstractHttpConfigurer::disable)
