@@ -123,6 +123,8 @@ par defaut.
 | `GET` | `/api/v1/organizations/current` | Retourne les informations legales, de contact et la devise par defaut de l'organisation de l'utilisateur connecte |
 | `PATCH` | `/api/v1/organizations/current` | Modifie les informations legales, de contact et la devise par defaut de l'organisation de l'administrateur connecte |
 | `GET` | `/api/v1/organizations/current/onboarding` | Retourne a l'administrateur la progression de la configuration initiale, les etapes terminees et les actions restantes |
+| `GET` | `/api/v1/organizations/current/validation-preferences` | Retourne si le circuit de validation est actif et son seuil TTC optionnel |
+| `PATCH` | `/api/v1/organizations/current/validation-preferences` | Modifie les preferences de validation de l'organisation courante |
 
 La route ne prend aucun identifiant d'organisation afin d'empecher la consultation d'une autre
 organisation. La modification accepte `name`, `legalName`, `siret`, `email`, `phone`, `address` et
@@ -134,6 +136,12 @@ l'administrateur responsable.
 
 L'avancement de l'onboarding est recalcule a chaque consultation a partir des informations de
 l'organisation, de la devise par defaut et de la presence d'au moins un compte comptable actif.
+
+Par defaut, toutes les factures doivent etre validees. Un administrateur peut desactiver la
+validation ou definir un `validationThreshold` strictement positif avec au plus deux decimales.
+Dans ce dernier cas, les factures dont le montant TTC est inferieur au seuil sont validees
+directement lors de leur soumission; les autres passent au statut `A_VERIFIER`. Un seuil est
+refuse lorsque `validationRequired` vaut `false`.
 
 ## Endpoints Fournisseurs MVP
 
