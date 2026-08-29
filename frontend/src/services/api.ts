@@ -45,7 +45,7 @@ export async function authenticatedFetch(input: RequestInfo | URL, init?: Reques
   }
 
   if (!response.ok) {
-    throw new ApiError(response.status)
+    throw await createApiError(response)
   }
 
   return response
