@@ -1,7 +1,9 @@
 package org.facturation.backend.service;
 
 import org.facturation.backend.dto.request.OrganizationUpdateRequest;
+import org.facturation.backend.dto.request.ValidationPreferencesUpdateRequest;
 import org.facturation.backend.dto.response.OrganizationResponse;
+import org.facturation.backend.dto.response.ValidationPreferencesResponse;
 import org.facturation.backend.model.Organization;
 
 import java.util.List;
@@ -18,4 +20,8 @@ public interface OrganizationService {
     OrganizationResponse findCurrentOrganization();
 
     OrganizationResponse updateCurrentOrganization(OrganizationUpdateRequest request);
+
+    ValidationPreferencesResponse findCurrentValidationPreferences();
+
+    ValidationPreferencesResponse updateCurrentValidationPreferences(ValidationPreferencesUpdateRequest request);
 }

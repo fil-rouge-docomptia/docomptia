@@ -128,7 +128,16 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     public void submitForValidation(Invoice invoice, User user) {
         ensureCurrentStatus(invoice, InvoiceStatusCode.EXTRAITE, "be submitted for validation");
         ensureRequiredFields(invoice, "be submitted for validation");
-        transitionTo(invoice, InvoiceStatusCode.A_VERIFIER, user, "Invoice submitted for validation");
+        if (requiresValidation(invoice)) {
+            transitionTo(invoice, InvoiceStatusCode.A_VERIFIER, user, "Invoice submitted for validation");
+        } else {
+            updateStatus(
+                    invoice,
+                    findByCode(InvoiceStatusCode.VALIDEE),
+                    user,
+                    "Invoice validated by organization preferences"
+            );
+        }
     }
 
     @Override
@@ -305,6 +314,16 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private boolean requiresValidation(Invoice invoice) {
+        if (!invoice.getOrganization().isValidationRequired()) {
+            return false;
+        }
+        if (invoice.getOrganization().getValidationThreshold() == null) {
+            return true;
+        }
+        return invoice.getTotalTtc().compareTo(invoice.getOrganization().getValidationThreshold()) >= 0;
     }
 
     private String requireReason(String reason, String missingReasonMessage) {

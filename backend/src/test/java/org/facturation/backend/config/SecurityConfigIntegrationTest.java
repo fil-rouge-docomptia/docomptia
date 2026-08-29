@@ -173,6 +173,22 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
+    void validationPreferencesCanBeReadByOperatorsButOnlyUpdatedByAdministrators() throws Exception {
+        String token = tokenFor("operator-security@facturation-demo.fr");
+
+        mockMvc.perform(get("/api/v1/organizations/current/validation-preferences")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patch("/api/v1/organizations/current/validation-preferences")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"validationRequired\":false}")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
     void operatorCanProcessInvoicesButCannotValidateThem() throws Exception {
         String token = tokenFor("operator-security@facturation-demo.fr");
 

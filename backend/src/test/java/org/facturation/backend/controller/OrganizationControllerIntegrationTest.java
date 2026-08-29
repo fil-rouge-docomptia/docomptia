@@ -78,6 +78,83 @@ class OrganizationControllerIntegrationTest {
     }
 
     @Test
+    void updatesAndReturnsValidationPreferencesForTheCurrentOrganization() throws Exception {
+        String token = loginAndGetToken();
+
+        mockMvc.perform(get("/api/v1/organizations/current/validation-preferences")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.validationRequired").value(true))
+                .andExpect(jsonPath("$.validationThreshold").doesNotExist());
+
+        mockMvc.perform(patch("/api/v1/organizations/current/validation-preferences")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"validationRequired":true,"validationThreshold":1000}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.validationRequired").value(true))
+                .andExpect(jsonPath("$.validationThreshold").value(1000.00));
+
+        Organization organization = organizationRepository.findById(1L).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(organization.isValidationRequired()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(organization.getValidationThreshold())
+                .isEqualByComparingTo("1000.00");
+        org.assertj.core.api.Assertions.assertThat(auditLogRepository
+                        .findByOrganizationOrganizationIdAndEntityNameAndEntityIdAndActionOrderByCreatedAtAscAuditLogIdAsc(
+                                1L,
+                                Organization.class.getSimpleName(),
+                                1L,
+                                "UPDATED"
+                        ))
+                .extracting(AuditLog::getNewValue)
+                .containsExactly("validationThreshold=1000.00");
+    }
+
+    @Test
+    void keepsValidationPreferencesIsolatedByOrganization() throws Exception {
+        User otherOrganizationUser = createUserInAnotherOrganization();
+        String token = new JwtTokenService(jwtSecret, Duration.ofHours(1)).generate(otherOrganizationUser);
+
+        mockMvc.perform(patch("/api/v1/organizations/current/validation-preferences")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"validationRequired":false}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.validationRequired").value(false));
+
+        org.assertj.core.api.Assertions.assertThat(
+                organizationRepository.findById(1L).orElseThrow().isValidationRequired()
+        ).isTrue();
+        org.assertj.core.api.Assertions.assertThat(organizationRepository
+                        .findById(otherOrganizationUser.getOrganization().getOrganizationId())
+                        .orElseThrow()
+                        .isValidationRequired())
+                .isFalse();
+    }
+
+    @Test
+    void rejectsInvalidValidationPreferencesWithoutChangingTheOrganization() throws Exception {
+        mockMvc.perform(patch("/api/v1/organizations/current/validation-preferences")
+                        .header("Authorization", "Bearer " + loginAndGetToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"validationRequired":false,"validationThreshold":1000}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION_VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("validationThreshold must be omitted when validationRequired is false"));
+
+        Organization organization = organizationRepository.findById(1L).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(organization.isValidationRequired()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(organization.getValidationThreshold()).isNull();
+    }
+
+    @Test
     @Sql(statements = "ALTER TABLE chart_of_accounts ALTER COLUMN account_id RESTART WITH 1000")
     void recalculatesOnboardingProgressAfterEachConfiguration() throws Exception {
         User user = createUserInAnotherOrganization();

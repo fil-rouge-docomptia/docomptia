@@ -4,8 +4,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.OrganizationUpdateRequest;
+import org.facturation.backend.dto.request.ValidationPreferencesUpdateRequest;
 import org.facturation.backend.dto.response.OnboardingStatusResponse;
 import org.facturation.backend.dto.response.OrganizationResponse;
+import org.facturation.backend.dto.response.ValidationPreferencesResponse;
 import org.facturation.backend.service.OnboardingService;
 import org.facturation.backend.service.OrganizationService;
 import org.springframework.http.ResponseEntity;
@@ -53,5 +55,23 @@ public class OrganizationController {
     @ApiResponse(responseCode = "403", description = "Droits administrateur requis")
     public ResponseEntity<OnboardingStatusResponse> getCurrentOrganizationOnboardingStatus() {
         return ResponseEntity.ok(onboardingService.getCurrentOrganizationStatus());
+    }
+
+    @GetMapping("/current/validation-preferences")
+    @Operation(summary = "Consulter les preferences de validation de l'organisation courante")
+    @ApiResponse(responseCode = "401", description = "Authentification requise")
+    public ResponseEntity<ValidationPreferencesResponse> getCurrentValidationPreferences() {
+        return ResponseEntity.ok(organizationService.findCurrentValidationPreferences());
+    }
+
+    @PatchMapping("/current/validation-preferences")
+    @Operation(summary = "Modifier les preferences de validation de l'organisation courante")
+    @ApiResponse(responseCode = "400", description = "Configuration invalide ou inchangee")
+    @ApiResponse(responseCode = "401", description = "Authentification requise")
+    @ApiResponse(responseCode = "403", description = "Droits administrateur requis")
+    public ResponseEntity<ValidationPreferencesResponse> updateCurrentValidationPreferences(
+            @RequestBody ValidationPreferencesUpdateRequest request
+    ) {
+        return ResponseEntity.ok(organizationService.updateCurrentValidationPreferences(request));
     }
 }
