@@ -237,6 +237,7 @@ class UserControllerIntegrationTest {
         assertThat(auditLog.getUser().getUserId()).isEqualTo(1L);
         assertThat(auditLog.getOldValue()).isEqualTo("active=false");
         assertThat(auditLog.getNewValue()).isEqualTo("active=true");
+        assertThat(auditLog.getCreatedAt()).isNotNull();
     }
 
     @Test
@@ -259,6 +260,18 @@ class UserControllerIntegrationTest {
                 .andExpect(jsonPath("$.active").value(false));
 
         assertThat(userRepository.findById(9633L).orElseThrow().isActive()).isFalse();
+        var auditLog = auditLogRepository
+                .findByOrganizationOrganizationIdAndEntityNameAndEntityIdAndActionOrderByCreatedAtAscAuditLogIdAsc(
+                        1L,
+                        "User",
+                        9633L,
+                        "STATUS_CHANGED"
+                )
+                .getFirst();
+        assertThat(auditLog.getUser().getUserId()).isEqualTo(1L);
+        assertThat(auditLog.getOldValue()).isEqualTo("active=true");
+        assertThat(auditLog.getNewValue()).isEqualTo("active=false");
+        assertThat(auditLog.getCreatedAt()).isNotNull();
     }
 
     @Test
@@ -298,6 +311,7 @@ class UserControllerIntegrationTest {
         assertThat(auditLog.getUser().getUserId()).isEqualTo(1L);
         assertThat(auditLog.getOldValue()).isEqualTo("role=OPERATEUR_COMPTABLE");
         assertThat(auditLog.getNewValue()).isEqualTo("role=RESPONSABLE_COMPTABLE");
+        assertThat(auditLog.getCreatedAt()).isNotNull();
     }
 
     @Test
