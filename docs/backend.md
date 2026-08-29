@@ -151,6 +151,17 @@ Une invitation normalise l'email en minuscules et retourne `409` lorsqu'il est d
 y compris avec une casse differente. Le compte reste inactif jusqu'a ce qu'un futur parcours
 d'acceptation d'invitation permette a l'utilisateur de definir son mot de passe.
 
+## Endpoint D'Inscription MVP
+
+| Methode | Endpoint | Role |
+| --- | --- | --- |
+| `POST` | `/api/v1/auth/register` | Cree en une transaction une organisation et son premier utilisateur actif avec le role `ADMIN` |
+
+L'inscription est publique. Elle normalise l'email de l'administrateur en minuscules, chiffre
+son mot de passe avec BCrypt et utilise cet email comme contact initial de l'organisation. Un
+email utilisateur ou un SIRET d'organisation deja utilise retourne `409`; une erreur de creation
+de l'administrateur annule egalement la creation de l'organisation.
+
 ## Stockage Des Fichiers
 
 Deux implementations existent:
