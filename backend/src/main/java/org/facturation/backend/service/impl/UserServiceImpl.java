@@ -6,6 +6,7 @@ import org.facturation.backend.dto.request.UserStatusUpdateRequest;
 import org.facturation.backend.dto.request.UserRoleUpdateRequest;
 import org.facturation.backend.dto.response.UserListItemResponse;
 import org.facturation.backend.exception.InvalidUserException;
+import org.facturation.backend.exception.LastActiveAdministratorException;
 import org.facturation.backend.exception.UserEmailConflictException;
 import org.facturation.backend.exception.UserNotFoundException;
 import org.facturation.backend.mapper.UserResponseMapper;
@@ -191,6 +192,9 @@ public class UserServiceImpl implements UserService {
         if (user.isActive() == requestedStatus) {
             throw new InvalidUserException("User already has the requested status");
         }
+        if (!requestedStatus) {
+            ensureAnotherActiveAdministratorExists(user, organizationId);
+        }
 
         boolean previousStatus = user.isActive();
         LocalDateTime now = LocalDateTime.now();
@@ -215,6 +219,9 @@ public class UserServiceImpl implements UserService {
         if (user.getRole().getCode().equals(role.getCode())) {
             throw new InvalidUserException("User already has the requested role");
         }
+        if (!RoleCode.ADMIN.getCode().equals(role.getCode())) {
+            ensureAnotherActiveAdministratorExists(user, organizationId);
+        }
 
         String previousRoleCode = user.getRole().getCode();
         LocalDateTime now = LocalDateTime.now();
@@ -223,6 +230,20 @@ public class UserServiceImpl implements UserService {
         User savedUser = userRepository.save(user);
         auditLogService.save(createRoleAuditLog(savedUser, administrator, previousRoleCode, now));
         return userResponseMapper.toListItemResponse(savedUser);
+    }
+
+    private void ensureAnotherActiveAdministratorExists(User user, Long organizationId) {
+        if (!user.isActive() || !RoleCode.ADMIN.getCode().equals(user.getRole().getCode())) {
+            return;
+        }
+
+        boolean anotherActiveAdministratorExists = userRepository
+                .findActiveAdministratorsForUpdate(organizationId)
+                .stream()
+                .anyMatch(administrator -> !administrator.getUserId().equals(user.getUserId()));
+        if (!anotherActiveAdministratorExists) {
+            throw new LastActiveAdministratorException();
+        }
     }
 
     private AuditLog createStatusAuditLog(
