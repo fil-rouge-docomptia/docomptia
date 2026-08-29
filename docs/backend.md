@@ -148,6 +148,7 @@ regles et lignes comptables qui referencent le compte.
 | `POST` | `/api/v1/users` | Invite un utilisateur inactif dans l'organisation de l'administrateur avec son identite, son email unique et un role MVP autorise |
 | `PATCH` | `/api/v1/users/{id}/status` | Active ou desactive un utilisateur de l'organisation courante et historise le changement |
 | `PATCH` | `/api/v1/users/{id}` | Modifie le prenom, le nom ou l'email d'un utilisateur de l'organisation courante |
+| `GET` | `/api/v1/roles` | Retourne aux administrateurs les roles MVP attribuables avec leur code et leur libelle |
 
 Une invitation normalise l'email en minuscules et retourne `409` lorsqu'il est deja utilise,
 y compris avec une casse differente. Le compte invite reste initialement inactif. Un utilisateur

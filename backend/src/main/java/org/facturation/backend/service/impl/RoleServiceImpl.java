@@ -6,6 +6,7 @@ import org.facturation.backend.repository.RoleRepository;
 import org.facturation.backend.service.RoleService;
 import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,7 +21,9 @@ public class RoleServiceImpl implements RoleService {
 
     @Override
     public List<Role> findAll() {
-        return roleRepository.findAll();
+        return Arrays.stream(RoleCode.values())
+                .map(this::findByCode)
+                .toList();
     }
 
     @Override
