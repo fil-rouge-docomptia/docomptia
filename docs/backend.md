@@ -199,6 +199,9 @@ La modification normalise egalement l'email en minuscules, preserve son unicite 
 La desactivation ou le changement de role du dernier administrateur actif est refuse avec un
 conflit `LAST_ACTIVE_ADMINISTRATOR`; l'operation reste autorisee si un autre administrateur actif
 existe dans l'organisation.
+Chaque changement effectif de role ou de statut ajoute un journal d'audit avec l'ancienne valeur,
+la nouvelle valeur, l'administrateur responsable et la date. Ces journaux ne sont exposes par
+aucun endpoint de modification.
 
 ## Endpoint D'Inscription MVP
 
