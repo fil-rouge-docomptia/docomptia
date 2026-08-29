@@ -13,6 +13,7 @@ import OrganizationOnboardingPage from '@/pages/OrganizationOnboardingPage'
 import RegisterPage from '@/pages/RegisterPage'
 import TeamOnboardingPage from '@/pages/TeamOnboardingPage'
 import WorkflowOnboardingPage from '@/pages/WorkflowOnboardingPage'
+import WorkspaceReadyOnboardingPage from '@/pages/WorkspaceReadyOnboardingPage'
 
 export const publicRoutes = [
   {
@@ -166,6 +167,10 @@ export const router = createBrowserRouter([
       {
         path: '/onboarding/team',
         element: <TeamOnboardingPage />,
+      },
+      {
+        path: '/onboarding/ready',
+        element: <WorkspaceReadyOnboardingPage />,
       },
       {
         path: '/',
