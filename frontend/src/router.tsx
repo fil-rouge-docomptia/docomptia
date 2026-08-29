@@ -2,6 +2,7 @@ import { Navigate, createBrowserRouter } from 'react-router-dom'
 
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth/RouteGuard'
 import { AppShell } from '@/components/layout/AppShell'
+import AccountingOnboardingPage from '@/pages/AccountingOnboardingPage'
 import DashboardPage from '@/pages/DashboardPage'
 import InvoiceUploadPage from '@/pages/InvoiceUploadPage'
 import EmailVerificationPage from '@/pages/EmailVerificationPage'
@@ -151,6 +152,10 @@ export const router = createBrowserRouter([
       {
         path: '/onboarding/company',
         element: <OrganizationOnboardingPage />,
+      },
+      {
+        path: '/onboarding/accounting',
+        element: <AccountingOnboardingPage />,
       },
       {
         path: '/',
