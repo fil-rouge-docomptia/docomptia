@@ -1,7 +1,9 @@
 package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.request.UserCreateRequest;
+import org.facturation.backend.dto.request.UserUpdateRequest;
 import org.facturation.backend.exception.UserEmailConflictException;
+import org.facturation.backend.exception.UserNotFoundException;
 import org.facturation.backend.mapper.UserResponseMapper;
 import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.Role;
@@ -108,6 +110,47 @@ class UserServiceImplTest {
         when(userRepository.existsByEmailIgnoreCase("admin@facturation-demo.fr")).thenReturn(true);
 
         assertThrows(UserEmailConflictException.class, () -> userService.invite(request, organization));
+    }
+
+    @Test
+    void updatesOnlyRequestedIdentityFieldsForOrganizationUser() {
+        Organization organization = new Organization();
+        organization.setOrganizationId(1L);
+        Role role = new Role();
+        role.setRoleId(2L);
+        role.setCode(RoleCode.OPERATEUR_COMPTABLE.getCode());
+        role.setLabel("Operateur comptable");
+        User user = new User();
+        user.setUserId(10L);
+        user.setOrganization(organization);
+        user.setRole(role);
+        user.setFirstName("Old");
+        user.setLastName("Name");
+        user.setEmail("old@example.com");
+        UserUpdateRequest request = new UserUpdateRequest();
+        request.setFirstName(" New ");
+        request.setEmail(" NEW@Example.com ");
+
+        when(userRepository.findByUserIdAndOrganizationOrganizationId(10L, 1L))
+                .thenReturn(Optional.of(user));
+        when(userRepository.existsByEmailIgnoreCaseAndUserIdNot("new@example.com", 10L)).thenReturn(false);
+        when(userRepository.saveAndFlush(user)).thenReturn(user);
+
+        var response = userService.update(10L, request, 1L);
+
+        assertEquals("New", response.firstName());
+        assertEquals("Name", response.lastName());
+        assertEquals("new@example.com", response.email());
+        verify(userRepository).saveAndFlush(user);
+    }
+
+    @Test
+    void hidesUserOutsideOrganization() {
+        UserUpdateRequest request = new UserUpdateRequest();
+        request.setFirstName("New");
+        when(userRepository.findByUserIdAndOrganizationOrganizationId(10L, 1L)).thenReturn(Optional.empty());
+
+        assertThrows(UserNotFoundException.class, () -> userService.update(10L, request, 1L));
     }
 
     private UserCreateRequest request(String email, String roleCode) {

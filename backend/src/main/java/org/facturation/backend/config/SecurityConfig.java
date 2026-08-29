@@ -106,6 +106,8 @@ public class SecurityConfig {
                         .hasRole(RoleCode.ADMIN.getCode())
                         .requestMatchers(HttpMethod.POST, "/api/v1/users")
                         .hasAnyRole(BusinessPermission.MANAGE_USERS.roleCodes())
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/users/*")
+                        .hasAnyRole(BusinessPermission.MANAGE_USERS.roleCodes())
                         .anyRequest().denyAll()
                 )
                 .httpBasic(AbstractHttpConfigurer::disable)

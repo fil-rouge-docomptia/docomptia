@@ -18,6 +18,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -140,6 +141,72 @@ class UserControllerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("USER_VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.message").value("roleCode is not allowed"));
+    }
+
+    @Test
+    void adminUpdatesUserIdentityInCurrentOrganization() throws Exception {
+        mockMvc.perform(patch("/api/v1/users/{id}", 9631)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "firstName": " Alice ",
+                                  "lastName": " Durand ",
+                                  "email": " ALICE.DURAND@Example.com "
+                                }
+                                """)
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(9631))
+                .andExpect(jsonPath("$.firstName").value("Alice"))
+                .andExpect(jsonPath("$.lastName").value("Durand"))
+                .andExpect(jsonPath("$.email").value("alice.durand@example.com"))
+                .andExpect(jsonPath("$.role.code").value("OPERATEUR_COMPTABLE"))
+                .andExpect(jsonPath("$.active").value(false));
+
+        var updatedUser = userRepository.findById(9631L).orElseThrow();
+        assertThat(updatedUser.getFirstName()).isEqualTo("Alice");
+        assertThat(updatedUser.getLastName()).isEqualTo("Durand");
+        assertThat(updatedUser.getEmail()).isEqualTo("alice.durand@example.com");
+    }
+
+    @Test
+    void rejectsInvalidOrAlreadyUsedEmail() throws Exception {
+        mockMvc.perform(patch("/api/v1/users/{id}", 9631)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"invalid-email\"}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("USER_VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("email must be valid"));
+
+        mockMvc.perform(patch("/api/v1/users/{id}", 9631)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"ADMIN@FACTURATION-DEMO.FR\"}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("USER_EMAIL_CONFLICT"));
+    }
+
+    @Test
+    void hidesUserFromAnotherOrganizationDuringUpdate() throws Exception {
+        mockMvc.perform(patch("/api/v1/users/{id}", 9632)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"firstName\":\"Visible\"}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("USER_NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("User 9632 not found"));
+    }
+
+    @Test
+    void rejectsUpdateWithoutEffectiveChange() throws Exception {
+        mockMvc.perform(patch("/api/v1/users/{id}", 9631)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("USER_VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("At least one changed field is required"));
     }
 
     private String adminToken() {
