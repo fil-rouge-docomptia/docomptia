@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 
-import { AppNavbar } from '@/components/design-system/AppNavbar'
 import { ResultPanel } from '@/components/invoice/ResultPanel'
 import { UploadPanel } from '@/components/invoice/UploadPanel'
 import { uploadInvoice } from '@/services/invoice'
@@ -57,22 +56,18 @@ export default function InvoiceUploadPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f9ff] text-[#0b1c30]">
-      <AppNavbar />
+    <div className="grid w-full gap-6 md:grid-cols-[40%_60%]">
+      <UploadPanel
+        errorMessage={errorMessage}
+        isSubmitting={isSubmitting}
+        onFileChange={handleFileChange}
+        onSubmit={handleSubmit}
+        selectedFile={selectedFile}
+        supplierId={supplierId}
+        onSupplierIdChange={setSupplierId}
+      />
 
-      <main className="mx-auto grid w-full max-w-[1280px] gap-6 px-4 py-8 md:grid-cols-[40%_60%] md:px-8">
-        <UploadPanel
-          errorMessage={errorMessage}
-          isSubmitting={isSubmitting}
-          onFileChange={handleFileChange}
-          onSubmit={handleSubmit}
-          selectedFile={selectedFile}
-          supplierId={supplierId}
-          onSupplierIdChange={setSupplierId}
-        />
-
-        <ResultPanel uploadResponse={uploadResponse} />
-      </main>
+      <ResultPanel uploadResponse={uploadResponse} />
     </div>
   )
 }
