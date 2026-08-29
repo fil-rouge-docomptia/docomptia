@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -39,6 +40,12 @@ public class Organization {
 
     @Column(nullable = false, length = 3, columnDefinition = "varchar(3) default 'EUR'")
     private String defaultCurrencyCode = "EUR";
+
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private boolean validationRequired = true;
+
+    @Column(precision = 12, scale = 2)
+    private BigDecimal validationThreshold;
 
     private LocalDateTime createdAt;
 
@@ -106,6 +113,22 @@ public class Organization {
 
     public void setDefaultCurrencyCode(String defaultCurrencyCode) {
         this.defaultCurrencyCode = defaultCurrencyCode;
+    }
+
+    public boolean isValidationRequired() {
+        return validationRequired;
+    }
+
+    public void setValidationRequired(boolean validationRequired) {
+        this.validationRequired = validationRequired;
+    }
+
+    public BigDecimal getValidationThreshold() {
+        return validationThreshold;
+    }
+
+    public void setValidationThreshold(BigDecimal validationThreshold) {
+        this.validationThreshold = validationThreshold;
     }
 
     public LocalDateTime getCreatedAt() {

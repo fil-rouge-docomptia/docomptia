@@ -1,7 +1,9 @@
 package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.request.OrganizationUpdateRequest;
+import org.facturation.backend.dto.request.ValidationPreferencesUpdateRequest;
 import org.facturation.backend.dto.response.OrganizationResponse;
+import org.facturation.backend.dto.response.ValidationPreferencesResponse;
 import org.facturation.backend.exception.InvalidOrganizationException;
 import org.facturation.backend.exception.OrganizationLegalIdentifierConflictException;
 import org.facturation.backend.mapper.OrganizationResponseMapper;
@@ -16,6 +18,7 @@ import org.facturation.backend.service.OrganizationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Currency;
@@ -29,6 +32,7 @@ import java.util.regex.Pattern;
 public class OrganizationServiceImpl implements OrganizationService {
 
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
+    private static final BigDecimal MAX_VALIDATION_THRESHOLD = new BigDecimal("9999999999.99");
     private final OrganizationRepository organizationRepository;
     private final CurrentUserService currentUserService;
     private final OrganizationResponseMapper organizationResponseMapper;
@@ -97,6 +101,95 @@ public class OrganizationServiceImpl implements OrganizationService {
         }
         auditLogs.forEach(auditLogService::save);
         return organizationResponseMapper.toResponse(savedOrganization);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ValidationPreferencesResponse findCurrentValidationPreferences() {
+        return toValidationPreferencesResponse(currentUserService.getCurrentUser().getOrganization());
+    }
+
+    @Override
+    @Transactional
+    public ValidationPreferencesResponse updateCurrentValidationPreferences(
+            ValidationPreferencesUpdateRequest request
+    ) {
+        validateValidationPreferences(request);
+
+        User user = currentUserService.getCurrentUser();
+        Organization organization = user.getOrganization();
+        boolean validationRequired = request.getValidationRequired();
+        BigDecimal validationThreshold = normalizeValidationThreshold(request.getValidationThreshold());
+        if (organization.isValidationRequired() == validationRequired
+                && Objects.equals(organization.getValidationThreshold(), validationThreshold)) {
+            throw new InvalidOrganizationException("At least one changed validation preference is required");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        List<AuditLog> auditLogs = new ArrayList<>();
+        if (organization.isValidationRequired() != validationRequired) {
+            auditLogs.add(createAuditLog(
+                    organization,
+                    user,
+                    "validationRequired",
+                    Boolean.toString(organization.isValidationRequired()),
+                    Boolean.toString(validationRequired),
+                    now
+            ));
+            organization.setValidationRequired(validationRequired);
+        }
+        if (!Objects.equals(organization.getValidationThreshold(), validationThreshold)) {
+            auditLogs.add(createAuditLog(
+                    organization,
+                    user,
+                    "validationThreshold",
+                    organization.getValidationThreshold() == null
+                            ? null
+                            : organization.getValidationThreshold().toPlainString(),
+                    validationThreshold == null ? null : validationThreshold.toPlainString(),
+                    now
+            ));
+            organization.setValidationThreshold(validationThreshold);
+        }
+
+        organization.setUpdatedAt(now);
+        Organization savedOrganization = organizationRepository.save(organization);
+        auditLogs.forEach(auditLogService::save);
+        return toValidationPreferencesResponse(savedOrganization);
+    }
+
+    private void validateValidationPreferences(ValidationPreferencesUpdateRequest request) {
+        if (request == null || request.getValidationRequired() == null) {
+            throw new InvalidOrganizationException("validationRequired is required");
+        }
+        if (!request.getValidationRequired() && request.getValidationThreshold() != null) {
+            throw new InvalidOrganizationException(
+                    "validationThreshold must be omitted when validationRequired is false"
+            );
+        }
+    }
+
+    private BigDecimal normalizeValidationThreshold(BigDecimal validationThreshold) {
+        if (validationThreshold == null) {
+            return null;
+        }
+        if (validationThreshold.signum() <= 0) {
+            throw new InvalidOrganizationException("validationThreshold must be greater than zero");
+        }
+        if (validationThreshold.scale() > 2) {
+            throw new InvalidOrganizationException("validationThreshold must have at most two decimal places");
+        }
+        if (validationThreshold.compareTo(MAX_VALIDATION_THRESHOLD) > 0) {
+            throw new InvalidOrganizationException("validationThreshold is too large");
+        }
+        return validationThreshold.setScale(2);
+    }
+
+    private ValidationPreferencesResponse toValidationPreferencesResponse(Organization organization) {
+        return new ValidationPreferencesResponse(
+                organization.isValidationRequired(),
+                organization.getValidationThreshold()
+        );
     }
 
     private NormalizedOrganizationUpdate normalize(OrganizationUpdateRequest request) {
