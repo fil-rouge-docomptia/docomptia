@@ -17,6 +17,8 @@ public class OrganizationUpdateRequest {
     private String phone;
     @Schema(description = "Adresse postale. Une chaine vide supprime la valeur.")
     private String address;
+    @Schema(description = "Code ISO 4217 de la devise utilisee par defaut", example = "EUR")
+    private String defaultCurrencyCode;
 
     public String getName() {
         return name;
@@ -64,5 +66,13 @@ public class OrganizationUpdateRequest {
 
     public void setAddress(String address) {
         this.address = address;
+    }
+
+    public String getDefaultCurrencyCode() {
+        return defaultCurrencyCode;
+    }
+
+    public void setDefaultCurrencyCode(String defaultCurrencyCode) {
+        this.defaultCurrencyCode = defaultCurrencyCode;
     }
 }

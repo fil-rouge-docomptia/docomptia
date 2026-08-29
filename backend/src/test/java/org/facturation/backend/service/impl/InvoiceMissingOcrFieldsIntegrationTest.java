@@ -11,6 +11,7 @@ import org.facturation.backend.model.OcrExtractionField;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.OcrExtractionFieldRepository;
 import org.facturation.backend.repository.OcrExtractionRepository;
+import org.facturation.backend.repository.OrganizationRepository;
 import org.facturation.backend.service.InvoiceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -37,18 +39,21 @@ class InvoiceMissingOcrFieldsIntegrationTest {
     private final InvoiceRepository invoiceRepository;
     private final OcrExtractionRepository ocrExtractionRepository;
     private final OcrExtractionFieldRepository ocrExtractionFieldRepository;
+    private final OrganizationRepository organizationRepository;
 
     @Autowired
     InvoiceMissingOcrFieldsIntegrationTest(
             InvoiceService invoiceService,
             InvoiceRepository invoiceRepository,
             OcrExtractionRepository ocrExtractionRepository,
-            OcrExtractionFieldRepository ocrExtractionFieldRepository
+            OcrExtractionFieldRepository ocrExtractionFieldRepository,
+            OrganizationRepository organizationRepository
     ) {
         this.invoiceService = invoiceService;
         this.invoiceRepository = invoiceRepository;
         this.ocrExtractionRepository = ocrExtractionRepository;
         this.ocrExtractionFieldRepository = ocrExtractionFieldRepository;
+        this.organizationRepository = organizationRepository;
     }
 
     @Test
@@ -91,6 +96,28 @@ class InvoiceMissingOcrFieldsIntegrationTest {
                         && field.getNormalizedValue() == null
                         && field.getConfidenceScore() == null
         ));
+    }
+
+    @Test
+    @Transactional
+    void usesTheOrganizationsActiveDefaultCurrencyForANewInvoice() {
+        var organization = organizationRepository.findById(1L).orElseThrow();
+        organization.setDefaultCurrencyCode("USD");
+        organizationRepository.save(organization);
+
+        InvoiceUploadResponse uploadResponse = invoiceService.uploadAndAnalyze(invoiceFile(), null);
+
+        Invoice invoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+        assertEquals("USD", invoice.getCurrencyCode());
+    }
+
+    private MockMultipartFile invoiceFile() {
+        return new MockMultipartFile(
+                "file",
+                "invoice.png",
+                "image/png",
+                new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
+        );
     }
 
     static class MissingFieldsOcrClient implements OcrClient {

@@ -56,6 +56,7 @@ class RegistrationControllerIntegrationTest {
         assertThat(administrator.getOrganization().getName()).isEqualTo("New organization");
         assertThat(administrator.getOrganization().getLegalName()).isEqualTo("New organization SAS");
         assertThat(administrator.getOrganization().getSiret()).isEqualTo("73282932000074");
+        assertThat(administrator.getOrganization().getDefaultCurrencyCode()).isEqualTo("EUR");
     }
 
     @Test

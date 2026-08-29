@@ -1,5 +1,5 @@
-INSERT INTO organizations (organization_id, name, legal_name, siret, email, phone, address, created_at, updated_at)
-VALUES (1, 'Facturation Demo', 'Facturation Demo SARL', '55210055400013', 'contact@facturation-demo.fr', '0102030405', '10 rue de Paris, 75001 Paris', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT INTO organizations (organization_id, name, legal_name, siret, email, phone, address, default_currency_code, created_at, updated_at)
+VALUES (1, 'Facturation Demo', 'Facturation Demo SARL', '55210055400013', 'contact@facturation-demo.fr', '0102030405', '10 rue de Paris, 75001 Paris', 'EUR', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 ALTER TABLE organizations ALTER COLUMN organization_id RESTART WITH 2;
 

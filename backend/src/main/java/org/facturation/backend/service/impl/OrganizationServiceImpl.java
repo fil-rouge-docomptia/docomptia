@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -105,7 +106,8 @@ public class OrganizationServiceImpl implements OrganizationService {
         String email = normalizeEmail(request.getEmail());
         String phone = normalizeOptional(request.getPhone());
         String address = normalizeOptional(request.getAddress());
-        return new NormalizedOrganizationUpdate(name, legalName, siret, email, phone, address);
+        String defaultCurrencyCode = normalizeCurrencyCode(request.getDefaultCurrencyCode());
+        return new NormalizedOrganizationUpdate(name, legalName, siret, email, phone, address, defaultCurrencyCode);
     }
 
     private String normalizeRequired(String value, String fieldName) {
@@ -146,6 +148,18 @@ public class OrganizationServiceImpl implements OrganizationService {
         return normalizedValue.isEmpty() ? "" : normalizedValue;
     }
 
+    private String normalizeCurrencyCode(String value) {
+        if (value == null) {
+            return null;
+        }
+        String currencyCode = value.trim().toUpperCase(Locale.ROOT);
+        try {
+            return Currency.getInstance(currencyCode).getCurrencyCode();
+        } catch (IllegalArgumentException exception) {
+            throw new InvalidOrganizationException("defaultCurrencyCode must be a recognized ISO 4217 code");
+        }
+    }
+
     private void validateSiretAvailability(String siret, Long organizationId) {
         if (siret != null && organizationRepository.existsBySiretAndOrganizationIdNot(siret, organizationId)) {
             throw new OrganizationLegalIdentifierConflictException();
@@ -171,6 +185,8 @@ public class OrganizationServiceImpl implements OrganizationService {
                 organization::setPhone, changedAt, auditLogs);
         applyOptionalValue(organization, user, "address", organization.getAddress(), update.address(),
                 organization::setAddress, changedAt, auditLogs);
+        applyValue(organization, user, "defaultCurrencyCode", organization.getDefaultCurrencyCode(),
+                update.defaultCurrencyCode(), organization::setDefaultCurrencyCode, changedAt, auditLogs);
         return auditLogs;
     }
 
@@ -242,7 +258,8 @@ public class OrganizationServiceImpl implements OrganizationService {
             String siret,
             String email,
             String phone,
-            String address
+            String address,
+            String defaultCurrencyCode
     ) {
     }
 }

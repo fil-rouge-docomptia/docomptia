@@ -59,7 +59,8 @@ class OrganizationControllerIntegrationTest {
                 .andExpect(jsonPath("$.siret").value("55210055400013"))
                 .andExpect(jsonPath("$.email").value("contact@facturation-demo.fr"))
                 .andExpect(jsonPath("$.phone").value("0102030405"))
-                .andExpect(jsonPath("$.address").value("10 rue de Paris, 75001 Paris"));
+                .andExpect(jsonPath("$.address").value("10 rue de Paris, 75001 Paris"))
+                .andExpect(jsonPath("$.defaultCurrencyCode").value("EUR"));
     }
 
     @Test
@@ -87,7 +88,8 @@ class OrganizationControllerIntegrationTest {
                                   "siret": "73282932000074",
                                   "email": "CONTACT@DOCOMPTIA.FR",
                                   "phone": "",
-                                  "address": "20 avenue de France, 75013 Paris"
+                                  "address": "20 avenue de France, 75013 Paris",
+                                  "defaultCurrencyCode": "usd"
                                 }
                                 """))
                 .andExpect(status().isOk())
@@ -97,7 +99,8 @@ class OrganizationControllerIntegrationTest {
                 .andExpect(jsonPath("$.siret").value("73282932000074"))
                 .andExpect(jsonPath("$.email").value("contact@docomptia.fr"))
                 .andExpect(jsonPath("$.phone").doesNotExist())
-                .andExpect(jsonPath("$.address").value("20 avenue de France, 75013 Paris"));
+                .andExpect(jsonPath("$.address").value("20 avenue de France, 75013 Paris"))
+                .andExpect(jsonPath("$.defaultCurrencyCode").value("USD"));
 
         Organization organization = organizationRepository.findById(1L).orElseThrow();
         List<AuditLog> auditLogs = auditLogRepository
@@ -110,7 +113,7 @@ class OrganizationControllerIntegrationTest {
 
         org.assertj.core.api.Assertions.assertThat(organization.getName()).isEqualTo("Docomptia");
         org.assertj.core.api.Assertions.assertThat(auditLogs)
-                .hasSize(6)
+                .hasSize(7)
                 .allMatch(auditLog -> auditLog.getUser().getUserId().equals(1L));
         org.assertj.core.api.Assertions.assertThat(auditLogs)
                 .extracting(AuditLog::getNewValue)
@@ -120,7 +123,8 @@ class OrganizationControllerIntegrationTest {
                         "siret=73282932000074",
                         "email=contact@docomptia.fr",
                         "phone=",
-                        "address=20 avenue de France, 75013 Paris"
+                        "address=20 avenue de France, 75013 Paris",
+                        "defaultCurrencyCode=USD"
                 );
     }
 
@@ -133,15 +137,19 @@ class OrganizationControllerIntegrationTest {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"phone":"0987654321"}
+                                {"phone":"0987654321","defaultCurrencyCode":"GBP"}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.organizationId")
                         .value(otherOrganizationUser.getOrganization().getOrganizationId()))
-                .andExpect(jsonPath("$.phone").value("0987654321"));
+                .andExpect(jsonPath("$.phone").value("0987654321"))
+                .andExpect(jsonPath("$.defaultCurrencyCode").value("GBP"));
 
         org.assertj.core.api.Assertions.assertThat(organizationRepository.findById(1L).orElseThrow().getPhone())
                 .isEqualTo("0102030405");
+        org.assertj.core.api.Assertions.assertThat(
+                organizationRepository.findById(1L).orElseThrow().getDefaultCurrencyCode()
+        ).isEqualTo("EUR");
         org.assertj.core.api.Assertions.assertThat(organizationRepository
                         .findById(otherOrganizationUser.getOrganization().getOrganizationId())
                         .orElseThrow()
@@ -173,6 +181,24 @@ class OrganizationControllerIntegrationTest {
         org.assertj.core.api.Assertions.assertThat(organization.getName()).isEqualTo("Facturation Demo");
         org.assertj.core.api.Assertions.assertThat(organization.getSiret()).isEqualTo("55210055400013");
         org.assertj.core.api.Assertions.assertThat(auditLogs).isEmpty();
+    }
+
+    @Test
+    void rejectsAnUnrecognizedDefaultCurrencyCode() throws Exception {
+        mockMvc.perform(patch("/api/v1/organizations/current")
+                        .header("Authorization", "Bearer " + loginAndGetToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"defaultCurrencyCode":"ZZZ"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION_VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message")
+                        .value("defaultCurrencyCode must be a recognized ISO 4217 code"));
+
+        org.assertj.core.api.Assertions.assertThat(
+                organizationRepository.findById(1L).orElseThrow().getDefaultCurrencyCode()
+        ).isEqualTo("EUR");
     }
 
     @Test
