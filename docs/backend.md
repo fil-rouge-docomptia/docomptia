@@ -122,6 +122,7 @@ par defaut.
 | --- | --- | --- |
 | `GET` | `/api/v1/organizations/current` | Retourne les informations legales, de contact et la devise par defaut de l'organisation de l'utilisateur connecte |
 | `PATCH` | `/api/v1/organizations/current` | Modifie les informations legales, de contact et la devise par defaut de l'organisation de l'administrateur connecte |
+| `GET` | `/api/v1/organizations/current/onboarding` | Retourne a l'administrateur la progression de la configuration initiale, les etapes terminees et les actions restantes |
 
 La route ne prend aucun identifiant d'organisation afin d'empecher la consultation d'une autre
 organisation. La modification accepte `name`, `legalName`, `siret`, `email`, `phone`, `address` et
@@ -130,6 +131,9 @@ utilisee par les nouvelles factures de l'organisation. La modification
 retourne `400` si une valeur est invalide ou inchangee et `409` si le SIRET est deja utilise par
 une autre organisation. Chaque champ modifie est journalise avec sa valeur avant/apres et
 l'administrateur responsable.
+
+L'avancement de l'onboarding est recalcule a chaque consultation a partir des informations de
+l'organisation, de la devise par defaut et de la presence d'au moins un compte comptable actif.
 
 ## Endpoints Fournisseurs MVP
 
