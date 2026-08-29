@@ -262,6 +262,20 @@ class UserControllerIntegrationTest {
     }
 
     @Test
+    void rejectsDeactivationOfLastActiveAdministrator() throws Exception {
+        mockMvc.perform(patch("/api/v1/users/1/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"active\":false}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("LAST_ACTIVE_ADMINISTRATOR"))
+                .andExpect(jsonPath("$.message").value(
+                        "The last active administrator cannot be deactivated or assigned another role"));
+
+        assertThat(userRepository.findById(1L).orElseThrow().isActive()).isTrue();
+    }
+
+    @Test
     void adminReplacesUserRoleInCurrentOrganizationAndAuditsChange() throws Exception {
         mockMvc.perform(patch("/api/v1/users/9631/role")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -284,6 +298,50 @@ class UserControllerIntegrationTest {
         assertThat(auditLog.getUser().getUserId()).isEqualTo(1L);
         assertThat(auditLog.getOldValue()).isEqualTo("role=OPERATEUR_COMPTABLE");
         assertThat(auditLog.getNewValue()).isEqualTo("role=RESPONSABLE_COMPTABLE");
+    }
+
+    @Test
+    void rejectsRoleChangeOfLastActiveAdministrator() throws Exception {
+        mockMvc.perform(patch("/api/v1/users/1/role")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roleCode\":\"OPERATEUR_COMPTABLE\"}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("LAST_ACTIVE_ADMINISTRATOR"));
+
+        assertThat(userRepository.findById(1L).orElseThrow().getRole().getCode()).isEqualTo("ADMIN");
+    }
+
+    @Test
+    void allowsDeactivationWhenAnotherActiveAdministratorExists() throws Exception {
+        mockMvc.perform(patch("/api/v1/users/9633/role")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roleCode\":\"ADMIN\"}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patch("/api/v1/users/1/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"active\":false}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false));
+    }
+
+    @Test
+    void allowsRoleChangeWhenAnotherActiveAdministratorExists() throws Exception {
+        mockMvc.perform(patch("/api/v1/users/9633/role")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roleCode\":\"ADMIN\"}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patch("/api/v1/users/1/role")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roleCode\":\"RESPONSABLE_COMPTABLE\"}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role.code").value("RESPONSABLE_COMPTABLE"));
     }
 
     @Test

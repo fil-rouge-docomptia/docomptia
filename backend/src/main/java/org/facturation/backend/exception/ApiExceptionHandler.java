@@ -41,6 +41,7 @@ public class ApiExceptionHandler {
     private static final String USER_VALIDATION_ERROR_CODE = "USER_VALIDATION_ERROR";
     private static final String USER_EMAIL_CONFLICT_CODE = "USER_EMAIL_CONFLICT";
     private static final String USER_NOT_FOUND_CODE = "USER_NOT_FOUND";
+    private static final String LAST_ACTIVE_ADMINISTRATOR_CODE = "LAST_ACTIVE_ADMINISTRATOR";
     private static final String REGISTRATION_VALIDATION_ERROR_CODE = "REGISTRATION_VALIDATION_ERROR";
     private static final String ORGANIZATION_LEGAL_IDENTIFIER_CONFLICT_CODE =
             "ORGANIZATION_LEGAL_IDENTIFIER_CONFLICT";
@@ -75,6 +76,13 @@ public class ApiExceptionHandler {
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleUserNotFound(UserNotFoundException exception) {
         return errorResponse(HttpStatus.NOT_FOUND, USER_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(LastActiveAdministratorException.class)
+    public ResponseEntity<ApiErrorResponse> handleLastActiveAdministrator(
+            LastActiveAdministratorException exception
+    ) {
+        return errorResponse(HttpStatus.CONFLICT, LAST_ACTIVE_ADMINISTRATOR_CODE, exception.getMessage());
     }
 
     @ExceptionHandler(InvalidRegistrationException.class)
