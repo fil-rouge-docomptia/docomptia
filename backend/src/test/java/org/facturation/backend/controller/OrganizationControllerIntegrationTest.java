@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -74,6 +75,60 @@ class OrganizationControllerIntegrationTest {
                 .andExpect(jsonPath("$.organizationId").value(user.getOrganization().getOrganizationId()))
                 .andExpect(jsonPath("$.name").value("Another organization"))
                 .andExpect(jsonPath("$.siret").value("38012986600014"));
+    }
+
+    @Test
+    @Sql(statements = "ALTER TABLE chart_of_accounts ALTER COLUMN account_id RESTART WITH 1000")
+    void recalculatesOnboardingProgressAfterEachConfiguration() throws Exception {
+        User user = createUserInAnotherOrganization();
+        String token = new JwtTokenService(jwtSecret, Duration.ofHours(1)).generate(user);
+
+        mockMvc.perform(get("/api/v1/organizations/current/onboarding")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.progressPercentage").value(33))
+                .andExpect(jsonPath("$.completedStepCount").value(1))
+                .andExpect(jsonPath("$.totalStepCount").value(3))
+                .andExpect(jsonPath("$.completedSteps[0].code").value("ACCOUNTING_PREFERENCES"))
+                .andExpect(jsonPath("$.remainingActions[0].code").value("ORGANIZATION_INFORMATION"))
+                .andExpect(jsonPath("$.remainingActions[0].action")
+                        .value("COMPLETE_ORGANIZATION_INFORMATION"))
+                .andExpect(jsonPath("$.remainingActions[1].code").value("CHART_OF_ACCOUNTS"));
+
+        mockMvc.perform(patch("/api/v1/organizations/current")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"address":"12 rue de la Paix, 75002 Paris"}
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/organizations/current/onboarding")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.progressPercentage").value(67))
+                .andExpect(jsonPath("$.completedStepCount").value(2))
+                .andExpect(jsonPath("$.remainingActions[0].code").value("CHART_OF_ACCOUNTS"));
+
+        mockMvc.perform(post("/api/v1/chart-of-accounts")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "accountNumber":"606300",
+                                  "accountLabel":"Office supplies",
+                                  "accountType":"CHARGE"
+                                }
+                                """))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/v1/organizations/current/onboarding")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.progressPercentage").value(100))
+                .andExpect(jsonPath("$.completedStepCount").value(3))
+                .andExpect(jsonPath("$.completedSteps.length()").value(3))
+                .andExpect(jsonPath("$.remainingActions").isEmpty());
     }
 
     @Test

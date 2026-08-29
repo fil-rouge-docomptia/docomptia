@@ -163,6 +163,16 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
+    void onboardingStatusIsRestrictedToAdministrators() throws Exception {
+        String token = tokenFor("operator-security@facturation-demo.fr");
+
+        mockMvc.perform(get("/api/v1/organizations/current/onboarding")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
     void operatorCanProcessInvoicesButCannotValidateThem() throws Exception {
         String token = tokenFor("operator-security@facturation-demo.fr");
 
