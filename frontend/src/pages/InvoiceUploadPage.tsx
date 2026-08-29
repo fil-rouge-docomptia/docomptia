@@ -3,6 +3,8 @@ import type { ChangeEvent, FormEvent } from 'react'
 
 import { ResultPanel } from '@/components/invoice/ResultPanel'
 import { UploadPanel } from '@/components/invoice/UploadPanel'
+import ForbiddenPage from '@/pages/ForbiddenPage'
+import { ApiError } from '@/services/api'
 import { uploadInvoice } from '@/services/invoice'
 import type { InvoiceUploadResponse } from '@/types/invoice'
 
@@ -13,6 +15,7 @@ export default function InvoiceUploadPage() {
   const [supplierId, setSupplierId] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [isForbidden, setIsForbidden] = useState(false)
   const [uploadResponse, setUploadResponse] = useState<InvoiceUploadResponse | null>(null)
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -49,10 +52,19 @@ export default function InvoiceUploadPage() {
       setUploadResponse(data)
     } catch (error) {
       setUploadResponse(null)
-      setErrorMessage(error instanceof Error ? error.message : 'Une erreur inconnue est survenue.')
+
+      if (error instanceof ApiError && error.status === 403) {
+        setIsForbidden(true)
+      } else {
+        setErrorMessage("L'envoi de la facture a échoué. Réessayez plus tard.")
+      }
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  if (isForbidden) {
+    return <ForbiddenPage />
   }
 
   return (

@@ -1,5 +1,6 @@
 import { Navigate, createBrowserRouter } from 'react-router-dom'
 
+import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth/RouteGuard'
 import { AppShell } from '@/components/layout/AppShell'
 import DashboardPage from '@/pages/DashboardPage'
 import InvoiceUploadPage from '@/pages/InvoiceUploadPage'
@@ -129,16 +130,24 @@ export const privateRoutes = [
 ]
 
 export const router = createBrowserRouter([
-  ...publicRoutes,
   {
-    path: '/',
-    element: <AppShell />,
+    element: <PublicOnlyRoute />,
+    children: publicRoutes,
+  },
+  {
+    element: <ProtectedRoute />,
     children: [
       {
-        index: true,
-        element: <Navigate replace to="/dashboard" />,
+        path: '/',
+        element: <AppShell />,
+        children: [
+          {
+            index: true,
+            element: <Navigate replace to="/dashboard" />,
+          },
+          ...privateRoutes,
+        ],
       },
-      ...privateRoutes,
     ],
   },
   {

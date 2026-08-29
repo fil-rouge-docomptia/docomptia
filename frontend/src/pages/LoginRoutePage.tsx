@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { CircleAlert, LoaderCircle } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
+import type { Location } from 'react-router-dom'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -15,10 +16,15 @@ const LOGIN_ERROR_MESSAGE = 'Unable to sign in. Check your credentials and try a
 const ssoProviders = ['Google', 'Microsoft', 'Apple']
 
 export default function LoginRoutePage() {
+  const location = useLocation()
   const navigate = useNavigate()
   const { signIn } = useAuth()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const requestedLocation = (location.state as { from?: Location } | null)?.from
+  const redirectPath = requestedLocation
+    ? `${requestedLocation.pathname}${requestedLocation.search}${requestedLocation.hash}`
+    : '/dashboard'
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -33,7 +39,7 @@ export default function LoginRoutePage() {
         password: String(formData.get('password')),
       })
 
-      navigate('/dashboard', { replace: true })
+      navigate(redirectPath, { replace: true })
     } catch {
       setErrorMessage(LOGIN_ERROR_MESSAGE)
     } finally {

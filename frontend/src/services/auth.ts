@@ -21,9 +21,5 @@ export async function login(credentials: LoginCredentials): Promise<LoginRespons
 export async function getCurrentUser(): Promise<CurrentUser> {
   const response = await authenticatedFetch(`${apiBaseUrl}/v1/users/me`)
 
-  if (!response.ok) {
-    throw new Error('Unable to load current user')
-  }
-
   return (await response.json()) as CurrentUser
 }

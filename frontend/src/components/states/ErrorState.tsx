@@ -1,4 +1,4 @@
-import { FileQuestion, ShieldAlert } from 'lucide-react'
+import { FileQuestion, LogIn, ShieldAlert } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 type ErrorStateProps = {
   actionLabel: string
   actionPath: string
-  code: 403 | 404
+  code: 401 | 403 | 404
   description: string
   title: string
 }
@@ -18,7 +18,7 @@ export function ErrorState({
   description,
   title,
 }: ErrorStateProps) {
-  const Icon = code === 403 ? ShieldAlert : FileQuestion
+  const Icon = code === 401 ? LogIn : code === 403 ? ShieldAlert : FileQuestion
 
   return (
     <section className="flex min-h-[calc(100vh-8rem)] items-center justify-center px-4 py-12">

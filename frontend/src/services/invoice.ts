@@ -15,10 +15,5 @@ export async function uploadInvoice(file: File, supplierId?: string): Promise<In
     body: formData,
   })
 
-  if (!response.ok) {
-    const responseText = await response.text()
-    throw new Error(responseText || 'Upload impossible')
-  }
-
   return (await response.json()) as InvoiceUploadResponse
 }
