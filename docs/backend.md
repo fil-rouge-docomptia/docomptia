@@ -146,11 +146,12 @@ regles et lignes comptables qui referencent le compte.
 | --- | --- | --- |
 | `GET` | `/api/v1/users?page=0&size=20&sortBy=lastName&direction=ASC` | Retourne aux administrateurs une page d'utilisateurs de l'organisation courante avec leur role et leur etat |
 | `POST` | `/api/v1/users` | Invite un utilisateur inactif dans l'organisation de l'administrateur avec son identite, son email unique et un role MVP autorise |
+| `PATCH` | `/api/v1/users/{id}/status` | Active ou desactive un utilisateur de l'organisation courante et historise le changement |
 | `PATCH` | `/api/v1/users/{id}` | Modifie le prenom, le nom ou l'email d'un utilisateur de l'organisation courante |
 
 Une invitation normalise l'email en minuscules et retourne `409` lorsqu'il est deja utilise,
-y compris avec une casse differente. Le compte reste inactif jusqu'a ce qu'un futur parcours
-d'acceptation d'invitation permette a l'utilisateur de definir son mot de passe.
+y compris avec une casse differente. Le compte invite reste initialement inactif. Un utilisateur
+desactive ne peut ni se connecter ni reutiliser un JWT existant sur une route securisee.
 La modification normalise egalement l'email en minuscules, preserve son unicite et retourne
 `404` lorsqu'un utilisateur appartient a une autre organisation.
 
