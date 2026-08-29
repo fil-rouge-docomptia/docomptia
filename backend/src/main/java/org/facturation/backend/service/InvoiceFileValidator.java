@@ -1,6 +1,7 @@
 package org.facturation.backend.service;
 
 import org.facturation.backend.exception.InvalidInvoiceFileException;
+import org.facturation.backend.model.InvoiceFileFormat;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.unit.DataSize;
@@ -10,7 +11,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Locale;
-import java.util.Set;
 
 @Service
 public class InvoiceFileValidator {
@@ -26,10 +26,10 @@ public class InvoiceFileValidator {
     public void validate(MultipartFile file) {
         validatePresenceAndSize(file);
 
-        SupportedFileType expectedType = findTypeByExtension(file.getOriginalFilename());
+        InvoiceFileFormat expectedType = findTypeByExtension(file.getOriginalFilename());
         validateMimeType(file.getContentType(), expectedType);
 
-        SupportedFileType detectedType = detectType(readSignature(file));
+        InvoiceFileFormat detectedType = detectType(readSignature(file));
         if (detectedType == null || detectedType != expectedType) {
             throw new InvalidInvoiceFileException("File content does not match its extension");
         }
@@ -46,21 +46,21 @@ public class InvoiceFileValidator {
         }
     }
 
-    private SupportedFileType findTypeByExtension(String filename) {
+    private InvoiceFileFormat findTypeByExtension(String filename) {
         if (filename == null || filename.isBlank() || !filename.contains(".")) {
             throw unsupportedFileType();
         }
 
         String extension = filename.substring(filename.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
-        return Arrays.stream(SupportedFileType.values())
-                .filter(type -> type.extensions.contains(extension))
+        return Arrays.stream(InvoiceFileFormat.values())
+                .filter(type -> type.supportsExtension(extension))
                 .findFirst()
                 .orElseThrow(this::unsupportedFileType);
     }
 
-    private void validateMimeType(String mimeType, SupportedFileType expectedType) {
+    private void validateMimeType(String mimeType, InvoiceFileFormat expectedType) {
         String normalizedMimeType = mimeType == null ? "" : mimeType.trim().toLowerCase(Locale.ROOT);
-        if (!expectedType.mimeTypes.contains(normalizedMimeType)) {
+        if (!expectedType.supportsMimeType(normalizedMimeType)) {
             throw new InvalidInvoiceFileException("File MIME type does not match its extension");
         }
     }
@@ -73,9 +73,9 @@ public class InvoiceFileValidator {
         }
     }
 
-    private SupportedFileType detectType(byte[] signature) {
-        return Arrays.stream(SupportedFileType.values())
-                .filter(type -> startsWith(signature, type.signature))
+    private InvoiceFileFormat detectType(byte[] signature) {
+        return Arrays.stream(InvoiceFileFormat.values())
+                .filter(type -> startsWith(signature, type.getSignature()))
                 .findFirst()
                 .orElse(null);
     }
@@ -94,21 +94,5 @@ public class InvoiceFileValidator {
 
     private InvalidInvoiceFileException unsupportedFileType() {
         return new InvalidInvoiceFileException("Supported file types are PDF, PNG and JPEG");
-    }
-
-    private enum SupportedFileType {
-        PDF(Set.of("pdf"), Set.of("application/pdf"), new byte[]{0x25, 0x50, 0x44, 0x46, 0x2D}),
-        PNG(Set.of("png"), Set.of("image/png"), new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}),
-        JPEG(Set.of("jpg", "jpeg"), Set.of("image/jpeg"), new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF});
-
-        private final Set<String> extensions;
-        private final Set<String> mimeTypes;
-        private final byte[] signature;
-
-        SupportedFileType(Set<String> extensions, Set<String> mimeTypes, byte[] signature) {
-            this.extensions = extensions;
-            this.mimeTypes = mimeTypes;
-            this.signature = signature;
-        }
     }
 }
