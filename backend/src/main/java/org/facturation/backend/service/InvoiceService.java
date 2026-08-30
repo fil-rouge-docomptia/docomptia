@@ -31,6 +31,7 @@ public interface InvoiceService {
     Page<InvoiceListItemResponse> searchInvoices(
             String status,
             String supplier,
+            String client,
             String invoiceNumber,
             String invoiceDate,
             Pageable pageable

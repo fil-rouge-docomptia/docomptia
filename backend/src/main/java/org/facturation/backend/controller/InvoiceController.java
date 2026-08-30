@@ -51,7 +51,7 @@ import java.util.Set;
 public class InvoiceController {
 
     private static final Set<String> ALLOWED_SEARCH_PARAMS = Set.of(
-            "status", "supplier", "invoiceNumber", "invoiceDate", "page", "size", "sortBy", "direction"
+            "status", "supplier", "client", "invoiceNumber", "invoiceDate", "page", "size", "sortBy", "direction"
     );
     private static final Map<String, String> SORT_PROPERTIES = Map.of(
             "createdAt", "createdAt",
@@ -74,7 +74,8 @@ public class InvoiceController {
     @Operation(summary = "Rechercher les factures")
     @Parameters({
             @Parameter(name = "status", description = "Code du statut", example = "EXTRAITE"),
-            @Parameter(name = "supplier", description = "Nom ou raison sociale du fournisseur", example = "Orange"),
+            @Parameter(name = "supplier", description = "Nom ou identifiant du fournisseur", example = "Orange"),
+            @Parameter(name = "client", description = "Nom ou identifiant du client", example = "Docomptia"),
             @Parameter(name = "invoiceNumber", description = "Numero de facture exact ou partiel", example = "FAC-2026"),
             @Parameter(name = "invoiceDate", description = "Date de facture au format ISO", example = "2026-07-21"),
             @Parameter(name = "page", description = "Numero de page, commence a zero", example = "0"),
@@ -117,6 +118,7 @@ public class InvoiceController {
         return ResponseEntity.ok(invoiceService.searchInvoices(
                 params.get("status"),
                 params.get("supplier"),
+                params.get("client"),
                 params.get("invoiceNumber"),
                 params.get("invoiceDate"),
                 pageRequest

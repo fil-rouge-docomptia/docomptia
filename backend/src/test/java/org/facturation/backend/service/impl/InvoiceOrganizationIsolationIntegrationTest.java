@@ -82,12 +82,52 @@ class InvoiceOrganizationIsolationIntegrationTest {
         createInvoice(otherOrganization, otherUser, otherSupplier, "HIDDEN-156");
 
         List<InvoiceListItemResponse> results = invoiceService
-                .searchInvoices(null, "Shared supplier", null, null, Pageable.unpaged())
+                .searchInvoices(null, "Shared supplier", null, null, null, Pageable.unpaged())
                 .getContent();
 
         assertEquals(List.of(visibleInvoice.getInvoiceId()), results.stream()
                 .map(InvoiceListItemResponse::getInvoiceId)
                 .toList());
+    }
+
+    @Test
+    void searchesBySupplierNameOrIdentifierWithinCurrentOrganization() {
+        Organization currentOrganization = organizationRepository.findById(1L).orElseThrow();
+        User currentUser = userRepository.findById(1L).orElseThrow();
+        Supplier matchingSupplier = createSupplier(currentOrganization, "KAN-114 partner", "66666666666666");
+        matchingSupplier.setVatNumber("FR66666666666");
+        supplierRepository.save(matchingSupplier);
+        Invoice matchingInvoice = createInvoice(
+                currentOrganization, currentUser, matchingSupplier, "KAN-114-SUPPLIER");
+
+        Organization otherOrganization = createOrganization();
+        User otherUser = createUser(otherOrganization);
+        Supplier otherSupplier = createSupplier(otherOrganization, "KAN-114 partner", "77777777777777");
+        createInvoice(otherOrganization, otherUser, otherSupplier, "HIDDEN-KAN-114-SUPPLIER");
+
+        assertSearchReturnsInvoice(matchingInvoice, "kan-114 PART", null);
+        assertSearchReturnsInvoice(matchingInvoice, matchingSupplier.getSupplierId().toString(), null);
+        assertSearchReturnsInvoice(matchingInvoice, matchingSupplier.getSiret(), null);
+        assertSearchReturnsInvoice(matchingInvoice, "fr66666666666", null);
+        assertEquals(List.of(), invoiceService.searchInvoices(
+                null, otherSupplier.getSupplierId().toString(), null, null, null, Pageable.unpaged()
+        ).getContent());
+    }
+
+    @Test
+    void searchesByClientNameOrIdentifierWithinCurrentOrganization() {
+        Organization currentOrganization = organizationRepository.findById(1L).orElseThrow();
+        User currentUser = userRepository.findById(1L).orElseThrow();
+        Supplier supplier = createSupplier(currentOrganization, "KAN-114 client supplier", "88888888888888");
+        Invoice matchingInvoice = createInvoice(currentOrganization, currentUser, supplier, "KAN-114-CLIENT");
+        Organization otherOrganization = createOrganization();
+
+        assertSearchReturnsInvoice(matchingInvoice, null, currentOrganization.getName().toUpperCase());
+        assertSearchReturnsInvoice(matchingInvoice, null, currentOrganization.getOrganizationId().toString());
+        assertSearchReturnsInvoice(matchingInvoice, null, currentOrganization.getSiret());
+        assertEquals(List.of(), invoiceService.searchInvoices(
+                null, null, otherOrganization.getOrganizationId().toString(), null, null, Pageable.unpaged()
+        ).getContent());
     }
 
     @Test
@@ -104,11 +144,11 @@ class InvoiceOrganizationIsolationIntegrationTest {
         createInvoice(otherOrganization, otherUser, otherSupplier, "FAC-2026-ABC-001");
 
         Page<InvoiceListItemResponse> exactResults = invoiceService.searchInvoices(
-                null, null, "fac-2026-abc-001", null, Pageable.unpaged());
+                null, null, null, "fac-2026-abc-001", null, Pageable.unpaged());
         Page<InvoiceListItemResponse> partialResults = invoiceService.searchInvoices(
-                null, null, "2026-aBc", null, Pageable.unpaged());
+                null, null, null, "2026-aBc", null, Pageable.unpaged());
         Page<InvoiceListItemResponse> noResults = invoiceService.searchInvoices(
-                null, null, "missing", null, Pageable.unpaged());
+                null, null, null, "missing", null, Pageable.unpaged());
 
         assertEquals(List.of(matchingInvoice.getInvoiceId()), exactResults.stream()
                 .map(InvoiceListItemResponse::getInvoiceId)
@@ -144,6 +184,7 @@ class InvoiceOrganizationIsolationIntegrationTest {
                 "KAN-112 supplier",
                 null,
                 null,
+                null,
                 PageRequest.of(0, 2, Sort.by(Sort.Direction.DESC, "totalTtc"))
         );
         Page<InvoiceListItemResponse> ascendingDates = invoiceService.searchInvoices(
@@ -151,11 +192,13 @@ class InvoiceOrganizationIsolationIntegrationTest {
                 "KAN-112 supplier",
                 null,
                 null,
+                null,
                 PageRequest.of(0, 3, Sort.by(Sort.Direction.ASC, "invoiceDate"))
         );
         Page<InvoiceListItemResponse> ascendingStatuses = invoiceService.searchInvoices(
                 null,
                 "KAN-112 supplier",
+                null,
                 null,
                 null,
                 PageRequest.of(0, 3, Sort.by(Sort.Direction.ASC, "invoiceStatus.code"))
@@ -172,6 +215,16 @@ class InvoiceOrganizationIsolationIntegrationTest {
         assertEquals(List.of("DEPOSEE", "EXTRAITE", "VALIDEE"), ascendingStatuses.getContent().stream()
                 .map(InvoiceListItemResponse::getStatus)
                 .toList());
+    }
+
+    private void assertSearchReturnsInvoice(Invoice expectedInvoice, String supplier, String client) {
+        assertEquals(
+                List.of(expectedInvoice.getInvoiceId()),
+                invoiceService.searchInvoices(
+                                null, supplier, client, null, null, Pageable.unpaged())
+                        .map(InvoiceListItemResponse::getInvoiceId)
+                        .getContent()
+        );
     }
 
     private Organization createOrganization() {

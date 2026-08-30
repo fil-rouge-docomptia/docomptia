@@ -211,6 +211,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     public Page<InvoiceListItemResponse> searchInvoices(
             String status,
             String supplier,
+            String client,
             String invoiceNumber,
             String invoiceDate,
             Pageable pageable
@@ -218,6 +219,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         Long organizationId = currentUserService.getCurrentUser().getOrganization().getOrganizationId();
         String statusFilter = toNullableValue(status);
         String supplierFilter = toNullableValue(supplier);
+        String clientFilter = toNullableValue(client);
         String invoiceNumberFilter = toNullableValue(invoiceNumber);
         LocalDate invoiceDateFilter = parseOptionalDateFilter(invoiceDate);
 
@@ -225,6 +227,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                         organizationId,
                         statusFilter,
                         supplierFilter,
+                        clientFilter,
                         invoiceNumberFilter,
                         invoiceDateFilter
                 )), pageable)
@@ -681,6 +684,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             Long organizationId,
             String status,
             String supplier,
+            String client,
             String invoiceNumber,
             LocalDate invoiceDate
     ) {
@@ -699,8 +703,9 @@ public class InvoiceServiceImpl implements InvoiceService {
             }
 
             if (supplier != null) {
-                String supplierPattern = "%" + supplier.toLowerCase() + "%";
-                predicates.add(criteriaBuilder.or(
+                String normalizedSupplier = supplier.toLowerCase(Locale.ROOT);
+                String supplierPattern = "%" + normalizedSupplier + "%";
+                List<Predicate> supplierPredicates = new ArrayList<>(List.of(
                         criteriaBuilder.like(
                                 criteriaBuilder.lower(root.get("supplier").get("name")),
                                 supplierPattern
@@ -708,8 +713,51 @@ public class InvoiceServiceImpl implements InvoiceService {
                         criteriaBuilder.like(
                                 criteriaBuilder.lower(root.get("supplier").get("legalName")),
                                 supplierPattern
+                        ),
+                        criteriaBuilder.equal(
+                                criteriaBuilder.lower(root.get("supplier").get("siret")),
+                                normalizedSupplier
+                        ),
+                        criteriaBuilder.equal(
+                                criteriaBuilder.lower(root.get("supplier").get("vatNumber")),
+                                normalizedSupplier
                         )
                 ));
+                Long supplierId = parseIdentifier(supplier);
+                if (supplierId != null) {
+                    supplierPredicates.add(criteriaBuilder.equal(
+                            root.get("supplier").get("supplierId"),
+                            supplierId
+                    ));
+                }
+                predicates.add(criteriaBuilder.or(supplierPredicates.toArray(new Predicate[0])));
+            }
+
+            if (client != null) {
+                String normalizedClient = client.toLowerCase(Locale.ROOT);
+                String clientPattern = "%" + normalizedClient + "%";
+                List<Predicate> clientPredicates = new ArrayList<>(List.of(
+                        criteriaBuilder.like(
+                                criteriaBuilder.lower(root.get("organization").get("name")),
+                                clientPattern
+                        ),
+                        criteriaBuilder.like(
+                                criteriaBuilder.lower(root.get("organization").get("legalName")),
+                                clientPattern
+                        ),
+                        criteriaBuilder.equal(
+                                criteriaBuilder.lower(root.get("organization").get("siret")),
+                                normalizedClient
+                        )
+                ));
+                Long clientId = parseIdentifier(client);
+                if (clientId != null) {
+                    clientPredicates.add(criteriaBuilder.equal(
+                            root.get("organization").get("organizationId"),
+                            clientId
+                    ));
+                }
+                predicates.add(criteriaBuilder.or(clientPredicates.toArray(new Predicate[0])));
             }
 
             if (invoiceNumber != null) {
@@ -727,6 +775,14 @@ public class InvoiceServiceImpl implements InvoiceService {
                     predicates.toArray(new Predicate[0])
             );
         };
+    }
+
+    private Long parseIdentifier(String value) {
+        try {
+            return Long.valueOf(value);
+        } catch (NumberFormatException exception) {
+            return null;
+        }
     }
 
     private record AppliedCorrection(String fieldName, String oldValue, String newValue) {
