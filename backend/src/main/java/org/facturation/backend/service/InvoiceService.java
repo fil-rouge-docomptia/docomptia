@@ -2,6 +2,7 @@ package org.facturation.backend.service;
 
 import org.facturation.backend.dto.request.DuplicateAlertDecisionRequest;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
+import org.facturation.backend.dto.request.InvoiceClassificationRequest;
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceListItemResponse;
@@ -32,6 +33,8 @@ public interface InvoiceService {
     Optional<MultipartFile> downloadFile(Long id);
 
     Optional<InvoiceDetailsResponse> correctInvoice(Long id, InvoiceCorrectionRequest request);
+
+    Optional<InvoiceDetailsResponse> assignClassification(Long id, InvoiceClassificationRequest request);
 
     Optional<InvoiceStatusResponse> submitForValidation(Long id);
 

@@ -46,6 +46,9 @@ public class ApiExceptionHandler {
     private static final String ORGANIZATION_LEGAL_IDENTIFIER_CONFLICT_CODE =
             "ORGANIZATION_LEGAL_IDENTIFIER_CONFLICT";
     private static final String ORGANIZATION_VALIDATION_ERROR_CODE = "ORGANIZATION_VALIDATION_ERROR";
+    private static final String CLASSIFICATION_NOT_FOUND_CODE = "CLASSIFICATION_NOT_FOUND";
+    private static final String CLASSIFICATION_VALIDATION_ERROR_CODE = "CLASSIFICATION_VALIDATION_ERROR";
+    private static final String CLASSIFICATION_CONFLICT_CODE = "CLASSIFICATION_CONFLICT";
 
     private final OcrErrorMapper ocrErrorMapper;
 
@@ -104,6 +107,21 @@ public class ApiExceptionHandler {
     @ExceptionHandler(InvalidOrganizationException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidOrganization(InvalidOrganizationException exception) {
         return errorResponse(HttpStatus.BAD_REQUEST, ORGANIZATION_VALIDATION_ERROR_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(ClassificationNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleClassificationNotFound(ClassificationNotFoundException exception) {
+        return errorResponse(HttpStatus.NOT_FOUND, CLASSIFICATION_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidClassificationException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidClassification(InvalidClassificationException exception) {
+        return errorResponse(HttpStatus.BAD_REQUEST, CLASSIFICATION_VALIDATION_ERROR_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(ClassificationConflictException.class)
+    public ResponseEntity<ApiErrorResponse> handleClassificationConflict(ClassificationConflictException exception) {
+        return errorResponse(HttpStatus.CONFLICT, CLASSIFICATION_CONFLICT_CODE, exception.getMessage());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

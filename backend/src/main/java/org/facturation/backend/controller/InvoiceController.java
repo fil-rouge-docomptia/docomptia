@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.DuplicateAlertDecisionRequest;
 import org.facturation.backend.dto.request.InvoiceCorrectionDemandRequest;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
+import org.facturation.backend.dto.request.InvoiceClassificationRequest;
 import org.facturation.backend.dto.request.InvoiceRejectionRequest;
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
@@ -175,6 +176,15 @@ public class InvoiceController {
             @RequestBody InvoiceCorrectionRequest request
     ) {
         return ResponseEntity.ok(requireInvoiceResponse(invoiceService.correctInvoice(id, request), id));
+    }
+
+    @PatchMapping("/{id}/classification")
+    @Operation(summary = "Rattacher une facture a un classement actif")
+    public ResponseEntity<InvoiceDetailsResponse> assignClassification(
+            @PathVariable Long id,
+            @RequestBody InvoiceClassificationRequest request
+    ) {
+        return ResponseEntity.ok(requireInvoiceResponse(invoiceService.assignClassification(id, request), id));
     }
 
     @PostMapping("/{id}/submit-for-validation")

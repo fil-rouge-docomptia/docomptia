@@ -11,6 +11,7 @@ public class InvoiceDetailsResponse {
     private String dueDate;
     private String status;
     private String supplierName;
+    private ClassificationResponse classification;
     private String currencyCode;
     private String totalHt;
     private String totalTva;
@@ -76,6 +77,10 @@ public class InvoiceDetailsResponse {
     public void setSupplierName(String supplierName) {
         this.supplierName = supplierName;
     }
+
+    public ClassificationResponse getClassification() { return classification; }
+
+    public void setClassification(ClassificationResponse classification) { this.classification = classification; }
 
     public String getCurrencyCode() {
         return currencyCode;

@@ -28,6 +28,7 @@ public class InvoiceResponseMapper {
     private final AccountingEntryService accountingEntryService;
     private final AccountingEntryMapper accountingEntryMapper;
     private final InvoiceDuplicateAlertService duplicateAlertService;
+    private final ClassificationResponseMapper classificationResponseMapper;
 
     public InvoiceResponseMapper(
             InvoiceFileRepository invoiceFileRepository,
@@ -36,7 +37,8 @@ public class InvoiceResponseMapper {
             OcrErrorMapper ocrErrorMapper,
             AccountingEntryService accountingEntryService,
             AccountingEntryMapper accountingEntryMapper,
-            InvoiceDuplicateAlertService duplicateAlertService
+            InvoiceDuplicateAlertService duplicateAlertService,
+            ClassificationResponseMapper classificationResponseMapper
     ) {
         this.invoiceFileRepository = invoiceFileRepository;
         this.invoiceOcrService = invoiceOcrService;
@@ -45,6 +47,7 @@ public class InvoiceResponseMapper {
         this.accountingEntryService = accountingEntryService;
         this.accountingEntryMapper = accountingEntryMapper;
         this.duplicateAlertService = duplicateAlertService;
+        this.classificationResponseMapper = classificationResponseMapper;
     }
 
     public InvoiceUploadResponse toUploadResponse(Invoice invoice, OcrAnalysisResponse ocrAnalysis) {
@@ -105,6 +108,9 @@ public class InvoiceResponseMapper {
         response.setTotalTva(toStringOrNull(invoice.getTotalTva()));
         response.setTotalTtc(toStringOrNull(invoice.getTotalTtc()));
         response.setDuplicateAlerts(duplicateAlertService.findByInvoiceId(invoice.getInvoiceId()));
+        if (invoice.getClassification() != null) {
+            response.setClassification(classificationResponseMapper.toResponse(invoice.getClassification()));
+        }
 
         invoiceFileRepository.findByInvoiceInvoiceId(invoice.getInvoiceId())
                 .ifPresent(invoiceFile -> response.setFilePath(invoiceFile.getFilePath()));

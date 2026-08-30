@@ -240,6 +240,36 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
+    void classificationsCanBeViewedByAllRolesButManagedOnlyByAdministrators() throws Exception {
+        String operatorToken = tokenFor("operator-security@facturation-demo.fr");
+
+        mockMvc.perform(get("/api/v1/classifications").header("Authorization", "Bearer " + operatorToken))
+                .andExpect(status().isOk());
+        assertForbidden(post("/api/v1/classifications")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"type\":\"DOSSIER\",\"name\":\"Blocked\"}"), operatorToken);
+
+        mockMvc.perform(post("/api/v1/classifications")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"DOSSIER\",\"name\":\"Authorized\"}")
+                        .header("Authorization", "Bearer " + loginAndGetToken()))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void operatorCanAssignAClassificationButAccountingManagerCannot() throws Exception {
+        mockMvc.perform(patch("/api/v1/invoices/999999/classification")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"classificationId\":1}")
+                        .header("Authorization", "Bearer " + tokenFor("operator-security@facturation-demo.fr")))
+                .andExpect(status().isNotFound());
+
+        assertForbidden(patch("/api/v1/invoices/999999/classification")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"classificationId\":1}"), tokenFor("manager-security@facturation-demo.fr"));
+    }
+
+    @Test
     void authenticatedRequestToUnmappedBusinessRouteIsDenied() throws Exception {
         mockMvc.perform(get("/api/v1/unmapped")
                         .header("Authorization", "Bearer " + loginAndGetToken()))
