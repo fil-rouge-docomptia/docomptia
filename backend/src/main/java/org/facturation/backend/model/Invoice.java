@@ -30,6 +30,10 @@ public class Invoice {
     @JoinColumn(name = "supplier_id")
     private Supplier supplier;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "classification_id")
+    private Classification classification;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "invoice_status_id", nullable = false)
     private InvoiceStatus invoiceStatus;
@@ -87,6 +91,10 @@ public class Invoice {
     public void setSupplier(Supplier supplier) {
         this.supplier = supplier;
     }
+
+    public Classification getClassification() { return classification; }
+
+    public void setClassification(Classification classification) { this.classification = classification; }
 
     public InvoiceStatus getInvoiceStatus() {
         return invoiceStatus;

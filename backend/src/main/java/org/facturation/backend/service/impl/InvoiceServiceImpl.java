@@ -2,6 +2,7 @@ package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.request.DuplicateAlertDecisionRequest;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
+import org.facturation.backend.dto.request.InvoiceClassificationRequest;
 import org.facturation.backend.dto.response.AccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
@@ -28,6 +29,7 @@ import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.service.AccountingEntryService;
 import org.facturation.backend.service.AuditLogService;
 import org.facturation.backend.service.CurrentUserService;
+import org.facturation.backend.service.ClassificationService;
 import org.facturation.backend.service.InvoiceDuplicateAlertService;
 import org.facturation.backend.service.InvoiceFileValidator;
 import org.facturation.backend.service.InvoiceOcrService;
@@ -78,6 +80,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final InvoiceFileRepository invoiceFileRepository;
     private final InvoiceFileStorageService invoiceFileStorageService;
     private final InvoiceDuplicateAlertService duplicateAlertService;
+    private final ClassificationService classificationService;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
@@ -92,7 +95,8 @@ public class InvoiceServiceImpl implements InvoiceService {
             CurrentUserService currentUserService,
             InvoiceFileRepository invoiceFileRepository,
             InvoiceFileStorageService invoiceFileStorageService,
-            InvoiceDuplicateAlertService duplicateAlertService
+            InvoiceDuplicateAlertService duplicateAlertService,
+            ClassificationService classificationService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.accountingEntryService = accountingEntryService;
@@ -107,6 +111,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.invoiceFileRepository = invoiceFileRepository;
         this.invoiceFileStorageService = invoiceFileStorageService;
         this.duplicateAlertService = duplicateAlertService;
+        this.classificationService = classificationService;
     }
 
     @Override
@@ -265,6 +270,26 @@ public class InvoiceServiceImpl implements InvoiceService {
             persistAppliedCorrections(savedInvoice, user, appliedCorrections);
             invoiceStatusWorkflowService.reintegrateAfterCorrectionIfNeeded(savedInvoice, user, true);
             return invoiceResponseMapper.toDetailsResponse(savedInvoice);
+        });
+    }
+
+    @Override
+    @Transactional
+    public Optional<InvoiceDetailsResponse> assignClassification(Long id, InvoiceClassificationRequest request) {
+        if (request == null || request.getClassificationId() == null) {
+            throw new IllegalArgumentException("classificationId is required");
+        }
+        User user = currentUserService.getCurrentUser();
+        return findInvoiceForCurrentOrganization(id, user).map(invoice -> {
+            var classification = classificationService.findRequiredActiveForCurrentOrganization(
+                    request.getClassificationId());
+            if (invoice.getClassification() != null
+                    && Objects.equals(invoice.getClassification().getClassificationId(), classification.getClassificationId())) {
+                throw new IllegalArgumentException("Invoice is already assigned to this classification");
+            }
+            invoice.setClassification(classification);
+            invoice.setUpdatedAt(LocalDateTime.now());
+            return invoiceResponseMapper.toDetailsResponse(invoiceRepository.save(invoice));
         });
     }
 

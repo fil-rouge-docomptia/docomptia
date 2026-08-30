@@ -5,6 +5,20 @@ ALTER TABLE invoices ALTER COLUMN total_ht DROP NOT NULL;
 ALTER TABLE invoices ALTER COLUMN total_tva DROP NOT NULL;
 ALTER TABLE invoices ALTER COLUMN total_ttc DROP NOT NULL;
 
+CREATE TABLE IF NOT EXISTS classifications (
+    classification_id BIGSERIAL PRIMARY KEY,
+    organization_id BIGINT NOT NULL REFERENCES organizations(organization_id),
+    classification_type VARCHAR(20) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description VARCHAR(255),
+    active BOOLEAN NOT NULL,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    CONSTRAINT uk_classifications_organization_type_name
+        UNIQUE (organization_id, classification_type, name)
+);
+ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS classification_id BIGINT REFERENCES classifications(classification_id);
+
 ALTER TABLE IF EXISTS invoice_duplicate_alerts ALTER COLUMN invoice_date DROP NOT NULL;
 ALTER TABLE IF EXISTS invoice_duplicate_alerts ALTER COLUMN total_ttc DROP NOT NULL;
 ALTER TABLE IF EXISTS invoice_duplicate_alerts
