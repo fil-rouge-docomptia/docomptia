@@ -55,6 +55,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -210,18 +211,21 @@ public class InvoiceServiceImpl implements InvoiceService {
     public Page<InvoiceListItemResponse> searchInvoices(
             String status,
             String supplier,
+            String invoiceNumber,
             String invoiceDate,
             Pageable pageable
     ) {
         Long organizationId = currentUserService.getCurrentUser().getOrganization().getOrganizationId();
         String statusFilter = toNullableValue(status);
         String supplierFilter = toNullableValue(supplier);
+        String invoiceNumberFilter = toNullableValue(invoiceNumber);
         LocalDate invoiceDateFilter = parseOptionalDateFilter(invoiceDate);
 
         return invoiceRepository.findAll(byOrganization(organizationId).and(buildInvoiceSearchSpecification(
                         organizationId,
                         statusFilter,
                         supplierFilter,
+                        invoiceNumberFilter,
                         invoiceDateFilter
                 )), pageable)
                 .map(invoiceResponseMapper::toListItemResponse);
@@ -677,6 +681,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             Long organizationId,
             String status,
             String supplier,
+            String invoiceNumber,
             LocalDate invoiceDate
     ) {
         return (root, query, criteriaBuilder) -> {
@@ -704,6 +709,13 @@ public class InvoiceServiceImpl implements InvoiceService {
                                 criteriaBuilder.lower(root.get("supplier").get("legalName")),
                                 supplierPattern
                         )
+                ));
+            }
+
+            if (invoiceNumber != null) {
+                predicates.add(criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("invoiceNumber")),
+                        "%" + invoiceNumber.toLowerCase(Locale.ROOT) + "%"
                 ));
             }
 

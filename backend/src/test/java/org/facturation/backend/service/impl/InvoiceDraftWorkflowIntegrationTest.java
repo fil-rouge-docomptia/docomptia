@@ -98,7 +98,7 @@ class InvoiceDraftWorkflowIntegrationTest {
         assertNotNull(ocrError.getOccurredAt());
 
         List<InvoiceListItemResponse> searchResults = invoiceService
-                .searchInvoices(null, null, null, Pageable.unpaged())
+                .searchInvoices(null, null, null, null, Pageable.unpaged())
                 .getContent();
         InvoiceListItemResponse draftResponse = searchResults.stream()
                 .filter(response -> draft.getInvoiceId().equals(response.getInvoiceId()))

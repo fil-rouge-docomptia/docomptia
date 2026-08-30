@@ -78,7 +78,7 @@ http://ocr:8000/ocr/analyze
 | `POST` | `/api/v1/invoices/{id}/reject` | Refuse une facture eligible avec un motif obligatoire et historise la decision, son auteur et sa date |
 | `POST` | `/api/v1/invoices/{invoiceId}/duplicate-alerts/{alertId}/decision` | Ignore une alerte en attente, confirme le doublon ou rejette la facture, puis met a jour son workflow |
 | `POST` | `/api/v1/invoices/{id}/accounting-entry` | Genere ou controle l'ecriture comptable apres validation. Une ecriture desequilibree retourne `409` avec les totaux et l'ecart, et la facture reste `VALIDEE`. |
-| `GET` | `/api/v1/invoices?page=0&size=20&sortBy=invoiceDate&direction=DESC` | Recherche les factures de l'organisation courante et retourne une page triable par date, montant TTC ou statut. |
+| `GET` | `/api/v1/invoices?invoiceNumber=FAC-2026&page=0&size=20&sortBy=invoiceDate&direction=DESC` | Recherche les factures de l'organisation courante, filtre le numero exact ou partiel sans tenir compte de la casse, et retourne une page triable par date, montant TTC ou statut. |
 | `GET` | `/api/v1/invoices/{id}` | Retourne la facture, l'OCR et l'ecriture si elle existe |
 | `GET` | `/api/v1/invoices/{id}/file` | Telecharge le fichier original si la facture appartient a l'organisation courante |
 | `GET` | `/api/v1/invoices/{id}/history` | Retourne chronologiquement les changements de statut, corrections et decisions de doublon de l'organisation courante |
