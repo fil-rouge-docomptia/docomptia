@@ -21,6 +21,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -55,12 +56,13 @@ class InvoiceSearchControllerTest {
     void returnsPaginationInformationAndRequestedSort() throws Exception {
         InvoiceListItemResponse invoice = new InvoiceListItemResponse();
         invoice.setInvoiceId(112L);
-        when(invoiceService.searchInvoices(isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(invoiceService.searchInvoices(isNull(), isNull(), eq("fac-2026"), isNull(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(invoice), PageRequest.of(1, 1), 3));
 
         mockMvc.perform(get("/api/v1/invoices")
                         .param("page", "1")
                         .param("size", "1")
+                        .param("invoiceNumber", "fac-2026")
                         .param("sortBy", "totalTtc")
                         .param("direction", "asc"))
                 .andExpect(status().isOk())
@@ -71,7 +73,8 @@ class InvoiceSearchControllerTest {
                 .andExpect(jsonPath("$.size").value(1));
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
-        verify(invoiceService).searchInvoices(isNull(), isNull(), isNull(), pageableCaptor.capture());
+        verify(invoiceService).searchInvoices(
+                isNull(), isNull(), eq("fac-2026"), isNull(), pageableCaptor.capture());
         Pageable pageable = pageableCaptor.getValue();
         assertEquals(1, pageable.getPageNumber());
         assertEquals(1, pageable.getPageSize());
@@ -92,7 +95,7 @@ class InvoiceSearchControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("page must be an integer"));
 
-        verify(invoiceService, never()).searchInvoices(isNull(), isNull(), isNull(), any(Pageable.class));
+        verify(invoiceService, never()).searchInvoices(isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
     }
 
     @Test
@@ -105,6 +108,6 @@ class InvoiceSearchControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Invalid invoice sort direction"));
 
-        verify(invoiceService, never()).searchInvoices(isNull(), isNull(), isNull(), any(Pageable.class));
+        verify(invoiceService, never()).searchInvoices(isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
     }
 }

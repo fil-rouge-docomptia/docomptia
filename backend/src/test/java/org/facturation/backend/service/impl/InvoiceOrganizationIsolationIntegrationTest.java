@@ -82,12 +82,41 @@ class InvoiceOrganizationIsolationIntegrationTest {
         createInvoice(otherOrganization, otherUser, otherSupplier, "HIDDEN-156");
 
         List<InvoiceListItemResponse> results = invoiceService
-                .searchInvoices(null, "Shared supplier", null, Pageable.unpaged())
+                .searchInvoices(null, "Shared supplier", null, null, Pageable.unpaged())
                 .getContent();
 
         assertEquals(List.of(visibleInvoice.getInvoiceId()), results.stream()
                 .map(InvoiceListItemResponse::getInvoiceId)
                 .toList());
+    }
+
+    @Test
+    void searchesByExactOrPartialInvoiceNumberIgnoringCaseWithinCurrentOrganization() {
+        Organization currentOrganization = organizationRepository.findById(1L).orElseThrow();
+        User currentUser = userRepository.findById(1L).orElseThrow();
+        Supplier currentSupplier = createSupplier(currentOrganization, "KAN-113 supplier", "44444444444444");
+        Invoice matchingInvoice = createInvoice(currentOrganization, currentUser, currentSupplier, "FAC-2026-AbC-001");
+        createInvoice(currentOrganization, currentUser, currentSupplier, "OTHER-2026-001");
+
+        Organization otherOrganization = createOrganization();
+        User otherUser = createUser(otherOrganization);
+        Supplier otherSupplier = createSupplier(otherOrganization, "Other KAN-113 supplier", "55555555555555");
+        createInvoice(otherOrganization, otherUser, otherSupplier, "FAC-2026-ABC-001");
+
+        Page<InvoiceListItemResponse> exactResults = invoiceService.searchInvoices(
+                null, null, "fac-2026-abc-001", null, Pageable.unpaged());
+        Page<InvoiceListItemResponse> partialResults = invoiceService.searchInvoices(
+                null, null, "2026-aBc", null, Pageable.unpaged());
+        Page<InvoiceListItemResponse> noResults = invoiceService.searchInvoices(
+                null, null, "missing", null, Pageable.unpaged());
+
+        assertEquals(List.of(matchingInvoice.getInvoiceId()), exactResults.stream()
+                .map(InvoiceListItemResponse::getInvoiceId)
+                .toList());
+        assertEquals(List.of(matchingInvoice.getInvoiceId()), partialResults.stream()
+                .map(InvoiceListItemResponse::getInvoiceId)
+                .toList());
+        assertEquals(List.of(), noResults.getContent());
     }
 
     @Test
@@ -114,17 +143,20 @@ class InvoiceOrganizationIsolationIntegrationTest {
                 null,
                 "KAN-112 supplier",
                 null,
+                null,
                 PageRequest.of(0, 2, Sort.by(Sort.Direction.DESC, "totalTtc"))
         );
         Page<InvoiceListItemResponse> ascendingDates = invoiceService.searchInvoices(
                 null,
                 "KAN-112 supplier",
                 null,
+                null,
                 PageRequest.of(0, 3, Sort.by(Sort.Direction.ASC, "invoiceDate"))
         );
         Page<InvoiceListItemResponse> ascendingStatuses = invoiceService.searchInvoices(
                 null,
                 "KAN-112 supplier",
+                null,
                 null,
                 PageRequest.of(0, 3, Sort.by(Sort.Direction.ASC, "invoiceStatus.code"))
         );
