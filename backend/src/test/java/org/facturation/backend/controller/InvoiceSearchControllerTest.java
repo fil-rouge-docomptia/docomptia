@@ -1,0 +1,110 @@
+package org.facturation.backend.controller;
+
+import org.facturation.backend.dto.response.InvoiceListItemResponse;
+import org.facturation.backend.exception.ApiExceptionHandler;
+import org.facturation.backend.mapper.OcrErrorMapper;
+import org.facturation.backend.service.InvoiceHistoryService;
+import org.facturation.backend.service.InvoiceService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@ExtendWith(MockitoExtension.class)
+class InvoiceSearchControllerTest {
+
+    @Mock
+    private InvoiceService invoiceService;
+
+    @Mock
+    private InvoiceHistoryService invoiceHistoryService;
+
+    @Mock
+    private OcrErrorMapper ocrErrorMapper;
+
+    private MockMvc mockMvc;
+
+    @BeforeEach
+    void setUp() {
+        InvoiceController controller = new InvoiceController(invoiceService, invoiceHistoryService);
+        mockMvc = MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new ApiExceptionHandler(ocrErrorMapper))
+                .build();
+    }
+
+    @Test
+    void returnsPaginationInformationAndRequestedSort() throws Exception {
+        InvoiceListItemResponse invoice = new InvoiceListItemResponse();
+        invoice.setInvoiceId(112L);
+        when(invoiceService.searchInvoices(isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(invoice), PageRequest.of(1, 1), 3));
+
+        mockMvc.perform(get("/api/v1/invoices")
+                        .param("page", "1")
+                        .param("size", "1")
+                        .param("sortBy", "totalTtc")
+                        .param("direction", "asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].invoiceId").value(112))
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.number").value(1))
+                .andExpect(jsonPath("$.size").value(1));
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(invoiceService).searchInvoices(isNull(), isNull(), isNull(), pageableCaptor.capture());
+        Pageable pageable = pageableCaptor.getValue();
+        assertEquals(1, pageable.getPageNumber());
+        assertEquals(1, pageable.getPageSize());
+        assertEquals("ASC", pageable.getSort().getOrderFor("totalTtc").getDirection().name());
+    }
+
+    @Test
+    void rejectsInvalidPaginationValues() throws Exception {
+        mockMvc.perform(get("/api/v1/invoices").param("page", "-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("page must be greater than or equal to zero"));
+
+        mockMvc.perform(get("/api/v1/invoices").param("size", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("size must be greater than zero"));
+
+        mockMvc.perform(get("/api/v1/invoices").param("page", "not-a-number"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("page must be an integer"));
+
+        verify(invoiceService, never()).searchInvoices(isNull(), isNull(), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    void rejectsInvalidSortValues() throws Exception {
+        mockMvc.perform(get("/api/v1/invoices").param("sortBy", "supplier"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Invalid invoice sort field: supplier"));
+
+        mockMvc.perform(get("/api/v1/invoices").param("direction", "sideways"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Invalid invoice sort direction"));
+
+        verify(invoiceService, never()).searchInvoices(isNull(), isNull(), isNull(), any(Pageable.class));
+    }
+}

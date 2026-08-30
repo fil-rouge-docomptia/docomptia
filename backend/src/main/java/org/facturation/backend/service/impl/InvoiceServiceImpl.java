@@ -41,6 +41,8 @@ import org.facturation.backend.service.storage.InvoiceFileStorageService;
 import org.facturation.backend.service.storage.StoredInvoiceFile;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -205,7 +207,12 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional
-    public List<InvoiceListItemResponse> searchInvoices(String status, String supplier, String invoiceDate) {
+    public Page<InvoiceListItemResponse> searchInvoices(
+            String status,
+            String supplier,
+            String invoiceDate,
+            Pageable pageable
+    ) {
         Long organizationId = currentUserService.getCurrentUser().getOrganization().getOrganizationId();
         String statusFilter = toNullableValue(status);
         String supplierFilter = toNullableValue(supplier);
@@ -216,10 +223,8 @@ public class InvoiceServiceImpl implements InvoiceService {
                         statusFilter,
                         supplierFilter,
                         invoiceDateFilter
-                )))
-                .stream()
-                .map(invoiceResponseMapper::toListItemResponse)
-                .toList();
+                )), pageable)
+                .map(invoiceResponseMapper::toListItemResponse);
     }
 
     private Specification<Invoice> byOrganization(Long organizationId) {
@@ -675,7 +680,6 @@ public class InvoiceServiceImpl implements InvoiceService {
             LocalDate invoiceDate
     ) {
         return (root, query, criteriaBuilder) -> {
-            query.orderBy(criteriaBuilder.desc(root.get("createdAt")));
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(criteriaBuilder.equal(
                     root.get("organization").get("organizationId"),

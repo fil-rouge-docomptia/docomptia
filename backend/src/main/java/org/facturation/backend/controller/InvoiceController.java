@@ -21,6 +21,9 @@ import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.exception.InvoiceNotFoundException;
 import org.facturation.backend.service.InvoiceHistoryService;
 import org.facturation.backend.service.InvoiceService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -47,7 +50,17 @@ import java.util.Set;
 @Tag(name = "Factures", description = "Depot, consultation et traitement des factures")
 public class InvoiceController {
 
-    private static final Set<String> ALLOWED_SEARCH_PARAMS = Set.of("status", "supplier", "invoiceDate");
+    private static final Set<String> ALLOWED_SEARCH_PARAMS = Set.of(
+            "status", "supplier", "invoiceDate", "page", "size", "sortBy", "direction"
+    );
+    private static final Map<String, String> SORT_PROPERTIES = Map.of(
+            "createdAt", "createdAt",
+            "invoiceDate", "invoiceDate",
+            "date", "invoiceDate",
+            "totalTtc", "totalTtc",
+            "amount", "totalTtc",
+            "status", "invoiceStatus.code"
+    );
 
     private final InvoiceService invoiceService;
     private final InvoiceHistoryService invoiceHistoryService;
@@ -62,9 +75,13 @@ public class InvoiceController {
     @Parameters({
             @Parameter(name = "status", description = "Code du statut", example = "EXTRAITE"),
             @Parameter(name = "supplier", description = "Nom ou raison sociale du fournisseur", example = "Orange"),
-            @Parameter(name = "invoiceDate", description = "Date de facture au format ISO", example = "2026-07-21")
+            @Parameter(name = "invoiceDate", description = "Date de facture au format ISO", example = "2026-07-21"),
+            @Parameter(name = "page", description = "Numero de page, commence a zero", example = "0"),
+            @Parameter(name = "size", description = "Nombre de factures par page", example = "20"),
+            @Parameter(name = "sortBy", description = "Champ de tri: invoiceDate, totalTtc ou status"),
+            @Parameter(name = "direction", description = "Sens du tri: ASC ou DESC")
     })
-    public ResponseEntity<List<InvoiceListItemResponse>> searchInvoices(
+    public ResponseEntity<Page<InvoiceListItemResponse>> searchInvoices(
             @Parameter(hidden = true) @RequestParam Map<String, String> params
     ) {
         if (!ALLOWED_SEARCH_PARAMS.containsAll(params.keySet())) {
@@ -77,11 +94,55 @@ public class InvoiceController {
             );
         }
 
+        int page = parseNonNegativeInteger(params.getOrDefault("page", "0"), "page");
+        int size = parsePositiveInteger(params.getOrDefault("size", "20"), "size");
+        String sortBy = params.getOrDefault("sortBy", "createdAt");
+        String sortProperty = SORT_PROPERTIES.get(sortBy);
+        if (sortProperty == null) {
+            throw new IllegalArgumentException("Invalid invoice sort field: " + sortBy);
+        }
+        Sort.Direction direction;
+        try {
+            direction = Sort.Direction.fromString(params.getOrDefault("direction", "DESC"));
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("Invalid invoice sort direction", exception);
+        }
+        PageRequest pageRequest = PageRequest.of(
+                page,
+                size,
+                Sort.by(direction, sortProperty).and(Sort.by("invoiceId").ascending())
+        );
+
         return ResponseEntity.ok(invoiceService.searchInvoices(
                 params.get("status"),
                 params.get("supplier"),
-                params.get("invoiceDate")
+                params.get("invoiceDate"),
+                pageRequest
         ));
+    }
+
+    private int parseNonNegativeInteger(String value, String fieldName) {
+        int parsedValue = parseInteger(value, fieldName);
+        if (parsedValue < 0) {
+            throw new IllegalArgumentException(fieldName + " must be greater than or equal to zero");
+        }
+        return parsedValue;
+    }
+
+    private int parsePositiveInteger(String value, String fieldName) {
+        int parsedValue = parseInteger(value, fieldName);
+        if (parsedValue < 1) {
+            throw new IllegalArgumentException(fieldName + " must be greater than zero");
+        }
+        return parsedValue;
+    }
+
+    private int parseInteger(String value, String fieldName) {
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException(fieldName + " must be an integer", exception);
+        }
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

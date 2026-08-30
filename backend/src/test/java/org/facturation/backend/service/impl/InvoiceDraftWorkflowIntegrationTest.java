@@ -23,6 +23,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.data.domain.Pageable;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -96,7 +97,9 @@ class InvoiceDraftWorkflowIntegrationTest {
         assertEquals("OCR service is unavailable", ocrError.getErrorMessage());
         assertNotNull(ocrError.getOccurredAt());
 
-        List<InvoiceListItemResponse> searchResults = invoiceService.searchInvoices(null, null, null);
+        List<InvoiceListItemResponse> searchResults = invoiceService
+                .searchInvoices(null, null, null, Pageable.unpaged())
+                .getContent();
         InvoiceListItemResponse draftResponse = searchResults.stream()
                 .filter(response -> draft.getInvoiceId().equals(response.getInvoiceId()))
                 .findFirst()
