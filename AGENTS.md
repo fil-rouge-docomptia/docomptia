@@ -107,6 +107,7 @@ Avoid creating:
 * Preserve existing component props and API contracts.
 * Maintain basic accessibility: semantic HTML, labels, keyboard support, and meaningful button text.
 * Add or update focused tests when the project already tests similar behavior.
+* After frontend changes, run `npm run lint` in `frontend` and fix reported issues before considering the task complete.
 
 ### Dependencies
 
