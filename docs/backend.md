@@ -180,6 +180,21 @@ Un numero de compte est unique dans une organisation. Un compte absent ou rattac
 organisation retourne `404`; un numero deja utilise retourne `409`. La desactivation conserve les
 regles et lignes comptables qui referencent le compte.
 
+## Endpoints Classement MVP
+
+| Methode | Endpoint | Role |
+| --- | --- | --- |
+| `POST` | `/api/v1/classifications` | Cree un dossier, classeur ou chantier actif dans l'organisation courante |
+| `GET` | `/api/v1/classifications?type=CHANTIER&page=0&size=20` | Liste les elements, avec un filtre de type optionnel |
+| `GET` | `/api/v1/classifications/{id}` | Consulte un element de l'organisation courante |
+| `PATCH` | `/api/v1/classifications/{id}` | Modifie son nom ou sa description |
+| `POST` | `/api/v1/classifications/{id}/deactivate` | Desactive l'element sans supprimer ses rattachements |
+| `PATCH` | `/api/v1/invoices/{id}/classification` | Rattache une facture a un element actif de la meme organisation |
+
+Les types autorises sont `DOSSIER`, `CLASSEUR` et `CHANTIER`. La consultation est ouverte aux
+trois roles MVP, l'administration est reservee aux administrateurs et le rattachement suit la
+permission de traitement des factures.
+
 ## Endpoints Utilisateurs MVP
 
 | Methode | Endpoint | Role |
