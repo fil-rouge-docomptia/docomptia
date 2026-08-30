@@ -34,6 +34,9 @@ public interface InvoiceService {
             String client,
             String invoiceNumber,
             String invoiceDate,
+            String dueDate,
+            String startDate,
+            String endDate,
             Pageable pageable
     );
 

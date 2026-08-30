@@ -51,7 +51,8 @@ import java.util.Set;
 public class InvoiceController {
 
     private static final Set<String> ALLOWED_SEARCH_PARAMS = Set.of(
-            "status", "supplier", "client", "invoiceNumber", "invoiceDate", "page", "size", "sortBy", "direction"
+            "status", "supplier", "client", "invoiceNumber", "invoiceDate", "dueDate", "startDate", "endDate",
+            "page", "size", "sortBy", "direction"
     );
     private static final Map<String, String> SORT_PROPERTIES = Map.of(
             "createdAt", "createdAt",
@@ -78,6 +79,9 @@ public class InvoiceController {
             @Parameter(name = "client", description = "Nom ou identifiant du client", example = "Docomptia"),
             @Parameter(name = "invoiceNumber", description = "Numero de facture exact ou partiel", example = "FAC-2026"),
             @Parameter(name = "invoiceDate", description = "Date de facture au format ISO", example = "2026-07-21"),
+            @Parameter(name = "dueDate", description = "Date d'echeance au format ISO", example = "2026-08-21"),
+            @Parameter(name = "startDate", description = "Debut inclusif de la periode de facturation", example = "2026-07-01"),
+            @Parameter(name = "endDate", description = "Fin inclusive de la periode de facturation", example = "2026-07-31"),
             @Parameter(name = "page", description = "Numero de page, commence a zero", example = "0"),
             @Parameter(name = "size", description = "Nombre de factures par page", example = "20"),
             @Parameter(name = "sortBy", description = "Champ de tri: invoiceDate, totalTtc ou status"),
@@ -121,6 +125,9 @@ public class InvoiceController {
                 params.get("client"),
                 params.get("invoiceNumber"),
                 params.get("invoiceDate"),
+                params.get("dueDate"),
+                params.get("startDate"),
+                params.get("endDate"),
                 pageRequest
         ));
     }

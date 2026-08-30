@@ -30,6 +30,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
 @Transactional
@@ -82,7 +83,8 @@ class InvoiceOrganizationIsolationIntegrationTest {
         createInvoice(otherOrganization, otherUser, otherSupplier, "HIDDEN-156");
 
         List<InvoiceListItemResponse> results = invoiceService
-                .searchInvoices(null, "Shared supplier", null, null, null, Pageable.unpaged())
+                .searchInvoices(
+                        null, "Shared supplier", null, null, null, null, null, null, Pageable.unpaged())
                 .getContent();
 
         assertEquals(List.of(visibleInvoice.getInvoiceId()), results.stream()
@@ -110,7 +112,8 @@ class InvoiceOrganizationIsolationIntegrationTest {
         assertSearchReturnsInvoice(matchingInvoice, matchingSupplier.getSiret(), null);
         assertSearchReturnsInvoice(matchingInvoice, "fr66666666666", null);
         assertEquals(List.of(), invoiceService.searchInvoices(
-                null, otherSupplier.getSupplierId().toString(), null, null, null, Pageable.unpaged()
+                null, otherSupplier.getSupplierId().toString(), null, null, null, null, null, null,
+                Pageable.unpaged()
         ).getContent());
     }
 
@@ -126,7 +129,8 @@ class InvoiceOrganizationIsolationIntegrationTest {
         assertSearchReturnsInvoice(matchingInvoice, null, currentOrganization.getOrganizationId().toString());
         assertSearchReturnsInvoice(matchingInvoice, null, currentOrganization.getSiret());
         assertEquals(List.of(), invoiceService.searchInvoices(
-                null, null, otherOrganization.getOrganizationId().toString(), null, null, Pageable.unpaged()
+                null, null, otherOrganization.getOrganizationId().toString(), null, null, null, null, null,
+                Pageable.unpaged()
         ).getContent());
     }
 
@@ -144,11 +148,11 @@ class InvoiceOrganizationIsolationIntegrationTest {
         createInvoice(otherOrganization, otherUser, otherSupplier, "FAC-2026-ABC-001");
 
         Page<InvoiceListItemResponse> exactResults = invoiceService.searchInvoices(
-                null, null, null, "fac-2026-abc-001", null, Pageable.unpaged());
+                null, null, null, "fac-2026-abc-001", null, null, null, null, Pageable.unpaged());
         Page<InvoiceListItemResponse> partialResults = invoiceService.searchInvoices(
-                null, null, null, "2026-aBc", null, Pageable.unpaged());
+                null, null, null, "2026-aBc", null, null, null, null, Pageable.unpaged());
         Page<InvoiceListItemResponse> noResults = invoiceService.searchInvoices(
-                null, null, null, "missing", null, Pageable.unpaged());
+                null, null, null, "missing", null, null, null, null, Pageable.unpaged());
 
         assertEquals(List.of(matchingInvoice.getInvoiceId()), exactResults.stream()
                 .map(InvoiceListItemResponse::getInvoiceId)
@@ -157,6 +161,80 @@ class InvoiceOrganizationIsolationIntegrationTest {
                 .map(InvoiceListItemResponse::getInvoiceId)
                 .toList());
         assertEquals(List.of(), noResults.getContent());
+    }
+
+    @Test
+    void filtersByExactInvoiceAndDueDates() {
+        Organization organization = organizationRepository.findById(1L).orElseThrow();
+        User currentUser = userRepository.findById(1L).orElseThrow();
+        Supplier supplier = createSupplier(organization, "KAN-115 exact dates", "12121212121212");
+        Invoice matchingInvoice = createInvoice(organization, currentUser, supplier, "KAN-115-EXACT");
+        matchingInvoice.setInvoiceDate(LocalDate.of(2026, 8, 10));
+        matchingInvoice.setDueDate(LocalDate.of(2026, 9, 10));
+        invoiceRepository.save(matchingInvoice);
+        Invoice otherDueDate = createInvoice(organization, currentUser, supplier, "KAN-115-OTHER-DUE-DATE");
+        otherDueDate.setInvoiceDate(LocalDate.of(2026, 8, 10));
+        otherDueDate.setDueDate(LocalDate.of(2026, 9, 11));
+        invoiceRepository.save(otherDueDate);
+        Invoice missingDueDate = createInvoice(organization, currentUser, supplier, "KAN-115-NO-DUE-DATE");
+        missingDueDate.setInvoiceDate(LocalDate.of(2026, 8, 10));
+        missingDueDate.setDueDate(null);
+        invoiceRepository.save(missingDueDate);
+
+        Page<InvoiceListItemResponse> results = invoiceService.searchInvoices(
+                null, null, null, null, "2026-08-10", "2026-09-10", null, null, Pageable.unpaged());
+
+        assertEquals(List.of(matchingInvoice.getInvoiceId()), results.map(InvoiceListItemResponse::getInvoiceId)
+                .getContent());
+    }
+
+    @Test
+    void filtersByInclusiveInvoiceDatePeriodAndIgnoresMissingDates() {
+        Organization organization = organizationRepository.findById(1L).orElseThrow();
+        User currentUser = userRepository.findById(1L).orElseThrow();
+        Supplier supplier = createSupplier(organization, "KAN-115 period", "13131313131313");
+        Invoice startBoundary = createInvoice(organization, currentUser, supplier, "KAN-115-START");
+        startBoundary.setInvoiceDate(LocalDate.of(2026, 8, 1));
+        invoiceRepository.save(startBoundary);
+        Invoice endBoundary = createInvoice(organization, currentUser, supplier, "KAN-115-END");
+        endBoundary.setInvoiceDate(LocalDate.of(2026, 8, 31));
+        invoiceRepository.save(endBoundary);
+        Invoice outsidePeriod = createInvoice(organization, currentUser, supplier, "KAN-115-OUTSIDE");
+        outsidePeriod.setInvoiceDate(LocalDate.of(2026, 9, 1));
+        invoiceRepository.save(outsidePeriod);
+        Invoice missingDate = createInvoice(organization, currentUser, supplier, "KAN-115-NO-DATE");
+        missingDate.setInvoiceDate(null);
+        invoiceRepository.save(missingDate);
+
+        Page<InvoiceListItemResponse> results = invoiceService.searchInvoices(
+                null, "KAN-115 period", null, null, null, null, "2026-08-01", "2026-08-31",
+                Pageable.unpaged());
+
+        assertEquals(List.of("KAN-115-END", "KAN-115-START"), results.stream()
+                .map(InvoiceListItemResponse::getInvoiceNumber)
+                .sorted()
+                .toList());
+    }
+
+    @Test
+    void acceptsAnOpenPeriodAndRejectsAnInvertedPeriod() {
+        Organization organization = organizationRepository.findById(1L).orElseThrow();
+        User currentUser = userRepository.findById(1L).orElseThrow();
+        Supplier supplier = createSupplier(organization, "KAN-115 open period", "14141414141414");
+        Invoice invoice = createInvoice(organization, currentUser, supplier, "KAN-115-OPEN");
+        invoice.setInvoiceDate(LocalDate.of(2026, 8, 15));
+        invoiceRepository.save(invoice);
+
+        Page<InvoiceListItemResponse> results = invoiceService.searchInvoices(
+                null, "KAN-115 open period", null, null, null, null, "2026-08-01", null,
+                Pageable.unpaged());
+
+        assertEquals(List.of(invoice.getInvoiceId()), results.map(InvoiceListItemResponse::getInvoiceId).getContent());
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> invoiceService.searchInvoices(
+                        null, null, null, null, null, null, "2026-08-31", "2026-08-01",
+                        Pageable.unpaged()));
+        assertEquals("startDate must be before or equal to endDate", exception.getMessage());
     }
 
     @Test
@@ -185,6 +263,9 @@ class InvoiceOrganizationIsolationIntegrationTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
                 PageRequest.of(0, 2, Sort.by(Sort.Direction.DESC, "totalTtc"))
         );
         Page<InvoiceListItemResponse> ascendingDates = invoiceService.searchInvoices(
@@ -193,11 +274,17 @@ class InvoiceOrganizationIsolationIntegrationTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
                 PageRequest.of(0, 3, Sort.by(Sort.Direction.ASC, "invoiceDate"))
         );
         Page<InvoiceListItemResponse> ascendingStatuses = invoiceService.searchInvoices(
                 null,
                 "KAN-112 supplier",
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -221,7 +308,7 @@ class InvoiceOrganizationIsolationIntegrationTest {
         assertEquals(
                 List.of(expectedInvoice.getInvoiceId()),
                 invoiceService.searchInvoices(
-                                null, supplier, client, null, null, Pageable.unpaged())
+                                null, supplier, client, null, null, null, null, null, Pageable.unpaged())
                         .map(InvoiceListItemResponse::getInvoiceId)
                         .getContent()
         );
