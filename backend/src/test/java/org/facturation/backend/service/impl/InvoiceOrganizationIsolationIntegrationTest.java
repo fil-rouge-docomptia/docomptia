@@ -16,6 +16,10 @@ import org.facturation.backend.service.InvoiceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
@@ -77,10 +81,64 @@ class InvoiceOrganizationIsolationIntegrationTest {
         Supplier otherSupplier = createSupplier(otherOrganization, "Shared supplier", "22222222222222");
         createInvoice(otherOrganization, otherUser, otherSupplier, "HIDDEN-156");
 
-        List<InvoiceListItemResponse> results = invoiceService.searchInvoices(null, "Shared supplier", null);
+        List<InvoiceListItemResponse> results = invoiceService
+                .searchInvoices(null, "Shared supplier", null, Pageable.unpaged())
+                .getContent();
 
         assertEquals(List.of(visibleInvoice.getInvoiceId()), results.stream()
                 .map(InvoiceListItemResponse::getInvoiceId)
+                .toList());
+    }
+
+    @Test
+    void paginatesAndSortsFilteredInvoicesInBothDirections() {
+        Organization organization = organizationRepository.findById(1L).orElseThrow();
+        User currentUser = userRepository.findById(1L).orElseThrow();
+        Supplier supplier = createSupplier(organization, "KAN-112 supplier", "33333333333333");
+        Invoice firstInvoice = createInvoice(organization, currentUser, supplier, "KAN-112-A");
+        firstInvoice.setInvoiceDate(LocalDate.of(2026, 8, 1));
+        firstInvoice.setInvoiceStatus(invoiceStatusRepository.findByCode("DEPOSEE").orElseThrow());
+        firstInvoice.setTotalTtc(new BigDecimal("100.00"));
+        invoiceRepository.save(firstInvoice);
+        Invoice secondInvoice = createInvoice(organization, currentUser, supplier, "KAN-112-B");
+        secondInvoice.setInvoiceDate(LocalDate.of(2026, 8, 2));
+        secondInvoice.setInvoiceStatus(invoiceStatusRepository.findByCode("VALIDEE").orElseThrow());
+        secondInvoice.setTotalTtc(new BigDecimal("200.00"));
+        invoiceRepository.save(secondInvoice);
+        Invoice thirdInvoice = createInvoice(organization, currentUser, supplier, "KAN-112-C");
+        thirdInvoice.setInvoiceDate(LocalDate.of(2026, 8, 3));
+        thirdInvoice.setTotalTtc(new BigDecimal("300.00"));
+        invoiceRepository.save(thirdInvoice);
+
+        Page<InvoiceListItemResponse> firstPage = invoiceService.searchInvoices(
+                null,
+                "KAN-112 supplier",
+                null,
+                PageRequest.of(0, 2, Sort.by(Sort.Direction.DESC, "totalTtc"))
+        );
+        Page<InvoiceListItemResponse> ascendingDates = invoiceService.searchInvoices(
+                null,
+                "KAN-112 supplier",
+                null,
+                PageRequest.of(0, 3, Sort.by(Sort.Direction.ASC, "invoiceDate"))
+        );
+        Page<InvoiceListItemResponse> ascendingStatuses = invoiceService.searchInvoices(
+                null,
+                "KAN-112 supplier",
+                null,
+                PageRequest.of(0, 3, Sort.by(Sort.Direction.ASC, "invoiceStatus.code"))
+        );
+
+        assertEquals(3, firstPage.getTotalElements());
+        assertEquals(2, firstPage.getTotalPages());
+        assertEquals(List.of("KAN-112-C", "KAN-112-B"), firstPage.getContent().stream()
+                .map(InvoiceListItemResponse::getInvoiceNumber)
+                .toList());
+        assertEquals(List.of("KAN-112-A", "KAN-112-B", "KAN-112-C"), ascendingDates.getContent().stream()
+                .map(InvoiceListItemResponse::getInvoiceNumber)
+                .toList());
+        assertEquals(List.of("DEPOSEE", "EXTRAITE", "VALIDEE"), ascendingStatuses.getContent().stream()
+                .map(InvoiceListItemResponse::getStatus)
                 .toList());
     }
 

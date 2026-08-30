@@ -9,6 +9,8 @@ import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.model.Invoice;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -26,7 +28,12 @@ public interface InvoiceService {
 
     Optional<InvoiceDetailsResponse> retryOcr(Long invoiceId);
 
-    List<InvoiceListItemResponse> searchInvoices(String status, String supplier, String invoiceDate);
+    Page<InvoiceListItemResponse> searchInvoices(
+            String status,
+            String supplier,
+            String invoiceDate,
+            Pageable pageable
+    );
 
     Optional<InvoiceDetailsResponse> findDetailsById(Long id);
 

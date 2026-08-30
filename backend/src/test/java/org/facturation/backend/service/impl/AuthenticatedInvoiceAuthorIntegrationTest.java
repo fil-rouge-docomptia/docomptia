@@ -8,6 +8,7 @@ import org.facturation.backend.service.InvoiceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -117,7 +118,7 @@ class AuthenticatedInvoiceAuthorIntegrationTest {
                     + "true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
     })
     void listsOnlyInvoicesFromAuthenticatedUserOrganization() {
-        assertTrue(invoiceService.searchInvoices(null, null, null).isEmpty());
+        assertTrue(invoiceService.searchInvoices(null, null, null, Pageable.unpaged()).isEmpty());
     }
 
     @Test
