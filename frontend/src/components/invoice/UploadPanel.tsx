@@ -25,6 +25,8 @@ export function UploadPanel({
   supplierId,
   onSupplierIdChange,
 }: UploadPanelProps) {
+  const showSupplierField = false
+
   return (
     <section className="space-y-6">
       <Card>
@@ -36,22 +38,24 @@ export function UploadPanel({
 
         <CardContent>
           <form className="space-y-4" onSubmit={onSubmit}>
-            {false && (<div className="space-y-2">
-              <Label
+            {showSupplierField ? (
+              <div className="space-y-2">
+                <Label
                   className="text-[12px] font-semibold uppercase tracking-[0.05em] text-[#41484c]"
                   htmlFor="supplierId"
-              >
-                ID Fournisseur
-              </Label>
-              <Input
+                >
+                  ID Fournisseur
+                </Label>
+                <Input
                   id="supplierId"
                   name="supplierId"
                   placeholder="ex: FR-908234"
                   type="text"
                   value={supplierId}
                   onChange={(event) => onSupplierIdChange(event.target.value)}
-              />
-            </div>)}
+                />
+              </div>
+            ) : null}
 
             <label
               className="block cursor-pointer rounded-xl border-2 border-dashed border-[#c1c7cc] bg-[#f8f9ff] p-12 transition-colors hover:border-[#083344] hover:bg-[#eff4ff]"
