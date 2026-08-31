@@ -354,6 +354,68 @@ class InvoiceOrganizationIsolationIntegrationTest {
     }
 
     @Test
+    void combinesAllProvidedFiltersWithPaginationAndSorting() {
+        Organization organization = organizationRepository.findById(1L).orElseThrow();
+        User currentUser = userRepository.findById(1L).orElseThrow();
+        Supplier matchingSupplier = createSupplier(organization, "KAN-118 supplier", "19191919191919");
+        Supplier otherSupplier = createSupplier(organization, "Unrelated supplier", "20202020202020");
+        InvoiceStatus validatedStatus = invoiceStatusRepository.findByCode("VALIDEE").orElseThrow();
+
+        Invoice lowerAmount = createInvoice(organization, currentUser, matchingSupplier, "KAN-118-LOWER");
+        lowerAmount.setInvoiceStatus(validatedStatus);
+        lowerAmount.setInvoiceDate(LocalDate.of(2026, 8, 20));
+        lowerAmount.setDueDate(LocalDate.of(2026, 9, 20));
+        lowerAmount.setTotalTtc(new BigDecimal("120.00"));
+        invoiceRepository.save(lowerAmount);
+
+        Invoice higherAmount = createInvoice(organization, currentUser, matchingSupplier, "KAN-118-HIGHER");
+        higherAmount.setInvoiceStatus(validatedStatus);
+        higherAmount.setInvoiceDate(LocalDate.of(2026, 8, 20));
+        higherAmount.setDueDate(LocalDate.of(2026, 9, 20));
+        higherAmount.setTotalTtc(new BigDecimal("180.00"));
+        invoiceRepository.save(higherAmount);
+
+        Invoice wrongStatus = createInvoice(organization, currentUser, matchingSupplier, "KAN-118-WRONG-STATUS");
+        wrongStatus.setInvoiceDate(LocalDate.of(2026, 8, 20));
+        wrongStatus.setDueDate(LocalDate.of(2026, 9, 20));
+        wrongStatus.setTotalTtc(new BigDecimal("150.00"));
+        invoiceRepository.save(wrongStatus);
+
+        Invoice wrongSupplier = createInvoice(organization, currentUser, otherSupplier, "KAN-118-WRONG-SUPPLIER");
+        wrongSupplier.setInvoiceStatus(validatedStatus);
+        wrongSupplier.setInvoiceDate(LocalDate.of(2026, 8, 20));
+        wrongSupplier.setDueDate(LocalDate.of(2026, 9, 20));
+        wrongSupplier.setTotalTtc(new BigDecimal("160.00"));
+        invoiceRepository.save(wrongSupplier);
+
+        Invoice wrongAmount = createInvoice(organization, currentUser, matchingSupplier, "KAN-118-WRONG-AMOUNT");
+        wrongAmount.setInvoiceStatus(validatedStatus);
+        wrongAmount.setInvoiceDate(LocalDate.of(2026, 8, 20));
+        wrongAmount.setDueDate(LocalDate.of(2026, 9, 20));
+        wrongAmount.setTotalTtc(new BigDecimal("200.01"));
+        invoiceRepository.save(wrongAmount);
+
+        Page<InvoiceListItemResponse> results = invoiceService.searchInvoices(
+                List.of("VALIDEE"),
+                "KAN-118 supplier",
+                organization.getSiret(),
+                "KAN-118-",
+                "2026-08-20",
+                "2026-09-20",
+                "2026-08-01",
+                "2026-08-31",
+                "100.00",
+                "200.00",
+                PageRequest.of(1, 1, Sort.by(Sort.Direction.DESC, "totalTtc"))
+        );
+
+        assertEquals(2, results.getTotalElements());
+        assertEquals(2, results.getTotalPages());
+        assertEquals(List.of(lowerAmount.getInvoiceId()), results.map(InvoiceListItemResponse::getInvoiceId)
+                .getContent());
+    }
+
+    @Test
     void paginatesAndSortsFilteredInvoicesInBothDirections() {
         Organization organization = organizationRepository.findById(1L).orElseThrow();
         User currentUser = userRepository.findById(1L).orElseThrow();
