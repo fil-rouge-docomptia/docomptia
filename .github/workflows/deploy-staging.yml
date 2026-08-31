@@ -26,9 +26,8 @@ jobs:
           SSH_KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
         run: |
           install -m 700 -d ~/.ssh
-          printf '%s' "$SSH_PRIVATE_KEY" | base64 --decode > ~/.ssh/staging_key
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/staging_key
           chmod 600 ~/.ssh/staging_key
-          ssh-keygen -lf ~/.ssh/staging_key
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
@@ -39,9 +38,6 @@ jobs:
           SSH_USER: ${{ secrets.STAGING_SSH_USER }}
           DEPLOY_PATH: ${{ secrets.STAGING_DEPLOY_PATH }}
         run: |
-          [ "$SSH_HOST" = "51.15.129.148" ] || { echo "STAGING_SSH_HOST is not the VPS IP"; exit 1; }
-          [ "$SSH_PORT" = "22" ] || { echo "STAGING_SSH_PORT is not 22"; exit 1; }
-          [ "$SSH_USER" = "root" ] || { echo "STAGING_SSH_USER is not root"; exit 1; }
           ssh -i ~/.ssh/staging_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
             "cd '$DEPLOY_PATH' && \
             git fetch origin staging && \
