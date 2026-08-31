@@ -125,13 +125,14 @@ export default function InvoiceDetailsPage() {
         retryError instanceof ApiError
         && isInvoiceOcrFailureResponse(retryError.details)
       ) {
+        const failure = retryError.details
         setRequestState((currentState) => ({
           ...currentState,
           invoice: currentState.invoice
             ? {
                 ...currentState.invoice,
-                ocrError: retryError.details.ocrError,
-                status: retryError.details.status,
+                ocrError: failure.ocrError,
+                status: failure.status,
               }
             : currentState.invoice,
         }))
