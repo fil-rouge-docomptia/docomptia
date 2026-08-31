@@ -15,6 +15,12 @@ export type OcrAnalysisResponse = {
   fields: OcrFieldResponse[]
 }
 
+export type InvoiceOcrError = {
+  code: string
+  message: string
+  occurredAt: string
+}
+
 export type InvoiceUploadResponse = {
   invoiceId: number
   invoiceNumber: string
@@ -25,11 +31,7 @@ export type InvoiceUploadResponse = {
 export type InvoiceOcrFailureResponse = {
   invoiceId: number
   status: string
-  ocrError: {
-    code: string
-    message: string
-    occurredAt: string
-  }
+  ocrError: InvoiceOcrError
 }
 
 export type InvoiceUploadPhase =
@@ -134,11 +136,7 @@ export type InvoiceDetails = {
   totalTtc: string | null
   filePath: string | null
   ocrAnalysis: OcrAnalysisResponse | null
-  ocrError: {
-    code: string
-    message: string
-    occurredAt: string
-  } | null
+  ocrError: InvoiceOcrError | null
   accountingEntry: AccountingEntry | null
   duplicateAlerts: InvoiceDuplicateAlert[]
 }

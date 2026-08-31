@@ -10,7 +10,13 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/hooks/use-auth'
-import { getInvoiceDetails, submitInvoiceForValidation } from '@/services/invoice'
+import { ApiError } from '@/services/api'
+import {
+  getInvoiceDetails,
+  isInvoiceOcrFailureResponse,
+  retryInvoiceOcr,
+  submitInvoiceForValidation,
+} from '@/services/invoice'
 import type { InvoiceDetails } from '@/types/invoice'
 
 function InvoiceDetailsSkeleton() {
@@ -110,6 +116,32 @@ export default function InvoiceDetailsPage() {
     }))
   }
 
+  const handleRetryOcr = async () => {
+    try {
+      handleInvoiceUpdated(await retryInvoiceOcr(invoiceId))
+      setCorrectionState({ dirty: false, saving: false })
+    } catch (retryError) {
+      if (
+        retryError instanceof ApiError
+        && isInvoiceOcrFailureResponse(retryError.details)
+      ) {
+        const failure = retryError.details
+        setRequestState((currentState) => ({
+          ...currentState,
+          invoice: currentState.invoice
+            ? {
+                ...currentState.invoice,
+                ocrError: failure.ocrError,
+                status: failure.status,
+              }
+            : currentState.invoice,
+        }))
+      }
+
+      throw retryError
+    }
+  }
+
   if (error) {
     return (
       <div className="mx-auto max-w-2xl space-y-5 pt-6">
@@ -145,6 +177,7 @@ export default function InvoiceDetailsPage() {
         correctionState={correctionState}
         invoice={invoice}
         onRequestApproval={handleRequestApproval}
+        onRetryOcr={handleRetryOcr}
         role={user?.role.code}
         showCorrectionAction={activeTab === 'details'}
       />
@@ -157,7 +190,7 @@ export default function InvoiceDetailsPage() {
         <InvoiceWorkflowPanel
           activeTab={activeTab}
           invoice={invoice}
-          key={invoice.invoiceId}
+          key={`${invoice.invoiceId}:${invoice.status}:${invoice.ocrError?.occurredAt ?? ''}`}
           onActiveTabChange={setActiveTab}
           onCorrectionStateChange={setCorrectionState}
           onInvoiceUpdated={handleInvoiceUpdated}

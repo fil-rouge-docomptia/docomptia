@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowRight, LoaderCircle, Save } from 'lucide-react'
+import { ArrowRight, LoaderCircle, RotateCcw, Save } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { InvoiceStatusBadge } from '@/components/invoice/InvoiceStatusBadge'
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import type { RoleCode } from '@/types/auth'
 import type { InvoiceDetails } from '@/types/invoice'
 
-import { canCorrectInvoice } from './invoice-detail-utils'
+import { canCorrectInvoice, isRetryableOcrError } from './invoice-detail-utils'
 
 type CorrectionState = {
   dirty: boolean
@@ -19,6 +19,7 @@ type InvoiceDetailHeaderProps = {
   correctionState: CorrectionState
   invoice: InvoiceDetails
   onRequestApproval: () => Promise<void>
+  onRetryOcr: () => Promise<void>
   role?: RoleCode
   showCorrectionAction: boolean
 }
@@ -29,24 +30,46 @@ export function InvoiceDetailHeader({
   correctionState,
   invoice,
   onRequestApproval,
+  onRetryOcr,
   role,
   showCorrectionAction,
 }: InvoiceDetailHeaderProps) {
-  const [actionError, setActionError] = useState(false)
+  const [actionError, setActionError] = useState<'approval' | 'ocr' | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [retryingOcr, setRetryingOcr] = useState(false)
+  const canProcessInvoice = Boolean(role && processingRoles.includes(role))
   const canRequestApproval =
-    invoice.status === 'EXTRAITE' && Boolean(role && processingRoles.includes(role))
+    invoice.status === 'EXTRAITE' && canProcessInvoice
+  const canRetryOcr = invoice.status === 'ERREUR_OCR'
+    && canProcessInvoice
+    && isRetryableOcrError(invoice.ocrError)
+  const canSaveCorrections = showCorrectionAction
+    && canCorrectInvoice(invoice.status, role)
+    && !canRetryOcr
 
   const handleRequestApproval = async () => {
-    setActionError(false)
+    setActionError(null)
     setSubmitting(true)
 
     try {
       await onRequestApproval()
     } catch {
-      setActionError(true)
+      setActionError('approval')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleRetryOcr = async () => {
+    setActionError(null)
+    setRetryingOcr(true)
+
+    try {
+      await onRetryOcr()
+    } catch {
+      setActionError('ocr')
+    } finally {
+      setRetryingOcr(false)
     }
   }
 
@@ -74,7 +97,7 @@ export function InvoiceDetailHeader({
         </div>
 
         <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
-          {showCorrectionAction && canCorrectInvoice(invoice.status, role) ? (
+          {canSaveCorrections ? (
             <Button
               className="w-full lg:w-auto"
               disabled={!correctionState.dirty || correctionState.saving}
@@ -88,6 +111,22 @@ export function InvoiceDetailHeader({
                 <Save aria-hidden="true" />
               )}
               {correctionState.saving ? 'Saving…' : 'Save'}
+            </Button>
+          ) : null}
+
+          {canRetryOcr ? (
+            <Button
+              className="w-full lg:w-auto"
+              disabled={retryingOcr}
+              onClick={handleRetryOcr}
+              type="button"
+            >
+              {retryingOcr ? (
+                <LoaderCircle aria-hidden="true" className="animate-spin" />
+              ) : (
+                <RotateCcw aria-hidden="true" />
+              )}
+              {retryingOcr ? 'Retrying OCR…' : 'Retry OCR'}
             </Button>
           ) : null}
 
@@ -112,7 +151,9 @@ export function InvoiceDetailHeader({
       {actionError ? (
         <Alert className="mt-4 border-destructive/30 bg-destructive/5" variant="destructive">
           <AlertDescription>
-            The invoice could not be submitted. Check the required fields and try again.
+            {actionError === 'ocr'
+              ? 'OCR could not be restarted. The original file is still available.'
+              : 'The invoice could not be submitted. Check the required fields and try again.'}
           </AlertDescription>
         </Alert>
       ) : null}
