@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import {
   Check,
@@ -18,6 +18,7 @@ import type {
   OcrFieldResponse,
 } from '@/types/invoice'
 
+import { InvoiceOcrFailureAlert } from './InvoiceOcrFailureAlert'
 import {
   getConfidencePercent,
   getOcrField,
@@ -252,6 +253,7 @@ export function InvoiceDetailsTab({
   onCorrectionStateChange,
   onInvoiceUpdated,
 }: InvoiceDetailsTabProps) {
+  const formRef = useRef<HTMLFormElement>(null)
   const [draft, setDraft] = useState(() => getCorrectionDraft(invoice))
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const corrections = getCorrections(draft, invoice)
@@ -316,9 +318,24 @@ export function InvoiceDetailsTab({
     }
   }
 
+  const handleStartManualCorrection = () => {
+    formRef.current?.querySelector<HTMLInputElement>('input:not(:disabled)')?.focus()
+  }
+
   return (
-    <form className="space-y-6 p-4" id="invoice-correction-form" onSubmit={handleSubmit}>
-      {reviewCount > 0 ? (
+    <form
+      className="space-y-6 p-4"
+      id="invoice-correction-form"
+      onSubmit={handleSubmit}
+      ref={formRef}
+    >
+      {invoice.status === 'ERREUR_OCR' ? (
+        <InvoiceOcrFailureAlert
+          canCorrect={canEdit}
+          error={invoice.ocrError}
+          onStartManualCorrection={handleStartManualCorrection}
+        />
+      ) : reviewCount > 0 ? (
         <Alert className="border-warning/30 bg-warning-muted">
           <AlertTitle className="text-sm">
             {reviewCount} {reviewCount === 1 ? 'field requires' : 'fields require'} review
