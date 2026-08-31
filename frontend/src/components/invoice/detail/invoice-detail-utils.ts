@@ -1,8 +1,16 @@
 import type { RoleCode } from '@/types/auth'
-import type { InvoiceDetails, OcrFieldResponse } from '@/types/invoice'
+import type {
+  InvoiceDetails,
+  InvoiceOcrError,
+  OcrFieldResponse,
+} from '@/types/invoice'
 
 const correctionStatuses = ['A_VERIFIER', 'ERREUR_OCR', 'EXTRAITE', 'REJETEE']
 const correctionRoles: RoleCode[] = ['ADMIN', 'OPERATEUR_COMPTABLE']
+const nonRetryableOcrErrorCodes = new Set([
+  'OCR_FILE_READ_FAILED',
+  'OCR_SERVICE_REJECTED',
+])
 
 export function canCorrectInvoice(status: string, role?: RoleCode) {
   return Boolean(
@@ -10,6 +18,10 @@ export function canCorrectInvoice(status: string, role?: RoleCode) {
     && correctionRoles.includes(role)
     && correctionStatuses.includes(status),
   )
+}
+
+export function isRetryableOcrError(error: InvoiceOcrError | null) {
+  return !error || !nonRetryableOcrErrorCodes.has(error.code)
 }
 
 export function formatInvoiceDate(value: string | null) {
