@@ -1,5 +1,5 @@
 import type { ChangeEvent, FormEvent } from 'react'
-import { LoaderCircle, Plus, RotateCcw, Upload, X } from 'lucide-react'
+import { Plus, RotateCcw, Upload, X } from 'lucide-react'
 
 import { UploadFileCard } from '@/components/invoice/UploadFileCard'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -15,39 +15,47 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { cn } from '@/lib/utils'
+import type { InvoiceUploadPhase } from '@/types/invoice'
 
 type UploadPanelProps = {
+  createdInvoiceId: number | null
   errorMessage: string
   isOpen: boolean
-  isSubmitting: boolean
-  isUploaded: boolean
   onFileChange: (event: ChangeEvent<HTMLInputElement>) => void
   onOpenChange: (open: boolean) => void
   onRemoveFile: () => void
+  onRetryOcr: () => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  phase: InvoiceUploadPhase
   selectedFile: File | null
+  uploadProgress: number
 }
 
 export function UploadPanel({
+  createdInvoiceId,
   errorMessage,
   isOpen,
-  isSubmitting,
-  isUploaded,
   onFileChange,
   onOpenChange,
   onRemoveFile,
+  onRetryOcr,
   onSubmit,
+  phase,
   selectedFile,
+  uploadProgress,
 }: UploadPanelProps) {
-  const sheetState = errorMessage
-    ? 'Upload error'
-    : isUploaded
-      ? 'Uploaded'
-      : isSubmitting
-        ? 'Uploading'
-        : selectedFile
-          ? 'Queued'
-          : 'Empty'
+  const isBusy = phase === 'uploading' || phase === 'ocr-processing'
+  const sheetState = {
+    empty: 'Empty',
+    queued: 'Queued',
+    uploading: 'Uploading',
+    'ocr-processing': 'OCR processing',
+    completed: 'Completed',
+    'upload-error': 'Upload error',
+    'ocr-error': 'OCR processing failed',
+  }[phase]
+  const isError = phase === 'upload-error' || phase === 'ocr-error'
 
   const inputKey = selectedFile
     ? `${selectedFile.name}-${selectedFile.size}-${selectedFile.lastModified}`
@@ -67,8 +75,12 @@ export function UploadPanel({
                   Upload invoices
                 </SheetTitle>
                 <Badge
-                  className="h-6 shrink-0 border-0 px-2.5 py-1 text-xs font-medium tracking-[0.1px]"
-                  variant={errorMessage ? 'destructive' : 'secondary'}
+                  className={cn(
+                    'h-6 shrink-0 border-0 px-2.5 py-1 text-xs font-medium tracking-[0.1px]',
+                    phase === 'completed' &&
+                      'bg-success-muted text-success hover:bg-success-muted',
+                  )}
+                  variant={isError ? 'destructive' : 'secondary'}
                 >
                   {sheetState}
                 </Badge>
@@ -125,7 +137,7 @@ export function UploadPanel({
                 aria-describedby={errorMessage ? 'invoice-upload-error' : undefined}
                 aria-invalid={Boolean(errorMessage)}
                 className="sr-only"
-                disabled={isSubmitting}
+                disabled={isBusy}
                 id="invoiceFile"
                 key={inputKey}
                 name="file"
@@ -134,14 +146,18 @@ export function UploadPanel({
               />
             </label>
 
-            {errorMessage ? (
+            {isError ? (
               <Alert
                 className="min-h-21 border-transparent bg-destructive text-destructive-foreground [&>svg]:text-destructive-foreground"
                 variant="destructive"
               >
-                <AlertTitle className="text-xs leading-4 tracking-[0.1px]">Upload failed</AlertTitle>
+                <AlertTitle className="text-xs leading-4 tracking-[0.1px]">
+                  {phase === 'ocr-error' ? 'OCR processing failed' : 'Upload failed'}
+                </AlertTitle>
                 <AlertDescription className="text-xs leading-4" id="invoice-upload-error">
-                  {errorMessage}
+                  {phase === 'ocr-error'
+                    ? `The original file is safe${createdInvoiceId ? ` as invoice #${createdInvoiceId}` : ''}. Retry OCR or review it manually.`
+                    : errorMessage}
                 </AlertDescription>
               </Alert>
             ) : null}
@@ -154,13 +170,14 @@ export function UploadPanel({
                 <UploadFileCard
                   errorMessage={errorMessage}
                   file={selectedFile}
-                  isSubmitting={isSubmitting}
-                  isUploaded={isUploaded}
                   onRemove={onRemoveFile}
-                  onRetry={() => {
+                  onRetryOcr={onRetryOcr}
+                  onRetryUpload={() => {
                     const form = document.getElementById('invoiceFile')?.closest('form')
                     form?.requestSubmit()
                   }}
+                  phase={phase}
+                  uploadProgress={uploadProgress}
                 />
               </div>
             ) : (
@@ -177,24 +194,27 @@ export function UploadPanel({
               <SheetClose>Cancel</SheetClose>
             </Button>
 
-            {isUploaded ? (
+            {phase === 'completed' ? (
               <Button asChild type="button">
-                <SheetClose>Done</SheetClose>
+                <SheetClose>View in inbox</SheetClose>
+              </Button>
+            ) : phase === 'ocr-error' ? (
+              <Button onClick={onRetryOcr} type="button">
+                <RotateCcw aria-hidden="true" />
+                Retry OCR
+              </Button>
+            ) : isBusy ? (
+              <Button aria-disabled="true" className="pointer-events-none" type="button">
+                {phase === 'uploading' ? 'Uploading…' : 'Processing…'}
               </Button>
             ) : selectedFile ? (
-              <Button disabled={isSubmitting} type="submit">
-                {isSubmitting ? (
-                  <LoaderCircle aria-hidden="true" className="animate-spin" />
-                ) : errorMessage ? (
+              <Button type="submit">
+                {errorMessage ? (
                   <RotateCcw aria-hidden="true" />
                 ) : (
                   <Upload aria-hidden="true" />
                 )}
-                {isSubmitting
-                  ? 'Uploading invoice'
-                  : errorMessage
-                    ? 'Retry failed uploads'
-                    : 'Upload 1 invoice'}
+                {errorMessage ? 'Retry failed uploads' : 'Upload 1 invoice'}
               </Button>
             ) : (
               <Button asChild type="button">
