@@ -1,7 +1,12 @@
 import { apiBaseUrl } from '@/lib/env'
 import { clearAuthToken, getAuthToken } from '@/lib/auth-session'
 import { ApiError, authenticatedFetch } from '@/services/api'
-import type { InvoiceOcrFailureResponse, InvoiceUploadResponse } from '@/types/invoice'
+import type {
+  InvoiceListQuery,
+  InvoiceOcrFailureResponse,
+  InvoicePage,
+  InvoiceUploadResponse,
+} from '@/types/invoice'
 
 type UploadInvoiceOptions = {
   onUploadComplete?: () => void
@@ -105,4 +110,22 @@ export async function retryInvoiceOcr(invoiceId: number): Promise<void> {
   await authenticatedFetch(`${apiBaseUrl}/v1/invoices/${invoiceId}/ocr/retry`, {
     method: 'POST',
   })
+}
+
+export async function listInvoices(
+  query: InvoiceListQuery,
+  signal?: AbortSignal,
+): Promise<InvoicePage> {
+  const searchParams = new URLSearchParams({
+    direction: query.direction,
+    page: String(query.page),
+    size: String(query.size),
+    sortBy: query.sortBy,
+  })
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/v1/invoices?${searchParams.toString()}`,
+    { signal },
+  )
+
+  return response.json() as Promise<InvoicePage>
 }
