@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import type { Route } from '@playwright/test'
 
 import {
   currentUser,
@@ -117,14 +118,47 @@ const invoiceHistory = [
   },
 ]
 
+const originalInvoicePdfBase64 = [
+  'JVBERi0xLjQKJeLjz9MKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoK',
+  'PDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUiA0IDAgUl0gL0NvdW50IDIgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUg',
+  'L1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA3',
+  'IDAgUiA+PiA+PiAvQ29udGVudHMgNSAwIFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAg',
+  'UiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA3IDAgUiA+PiA+PiAvQ29udGVu',
+  'dHMgNiAwIFIgPj4KZW5kb2JqCjUgMCBvYmoKPDwgL0xlbmd0aCA3MiA+PgpzdHJlYW0KQlQgL0YxIDI0IFRmIDcyIDcwMCBU',
+  'ZCAoT3JpZ2luYWwgaW52b2ljZSAtIHBhZ2UgMSkgVGogMCAtNDAgVGQgL0YxIDE0IFRmIChJTlYtMjAyNi0wNDIxKSBUaiBF',
+  'VAplbmRzdHJlYW0KZW5kb2JqCjYgMCBvYmoKPDwgL0xlbmd0aCA3MiA+PgpzdHJlYW0KQlQgL0YxIDI0IFRmIDcyIDcwMCBU',
+  'ZCAoT3JpZ2luYWwgaW52b2ljZSAtIHBhZ2UgMikgVGogMCAtNDAgVGQgL0YxIDE0IFRmIChUaGFuayB5b3UpIFRqIEVUCmVu',
+  'ZHN0cmVhbQplbmRvYmoKNyAwIG9iago8PCAvVHlwZSAvRm9udCAvU3VidHlwZSAvVHlwZTEgL0Jhc2VGb250IC9IZWx2ZXRp',
+  'Y2EgPj4KZW5kb2JqCnhyZWYKMCA4CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAxNSAwMDAwMCBuIAowMDAwMDAwMDY0',
+  'IDAwMDAwIG4gCjAwMDAwMDAxMjcgMDAwMDAgbiAKMDAwMDAwMDI1MyAwMDAwMCBuIAowMDAwMDAwMzc5IDAwMDAwIG4gCjAw',
+  'MDAwMDA1MjMgMDAwMDAgbiAKMDAwMDAwMDY2MyAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDggL1Jvb3QgMSAwIFIgPj4K',
+  'c3RhcnR4cmVmCjczMwolJUVPRgo=',
+].join('')
+
+async function fulfillOriginalInvoicePdf(route: Route) {
+  await route.fulfill({
+    body: Buffer.from(originalInvoicePdfBase64, 'base64'),
+    contentType: 'application/pdf',
+    headers: {
+      'access-control-allow-headers': '*',
+      'access-control-allow-methods': '*',
+      'access-control-allow-origin': '*',
+      'content-disposition': 'attachment; filename="Leroy Construction — INV-2026-0421.pdf"',
+    },
+    status: 200,
+  })
+}
+
 test.beforeEach(async ({ page }) => {
   await seedAuthSession(page)
   await mockCurrentUser(page)
+  await mockApiRoute(page, '/v1/invoices/42/file', fulfillOriginalInvoicePdf)
 })
 
 test('renders the paginated API data and opens the selected invoice', async ({ page }) => {
   await mockApiRoute(page, '/v1/invoices*', (route) => fulfillJson(route, 200, firstPage))
   await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, invoiceDetails))
+  await mockApiRoute(page, '/v1/invoices/42/file', fulfillOriginalInvoicePdf)
 
   await page.goto('/invoices')
 
@@ -162,6 +196,69 @@ test('renders the invoice review sections from the detail endpoint', async ({ pa
 
   await page.getByRole('tab', { name: 'Activity' }).click()
   await expect(page.getByText('OCR analysis completed')).toBeVisible()
+})
+
+test('renders and controls the original multi-page PDF', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(Element.prototype, 'requestFullscreen', {
+      configurable: true,
+      value() {
+        this.setAttribute('data-fullscreen-requested', 'true')
+        return Promise.resolve()
+      },
+    })
+  })
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, invoiceDetails))
+
+  await page.goto('/invoices/42')
+
+  const canvas = page.getByRole('img', { name: 'Invoice PDF page 1' })
+  await expect(canvas).toBeVisible()
+  await expect(page.getByText('1 / 2', { exact: true })).toBeVisible()
+  await expect(page.getByText('PDF · 2 pages · 956 B')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Next page' }).click()
+  await expect(page.getByRole('img', { name: 'Invoice PDF page 2' })).toBeVisible()
+  await expect(page.getByText('2 / 2', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Zoom in' }).click()
+  await expect(page.getByText('125%', { exact: true })).toBeVisible()
+  const portraitSize = await page.getByRole('img', { name: 'Invoice PDF page 2' }).evaluate(
+    (element) => ({ height: element.clientHeight, width: element.clientWidth }),
+  )
+
+  await page.getByRole('button', { name: 'Rotate document' }).click()
+  await expect.poll(async () => page.getByRole('img', { name: 'Invoice PDF page 2' }).evaluate(
+    (element) => ({ height: element.clientHeight, width: element.clientWidth }),
+  )).toEqual({ height: portraitSize.width, width: portraitSize.height })
+
+  await page.getByRole('button', { name: 'Fit to width' }).click()
+  await expect(page.getByText('125%', { exact: true })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Open document full screen' }).click()
+  await expect(page.getByLabel('Original invoice document')).toHaveAttribute(
+    'data-fullscreen-requested',
+    'true',
+  )
+
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Download original invoice' }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe('Leroy Construction — INV-2026-0421.pdf')
+})
+
+test('keeps a document error isolated from the invoice data', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, invoiceDetails))
+  await mockApiRoute(page, '/v1/invoices/42/file', (route) =>
+    fulfillJson(route, 503, { message: 'Unavailable' }),
+  )
+
+  await page.goto('/invoices/42')
+
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'Unable to display the original invoice' }),
+  ).toBeVisible()
+  await expect(page.getByLabel('Supplier name')).toHaveValue('Leroy Construction')
 })
 
 test('keeps an activity error isolated and allows retry', async ({ page }) => {
