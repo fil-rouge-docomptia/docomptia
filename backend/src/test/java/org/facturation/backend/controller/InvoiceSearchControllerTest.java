@@ -57,13 +57,15 @@ class InvoiceSearchControllerTest {
         InvoiceListItemResponse invoice = new InvoiceListItemResponse();
         invoice.setInvoiceId(112L);
         when(invoiceService.searchInvoices(
-                isNull(), eq("Orange"), eq("Docomptia"), eq("fac-2026"), isNull(), eq("2026-08-21"),
+                eq(List.of("EXTRAITE", "VALIDEE")), eq("Orange"), eq("Docomptia"), eq("fac-2026"),
+                isNull(), eq("2026-08-21"),
                 eq("2026-07-01"), eq("2026-07-31"), eq("100.00"), eq("500.00"), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(invoice), PageRequest.of(1, 1), 3));
 
         mockMvc.perform(get("/api/v1/invoices")
                         .param("page", "1")
                         .param("size", "1")
+                        .param("status", "EXTRAITE", "VALIDEE")
                         .param("supplier", "Orange")
                         .param("client", "Docomptia")
                         .param("invoiceNumber", "fac-2026")
@@ -83,7 +85,8 @@ class InvoiceSearchControllerTest {
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(invoiceService).searchInvoices(
-                isNull(), eq("Orange"), eq("Docomptia"), eq("fac-2026"), isNull(), eq("2026-08-21"),
+                eq(List.of("EXTRAITE", "VALIDEE")), eq("Orange"), eq("Docomptia"), eq("fac-2026"),
+                isNull(), eq("2026-08-21"),
                 eq("2026-07-01"), eq("2026-07-31"), eq("100.00"), eq("500.00"), pageableCaptor.capture());
         Pageable pageable = pageableCaptor.getValue();
         assertEquals(1, pageable.getPageNumber());
