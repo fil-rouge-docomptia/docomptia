@@ -8,8 +8,12 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import ForbiddenPage from '@/pages/ForbiddenPage'
 import { ApiError } from '@/services/api'
-import { uploadInvoice } from '@/services/invoice'
-import type { InvoiceUploadResponse } from '@/types/invoice'
+import {
+  isInvoiceOcrFailureResponse,
+  retryInvoiceOcr,
+  uploadInvoice,
+} from '@/services/invoice'
+import type { InvoiceUploadPhase } from '@/types/invoice'
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
 const acceptedFileTypes = {
@@ -74,26 +78,31 @@ function getUploadErrorMessage(error: unknown) {
 export default function InvoiceUploadPage() {
   const location = useLocation()
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [phase, setPhase] = useState<InvoiceUploadPhase>('empty')
+  const [uploadProgress, setUploadProgress] = useState(0)
   const [errorMessage, setErrorMessage] = useState('')
+  const [createdInvoiceId, setCreatedInvoiceId] = useState<number | null>(null)
   const [isForbidden, setIsForbidden] = useState(false)
   const [isUploadOpen, setIsUploadOpen] = useState(
     () => location.pathname === '/invoices/upload' || location.search === '?upload=1',
   )
-  const [uploadResponse, setUploadResponse] = useState<InvoiceUploadResponse | null>(null)
-
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null
 
     if (!file) {
       setSelectedFile(null)
+      setPhase('empty')
+      setUploadProgress(0)
       setErrorMessage('')
       return
     }
 
+    const validationError = validateFile(file)
     setSelectedFile(file)
-    setUploadResponse(null)
-    setErrorMessage(validateFile(file))
+    setCreatedInvoiceId(null)
+    setUploadProgress(0)
+    setErrorMessage(validationError)
+    setPhase(validationError ? 'upload-error' : 'queued')
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -101,38 +110,70 @@ export default function InvoiceUploadPage() {
 
     if (!selectedFile) {
       setErrorMessage('Sélectionnez un fichier avant de lancer l’analyse.')
+      setPhase('upload-error')
       return
     }
 
     const validationError = validateFile(selectedFile)
     if (validationError) {
       setErrorMessage(validationError)
+      setPhase('upload-error')
       return
     }
 
-    setIsSubmitting(true)
+    setPhase('uploading')
+    setUploadProgress(0)
     setErrorMessage('')
 
     try {
-      const data = await uploadInvoice(selectedFile)
-      setUploadResponse(data)
+      const data = await uploadInvoice(selectedFile, {
+        onUploadComplete: () => setPhase('ocr-processing'),
+        onUploadProgress: setUploadProgress,
+      })
+      setCreatedInvoiceId(data.invoiceId)
+      setPhase('completed')
     } catch (error) {
-      setUploadResponse(null)
-
       if (error instanceof ApiError && error.status === 403) {
         setIsForbidden(true)
+      } else if (
+        error instanceof ApiError &&
+        isInvoiceOcrFailureResponse(error.details)
+      ) {
+        setCreatedInvoiceId(error.details.invoiceId)
+        setPhase('ocr-error')
       } else {
         setErrorMessage(getUploadErrorMessage(error))
+        setPhase('upload-error')
       }
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
   const handleRemoveFile = () => {
     setSelectedFile(null)
-    setUploadResponse(null)
+    setCreatedInvoiceId(null)
+    setPhase('empty')
+    setUploadProgress(0)
     setErrorMessage('')
+  }
+
+  const handleRetryOcr = async () => {
+    if (!createdInvoiceId) {
+      return
+    }
+
+    setPhase('ocr-processing')
+    setErrorMessage('')
+
+    try {
+      await retryInvoiceOcr(createdInvoiceId)
+      setPhase('completed')
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 403) {
+        setIsForbidden(true)
+      } else {
+        setPhase('ocr-error')
+      }
+    }
   }
 
   if (isForbidden) {
@@ -167,15 +208,17 @@ export default function InvoiceUploadPage() {
       />
 
       <UploadPanel
+        createdInvoiceId={createdInvoiceId}
         errorMessage={errorMessage}
         isOpen={isUploadOpen}
-        isSubmitting={isSubmitting}
-        isUploaded={Boolean(uploadResponse)}
         onFileChange={handleFileChange}
         onOpenChange={setIsUploadOpen}
         onRemoveFile={handleRemoveFile}
+        onRetryOcr={handleRetryOcr}
         onSubmit={handleSubmit}
+        phase={phase}
         selectedFile={selectedFile}
+        uploadProgress={uploadProgress}
       />
     </div>
   )
