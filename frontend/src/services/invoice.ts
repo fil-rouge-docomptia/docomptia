@@ -110,10 +110,12 @@ export function uploadInvoice(
   })
 }
 
-export async function retryInvoiceOcr(invoiceId: number): Promise<void> {
-  await authenticatedFetch(`${apiBaseUrl}/v1/invoices/${invoiceId}/ocr/retry`, {
+export async function retryInvoiceOcr(invoiceId: number): Promise<InvoiceDetails> {
+  const response = await authenticatedFetch(`${apiBaseUrl}/v1/invoices/${invoiceId}/ocr/retry`, {
     method: 'POST',
   })
+
+  return response.json() as Promise<InvoiceDetails>
 }
 
 export async function listInvoices(
