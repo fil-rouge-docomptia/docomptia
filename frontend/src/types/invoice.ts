@@ -37,3 +37,32 @@ export type InvoiceUploadPhase =
   | 'completed'
   | 'upload-error'
   | 'ocr-error'
+
+export type InvoiceListItem = {
+  invoiceId: number
+  invoiceNumber: string | null
+  invoiceDate: string | null
+  dueDate: string | null
+  status: string
+  supplierName: string | null
+  currencyCode: string | null
+  totalTtc: string | null
+}
+
+export type InvoicePage = {
+  content: InvoiceListItem[]
+  number: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
+export type InvoiceSortField = 'createdAt' | 'invoiceDate' | 'totalTtc' | 'status'
+export type SortDirection = 'ASC' | 'DESC'
+
+export type InvoiceListQuery = {
+  direction: SortDirection
+  page: number
+  size: number
+  sortBy: InvoiceSortField
+}
