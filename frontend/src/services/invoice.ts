@@ -2,9 +2,12 @@ import { apiBaseUrl } from '@/lib/env'
 import { clearAuthToken, getAuthToken } from '@/lib/auth-session'
 import { ApiError, authenticatedFetch } from '@/services/api'
 import type {
+  InvoiceDetails,
+  InvoiceHistoryItem,
   InvoiceListQuery,
   InvoiceOcrFailureResponse,
   InvoicePage,
+  InvoiceStatusResponse,
   InvoiceUploadResponse,
 } from '@/types/invoice'
 
@@ -128,4 +131,51 @@ export async function listInvoices(
   )
 
   return response.json() as Promise<InvoicePage>
+}
+
+export async function getInvoiceDetails(
+  invoiceId: number,
+  signal?: AbortSignal,
+): Promise<InvoiceDetails> {
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/v1/invoices/${invoiceId}`,
+    { signal },
+  )
+
+  return response.json() as Promise<InvoiceDetails>
+}
+
+export async function getInvoiceHistory(
+  invoiceId: number,
+  signal?: AbortSignal,
+): Promise<InvoiceHistoryItem[]> {
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/v1/invoices/${invoiceId}/history`,
+    { signal },
+  )
+
+  return response.json() as Promise<InvoiceHistoryItem[]>
+}
+
+export async function getInvoiceFile(
+  invoiceId: number,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/v1/invoices/${invoiceId}/file`,
+    { signal },
+  )
+
+  return response.blob()
+}
+
+export async function submitInvoiceForValidation(
+  invoiceId: number,
+): Promise<InvoiceStatusResponse> {
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/v1/invoices/${invoiceId}/submit-for-validation`,
+    { method: 'POST' },
+  )
+
+  return response.json() as Promise<InvoiceStatusResponse>
 }
