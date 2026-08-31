@@ -32,6 +32,8 @@ build/
 out/
 dist/
 coverage/
+playwright-report/
+test-results/
 node_modules/
 .cache/
 .mvn/wrapper/maven-wrapper.jar
