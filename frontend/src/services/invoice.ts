@@ -157,6 +157,18 @@ export async function getInvoiceHistory(
   return response.json() as Promise<InvoiceHistoryItem[]>
 }
 
+export async function getInvoiceFile(
+  invoiceId: number,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/v1/invoices/${invoiceId}/file`,
+    { signal },
+  )
+
+  return response.blob()
+}
+
 export async function submitInvoiceForValidation(
   invoiceId: number,
 ): Promise<InvoiceStatusResponse> {
