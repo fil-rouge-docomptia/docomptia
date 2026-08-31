@@ -1,47 +1,124 @@
 import type { ChangeEvent, FormEvent } from 'react'
-import { ArrowRight, CircleAlert, CloudUpload, FileText, LoaderCircle } from 'lucide-react'
+import { LoaderCircle, Plus, RotateCcw, Upload, X } from 'lucide-react'
 
-import { Button } from '@/components/design-system/Button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/design-system/Card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { UploadFileCard } from '@/components/invoice/UploadFileCard'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 
 type UploadPanelProps = {
   errorMessage: string
+  isOpen: boolean
   isSubmitting: boolean
+  isUploaded: boolean
   onFileChange: (event: ChangeEvent<HTMLInputElement>) => void
+  onOpenChange: (open: boolean) => void
+  onRemoveFile: () => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   selectedFile: File | null
 }
 
 export function UploadPanel({
   errorMessage,
+  isOpen,
   isSubmitting,
+  isUploaded,
   onFileChange,
+  onOpenChange,
+  onRemoveFile,
   onSubmit,
   selectedFile,
 }: UploadPanelProps) {
-  return (
-    <section className="space-y-6">
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="font-['Hanken_Grotesk',_Inter,sans-serif] text-[24px] font-semibold leading-8 text-[#001d29]">
-            Importer une facture
-          </CardTitle>
-        </CardHeader>
+  const sheetState = errorMessage
+    ? 'Upload error'
+    : isUploaded
+      ? 'Uploaded'
+      : isSubmitting
+        ? 'Uploading'
+        : selectedFile
+          ? 'Queued'
+          : 'Empty'
 
-        <CardContent>
-          <form className="space-y-4" onSubmit={onSubmit}>
+  const inputKey = selectedFile
+    ? `${selectedFile.name}-${selectedFile.size}-${selectedFile.lastModified}`
+    : 'empty'
+
+  return (
+    <Sheet onOpenChange={onOpenChange} open={isOpen}>
+      <SheetContent
+        className="flex h-dvh w-full max-w-full flex-col gap-0 border-border bg-popover p-0 shadow-elevation-3 sm:max-w-[560px] [&>button]:hidden"
+        side="right"
+      >
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={onSubmit}>
+          <SheetHeader className="flex h-[95px] shrink-0 flex-row items-center justify-between space-y-0 px-4 pl-6 text-left">
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-2">
+                <SheetTitle className="min-w-0 truncate text-2xl font-semibold leading-8 tracking-[-0.5px]">
+                  Upload invoices
+                </SheetTitle>
+                <Badge
+                  className="h-6 shrink-0 border-0 px-2.5 py-1 text-xs font-medium tracking-[0.1px]"
+                  variant={errorMessage ? 'destructive' : 'secondary'}
+                >
+                  {sheetState}
+                </Badge>
+              </div>
+              <SheetDescription className="mt-1 truncate text-xs leading-4">
+                Add one or multiple files. OCR starts automatically.
+              </SheetDescription>
+            </div>
+
+            <Button
+              aria-label="Close upload panel"
+              asChild
+              className="size-10 shrink-0 bg-accent text-accent-foreground hover:bg-accent/80"
+              size="icon"
+              type="button"
+              variant="ghost"
+            >
+              <SheetClose>
+                <X aria-hidden="true" />
+              </SheetClose>
+            </Button>
+          </SheetHeader>
+
+          <Separator />
+
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6">
             <label
-              className="block cursor-pointer rounded-xl border-2 border-dashed border-[#c1c7cc] bg-[#f8f9ff] p-12 transition-colors hover:border-[#083344] hover:bg-[#eff4ff]"
+              className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-muted px-6 text-center transition-colors hover:border-primary/60 ${
+                selectedFile ? 'h-[136px]' : 'h-[300px]'
+              }`}
               htmlFor="invoiceFile"
             >
-              <div className="flex flex-col items-center text-center">
-                <CloudUpload className="mb-4 size-10 text-[#001d29]" strokeWidth={1.8} />
-                <p className="font-['Inter',sans-serif] text-[18px] font-semibold text-[#001d29]">
-                  Choisir un fichier
-                </p>
-                <p className="mt-2 text-[14px] text-[#41484c]">Taille max : 10 Mo</p>
-              </div>
+              {!selectedFile ? (
+                <span className="flex size-12 items-center justify-center rounded-full bg-card text-foreground">
+                  <Plus aria-hidden="true" className="size-5" />
+                </span>
+              ) : null}
+
+              <span className="text-base font-semibold leading-6 text-foreground">
+                Drop invoices here
+              </span>
+              <span className="text-xs leading-4 text-muted-foreground">
+                PDF, PNG or JPG — up to 10 MB per file
+              </span>
+              <Button asChild className="pointer-events-none" type="button">
+                <span>
+                  <Upload aria-hidden="true" />
+                  Browse files
+                </span>
+              </Button>
 
               <input
                 accept=".pdf,.png,.jpg,.jpeg"
@@ -50,57 +127,86 @@ export function UploadPanel({
                 className="sr-only"
                 disabled={isSubmitting}
                 id="invoiceFile"
+                key={inputKey}
                 name="file"
                 type="file"
                 onChange={onFileChange}
               />
             </label>
 
-            {selectedFile ? (
-              <div className="flex min-w-0 items-center gap-3 rounded-lg border border-[#c1c7cc] bg-white px-4 py-3 text-sm text-[#41484c]">
-                <FileText className="size-4 shrink-0 text-[#3f6376]" />
-                <span className="truncate">{selectedFile.name}</span>
-              </div>
-            ) : null}
-
-            <Button
-              className="w-full gap-3 rounded-xl bg-[#083344] py-4 shadow-none hover:bg-[#001d29]"
-              disabled={isSubmitting}
-              size="lg"
-              type="submit"
-            >
-              {isSubmitting ? (
-                <>
-                  <LoaderCircle className="size-4 animate-spin" />
-                  Analyse en cours...
-                </>
-              ) : (
-                <>
-                  <span>Envoyer pour analyse</span>
-                  <ArrowRight className="size-5" />
-                </>
-              )}
-            </Button>
-
             {errorMessage ? (
-              <Alert className="border-destructive/30 bg-destructive/5" variant="destructive">
-                <CircleAlert aria-hidden="true" className="size-4" />
-                <AlertDescription id="invoice-upload-error">{errorMessage}</AlertDescription>
+              <Alert
+                className="min-h-21 border-transparent bg-destructive text-destructive-foreground [&>svg]:text-destructive-foreground"
+                variant="destructive"
+              >
+                <AlertTitle className="text-xs leading-4 tracking-[0.1px]">Upload failed</AlertTitle>
+                <AlertDescription className="text-xs leading-4" id="invoice-upload-error">
+                  {errorMessage}
+                </AlertDescription>
               </Alert>
             ) : null}
-          </form>
-        </CardContent>
-      </Card>
 
-      <div className="relative h-64 overflow-hidden rounded-xl border border-[#c1c7cc] bg-[#06202c] shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
-        <div className="absolute inset-0 bg-[repeating-linear-gradient(145deg,#082b3a_0px,#082b3a_10px,#6f94a7_22px,#0e3142_36px,#d6e7ef_48px,#0d2836_62px)] opacity-95" />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,rgba(0,29,41,0.56)_100%)]" />
-        <div className="absolute inset-x-0 bottom-0 p-6">
-          <p className="text-sm italic text-white">
-            "L&apos;automatisation au service de la précision financière."
-          </p>
-        </div>
-      </div>
-    </section>
+            {selectedFile ? (
+              <div className="space-y-4">
+                <p className="text-xs font-medium leading-4 tracking-[0.1px] text-foreground">
+                  Files (1)
+                </p>
+                <UploadFileCard
+                  errorMessage={errorMessage}
+                  file={selectedFile}
+                  isSubmitting={isSubmitting}
+                  isUploaded={isUploaded}
+                  onRemove={onRemoveFile}
+                  onRetry={() => {
+                    const form = document.getElementById('invoiceFile')?.closest('form')
+                    form?.requestSubmit()
+                  }}
+                />
+              </div>
+            ) : (
+              <p className="text-xs leading-4 text-muted-foreground">
+                Multiple files can be uploaded simultaneously.
+              </p>
+            )}
+          </div>
+
+          <Separator />
+
+          <SheetFooter className="flex min-h-[79px] shrink-0 flex-row items-center justify-between space-x-0 px-6">
+            <Button asChild type="button" variant="secondary">
+              <SheetClose>Cancel</SheetClose>
+            </Button>
+
+            {isUploaded ? (
+              <Button asChild type="button">
+                <SheetClose>Done</SheetClose>
+              </Button>
+            ) : selectedFile ? (
+              <Button disabled={isSubmitting} type="submit">
+                {isSubmitting ? (
+                  <LoaderCircle aria-hidden="true" className="animate-spin" />
+                ) : errorMessage ? (
+                  <RotateCcw aria-hidden="true" />
+                ) : (
+                  <Upload aria-hidden="true" />
+                )}
+                {isSubmitting
+                  ? 'Uploading invoice'
+                  : errorMessage
+                    ? 'Retry failed uploads'
+                    : 'Upload 1 invoice'}
+              </Button>
+            ) : (
+              <Button asChild type="button">
+                <label className="cursor-pointer" htmlFor="invoiceFile">
+                  <Upload aria-hidden="true" />
+                  Browse files
+                </label>
+              </Button>
+            )}
+          </SheetFooter>
+        </form>
+      </SheetContent>
+    </Sheet>
   )
 }

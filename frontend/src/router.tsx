@@ -50,7 +50,7 @@ export const privateRoutes = [
   },
   {
     path: '/invoices/upload',
-    element: <InvoiceUploadPage />,
+    element: <Navigate replace to="/inbox?upload=1" />,
   },
   {
     path: '/approvals',

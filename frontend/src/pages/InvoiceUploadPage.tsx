@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
+import { Ellipsis, Upload } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
 
-import { ResultPanel } from '@/components/invoice/ResultPanel'
 import { UploadPanel } from '@/components/invoice/UploadPanel'
+import { PageHeader } from '@/components/layout/PageHeader'
+import { Button } from '@/components/ui/button'
 import ForbiddenPage from '@/pages/ForbiddenPage'
 import { ApiError } from '@/services/api'
 import { uploadInvoice } from '@/services/invoice'
@@ -69,10 +72,14 @@ function getUploadErrorMessage(error: unknown) {
 }
 
 export default function InvoiceUploadPage() {
+  const location = useLocation()
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [isForbidden, setIsForbidden] = useState(false)
+  const [isUploadOpen, setIsUploadOpen] = useState(
+    () => location.pathname === '/invoices/upload' || location.search === '?upload=1',
+  )
   const [uploadResponse, setUploadResponse] = useState<InvoiceUploadResponse | null>(null)
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -122,21 +129,54 @@ export default function InvoiceUploadPage() {
     }
   }
 
+  const handleRemoveFile = () => {
+    setSelectedFile(null)
+    setUploadResponse(null)
+    setErrorMessage('')
+  }
+
   if (isForbidden) {
     return <ForbiddenPage />
   }
 
   return (
-    <div className="grid w-full gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+    <div className="space-y-6">
+      <PageHeader
+        actions={
+          <>
+            <Button className="hidden sm:inline-flex" type="button" variant="secondary">
+              Import
+            </Button>
+            <Button onClick={() => setIsUploadOpen(true)} type="button">
+              <Upload aria-hidden="true" />
+              Upload invoices
+            </Button>
+            <Button
+              aria-label="More inbox actions"
+              className="hidden bg-accent text-accent-foreground hover:bg-accent/80 sm:inline-flex"
+              size="icon"
+              type="button"
+              variant="ghost"
+            >
+              <Ellipsis aria-hidden="true" />
+            </Button>
+          </>
+        }
+        description="Review incoming invoices and monitor OCR processing."
+        title="Inbox"
+      />
+
       <UploadPanel
         errorMessage={errorMessage}
+        isOpen={isUploadOpen}
         isSubmitting={isSubmitting}
+        isUploaded={Boolean(uploadResponse)}
         onFileChange={handleFileChange}
+        onOpenChange={setIsUploadOpen}
+        onRemoveFile={handleRemoveFile}
         onSubmit={handleSubmit}
         selectedFile={selectedFile}
       />
-
-      <ResultPanel uploadResponse={uploadResponse} />
     </div>
   )
 }
