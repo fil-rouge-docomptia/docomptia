@@ -135,6 +135,26 @@ const correctedInvoiceDetails = {
   totalTva: '260.10',
 }
 
+const retryableOcrFailureDetails = {
+  ...invoiceDetails,
+  ocrAnalysis: null,
+  ocrError: {
+    code: 'OCR_SERVICE_UNAVAILABLE',
+    message: 'OCR service is temporarily unavailable',
+    occurredAt: '2026-08-31T16:00:00',
+  },
+  status: 'ERREUR_OCR',
+}
+
+const nonRetryableOcrFailureDetails = {
+  ...retryableOcrFailureDetails,
+  ocrError: {
+    code: 'OCR_SERVICE_REJECTED',
+    message: 'The OCR service rejected this document',
+    occurredAt: '2026-08-31T16:05:00',
+  },
+}
+
 const originalInvoicePdfBase64 = [
   'JVBERi0xLjQKJeLjz9MKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoK',
   'PDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUiA0IDAgUl0gL0NvdW50IDIgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUg',
@@ -295,6 +315,61 @@ test('renders and controls the original multi-page PDF', async ({ page }) => {
   await page.getByRole('button', { name: 'Download original invoice' }).click()
   const download = await downloadPromise
   expect(download.suggestedFilename()).toBe('Leroy Construction — INV-2026-0421.pdf')
+})
+
+test('shows the OCR failure while keeping the original invoice accessible', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) =>
+    fulfillJson(route, 200, retryableOcrFailureDetails),
+  )
+
+  await page.goto('/invoices/42')
+
+  await expect(page.getByText('OCR error')).toBeVisible()
+  await expect(page.getByText('OCR processing failed', { exact: true })).toBeVisible()
+  await expect(page.getByText('OCR service is temporarily unavailable')).toBeVisible()
+  await expect(page.getByText('Error code: OCR_SERVICE_UNAVAILABLE')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Retry OCR' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Invoice PDF page 1' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Download original invoice' })).toBeEnabled()
+})
+
+test('retries OCR on the existing invoice and refreshes its details', async ({ page }) => {
+  let retryRequests = 0
+
+  await mockApiRoute(page, '/v1/invoices/42', (route) =>
+    fulfillJson(route, 200, retryableOcrFailureDetails),
+  )
+  await mockApiRoute(page, '/v1/invoices/42/ocr/retry', async (route) => {
+    retryRequests += 1
+    expect(route.request().method()).toBe('POST')
+    await fulfillJson(route, 200, invoiceDetails)
+  })
+
+  await page.goto('/invoices/42')
+  await page.getByRole('button', { name: 'Retry OCR' }).click()
+
+  await expect(page.getByText('Needs review')).toBeVisible()
+  await expect(page.getByText('OCR processing failed', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Request approval' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Invoice PDF page 1' })).toBeVisible()
+  expect(retryRequests).toBe(1)
+  expect(page.url()).toMatch(/\/invoices\/42$/)
+})
+
+test('offers manual correction when the OCR failure cannot be retried', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) =>
+    fulfillJson(route, 200, nonRetryableOcrFailureDetails),
+  )
+
+  await page.goto('/invoices/42')
+
+  await expect(page.getByRole('button', { name: 'Retry OCR' })).toHaveCount(0)
+  await expect(page.getByText('This error cannot be fixed by retrying OCR.')).toBeVisible()
+  await page.getByRole('button', { name: 'Enter details manually' }).click()
+  await expect(page.getByLabel('Supplier name')).toBeFocused()
+
+  await page.getByLabel('Supplier name').fill('Leroy Construction corrected')
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled()
 })
 
 test('keeps a document error isolated from the invoice data', async ({ page }) => {
