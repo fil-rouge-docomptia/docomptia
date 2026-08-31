@@ -119,7 +119,7 @@ class AuthenticatedInvoiceAuthorIntegrationTest {
     })
     void listsOnlyInvoicesFromAuthenticatedUserOrganization() {
         assertTrue(invoiceService.searchInvoices(
-                null, null, null, null, null, null, null, null, Pageable.unpaged()).isEmpty());
+                null, null, null, null, null, null, null, null, null, null, Pageable.unpaged()).isEmpty());
     }
 
     @Test

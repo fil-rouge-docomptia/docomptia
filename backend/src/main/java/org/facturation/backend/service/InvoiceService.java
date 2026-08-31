@@ -37,6 +37,8 @@ public interface InvoiceService {
             String dueDate,
             String startDate,
             String endDate,
+            String minAmount,
+            String maxAmount,
             Pageable pageable
     );
 

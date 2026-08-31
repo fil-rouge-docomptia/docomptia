@@ -84,7 +84,8 @@ class InvoiceOrganizationIsolationIntegrationTest {
 
         List<InvoiceListItemResponse> results = invoiceService
                 .searchInvoices(
-                        null, "Shared supplier", null, null, null, null, null, null, Pageable.unpaged())
+                        null, "Shared supplier", null, null, null, null, null, null, null, null,
+                        Pageable.unpaged())
                 .getContent();
 
         assertEquals(List.of(visibleInvoice.getInvoiceId()), results.stream()
@@ -112,7 +113,7 @@ class InvoiceOrganizationIsolationIntegrationTest {
         assertSearchReturnsInvoice(matchingInvoice, matchingSupplier.getSiret(), null);
         assertSearchReturnsInvoice(matchingInvoice, "fr66666666666", null);
         assertEquals(List.of(), invoiceService.searchInvoices(
-                null, otherSupplier.getSupplierId().toString(), null, null, null, null, null, null,
+                null, otherSupplier.getSupplierId().toString(), null, null, null, null, null, null, null, null,
                 Pageable.unpaged()
         ).getContent());
     }
@@ -129,7 +130,7 @@ class InvoiceOrganizationIsolationIntegrationTest {
         assertSearchReturnsInvoice(matchingInvoice, null, currentOrganization.getOrganizationId().toString());
         assertSearchReturnsInvoice(matchingInvoice, null, currentOrganization.getSiret());
         assertEquals(List.of(), invoiceService.searchInvoices(
-                null, null, otherOrganization.getOrganizationId().toString(), null, null, null, null, null,
+                null, null, otherOrganization.getOrganizationId().toString(), null, null, null, null, null, null, null,
                 Pageable.unpaged()
         ).getContent());
     }
@@ -148,11 +149,11 @@ class InvoiceOrganizationIsolationIntegrationTest {
         createInvoice(otherOrganization, otherUser, otherSupplier, "FAC-2026-ABC-001");
 
         Page<InvoiceListItemResponse> exactResults = invoiceService.searchInvoices(
-                null, null, null, "fac-2026-abc-001", null, null, null, null, Pageable.unpaged());
+                null, null, null, "fac-2026-abc-001", null, null, null, null, null, null, Pageable.unpaged());
         Page<InvoiceListItemResponse> partialResults = invoiceService.searchInvoices(
-                null, null, null, "2026-aBc", null, null, null, null, Pageable.unpaged());
+                null, null, null, "2026-aBc", null, null, null, null, null, null, Pageable.unpaged());
         Page<InvoiceListItemResponse> noResults = invoiceService.searchInvoices(
-                null, null, null, "missing", null, null, null, null, Pageable.unpaged());
+                null, null, null, "missing", null, null, null, null, null, null, Pageable.unpaged());
 
         assertEquals(List.of(matchingInvoice.getInvoiceId()), exactResults.stream()
                 .map(InvoiceListItemResponse::getInvoiceId)
@@ -182,7 +183,8 @@ class InvoiceOrganizationIsolationIntegrationTest {
         invoiceRepository.save(missingDueDate);
 
         Page<InvoiceListItemResponse> results = invoiceService.searchInvoices(
-                null, null, null, null, "2026-08-10", "2026-09-10", null, null, Pageable.unpaged());
+                null, null, null, null, "2026-08-10", "2026-09-10", null, null, null, null,
+                Pageable.unpaged());
 
         assertEquals(List.of(matchingInvoice.getInvoiceId()), results.map(InvoiceListItemResponse::getInvoiceId)
                 .getContent());
@@ -208,7 +210,7 @@ class InvoiceOrganizationIsolationIntegrationTest {
 
         Page<InvoiceListItemResponse> results = invoiceService.searchInvoices(
                 null, "KAN-115 period", null, null, null, null, "2026-08-01", "2026-08-31",
-                Pageable.unpaged());
+                null, null, Pageable.unpaged());
 
         assertEquals(List.of("KAN-115-END", "KAN-115-START"), results.stream()
                 .map(InvoiceListItemResponse::getInvoiceNumber)
@@ -227,14 +229,82 @@ class InvoiceOrganizationIsolationIntegrationTest {
 
         Page<InvoiceListItemResponse> results = invoiceService.searchInvoices(
                 null, "KAN-115 open period", null, null, null, null, "2026-08-01", null,
-                Pageable.unpaged());
+                null, null, Pageable.unpaged());
 
         assertEquals(List.of(invoice.getInvoiceId()), results.map(InvoiceListItemResponse::getInvoiceId).getContent());
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> invoiceService.searchInvoices(
                         null, null, null, null, null, null, "2026-08-31", "2026-08-01",
-                        Pageable.unpaged()));
+                        null, null, Pageable.unpaged()));
         assertEquals("startDate must be before or equal to endDate", exception.getMessage());
+    }
+
+    @Test
+    void filtersByInclusiveAmountRangeAndIgnoresMissingAmounts() {
+        Organization organization = organizationRepository.findById(1L).orElseThrow();
+        User currentUser = userRepository.findById(1L).orElseThrow();
+        Supplier supplier = createSupplier(organization, "KAN-116 amount range", "15151515151515");
+        Invoice minimumBoundary = createInvoice(organization, currentUser, supplier, "KAN-116-MINIMUM");
+        minimumBoundary.setTotalTtc(new BigDecimal("100.00"));
+        invoiceRepository.save(minimumBoundary);
+        Invoice maximumBoundary = createInvoice(organization, currentUser, supplier, "KAN-116-MAXIMUM");
+        maximumBoundary.setTotalTtc(new BigDecimal("200.00"));
+        invoiceRepository.save(maximumBoundary);
+        Invoice outsideRange = createInvoice(organization, currentUser, supplier, "KAN-116-OUTSIDE");
+        outsideRange.setTotalTtc(new BigDecimal("200.01"));
+        invoiceRepository.save(outsideRange);
+        Invoice missingAmount = createInvoice(organization, currentUser, supplier, "KAN-116-NO-AMOUNT");
+        missingAmount.setTotalTtc(null);
+        invoiceRepository.save(missingAmount);
+
+        Page<InvoiceListItemResponse> results = invoiceService.searchInvoices(
+                null, "KAN-116 amount range", null, null, null, null, null, null, "100.00", "200.00",
+                Pageable.unpaged());
+
+        assertEquals(List.of("KAN-116-MAXIMUM", "KAN-116-MINIMUM"), results.stream()
+                .map(InvoiceListItemResponse::getInvoiceNumber)
+                .sorted()
+                .toList());
+    }
+
+    @Test
+    void acceptsOneAmountBoundaryAndRejectsAnInvalidRange() {
+        Organization organization = organizationRepository.findById(1L).orElseThrow();
+        User currentUser = userRepository.findById(1L).orElseThrow();
+        Supplier supplier = createSupplier(organization, "KAN-116 open amount range", "16161616161616");
+        Invoice lowerAmount = createInvoice(organization, currentUser, supplier, "KAN-116-LOWER");
+        lowerAmount.setTotalTtc(new BigDecimal("99.99"));
+        invoiceRepository.save(lowerAmount);
+        Invoice boundaryAmount = createInvoice(organization, currentUser, supplier, "KAN-116-BOUNDARY");
+        boundaryAmount.setTotalTtc(new BigDecimal("100.00"));
+        invoiceRepository.save(boundaryAmount);
+
+        Page<InvoiceListItemResponse> minimumResults = invoiceService.searchInvoices(
+                null, "KAN-116 open amount range", null, null, null, null, null, null, "100.00", null,
+                Pageable.unpaged());
+        Page<InvoiceListItemResponse> maximumResults = invoiceService.searchInvoices(
+                null, "KAN-116 open amount range", null, null, null, null, null, null, null, "99.99",
+                Pageable.unpaged());
+
+        assertEquals(List.of(boundaryAmount.getInvoiceId()), minimumResults.map(InvoiceListItemResponse::getInvoiceId)
+                .getContent());
+        assertEquals(List.of(lowerAmount.getInvoiceId()), maximumResults.map(InvoiceListItemResponse::getInvoiceId)
+                .getContent());
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> invoiceService.searchInvoices(
+                        null, null, null, null, null, null, null, null, "200.00", "100.00",
+                        Pageable.unpaged()));
+        assertEquals("minAmount must be less than or equal to maxAmount", exception.getMessage());
+    }
+
+    @Test
+    void rejectsAnInvalidAmountBoundary() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> invoiceService.searchInvoices(
+                        null, null, null, null, null, null, null, null, "not-an-amount", null,
+                        Pageable.unpaged()));
+
+        assertEquals("Invalid minAmount", exception.getMessage());
     }
 
     @Test
@@ -266,6 +336,8 @@ class InvoiceOrganizationIsolationIntegrationTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 PageRequest.of(0, 2, Sort.by(Sort.Direction.DESC, "totalTtc"))
         );
         Page<InvoiceListItemResponse> ascendingDates = invoiceService.searchInvoices(
@@ -277,11 +349,15 @@ class InvoiceOrganizationIsolationIntegrationTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 PageRequest.of(0, 3, Sort.by(Sort.Direction.ASC, "invoiceDate"))
         );
         Page<InvoiceListItemResponse> ascendingStatuses = invoiceService.searchInvoices(
                 null,
                 "KAN-112 supplier",
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -308,7 +384,8 @@ class InvoiceOrganizationIsolationIntegrationTest {
         assertEquals(
                 List.of(expectedInvoice.getInvoiceId()),
                 invoiceService.searchInvoices(
-                                null, supplier, client, null, null, null, null, null, Pageable.unpaged())
+                                null, supplier, client, null, null, null, null, null, null, null,
+                                Pageable.unpaged())
                         .map(InvoiceListItemResponse::getInvoiceId)
                         .getContent()
         );

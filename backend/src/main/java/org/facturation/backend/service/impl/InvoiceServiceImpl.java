@@ -217,6 +217,8 @@ public class InvoiceServiceImpl implements InvoiceService {
             String dueDate,
             String startDate,
             String endDate,
+            String minAmount,
+            String maxAmount,
             Pageable pageable
     ) {
         Long organizationId = currentUserService.getCurrentUser().getOrganization().getOrganizationId();
@@ -229,6 +231,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         LocalDate startDateFilter = parseOptionalDateFilter(startDate);
         LocalDate endDateFilter = parseOptionalDateFilter(endDate);
         validatePeriod(startDateFilter, endDateFilter);
+        BigDecimal minAmountFilter = parseOptionalAmountFilter(minAmount, "minAmount");
+        BigDecimal maxAmountFilter = parseOptionalAmountFilter(maxAmount, "maxAmount");
+        validateAmountRange(minAmountFilter, maxAmountFilter);
 
         return invoiceRepository.findAll(byOrganization(organizationId).and(buildInvoiceSearchSpecification(
                         organizationId,
@@ -239,7 +244,9 @@ public class InvoiceServiceImpl implements InvoiceService {
                         invoiceDateFilter,
                         dueDateFilter,
                         startDateFilter,
-                        endDateFilter
+                        endDateFilter,
+                        minAmountFilter,
+                        maxAmountFilter
                 )), pageable)
                 .map(invoiceResponseMapper::toListItemResponse);
     }
@@ -660,6 +667,24 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
     }
 
+    private BigDecimal parseOptionalAmountFilter(String value, String fieldName) {
+        String normalizedValue = toNullableValue(value);
+        if (normalizedValue == null) {
+            return null;
+        }
+        try {
+            return new BigDecimal(normalizedValue);
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("Invalid " + fieldName, exception);
+        }
+    }
+
+    private void validateAmountRange(BigDecimal minAmount, BigDecimal maxAmount) {
+        if (minAmount != null && maxAmount != null && minAmount.compareTo(maxAmount) > 0) {
+            throw new IllegalArgumentException("minAmount must be less than or equal to maxAmount");
+        }
+    }
+
     private String requireNotBlank(String value, String fieldName) {
         if (isBlank(value)) {
             throw new IllegalArgumentException(fieldName + " is required");
@@ -705,7 +730,9 @@ public class InvoiceServiceImpl implements InvoiceService {
             LocalDate invoiceDate,
             LocalDate dueDate,
             LocalDate startDate,
-            LocalDate endDate
+            LocalDate endDate,
+            BigDecimal minAmount,
+            BigDecimal maxAmount
     ) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -800,6 +827,14 @@ public class InvoiceServiceImpl implements InvoiceService {
 
             if (endDate != null) {
                 predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("invoiceDate"), endDate));
+            }
+
+            if (minAmount != null) {
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("totalTtc"), minAmount));
+            }
+
+            if (maxAmount != null) {
+                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("totalTtc"), maxAmount));
             }
 
             return criteriaBuilder.and(
