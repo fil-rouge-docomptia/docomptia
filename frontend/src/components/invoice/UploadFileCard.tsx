@@ -1,17 +1,20 @@
-import { LoaderCircle, RotateCcw, Trash2 } from 'lucide-react'
+import { RotateCcw, Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import type { InvoiceUploadPhase } from '@/types/invoice'
 
 type UploadFileCardProps = {
   errorMessage: string
   file: File
-  isSubmitting: boolean
-  isUploaded: boolean
+  phase: InvoiceUploadPhase
   onRemove: () => void
-  onRetry: () => void
+  onRetryOcr: () => void
+  onRetryUpload: () => void
+  uploadProgress: number
 }
 
 function getFileExtension(filename: string) {
@@ -29,21 +32,36 @@ function formatFileSize(size: number) {
 export function UploadFileCard({
   errorMessage,
   file,
-  isSubmitting,
-  isUploaded,
+  phase,
   onRemove,
-  onRetry,
+  onRetryOcr,
+  onRetryUpload,
+  uploadProgress,
 }: UploadFileCardProps) {
-  const state = errorMessage
-    ? { label: 'Upload error', progress: 0, variant: 'destructive' as const }
-    : isUploaded
-      ? { label: 'Uploaded', progress: 100, variant: 'default' as const }
-      : isSubmitting
-        ? { label: 'Uploading', progress: 0, variant: 'secondary' as const }
-        : { label: 'Queued', progress: 0, variant: 'secondary' as const }
+  const isBusy = phase === 'uploading' || phase === 'ocr-processing'
+  const isOcrProcessing = phase === 'ocr-processing'
+  const isCompleted = phase === 'completed'
+  const isOcrError = phase === 'ocr-error'
+  const isUploadError = phase === 'upload-error' || Boolean(errorMessage)
+  const state = isOcrError
+    ? { label: 'OCR error', progress: 100, variant: 'destructive' as const }
+    : isUploadError
+      ? { label: 'Upload error', progress: uploadProgress, variant: 'destructive' as const }
+      : isCompleted
+        ? { label: 'Completed', progress: 100, variant: 'default' as const }
+        : isOcrProcessing
+          ? { label: 'OCR processing', progress: undefined, variant: 'secondary' as const }
+          : phase === 'uploading'
+            ? { label: 'Uploading', progress: uploadProgress, variant: 'secondary' as const }
+            : { label: 'Queued', progress: 0, variant: 'secondary' as const }
 
   return (
-    <article className="flex min-h-28 flex-col gap-2.5 rounded-lg border bg-card p-3">
+    <article
+      className={cn(
+        'flex min-h-28 flex-col gap-2.5 rounded-lg border bg-card p-3',
+        isOcrProcessing && 'min-h-35',
+      )}
+    >
       <div className="flex min-h-13 min-w-0 flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-[10px] font-semibold text-muted-foreground">
@@ -62,18 +80,29 @@ export function UploadFileCard({
           <Badge
             className={cn(
               'h-6 border-0 px-2.5 py-1 text-xs font-medium tracking-[0.1px]',
-              isUploaded && 'bg-success-muted text-success hover:bg-success-muted',
+              (phase === 'uploading' || isOcrProcessing) &&
+                'bg-info-muted text-info hover:bg-info-muted',
+              isCompleted && 'bg-success-muted text-success hover:bg-success-muted',
             )}
             variant={state.variant}
           >
             {state.label}
           </Badge>
 
-          {errorMessage ? (
+          {isOcrError ? (
             <Button
               className="bg-accent text-accent-foreground hover:bg-accent/80"
-              disabled={isSubmitting}
-              onClick={onRetry}
+              onClick={onRetryOcr}
+              type="button"
+              variant="ghost"
+            >
+              <RotateCcw aria-hidden="true" />
+              Retry
+            </Button>
+          ) : isUploadError ? (
+            <Button
+              className="bg-accent text-accent-foreground hover:bg-accent/80"
+              onClick={onRetryUpload}
               type="button"
               variant="ghost"
             >
@@ -83,16 +112,12 @@ export function UploadFileCard({
           ) : (
             <Button
               className="bg-accent text-accent-foreground hover:bg-accent/80"
-              disabled={isSubmitting}
+              disabled={isBusy}
               onClick={onRemove}
               type="button"
               variant="ghost"
             >
-              {isSubmitting ? (
-                <LoaderCircle aria-hidden="true" className="animate-spin" />
-              ) : (
-                <Trash2 aria-hidden="true" />
-              )}
+              <Trash2 aria-hidden="true" />
               Remove
             </Button>
           )}
@@ -101,16 +126,29 @@ export function UploadFileCard({
 
       <div className="flex items-center gap-2">
         <Progress
-          aria-label={`${state.label}: ${state.progress}%`}
+          aria-label={
+            isOcrProcessing ? 'OCR processing in progress' : `${state.label}: ${state.progress}%`
+          }
           className={cn(
             'h-2 flex-1 bg-muted',
-            errorMessage && '[&>div]:bg-destructive',
-            isUploaded && '[&>div]:bg-success',
+            (isUploadError || isOcrError) && '[&>div]:bg-destructive',
+            isCompleted && '[&>div]:bg-success',
+            isOcrProcessing &&
+              '[&>div]:![transform:translateX(-35%)] [&>div]:animate-pulse',
           )}
           value={state.progress}
         />
-        <span className="w-8 text-right text-xs text-muted-foreground">{state.progress}%</span>
+        <span className="shrink-0 text-right text-xs text-muted-foreground">
+          {isOcrProcessing ? 'Processing…' : `${state.progress}%`}
+        </span>
       </div>
+
+      {isOcrProcessing ? (
+        <div aria-label="Preparing extracted invoice fields" className="flex h-4 gap-2">
+          <Skeleton className="h-3 w-44" />
+          <Skeleton className="h-3 w-28" />
+        </div>
+      ) : null}
     </article>
   )
 }

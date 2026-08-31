@@ -3,12 +3,19 @@ import { clearAuthToken, getAuthToken } from '@/lib/auth-session'
 export class ApiError extends Error {
   readonly status: number
   readonly code?: string
+  readonly details?: unknown
 
-  constructor(status: number, code?: string, message = 'The API request failed') {
+  constructor(
+    status: number,
+    code?: string,
+    message = 'The API request failed',
+    details?: unknown,
+  ) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
+    this.details = details
   }
 }
 
@@ -21,7 +28,7 @@ export async function createApiError(response: Response): Promise<ApiError> {
   try {
     const payload = (await response.json()) as ApiErrorResponse
 
-    return new ApiError(response.status, payload.code, payload.message)
+    return new ApiError(response.status, payload.code, payload.message, payload)
   } catch {
     return new ApiError(response.status)
   }

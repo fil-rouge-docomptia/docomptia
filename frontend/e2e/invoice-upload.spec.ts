@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import type { Page } from '@playwright/test'
 
 import { fulfillJson, mockApiRoute, mockCurrentUser, seedAuthSession } from './support/api'
 
@@ -19,6 +20,36 @@ const supportedFiles = [
     buffer: Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
   },
 ]
+
+async function captureBrowserUpload(page: Page) {
+  await page.addInitScript(() => {
+    const originalSend = XMLHttpRequest.prototype.send
+
+    XMLHttpRequest.prototype.send = function send(body) {
+      const browserWindow = window as Window & {
+        invoiceUploadRequest?: XMLHttpRequest
+      }
+      browserWindow.invoiceUploadRequest = this
+      originalSend.call(this, body)
+    }
+  })
+}
+
+async function completeBrowserUpload(page: Page) {
+  await page.evaluate(() => {
+    const request = (window as Window & { invoiceUploadRequest?: XMLHttpRequest })
+      .invoiceUploadRequest
+
+    if (!request) {
+      throw new Error('Invoice upload request was not captured')
+    }
+
+    request.upload.dispatchEvent(
+      new ProgressEvent('progress', { lengthComputable: true, loaded: 48, total: 100 }),
+    )
+    request.upload.dispatchEvent(new Event('load'))
+  })
+}
 
 test.beforeEach(async ({ page }) => {
   await seedAuthSession(page)
@@ -71,9 +102,127 @@ test('uploads an invoice without a supplier identifier', async ({ page }) => {
   await page.locator('#invoiceFile').setInputFiles(supportedFiles[0])
   await page.getByRole('button', { name: 'Upload 1 invoice' }).click()
 
-  await expect(page.getByText('Uploaded', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('Completed', { exact: true }).first()).toBeVisible()
   expect(multipartBody).toContain('name="file"')
   expect(multipartBody).not.toContain('name="supplierId"')
+})
+
+test('distinguishes file upload from OCR processing', async ({ page }) => {
+  await captureBrowserUpload(page)
+  let releaseOcr: () => void = () => undefined
+  const ocrGate = new Promise<void>((resolve) => {
+    releaseOcr = resolve
+  })
+
+  await mockApiRoute(page, '/v1/invoices/upload', async (route) => {
+    await ocrGate
+    await fulfillJson(route, 200, {
+      invoiceId: 42,
+      invoiceNumber: 'INV-2026-0042',
+      status: 'EXTRAITE',
+      ocrAnalysis: {
+        status: 'COMPLETED',
+        rawText: 'Invoice INV-2026-0042',
+        confidenceScore: '0.98',
+        fields: [],
+      },
+    })
+  })
+
+  await page.goto('/invoices/upload')
+  await page.locator('#invoiceFile').setInputFiles(supportedFiles[0])
+  await page.getByRole('button', { name: 'Upload 1 invoice' }).click()
+
+  await expect(page.getByText('Uploading', { exact: true }).first()).toBeVisible()
+  await completeBrowserUpload(page)
+  await expect(page.getByText('OCR processing', { exact: true }).first()).toBeVisible()
+  await expect(page.getByLabel('OCR processing in progress')).toBeVisible()
+  await expect(page.getByLabel('Preparing extracted invoice fields')).toBeVisible()
+
+  releaseOcr()
+  await expect(page.getByText('Completed', { exact: true }).first()).toBeVisible()
+})
+
+test('continues OCR after closing the sheet without uploading twice', async ({ page }) => {
+  await captureBrowserUpload(page)
+  let uploadRequests = 0
+  let releaseOcr: () => void = () => undefined
+  const ocrGate = new Promise<void>((resolve) => {
+    releaseOcr = resolve
+  })
+
+  await mockApiRoute(page, '/v1/invoices/upload', async (route) => {
+    uploadRequests += 1
+    await ocrGate
+    await fulfillJson(route, 200, {
+      invoiceId: 42,
+      invoiceNumber: 'INV-2026-0042',
+      status: 'EXTRAITE',
+      ocrAnalysis: {
+        status: 'COMPLETED',
+        rawText: 'Invoice INV-2026-0042',
+        confidenceScore: '0.98',
+        fields: [],
+      },
+    })
+  })
+
+  await page.goto('/inbox')
+  await page.getByRole('button', { name: 'Upload invoices' }).click()
+  await page.locator('#invoiceFile').setInputFiles(supportedFiles[0])
+  const uploadResponse = page.waitForResponse('**/api/v1/invoices/upload')
+  await page.getByRole('button', { name: 'Upload 1 invoice' }).click()
+  await completeBrowserUpload(page)
+  await expect(page.getByText('OCR processing', { exact: true }).first()).toBeVisible()
+
+  await page.getByRole('button', { name: 'Close upload panel' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+
+  releaseOcr()
+  await uploadResponse
+  await page.getByRole('button', { name: 'Upload invoices' }).click()
+
+  await expect(page.getByText('Completed', { exact: true }).first()).toBeVisible()
+  expect(uploadRequests).toBe(1)
+})
+
+test('keeps the created invoice available and retries OCR without another upload', async ({
+  page,
+}) => {
+  let uploadRequests = 0
+  let retryRequests = 0
+
+  await mockApiRoute(page, '/v1/invoices/upload', (route) => {
+    uploadRequests += 1
+    return fulfillJson(route, 502, {
+      invoiceId: 73,
+      status: 'ERREUR_OCR',
+      ocrError: {
+        code: 'OCR_UNAVAILABLE',
+        message: 'OCR service is unavailable',
+        occurredAt: '2026-08-31T16:00:00Z',
+      },
+    })
+  })
+  await mockApiRoute(page, '/v1/invoices/73/ocr/retry', (route) => {
+    retryRequests += 1
+    return fulfillJson(route, 200, { invoiceId: 73, status: 'EXTRAITE' })
+  })
+
+  await page.goto('/invoices/upload')
+  await page.locator('#invoiceFile').setInputFiles(supportedFiles[0])
+  await page.getByRole('button', { name: 'Upload 1 invoice' }).click()
+
+  await expect(page.getByText('OCR processing failed', { exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('alert')).toContainText(
+    'The original file is safe as invoice #73.',
+  )
+  await expect(page.getByText('invoice.pdf', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Retry OCR', exact: true }).click()
+  await expect(page.getByText('Completed', { exact: true }).first()).toBeVisible()
+  expect(uploadRequests).toBe(1)
+  expect(retryRequests).toBe(1)
 })
 
 test('rejects an unsupported type without losing the selected file', async ({ page }) => {
