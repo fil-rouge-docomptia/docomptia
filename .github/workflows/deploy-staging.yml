@@ -25,11 +25,32 @@ jobs:
           SSH_PRIVATE_KEY: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
         run: |
+          set -euo pipefail
+
           install -m 700 -d ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/staging_key
-          chmod 600 ~/.ssh/staging_key
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
+          install -m 600 /dev/null ~/.ssh/staging_key
+
+          normalized_key="${SSH_PRIVATE_KEY//$'\r'/}"
+          if grep -q -- '-----BEGIN .*PRIVATE KEY-----' <<< "$normalized_key"; then
+            printf '%b\n' "$normalized_key" > ~/.ssh/staging_key
+          elif ! printf '%s' "$normalized_key" \
+            | tr -d '[:space:]' \
+            | base64 --decode > ~/.ssh/staging_key; then
+            echo "::error::STAGING_SSH_PRIVATE_KEY is neither a raw nor a base64-encoded private key."
+            exit 1
+          fi
+
+          if ! ssh-keygen -y -P "" -f ~/.ssh/staging_key > /dev/null 2>&1; then
+            echo "::error::STAGING_SSH_PRIVATE_KEY must contain an unencrypted private key, not a public key."
+            exit 1
+          fi
+
+          install -m 600 /dev/null ~/.ssh/known_hosts
+          printf '%b\n' "${SSH_KNOWN_HOSTS//$'\r'/}" > ~/.ssh/known_hosts
+          if [ ! -s ~/.ssh/known_hosts ]; then
+            echo "::error::STAGING_SSH_KNOWN_HOSTS is empty."
+            exit 1
+          fi
 
       - name: Update and restart staging services
         env:
@@ -38,7 +59,14 @@ jobs:
           SSH_USER: ${{ secrets.STAGING_SSH_USER }}
           DEPLOY_PATH: ${{ secrets.STAGING_DEPLOY_PATH }}
         run: |
-          ssh -i ~/.ssh/staging_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+          ssh \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -i ~/.ssh/staging_key \
+            -p "$SSH_PORT" \
+            "$SSH_USER@$SSH_HOST" \
             "cd '$DEPLOY_PATH' && \
             git fetch origin staging && \
             git checkout staging && \
