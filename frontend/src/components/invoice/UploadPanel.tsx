@@ -69,7 +69,7 @@ export function UploadPanel({
                 <p className="mt-2 text-[14px] text-[#41484c]">Taille max : 10 Mo</p>
               </div>
 
-              <Input
+              <input
                 accept=".pdf,.png,.jpg,.jpeg"
                 className="sr-only"
                 id="invoiceFile"

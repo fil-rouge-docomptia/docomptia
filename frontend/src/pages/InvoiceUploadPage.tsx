@@ -68,7 +68,7 @@ export default function InvoiceUploadPage() {
   }
 
   return (
-    <div className="grid w-full gap-6 md:grid-cols-[40%_60%]">
+    <div className="grid w-full gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
       <UploadPanel
         errorMessage={errorMessage}
         isSubmitting={isSubmitting}
