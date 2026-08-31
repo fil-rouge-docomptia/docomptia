@@ -194,6 +194,25 @@ public class InvoiceController {
     })
     public ResponseEntity<byte[]> downloadInvoiceFile(@PathVariable Long id) throws IOException {
         MultipartFile file = requireInvoiceResponse(invoiceService.downloadFile(id), id);
+        return invoiceFileResponse(file, ContentDisposition.attachment());
+    }
+
+    @GetMapping("/{id}/preview")
+    @Operation(summary = "Previsualiser le fichier original d'une facture")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Fichier original retourne pour affichage dans le navigateur"),
+            @ApiResponse(responseCode = "404", description = "Facture introuvable dans l'organisation de l'utilisateur"),
+            @ApiResponse(responseCode = "415", description = "Format du fichier non previsualisable")
+    })
+    public ResponseEntity<byte[]> previewInvoiceFile(@PathVariable Long id) throws IOException {
+        MultipartFile file = requireInvoiceResponse(invoiceService.previewFile(id), id);
+        return invoiceFileResponse(file, ContentDisposition.inline());
+    }
+
+    private ResponseEntity<byte[]> invoiceFileResponse(
+            MultipartFile file,
+            ContentDisposition.Builder contentDisposition
+    ) throws IOException {
         String fileName = file.getOriginalFilename() == null ? "invoice-file" : file.getOriginalFilename();
         MediaType mediaType = file.getContentType() == null
                 ? MediaType.APPLICATION_OCTET_STREAM
@@ -204,7 +223,7 @@ public class InvoiceController {
                 .contentLength(file.getSize())
                 .header(
                         HttpHeaders.CONTENT_DISPOSITION,
-                        ContentDisposition.attachment()
+                        contentDisposition
                                 .filename(fileName, StandardCharsets.UTF_8)
                                 .build()
                                 .toString()

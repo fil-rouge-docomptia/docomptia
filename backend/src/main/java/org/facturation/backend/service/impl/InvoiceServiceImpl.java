@@ -10,6 +10,7 @@ import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
+import org.facturation.backend.exception.InvoiceFileNotPreviewableException;
 import org.facturation.backend.exception.InvoiceOcrFailureException;
 import org.facturation.backend.exception.UnbalancedAccountingEntryException;
 import org.facturation.backend.mapper.InvoiceResponseMapper;
@@ -18,6 +19,7 @@ import org.facturation.backend.model.AuditLog;
 import org.facturation.backend.model.DuplicateAlertDecision;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceFile;
+import org.facturation.backend.model.InvoiceFileFormat;
 import org.facturation.backend.model.InvoiceStatus;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.OcrError;
@@ -280,6 +282,26 @@ public class InvoiceServiceImpl implements InvoiceService {
         Long organizationId = currentUserService.getCurrentUser().getOrganization().getOrganizationId();
         return invoiceFileRepository.findByInvoiceInvoiceIdAndInvoiceOrganizationOrganizationId(id, organizationId)
                 .map(invoiceFileStorageService::load);
+    }
+
+    @Override
+    @Transactional
+    public Optional<MultipartFile> previewFile(Long id) {
+        Long organizationId = currentUserService.getCurrentUser().getOrganization().getOrganizationId();
+        return invoiceFileRepository.findByInvoiceInvoiceIdAndInvoiceOrganizationOrganizationId(id, organizationId)
+                .map(invoiceFile -> {
+                    ensurePreviewable(invoiceFile);
+                    return invoiceFileStorageService.load(invoiceFile);
+                });
+    }
+
+    private void ensurePreviewable(InvoiceFile invoiceFile) {
+        String mimeType = invoiceFile.getMimeType();
+        boolean previewable = mimeType != null && Stream.of(InvoiceFileFormat.values())
+                .anyMatch(format -> format.supportsMimeType(mimeType.toLowerCase(Locale.ROOT)));
+        if (!previewable) {
+            throw new InvoiceFileNotPreviewableException(mimeType);
+        }
     }
 
     @Override
