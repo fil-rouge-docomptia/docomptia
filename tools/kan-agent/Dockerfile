@@ -33,6 +33,7 @@ RUN --mount=type=secret,id=corporate_ca \
     set -eu; \
     apt-get update; \
     apt-get install -y --no-install-recommends bubblewrap ca-certificates git openssh-client; \
+    chmod u+s /usr/bin/bwrap; \
     if grep -q "BEGIN CERTIFICATE" /run/secrets/corporate_ca; then \
       export NODE_EXTRA_CA_CERTS=/run/secrets/corporate_ca; \
       keytool -importcert -noprompt -trustcacerts -alias corporate-ca \
