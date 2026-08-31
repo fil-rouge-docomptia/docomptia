@@ -3,10 +3,13 @@ export type OcrFieldResponse = {
   rawValue: string
   normalizedValue: string
   confidenceScore: string
+  corrected?: boolean
 }
 
 export type OcrAnalysisResponse = {
   status: string
+  engineName?: string
+  engineVersion?: string
   rawText: string
   confidenceScore: string
   fields: OcrFieldResponse[]
@@ -65,4 +68,95 @@ export type InvoiceListQuery = {
   page: number
   size: number
   sortBy: InvoiceSortField
+}
+
+export type InvoiceClassification = {
+  classificationId: number
+  type: string
+  name: string
+  description: string | null
+  active: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type AccountingEntryLine = {
+  accountingEntryLineId: number
+  lineNumber: number
+  accountNumber: string
+  accountLabel: string
+  lineLabel: string
+  debitAmount: string
+  creditAmount: string
+}
+
+export type AccountingEntry = {
+  accountingEntryId: number
+  entryNumber: string
+  entryDate: string
+  label: string
+  status: string
+  totalDebit: string
+  totalCredit: string
+  balanceDifference: string
+  balanced: boolean
+  lines: AccountingEntryLine[]
+}
+
+export type InvoiceDuplicateAlert = {
+  alertId: number
+  type: string
+  matchingInvoiceId: number | null
+  matchingInvoiceNumber: string | null
+  supplierId: number | null
+  invoiceDate: string | null
+  totalTtc: string | null
+  confidenceLevel: string | null
+  createdAt: string
+  decision: string | null
+  decidedByUserId: number | null
+  decidedAt: string | null
+  decisionReason: string | null
+}
+
+export type InvoiceDetails = {
+  invoiceId: number
+  invoiceNumber: string | null
+  commandReference: string | null
+  invoiceDate: string | null
+  dueDate: string | null
+  status: string
+  supplierName: string | null
+  classification: InvoiceClassification | null
+  currencyCode: string | null
+  totalHt: string | null
+  totalTva: string | null
+  totalTtc: string | null
+  filePath: string | null
+  ocrAnalysis: OcrAnalysisResponse | null
+  ocrError: {
+    code: string
+    message: string
+    occurredAt: string
+  } | null
+  accountingEntry: AccountingEntry | null
+  duplicateAlerts: InvoiceDuplicateAlert[]
+}
+
+export type InvoiceHistoryItem = {
+  type: string
+  action: string
+  date: string
+  authorId: number | null
+  author: string | null
+  fieldName: string | null
+  oldValue: string | null
+  newValue: string | null
+  comment: string | null
+  duplicateAlertId: number | null
+}
+
+export type InvoiceStatusResponse = {
+  invoiceId: number
+  status: string
 }
