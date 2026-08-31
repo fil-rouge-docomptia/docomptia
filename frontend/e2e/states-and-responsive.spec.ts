@@ -65,10 +65,11 @@ test.describe('global states', () => {
     await mockCurrentUser(page)
 
     await page.goto('/inbox')
+    await page.getByRole('button', { name: 'Upload invoices' }).click()
 
-    await expect(
-      page.getByText('Le tableau des champs extraits apparaitra ici apres un upload reussi.'),
-    ).toBeVisible()
+    const uploadSheet = page.getByRole('dialog')
+    await expect(uploadSheet.getByText('Empty', { exact: true })).toBeVisible()
+    await expect(uploadSheet.getByText('Multiple files can be uploaded simultaneously.')).toBeVisible()
   })
 
   test('announces a sign-in error', async ({ page }) => {
@@ -134,8 +135,12 @@ test.describe('responsive breakpoints', () => {
       )
 
       await page.goto('/inbox')
-      await expect(page.getByRole('heading', { name: 'Resultat OCR' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Inbox' })).toBeVisible()
       await expectNoHorizontalOverflow(page, 'Private workspace')
+
+      await page.getByRole('button', { name: 'Upload invoices' }).click()
+      await expect(page.getByRole('dialog')).toBeVisible()
+      await expectNoHorizontalOverflow(page, 'Upload sheet')
 
       await page.goto('/onboarding/company')
       await expect(page.getByRole('heading', { name: 'Company information' })).toBeVisible()

@@ -25,8 +25,22 @@ test.beforeEach(async ({ page }) => {
   await mockCurrentUser(page)
 })
 
+test('opens the Figma upload sheet from the inbox header', async ({ page }) => {
+  await page.goto('/inbox')
+
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Upload invoices' }).click()
+
+  const uploadSheet = page.getByRole('dialog')
+  await expect(uploadSheet).toBeVisible()
+  await expect(uploadSheet.getByRole('heading', { name: 'Upload invoices' })).toBeVisible()
+  await expect(uploadSheet.getByText('Drop invoices here')).toBeVisible()
+  await expect(uploadSheet.getByText('Empty', { exact: true })).toBeVisible()
+})
+
 test('accepts the supported invoice file formats before upload', async ({ page }) => {
   await page.goto('/invoices/upload')
+  await expect(page).toHaveURL(/\/inbox\?upload=1$/)
 
   for (const file of supportedFiles) {
     await page.locator('#invoiceFile').setInputFiles(file)
@@ -55,9 +69,9 @@ test('uploads an invoice without a supplier identifier', async ({ page }) => {
 
   await page.goto('/invoices/upload')
   await page.locator('#invoiceFile').setInputFiles(supportedFiles[0])
-  await page.getByRole('button', { name: 'Envoyer pour analyse' }).click()
+  await page.getByRole('button', { name: 'Upload 1 invoice' }).click()
 
-  await expect(page.getByText('Facture #INV-2026-0042')).toBeVisible()
+  await expect(page.getByText('Uploaded', { exact: true }).first()).toBeVisible()
   expect(multipartBody).toContain('name="file"')
   expect(multipartBody).not.toContain('name="supplierId"')
 })
@@ -81,7 +95,7 @@ test('rejects an unsupported type without losing the selected file', async ({ pa
   )
   await expect(page.getByText('invoice.txt', { exact: true })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Envoyer pour analyse' }).click()
+  await page.getByRole('button', { name: 'Retry failed uploads' }).click()
   expect(uploadRequests).toBe(0)
 })
 
@@ -102,7 +116,7 @@ test('rejects an oversized file without losing the selected file', async ({ page
   await expect(page.getByRole('alert')).toContainText('Le fichier ne doit pas dépasser 10 Mo.')
   await expect(page.getByText('large-invoice.pdf', { exact: true })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Envoyer pour analyse' }).click()
+  await page.getByRole('button', { name: 'Retry failed uploads' }).click()
   expect(uploadRequests).toBe(0)
 })
 
@@ -116,7 +130,7 @@ test('shows a backend content error without losing the selected file', async ({ 
 
   await page.goto('/invoices/upload')
   await page.locator('#invoiceFile').setInputFiles(supportedFiles[0])
-  await page.getByRole('button', { name: 'Envoyer pour analyse' }).click()
+  await page.getByRole('button', { name: 'Upload 1 invoice' }).click()
 
   await expect(page.getByRole('alert')).toContainText(
     'Le contenu du fichier ne correspond pas à son extension.',
