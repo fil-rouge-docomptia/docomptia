@@ -1,10 +1,9 @@
 import type { ChangeEvent, FormEvent } from 'react'
-import { ArrowRight, CloudUpload, FileText, LoaderCircle } from 'lucide-react'
+import { ArrowRight, CircleAlert, CloudUpload, FileText, LoaderCircle } from 'lucide-react'
 
 import { Button } from '@/components/design-system/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/design-system/Card'
-import { Input } from '@/components/design-system/Input'
-import { Label } from '@/components/design-system/Label'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 type UploadPanelProps = {
   errorMessage: string
@@ -12,8 +11,6 @@ type UploadPanelProps = {
   onFileChange: (event: ChangeEvent<HTMLInputElement>) => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   selectedFile: File | null
-  supplierId: string
-  onSupplierIdChange: (value: string) => void
 }
 
 export function UploadPanel({
@@ -22,11 +19,7 @@ export function UploadPanel({
   onFileChange,
   onSubmit,
   selectedFile,
-  supplierId,
-  onSupplierIdChange,
 }: UploadPanelProps) {
-  const showSupplierField = false
-
   return (
     <section className="space-y-6">
       <Card>
@@ -38,25 +31,6 @@ export function UploadPanel({
 
         <CardContent>
           <form className="space-y-4" onSubmit={onSubmit}>
-            {showSupplierField ? (
-              <div className="space-y-2">
-                <Label
-                  className="text-[12px] font-semibold uppercase tracking-[0.05em] text-[#41484c]"
-                  htmlFor="supplierId"
-                >
-                  ID Fournisseur
-                </Label>
-                <Input
-                  id="supplierId"
-                  name="supplierId"
-                  placeholder="ex: FR-908234"
-                  type="text"
-                  value={supplierId}
-                  onChange={(event) => onSupplierIdChange(event.target.value)}
-                />
-              </div>
-            ) : null}
-
             <label
               className="block cursor-pointer rounded-xl border-2 border-dashed border-[#c1c7cc] bg-[#f8f9ff] p-12 transition-colors hover:border-[#083344] hover:bg-[#eff4ff]"
               htmlFor="invoiceFile"
@@ -71,7 +45,10 @@ export function UploadPanel({
 
               <input
                 accept=".pdf,.png,.jpg,.jpeg"
+                aria-describedby={errorMessage ? 'invoice-upload-error' : undefined}
+                aria-invalid={Boolean(errorMessage)}
                 className="sr-only"
+                disabled={isSubmitting}
                 id="invoiceFile"
                 name="file"
                 type="file"
@@ -80,9 +57,9 @@ export function UploadPanel({
             </label>
 
             {selectedFile ? (
-              <div className="flex items-center gap-3 rounded-lg border border-[#c1c7cc] bg-white px-4 py-3 text-sm text-[#41484c]">
-                <FileText className="size-4 text-[#3f6376]" />
-                <span>{selectedFile.name}</span>
+              <div className="flex min-w-0 items-center gap-3 rounded-lg border border-[#c1c7cc] bg-white px-4 py-3 text-sm text-[#41484c]">
+                <FileText className="size-4 shrink-0 text-[#3f6376]" />
+                <span className="truncate">{selectedFile.name}</span>
               </div>
             ) : null}
 
@@ -106,9 +83,10 @@ export function UploadPanel({
             </Button>
 
             {errorMessage ? (
-              <div className="rounded-lg border border-[#ffdad6] bg-[#ffdad6] px-4 py-3 text-sm text-[#93000a]">
-                {errorMessage}
-              </div>
+              <Alert className="border-destructive/30 bg-destructive/5" variant="destructive">
+                <CircleAlert aria-hidden="true" className="size-4" />
+                <AlertDescription id="invoice-upload-error">{errorMessage}</AlertDescription>
+              </Alert>
             ) : null}
           </form>
         </CardContent>
