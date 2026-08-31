@@ -5,6 +5,7 @@ import { Link, useParams } from 'react-router-dom'
 import { InvoiceDetailHeader } from '@/components/invoice/detail/InvoiceDetailHeader'
 import { InvoiceDocumentPanel } from '@/components/invoice/detail/InvoiceDocumentPanel'
 import { InvoiceWorkflowPanel } from '@/components/invoice/detail/InvoiceWorkflowPanel'
+import type { InvoiceDetailTab } from '@/components/invoice/detail/InvoiceWorkflowPanel'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -63,6 +64,8 @@ export default function InvoiceDetailsPage() {
     requestKey: string
   }>({ error: false, invoice: null, requestKey: '' })
   const [retryCount, setRetryCount] = useState(0)
+  const [activeTab, setActiveTab] = useState<InvoiceDetailTab>('details')
+  const [correctionState, setCorrectionState] = useState({ dirty: false, saving: false })
   const invoiceId = Number(invoiceIdParam)
   const validInvoiceId = Number.isInteger(invoiceId) && invoiceId > 0
   const requestKey = `${invoiceIdParam}:${retryCount}`
@@ -100,6 +103,13 @@ export default function InvoiceDetailsPage() {
     }))
   }
 
+  const handleInvoiceUpdated = (updatedInvoice: InvoiceDetails) => {
+    setRequestState((currentState) => ({
+      ...currentState,
+      invoice: updatedInvoice,
+    }))
+  }
+
   if (error) {
     return (
       <div className="mx-auto max-w-2xl space-y-5 pt-6">
@@ -132,9 +142,11 @@ export default function InvoiceDetailsPage() {
   return (
     <div className="space-y-5">
       <InvoiceDetailHeader
+        correctionState={correctionState}
         invoice={invoice}
         onRequestApproval={handleRequestApproval}
         role={user?.role.code}
+        showCorrectionAction={activeTab === 'details'}
       />
 
       <div className="grid min-w-0 overflow-hidden rounded-lg border border-border bg-card shadow-elevation-1 xl:h-[49rem] xl:grid-cols-[minmax(0,608fr)_8px_minmax(0,488fr)]">
@@ -142,7 +154,15 @@ export default function InvoiceDetailsPage() {
         <div className="flex h-2 bg-muted xl:h-auto xl:justify-center">
           <span className="h-px w-full bg-border xl:h-full xl:w-px" />
         </div>
-        <InvoiceWorkflowPanel invoice={invoice} role={user?.role.code} />
+        <InvoiceWorkflowPanel
+          activeTab={activeTab}
+          invoice={invoice}
+          key={invoice.invoiceId}
+          onActiveTabChange={setActiveTab}
+          onCorrectionStateChange={setCorrectionState}
+          onInvoiceUpdated={handleInvoiceUpdated}
+          role={user?.role.code}
+        />
       </div>
     </div>
   )

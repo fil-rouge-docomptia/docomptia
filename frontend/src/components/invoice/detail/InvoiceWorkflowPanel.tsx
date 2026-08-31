@@ -6,17 +6,41 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { RoleCode } from '@/types/auth'
 import type { InvoiceDetails } from '@/types/invoice'
 
+import { canCorrectInvoice } from './invoice-detail-utils'
+
+export type InvoiceDetailTab = 'accounting' | 'activity' | 'approval' | 'details'
+
+type CorrectionState = {
+  dirty: boolean
+  saving: boolean
+}
+
 type InvoiceWorkflowPanelProps = {
+  activeTab: InvoiceDetailTab
   invoice: InvoiceDetails
+  onActiveTabChange: (tab: InvoiceDetailTab) => void
+  onCorrectionStateChange: (state: CorrectionState) => void
+  onInvoiceUpdated: (invoice: InvoiceDetails) => void
   role?: RoleCode
 }
 
 const tabClassName =
   'h-9 rounded-md border border-transparent px-3 py-2 text-sm font-medium shadow-none data-[state=active]:border-border data-[state=active]:bg-card data-[state=active]:shadow-elevation-1'
 
-export function InvoiceWorkflowPanel({ invoice, role }: InvoiceWorkflowPanelProps) {
+export function InvoiceWorkflowPanel({
+  activeTab,
+  invoice,
+  onActiveTabChange,
+  onCorrectionStateChange,
+  onInvoiceUpdated,
+  role,
+}: InvoiceWorkflowPanelProps) {
   return (
-    <Tabs className="flex min-h-[42rem] min-w-0 flex-col bg-card xl:h-[49rem]" defaultValue="details">
+    <Tabs
+      className="flex min-h-[42rem] min-w-0 flex-col bg-card xl:h-[49rem]"
+      onValueChange={(value) => onActiveTabChange(value as InvoiceDetailTab)}
+      value={activeTab}
+    >
       <div className="overflow-x-auto border-b border-border px-2 py-2">
         <TabsList className="h-9 min-w-max justify-start gap-1 rounded-none bg-transparent p-0">
           <TabsTrigger className={tabClassName} value="details">Details</TabsTrigger>
@@ -28,7 +52,12 @@ export function InvoiceWorkflowPanel({ invoice, role }: InvoiceWorkflowPanelProp
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <TabsContent className="m-0 focus-visible:ring-inset" value="details">
-          <InvoiceDetailsTab invoice={invoice} />
+          <InvoiceDetailsTab
+            canEdit={canCorrectInvoice(invoice.status, role)}
+            invoice={invoice}
+            onCorrectionStateChange={onCorrectionStateChange}
+            onInvoiceUpdated={onInvoiceUpdated}
+          />
         </TabsContent>
         <TabsContent className="m-0 focus-visible:ring-inset" value="accounting">
           <InvoiceAccountingTab invoice={invoice} />
