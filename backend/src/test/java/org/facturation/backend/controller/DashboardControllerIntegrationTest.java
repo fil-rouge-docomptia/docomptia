@@ -25,6 +25,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -75,6 +76,9 @@ class DashboardControllerIntegrationTest {
 
     @Autowired
     private ChartOfAccountRepository chartOfAccountRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @Test
     void returnsTheCurrentOrganizationsSummaryForTheRequestedPeriod() throws Exception {
@@ -128,6 +132,35 @@ class DashboardControllerIntegrationTest {
                 .andExpect(jsonPath("$.message").value("startDate must be before or equal to endDate"));
 
         org.assertj.core.api.Assertions.assertThat(invoiceRepository.count()).isEqualTo(invoiceCountBeforeRequest);
+    }
+
+    @Test
+    void returnsZeroIndicatorsForAnOrganizationWithoutData() throws Exception {
+        User user = createUserForNewOrganization(
+                "Dashboard empty organization",
+                "dashboard-empty@example.com",
+                "73282932000082",
+                "empty-dashboard@example.com",
+                passwordEncoder.encode("empty-dashboard-password")
+        );
+
+        mockMvc.perform(get("/api/v1/dashboard/summary")
+                        .header("Authorization", "Bearer " + loginAndGetToken(
+                                user.getEmail(), "empty-dashboard-password"
+                        )))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totals.invoiceCount").value(0))
+                .andExpect(jsonPath("$.totals.totalHt").value(0))
+                .andExpect(jsonPath("$.totals.totalTva").value(0))
+                .andExpect(jsonPath("$.totals.totalTtc").value(0))
+                .andExpect(jsonPath("$.workQueues.toProcess").value(0))
+                .andExpect(jsonPath("$.workQueues.toVerify").value(0))
+                .andExpect(jsonPath("$.workQueues.awaitingValidation").value(0))
+                .andExpect(jsonPath("$.workQueues.exportable").value(0))
+                .andExpect(jsonPath("$.alerts.ocrErrors").value(0))
+                .andExpect(jsonPath("$.alerts.pendingDuplicates").value(0))
+                .andExpect(jsonPath("$.alerts.unbalancedAccountingEntries").value(0))
+                .andExpect(jsonPath("$.statusDistribution.length()").value(0));
     }
 
     private Invoice createInvoice(
@@ -191,11 +224,35 @@ class DashboardControllerIntegrationTest {
     }
 
     private void createInvoiceForAnotherOrganization() {
+        User user = createUserForNewOrganization(
+                "Dashboard other organization",
+                "dashboard-other@example.com",
+                "73282932000074",
+                "other-dashboard@example.com",
+                "unused"
+        );
+        Invoice invoice = createInvoice(
+                user, InvoiceStatusCode.DEPOSEE, "DASH-OTHER-ORG", "999", "199.80", "1198.80"
+        );
+        Invoice matchingInvoice = createInvoice(
+                user, InvoiceStatusCode.EXTRAITE, "DASH-OTHER-ORG-MATCH", "999", "199.80", "1198.80"
+        );
+        createPendingDuplicateAlert(invoice, matchingInvoice);
+        createUnbalancedEntry(invoice, user);
+    }
+
+    private User createUserForNewOrganization(
+            String organizationName,
+            String organizationEmail,
+            String organizationSiret,
+            String userEmail,
+            String passwordHash
+    ) {
         Organization organization = new Organization();
-        organization.setName("Dashboard other organization");
-        organization.setLegalName("Dashboard Other Organization SAS");
-        organization.setSiret("73282932000074");
-        organization.setEmail("dashboard-other@example.com");
+        organization.setName(organizationName);
+        organization.setLegalName(organizationName + " SAS");
+        organization.setEmail(organizationEmail);
+        organization.setSiret(organizationSiret);
         organization.setDefaultCurrencyCode("EUR");
         organization.setCreatedAt(LocalDateTime.now());
         organization.setUpdatedAt(LocalDateTime.now());
@@ -206,14 +263,12 @@ class DashboardControllerIntegrationTest {
         user.setRole(roleRepository.findById(1L).orElseThrow());
         user.setFirstName("Other");
         user.setLastName("Dashboard");
-        user.setEmail("other-dashboard@example.com");
-        user.setPasswordHash("unused");
+        user.setEmail(userEmail);
+        user.setPasswordHash(passwordHash);
         user.setActive(true);
         user.setCreatedAt(LocalDateTime.now());
         user.setUpdatedAt(LocalDateTime.now());
-        userRepository.save(user);
-
-        createInvoice(user, InvoiceStatusCode.DEPOSEE, "DASH-OTHER-ORG", "999", "199.80", "1198.80");
+        return userRepository.save(user);
     }
 
     private BigDecimal amount(String value) {
@@ -221,11 +276,15 @@ class DashboardControllerIntegrationTest {
     }
 
     private String loginAndGetToken() throws Exception {
+        return loginAndGetToken("admin@facturation-demo.fr", "admin123");
+    }
+
+    private String loginAndGetToken(String email, String password) throws Exception {
         String response = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"email":"admin@facturation-demo.fr","password":"admin123"}
-                                """))
+                        .content(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(
+                                java.util.Map.of("email", email, "password", password)
+                        )))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         return new com.fasterxml.jackson.databind.ObjectMapper().readTree(response).get("token").asText();
