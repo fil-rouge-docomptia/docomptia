@@ -9,6 +9,7 @@ import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceDuplicateAlert;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.Organization;
+import org.facturation.backend.model.Supplier;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.AccountingEntryLineRepository;
 import org.facturation.backend.repository.AccountingEntryRepository;
@@ -26,6 +27,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +44,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@Sql(statements = {
+        "ALTER TABLE suppliers ALTER COLUMN supplier_id RESTART WITH 1000",
+        "ALTER TABLE chart_of_accounts ALTER COLUMN account_id RESTART WITH 1000"
+})
 class DashboardControllerIntegrationTest {
 
     @Autowired
@@ -174,6 +180,7 @@ class DashboardControllerIntegrationTest {
         Invoice invoice = new Invoice();
         invoice.setOrganization(user.getOrganization());
         invoice.setCreatedByUser(user);
+        invoice.setSupplier(getOrCreateSupplier(user.getOrganization()));
         invoice.setInvoiceStatus(invoiceStatusRepository.findByCode(statusCode.getCode()).orElseThrow());
         invoice.setInvoiceNumber(invoiceNumber);
         invoice.setInvoiceDate(LocalDate.of(2026, 8, 15));
@@ -190,7 +197,7 @@ class DashboardControllerIntegrationTest {
         InvoiceDuplicateAlert alert = new InvoiceDuplicateAlert();
         alert.setInvoice(invoice);
         alert.setMatchingInvoice(matchingInvoice);
-        alert.setSupplier(supplierRepository.findById(1L).orElseThrow());
+        alert.setSupplier(invoice.getSupplier());
         alert.setAlertType(DuplicateAlertType.PROBABLE);
         alert.setInvoiceDate(invoice.getInvoiceDate());
         alert.setTotalTtc(invoice.getTotalTtc());
@@ -211,7 +218,7 @@ class DashboardControllerIntegrationTest {
         entry.setUpdatedAt(LocalDateTime.now());
         accountingEntryRepository.save(entry);
 
-        ChartOfAccount account = chartOfAccountRepository.findById(1L).orElseThrow();
+        ChartOfAccount account = createDashboardAccount(invoice.getOrganization());
         AccountingEntryLine line = new AccountingEntryLine();
         line.setAccountingEntry(entry);
         line.setAccount(account);
@@ -221,6 +228,34 @@ class DashboardControllerIntegrationTest {
         line.setCreditAmount(BigDecimal.ZERO.setScale(2));
         line.setCreatedAt(LocalDateTime.now());
         accountingEntryLineRepository.save(line);
+    }
+
+    private Supplier getOrCreateSupplier(Organization organization) {
+        return supplierRepository.findByOrganizationOrganizationIdAndNameIgnoreCase(
+                        organization.getOrganizationId(),
+                        "Dashboard supplier"
+                )
+                .orElseGet(() -> {
+                    Supplier supplier = new Supplier();
+                    supplier.setOrganization(organization);
+                    supplier.setName("Dashboard supplier");
+                    supplier.setLegalName("Dashboard supplier");
+                    supplier.setCreatedAt(LocalDateTime.now());
+                    supplier.setUpdatedAt(LocalDateTime.now());
+                    return supplierRepository.save(supplier);
+                });
+    }
+
+    private ChartOfAccount createDashboardAccount(Organization organization) {
+        ChartOfAccount account = new ChartOfAccount();
+        account.setOrganization(organization);
+        account.setAccountNumber("DASH-" + organization.getOrganizationId());
+        account.setAccountLabel("Dashboard test account");
+        account.setAccountType("TEST");
+        account.setActive(true);
+        account.setCreatedAt(LocalDateTime.now());
+        account.setUpdatedAt(LocalDateTime.now());
+        return chartOfAccountRepository.save(account);
     }
 
     private void createInvoiceForAnotherOrganization() {
