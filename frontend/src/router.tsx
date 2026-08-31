@@ -5,6 +5,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import AccountingOnboardingPage from '@/pages/AccountingOnboardingPage'
 import DashboardPage from '@/pages/DashboardPage'
 import InvoiceUploadPage from '@/pages/InvoiceUploadPage'
+import InvoiceDetailsPage from '@/pages/InvoiceDetailsPage'
 import InvoicesPage from '@/pages/InvoicesPage'
 import EmailVerificationPage from '@/pages/EmailVerificationPage'
 import LoginRoutePage from '@/pages/LoginRoutePage'
@@ -46,12 +47,7 @@ export const privateRoutes = [
   },
   {
     path: '/invoices/:invoiceId',
-    element: (
-      <ModulePlaceholderPage
-        description="Review and validate this supplier invoice."
-        title="Invoice details"
-      />
-    ),
+    element: <InvoiceDetailsPage />,
   },
   {
     path: '/invoices/upload',
