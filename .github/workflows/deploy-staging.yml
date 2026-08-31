@@ -26,7 +26,12 @@ jobs:
           SSH_KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
         run: |
           install -m 700 -d ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/staging_key
+          if grep -q '\\n' <<<"$SSH_PRIVATE_KEY"; then
+            printf '%b' "$SSH_PRIVATE_KEY" > ~/.ssh/staging_key
+          else
+            printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/staging_key
+          fi
+          sed -i 's/\r$//' ~/.ssh/staging_key
           chmod 600 ~/.ssh/staging_key
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
