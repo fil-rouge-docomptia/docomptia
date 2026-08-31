@@ -1,4 +1,16 @@
+import type { RoleCode } from '@/types/auth'
 import type { InvoiceDetails, OcrFieldResponse } from '@/types/invoice'
+
+const correctionStatuses = ['A_VERIFIER', 'ERREUR_OCR', 'EXTRAITE', 'REJETEE']
+const correctionRoles: RoleCode[] = ['ADMIN', 'OPERATEUR_COMPTABLE']
+
+export function canCorrectInvoice(status: string, role?: RoleCode) {
+  return Boolean(
+    role
+    && correctionRoles.includes(role)
+    && correctionStatuses.includes(status),
+  )
+}
 
 export function formatInvoiceDate(value: string | null) {
   if (!value) {

@@ -1,103 +1,270 @@
-import { useId } from 'react'
-import type { ReactNode } from 'react'
-import { AlertTriangle, Check } from 'lucide-react'
+import { useId, useState } from 'react'
+import type { FormEvent, ReactNode } from 'react'
+import {
+  Check,
+  CircleAlert,
+  Pencil,
+  TriangleAlert,
+} from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import type { InvoiceDetails, OcrFieldResponse } from '@/types/invoice'
+import { correctInvoice } from '@/services/invoice'
+import type {
+  InvoiceCorrectionRequest,
+  InvoiceDetails,
+  OcrFieldResponse,
+} from '@/types/invoice'
 
 import {
-  formatInvoiceDate,
-  formatInvoiceMoney,
   getConfidencePercent,
   getOcrField,
   isLowConfidence,
 } from './invoice-detail-utils'
 
-type ReviewField = {
-  fieldName: string
-  value: string | null
+type CorrectionFieldName = keyof InvoiceCorrectionRequest
+
+type CorrectionDraft = Record<CorrectionFieldName, string>
+
+type CorrectionState = {
+  dirty: boolean
+  saving: boolean
+}
+
+type FieldDefinition = {
+  fieldName: CorrectionFieldName
+  inputMode?: 'decimal' | 'text'
+  label: string
+  required?: boolean
+  type?: 'date' | 'text'
+}
+
+const supplierFields: FieldDefinition[] = [
+  { fieldName: 'supplierName', label: 'Supplier name', required: true },
+]
+
+const invoiceInformationFields: FieldDefinition[] = [
+  { fieldName: 'invoiceNumber', label: 'Invoice number', required: true },
+  { fieldName: 'invoiceDate', label: 'Issue date', required: true, type: 'date' },
+  { fieldName: 'dueDate', label: 'Due date', type: 'date' },
+  { fieldName: 'commandReference', label: 'PO / Reference' },
+]
+
+const amountFields: FieldDefinition[] = [
+  { fieldName: 'totalHt', inputMode: 'decimal', label: 'Subtotal', required: true },
+  { fieldName: 'totalTva', inputMode: 'decimal', label: 'Tax', required: true },
+  { fieldName: 'totalTtc', inputMode: 'decimal', label: 'Total', required: true },
+]
+
+const correctionFields = [
+  ...supplierFields,
+  ...invoiceInformationFields,
+  ...amountFields,
+]
+
+function getCorrectionDraft(invoice: InvoiceDetails): CorrectionDraft {
+  return {
+    commandReference: invoice.commandReference ?? '',
+    dueDate: invoice.dueDate ?? '',
+    invoiceDate: invoice.invoiceDate ?? '',
+    invoiceNumber: invoice.invoiceNumber ?? '',
+    supplierName: invoice.supplierName ?? '',
+    totalHt: invoice.totalHt ?? '',
+    totalTtc: invoice.totalTtc ?? '',
+    totalTva: invoice.totalTva ?? '',
+  }
+}
+
+function getCorrections(
+  draft: CorrectionDraft,
+  invoice: InvoiceDetails,
+): InvoiceCorrectionRequest {
+  const original = getCorrectionDraft(invoice)
+  const changedEntries = correctionFields.flatMap(({ fieldName }) => {
+    const value = draft[fieldName].trim()
+    return value === original[fieldName] ? [] : [[fieldName, value] as const]
+  })
+
+  return Object.fromEntries(changedEntries) as InvoiceCorrectionRequest
+}
+
+function FieldStatus({
+  changed,
+  field,
+  missing,
+}: {
+  changed: boolean
+  field?: OcrFieldResponse
+  missing: boolean
+}) {
+  const confidence = getConfidencePercent(field)
+
+  if (changed) {
+    return (
+      <div className="flex items-center gap-1.5 text-info">
+        <Pencil aria-hidden="true" className="size-3.5" />
+        <Badge className="border-info/20 bg-info-muted text-info" variant="outline">
+          Unsaved change
+        </Badge>
+      </div>
+    )
+  }
+
+  if (field?.corrected) {
+    return (
+      <div className="flex items-center gap-1.5 text-info">
+        <Pencil aria-hidden="true" className="size-3.5" />
+        <Badge className="border-info/20 bg-info-muted text-info" variant="outline">
+          Edited manually
+        </Badge>
+      </div>
+    )
+  }
+
+  if (missing) {
+    return (
+      <div className="flex items-center gap-1.5 text-destructive">
+        <CircleAlert aria-hidden="true" className="size-3.5" />
+        <Badge variant="destructive">Missing field</Badge>
+      </div>
+    )
+  }
+
+  if (confidence === null) {
+    return null
+  }
+
+  if (isLowConfidence(field)) {
+    return (
+      <div className="flex items-center gap-1.5 text-warning">
+        <TriangleAlert aria-hidden="true" className="size-3.5" />
+        <Badge
+          className="border-warning/20 bg-warning-muted text-warning-muted-foreground"
+          variant="outline"
+        >
+          Low confidence · {confidence}%
+        </Badge>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 text-success">
+      <Check aria-hidden="true" className="size-3.5" />
+      <Badge className="border-success/20 bg-success-muted text-success" variant="outline">
+        High confidence · {confidence}%
+      </Badge>
+    </div>
+  )
 }
 
 function InvoiceField({
+  canEdit,
+  changed,
+  definition,
   field,
-  label,
-  required = false,
+  onValueChange,
   value,
 }: {
+  canEdit: boolean
+  changed: boolean
+  definition: FieldDefinition
   field?: OcrFieldResponse
-  label: string
-  required?: boolean
-  value: string | null
+  onValueChange: (value: string) => void
+  value: string
 }) {
   const inputId = useId()
-  const confidence = getConfidencePercent(field)
-  const missing = !value
-  const requiresReview = (required && missing) || isLowConfidence(field)
+  const helperId = useId()
+  const missing = Boolean(definition.required && !value.trim())
+  const requiresReview = missing || (!changed && !field?.corrected && isLowConfidence(field))
+  const originalValueVisible = Boolean(
+    field?.corrected && field.rawValue && field.rawValue !== value,
+  )
 
   return (
-    <div className="space-y-2">
-      <div className="flex min-h-5 items-center justify-between gap-2">
-        <Label className="text-xs font-medium text-foreground" htmlFor={inputId}>{label}</Label>
-        {field?.corrected ? (
-          <Badge className="gap-1 border-success/20 bg-success-muted text-success" variant="outline">
-            <Check aria-hidden="true" className="size-3" />
-            Corrected
-          </Badge>
-        ) : confidence !== null ? (
-          <Badge
-            className={
-              requiresReview
-                ? 'border-warning/20 bg-warning-muted text-warning-muted-foreground'
-                : 'border-success/20 bg-success-muted text-success'
-            }
-            variant="outline"
-          >
-            {confidence}% confidence
-          </Badge>
+    <div className="space-y-2 rounded-lg border border-border bg-card p-4">
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium text-foreground" htmlFor={inputId}>
+          {definition.label}
+        </Label>
+        <Input
+          aria-describedby={originalValueVisible ? helperId : undefined}
+          aria-invalid={missing}
+          aria-required={definition.required}
+          className={
+            missing
+              ? 'h-9 border-destructive text-destructive focus-visible:ring-destructive'
+              : requiresReview
+                ? 'h-9 border-warning bg-warning-muted/40 focus-visible:ring-warning'
+                : 'h-9 border-input'
+          }
+          disabled={!canEdit}
+          id={inputId}
+          inputMode={definition.inputMode}
+          onChange={(event) => onValueChange(event.target.value)}
+          type={definition.type ?? 'text'}
+          value={value}
+        />
+        {originalValueVisible ? (
+          <p className="text-xs text-muted-foreground" id={helperId}>
+            Original OCR: {field?.rawValue}
+          </p>
         ) : null}
       </div>
-      <Input
-        aria-invalid={requiresReview}
-        className={requiresReview ? 'border-warning bg-warning-muted/40' : 'border-border'}
-        id={inputId}
-        readOnly
-        value={value ?? 'Not available'}
-      />
+
+      <FieldStatus changed={changed} field={field} missing={missing} />
     </div>
   )
 }
 
 function DetailSection({
   children,
+  description,
   title,
 }: {
   children: ReactNode
+  description: string
   title: string
 }) {
   return (
-    <section className="space-y-4 border-b border-border pb-6 last:border-0 last:pb-0">
-      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-      {children}
+    <section className="space-y-3 border-b border-border pb-6 last:border-0 last:pb-0">
+      <div className="space-y-1">
+        <h2 className="text-xl font-semibold tracking-[-0.25px] text-foreground">{title}</h2>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      <div className="space-y-3">{children}</div>
     </section>
   )
 }
 
-export function InvoiceDetailsTab({ invoice }: { invoice: InvoiceDetails }) {
-  const reviewFields: ReviewField[] = [
-    { fieldName: 'supplierName', value: invoice.supplierName },
-    { fieldName: 'invoiceNumber', value: invoice.invoiceNumber },
-    { fieldName: 'invoiceDate', value: invoice.invoiceDate },
-    { fieldName: 'totalHt', value: invoice.totalHt },
-    { fieldName: 'totalTva', value: invoice.totalTva },
-    { fieldName: 'totalTtc', value: invoice.totalTtc },
-  ]
-  const missingCount = reviewFields.filter(({ value }) => !value).length
-  const lowConfidenceCount = reviewFields.filter(
-    ({ fieldName, value }) => value && isLowConfidence(getOcrField(invoice, fieldName)),
+type InvoiceDetailsTabProps = {
+  canEdit: boolean
+  invoice: InvoiceDetails
+  onCorrectionStateChange: (state: CorrectionState) => void
+  onInvoiceUpdated: (invoice: InvoiceDetails) => void
+}
+
+export function InvoiceDetailsTab({
+  canEdit,
+  invoice,
+  onCorrectionStateChange,
+  onInvoiceUpdated,
+}: InvoiceDetailsTabProps) {
+  const [draft, setDraft] = useState(() => getCorrectionDraft(invoice))
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const corrections = getCorrections(draft, invoice)
+  const changedFields = new Set(Object.keys(corrections) as CorrectionFieldName[])
+  const missingCount = correctionFields.filter(
+    ({ fieldName, required }) => required && !draft[fieldName].trim(),
   ).length
+  const lowConfidenceCount = correctionFields.filter(({ fieldName }) => (
+    draft[fieldName].trim()
+    && !changedFields.has(fieldName)
+    && !getOcrField(invoice, fieldName)?.corrected
+    && isLowConfidence(getOcrField(invoice, fieldName))
+  )).length
   const reviewCount = missingCount + lowConfidenceCount
   const reviewMessage = missingCount > 0 && lowConfidenceCount > 0
     ? `Check ${missingCount} missing and ${lowConfidenceCount} low-confidence values before requesting approval.`
@@ -105,11 +272,54 @@ export function InvoiceDetailsTab({ invoice }: { invoice: InvoiceDetails }) {
       ? `Complete ${missingCount} missing ${missingCount === 1 ? 'field' : 'fields'} before requesting approval.`
       : `Check ${lowConfidenceCount} low-confidence ${lowConfidenceCount === 1 ? 'value' : 'values'} before requesting approval.`
 
+  const handleValueChange = (fieldName: CorrectionFieldName, value: string) => {
+    const nextDraft = { ...draft, [fieldName]: value }
+    setDraft(nextDraft)
+    setSaveStatus('idle')
+    onCorrectionStateChange({
+      dirty: Object.keys(getCorrections(nextDraft, invoice)).length > 0,
+      saving: false,
+    })
+  }
+
+  const renderField = (definition: FieldDefinition) => (
+    <InvoiceField
+      canEdit={canEdit}
+      changed={changedFields.has(definition.fieldName)}
+      definition={definition}
+      field={getOcrField(invoice, definition.fieldName)}
+      key={definition.fieldName}
+      onValueChange={(value) => handleValueChange(definition.fieldName, value)}
+      value={draft[definition.fieldName]}
+    />
+  )
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!canEdit || Object.keys(corrections).length === 0) {
+      return
+    }
+
+    setSaveStatus('saving')
+    onCorrectionStateChange({ dirty: true, saving: true })
+
+    try {
+      const updatedInvoice = await correctInvoice(invoice.invoiceId, corrections)
+      setDraft(getCorrectionDraft(updatedInvoice))
+      setSaveStatus('saved')
+      onInvoiceUpdated(updatedInvoice)
+      onCorrectionStateChange({ dirty: false, saving: false })
+    } catch {
+      setSaveStatus('error')
+      onCorrectionStateChange({ dirty: true, saving: false })
+    }
+  }
+
   return (
-    <div className="space-y-6 p-4">
+    <form className="space-y-6 p-4" id="invoice-correction-form" onSubmit={handleSubmit}>
       {reviewCount > 0 ? (
         <Alert className="border-warning/30 bg-warning-muted">
-          <AlertTriangle aria-hidden="true" className="text-warning" />
           <AlertTitle className="text-sm">
             {reviewCount} {reviewCount === 1 ? 'field requires' : 'fields require'} review
           </AlertTitle>
@@ -119,69 +329,53 @@ export function InvoiceDetailsTab({ invoice }: { invoice: InvoiceDetails }) {
         </Alert>
       ) : null}
 
-      <DetailSection title="Supplier">
-        <InvoiceField
-          field={getOcrField(invoice, 'supplierName')}
-          label="Supplier name"
-          required
-          value={invoice.supplierName}
-        />
+      {saveStatus === 'error' ? (
+        <Alert variant="destructive">
+          <AlertTitle>Unable to save corrections</AlertTitle>
+          <AlertDescription>
+            Your changes are still available. Check the values and try again.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {saveStatus === 'saved' ? (
+        <p className="text-sm text-success" role="status">Corrections saved.</p>
+      ) : null}
+
+      <DetailSection
+        description="Legal identity matched against the supplier directory."
+        title="Supplier"
+      >
+        {supplierFields.map(renderField)}
       </DetailSection>
 
-      <DetailSection title="Invoice information">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <InvoiceField
-            field={getOcrField(invoice, 'invoiceNumber')}
-            label="Invoice number"
-            required
-            value={invoice.invoiceNumber}
-          />
-          <InvoiceField
-            field={getOcrField(invoice, 'invoiceDate')}
-            label="Issue date"
-            required
-            value={invoice.invoiceDate ? formatInvoiceDate(invoice.invoiceDate) : null}
-          />
-          <InvoiceField
-            field={getOcrField(invoice, 'dueDate')}
-            label="Due date"
-            value={invoice.dueDate ? formatInvoiceDate(invoice.dueDate) : null}
-          />
-          <InvoiceField
-            field={getOcrField(invoice, 'commandReference')}
-            label="PO / Reference"
-            value={invoice.commandReference}
+      <DetailSection
+        description="Core identifiers and document dates extracted by OCR."
+        title="Invoice information"
+      >
+        {invoiceInformationFields.map(renderField)}
+      </DetailSection>
+
+      <DetailSection
+        description={`Amounts extracted from the invoice in ${invoice.currencyCode ?? 'the source currency'}.`}
+        title="Amounts"
+      >
+        {amountFields.map(renderField)}
+      </DetailSection>
+
+      <DetailSection
+        description="Operational dimensions used for accounting and reporting."
+        title="Classification"
+      >
+        <div className="space-y-2 rounded-lg border border-border bg-card p-4">
+          <Label className="text-xs font-medium text-foreground">Category</Label>
+          <Input
+            className="h-9 border-input"
+            disabled
+            value={invoice.classification?.name ?? 'Not available'}
           />
         </div>
       </DetailSection>
-
-      <DetailSection title="Amounts">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <InvoiceField label="Currency" value={invoice.currencyCode} />
-          <InvoiceField
-            field={getOcrField(invoice, 'totalHt')}
-            label="Subtotal"
-            required
-            value={invoice.totalHt ? formatInvoiceMoney(invoice.totalHt, invoice.currencyCode) : null}
-          />
-          <InvoiceField
-            field={getOcrField(invoice, 'totalTva')}
-            label="Tax"
-            required
-            value={invoice.totalTva ? formatInvoiceMoney(invoice.totalTva, invoice.currencyCode) : null}
-          />
-          <InvoiceField
-            field={getOcrField(invoice, 'totalTtc')}
-            label="Total"
-            required
-            value={invoice.totalTtc ? formatInvoiceMoney(invoice.totalTtc, invoice.currencyCode) : null}
-          />
-        </div>
-      </DetailSection>
-
-      <DetailSection title="Classification">
-        <InvoiceField label="Category" value={invoice.classification?.name ?? null} />
-      </DetailSection>
-    </div>
+    </form>
   )
 }

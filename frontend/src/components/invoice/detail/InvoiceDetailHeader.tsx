@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowRight, LoaderCircle } from 'lucide-react'
+import { ArrowRight, LoaderCircle, Save } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { InvoiceStatusBadge } from '@/components/invoice/InvoiceStatusBadge'
@@ -8,18 +8,29 @@ import { Button } from '@/components/ui/button'
 import type { RoleCode } from '@/types/auth'
 import type { InvoiceDetails } from '@/types/invoice'
 
+import { canCorrectInvoice } from './invoice-detail-utils'
+
+type CorrectionState = {
+  dirty: boolean
+  saving: boolean
+}
+
 type InvoiceDetailHeaderProps = {
+  correctionState: CorrectionState
   invoice: InvoiceDetails
   onRequestApproval: () => Promise<void>
   role?: RoleCode
+  showCorrectionAction: boolean
 }
 
 const processingRoles: RoleCode[] = ['ADMIN', 'OPERATEUR_COMPTABLE']
 
 export function InvoiceDetailHeader({
+  correctionState,
   invoice,
   onRequestApproval,
   role,
+  showCorrectionAction,
 }: InvoiceDetailHeaderProps) {
   const [actionError, setActionError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -62,21 +73,40 @@ export function InvoiceDetailHeader({
           </div>
         </div>
 
-        {canRequestApproval ? (
-          <Button
-            className="w-full lg:w-auto"
-            disabled={submitting}
-            onClick={handleRequestApproval}
-            type="button"
-          >
-            {submitting ? (
-              <LoaderCircle aria-hidden="true" className="animate-spin" />
-            ) : (
-              <ArrowRight aria-hidden="true" />
-            )}
-            {submitting ? 'Requesting…' : 'Request approval'}
-          </Button>
-        ) : null}
+        <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+          {showCorrectionAction && canCorrectInvoice(invoice.status, role) ? (
+            <Button
+              className="w-full lg:w-auto"
+              disabled={!correctionState.dirty || correctionState.saving}
+              form="invoice-correction-form"
+              type="submit"
+              variant="secondary"
+            >
+              {correctionState.saving ? (
+                <LoaderCircle aria-hidden="true" className="animate-spin" />
+              ) : (
+                <Save aria-hidden="true" />
+              )}
+              {correctionState.saving ? 'Saving…' : 'Save'}
+            </Button>
+          ) : null}
+
+          {canRequestApproval ? (
+            <Button
+              className="w-full lg:w-auto"
+              disabled={submitting || correctionState.dirty}
+              onClick={handleRequestApproval}
+              type="button"
+            >
+              {submitting ? (
+                <LoaderCircle aria-hidden="true" className="animate-spin" />
+              ) : (
+                <ArrowRight aria-hidden="true" />
+              )}
+              {submitting ? 'Requesting…' : 'Request approval'}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {actionError ? (
