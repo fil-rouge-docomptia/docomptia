@@ -28,6 +28,7 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s' "$SSH_PRIVATE_KEY" | base64 --decode > ~/.ssh/staging_key
           chmod 600 ~/.ssh/staging_key
+          ssh-keygen -lf ~/.ssh/staging_key
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
