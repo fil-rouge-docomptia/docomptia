@@ -110,6 +110,7 @@ par defaut.
 | `VIEW_ORGANIZATION` | Consulter l'organisation courante | Oui | Oui | Oui |
 | `MANAGE_ORGANIZATION` | Modifier les informations legales de l'organisation | Oui | Non | Non |
 | `VIEW_INVOICES` | Rechercher, consulter, telecharger une facture et son historique | Oui | Oui | Oui |
+| `VIEW_DASHBOARD` | Consulter la synthese du dashboard de l'organisation | Oui | Oui | Oui |
 | `PROCESS_INVOICES` | Deposer, corriger, relancer l'OCR, soumettre et traiter un doublon | Oui | Oui | Non |
 | `VALIDATE_INVOICES` | Valider, refuser ou demander une correction | Non | Non | Oui |
 | `MANAGE_ACCOUNTING_ENTRIES` | Generer une ecriture et corriger ses lignes | Oui | Oui | Oui |
@@ -118,6 +119,16 @@ par defaut.
 | `VIEW_ACCOUNTING_CONFIGURATION` | Consulter le plan et les regles comptables | Oui | Oui | Oui |
 | `MANAGE_ACCOUNTING_CONFIGURATION` | Creer, modifier ou desactiver un compte et modifier une regle | Oui | Non | Non |
 | `MANAGE_USERS` | Inviter ou modifier un utilisateur dans l'organisation | Oui | Non | Non |
+
+## Endpoint Dashboard MVP
+
+| Methode | Endpoint | Role |
+| --- | --- | --- |
+| `GET` | `/api/v1/dashboard/summary?startDate=2026-08-01&endDate=2026-08-31` | Retourne les volumes et montants, la repartition par statut, les files de travail et les alertes de l'organisation courante. Les bornes optionnelles filtrent inclusivement la date de facture. |
+
+Une periode dont la date de debut est posterieure a la date de fin retourne `400`. Les alertes de
+doublon comptent les factures ayant au moins une alerte en attente; les ecritures desequilibrees
+sont comptees une fois par ecriture.
 
 ## Endpoint Referentiels MVP
 
