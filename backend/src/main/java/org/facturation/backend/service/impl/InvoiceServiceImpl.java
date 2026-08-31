@@ -214,6 +214,9 @@ public class InvoiceServiceImpl implements InvoiceService {
             String client,
             String invoiceNumber,
             String invoiceDate,
+            String dueDate,
+            String startDate,
+            String endDate,
             Pageable pageable
     ) {
         Long organizationId = currentUserService.getCurrentUser().getOrganization().getOrganizationId();
@@ -222,6 +225,10 @@ public class InvoiceServiceImpl implements InvoiceService {
         String clientFilter = toNullableValue(client);
         String invoiceNumberFilter = toNullableValue(invoiceNumber);
         LocalDate invoiceDateFilter = parseOptionalDateFilter(invoiceDate);
+        LocalDate dueDateFilter = parseOptionalDateFilter(dueDate);
+        LocalDate startDateFilter = parseOptionalDateFilter(startDate);
+        LocalDate endDateFilter = parseOptionalDateFilter(endDate);
+        validatePeriod(startDateFilter, endDateFilter);
 
         return invoiceRepository.findAll(byOrganization(organizationId).and(buildInvoiceSearchSpecification(
                         organizationId,
@@ -229,7 +236,10 @@ public class InvoiceServiceImpl implements InvoiceService {
                         supplierFilter,
                         clientFilter,
                         invoiceNumberFilter,
-                        invoiceDateFilter
+                        invoiceDateFilter,
+                        dueDateFilter,
+                        startDateFilter,
+                        endDateFilter
                 )), pageable)
                 .map(invoiceResponseMapper::toListItemResponse);
     }
@@ -644,6 +654,12 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .orElseThrow(() -> new IllegalArgumentException("Invalid date"));
     }
 
+    private void validatePeriod(LocalDate startDate, LocalDate endDate) {
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("startDate must be before or equal to endDate");
+        }
+    }
+
     private String requireNotBlank(String value, String fieldName) {
         if (isBlank(value)) {
             throw new IllegalArgumentException(fieldName + " is required");
@@ -686,7 +702,10 @@ public class InvoiceServiceImpl implements InvoiceService {
             String supplier,
             String client,
             String invoiceNumber,
-            LocalDate invoiceDate
+            LocalDate invoiceDate,
+            LocalDate dueDate,
+            LocalDate startDate,
+            LocalDate endDate
     ) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -769,6 +788,18 @@ public class InvoiceServiceImpl implements InvoiceService {
 
             if (invoiceDate != null) {
                 predicates.add(criteriaBuilder.equal(root.get("invoiceDate"), invoiceDate));
+            }
+
+            if (dueDate != null) {
+                predicates.add(criteriaBuilder.equal(root.get("dueDate"), dueDate));
+            }
+
+            if (startDate != null) {
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("invoiceDate"), startDate));
+            }
+
+            if (endDate != null) {
+                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("invoiceDate"), endDate));
             }
 
             return criteriaBuilder.and(

@@ -57,7 +57,8 @@ class InvoiceSearchControllerTest {
         InvoiceListItemResponse invoice = new InvoiceListItemResponse();
         invoice.setInvoiceId(112L);
         when(invoiceService.searchInvoices(
-                isNull(), eq("Orange"), eq("Docomptia"), eq("fac-2026"), isNull(), any(Pageable.class)))
+                isNull(), eq("Orange"), eq("Docomptia"), eq("fac-2026"), isNull(), eq("2026-08-21"),
+                eq("2026-07-01"), eq("2026-07-31"), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(invoice), PageRequest.of(1, 1), 3));
 
         mockMvc.perform(get("/api/v1/invoices")
@@ -66,6 +67,9 @@ class InvoiceSearchControllerTest {
                         .param("supplier", "Orange")
                         .param("client", "Docomptia")
                         .param("invoiceNumber", "fac-2026")
+                        .param("dueDate", "2026-08-21")
+                        .param("startDate", "2026-07-01")
+                        .param("endDate", "2026-07-31")
                         .param("sortBy", "totalTtc")
                         .param("direction", "asc"))
                 .andExpect(status().isOk())
@@ -77,7 +81,8 @@ class InvoiceSearchControllerTest {
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(invoiceService).searchInvoices(
-                isNull(), eq("Orange"), eq("Docomptia"), eq("fac-2026"), isNull(), pageableCaptor.capture());
+                isNull(), eq("Orange"), eq("Docomptia"), eq("fac-2026"), isNull(), eq("2026-08-21"),
+                eq("2026-07-01"), eq("2026-07-31"), pageableCaptor.capture());
         Pageable pageable = pageableCaptor.getValue();
         assertEquals(1, pageable.getPageNumber());
         assertEquals(1, pageable.getPageSize());
@@ -99,7 +104,8 @@ class InvoiceSearchControllerTest {
                 .andExpect(jsonPath("$.message").value("page must be an integer"));
 
         verify(invoiceService, never()).searchInvoices(
-                isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
+                isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                any(Pageable.class));
     }
 
     @Test
@@ -113,6 +119,7 @@ class InvoiceSearchControllerTest {
                 .andExpect(jsonPath("$.message").value("Invalid invoice sort direction"));
 
         verify(invoiceService, never()).searchInvoices(
-                isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
+                isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                any(Pageable.class));
     }
 }

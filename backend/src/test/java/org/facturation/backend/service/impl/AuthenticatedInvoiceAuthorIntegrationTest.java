@@ -118,7 +118,8 @@ class AuthenticatedInvoiceAuthorIntegrationTest {
                     + "true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
     })
     void listsOnlyInvoicesFromAuthenticatedUserOrganization() {
-        assertTrue(invoiceService.searchInvoices(null, null, null, null, null, Pageable.unpaged()).isEmpty());
+        assertTrue(invoiceService.searchInvoices(
+                null, null, null, null, null, null, null, null, Pageable.unpaged()).isEmpty());
     }
 
     @Test
