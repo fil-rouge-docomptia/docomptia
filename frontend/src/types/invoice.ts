@@ -18,3 +18,22 @@ export type InvoiceUploadResponse = {
   status: string
   ocrAnalysis: OcrAnalysisResponse
 }
+
+export type InvoiceOcrFailureResponse = {
+  invoiceId: number
+  status: string
+  ocrError: {
+    code: string
+    message: string
+    occurredAt: string
+  }
+}
+
+export type InvoiceUploadPhase =
+  | 'empty'
+  | 'queued'
+  | 'uploading'
+  | 'ocr-processing'
+  | 'completed'
+  | 'upload-error'
+  | 'ocr-error'
