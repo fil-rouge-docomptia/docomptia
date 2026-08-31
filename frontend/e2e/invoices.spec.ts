@@ -118,6 +118,23 @@ const invoiceHistory = [
   },
 ]
 
+const correctedInvoiceDetails = {
+  ...invoiceDetails,
+  ocrAnalysis: {
+    ...invoiceDetails.ocrAnalysis,
+    fields: invoiceDetails.ocrAnalysis.fields.map((field) => (
+      field.fieldName === 'totalTva'
+        ? {
+            ...field,
+            corrected: true,
+            normalizedValue: '260.10',
+          }
+        : field
+    )),
+  },
+  totalTva: '260.10',
+}
+
 const originalInvoicePdfBase64 = [
   'JVBERi0xLjQKJeLjz9MKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoK',
   'PDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUiA0IDAgUl0gL0NvdW50IDIgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUg',
@@ -186,7 +203,8 @@ test('renders the invoice review sections from the detail endpoint', async ({ pa
   await expect(page.getByLabel('Original invoice document')).toBeVisible()
   await expect(page.getByText('1 field requires review')).toBeVisible()
   await expect(page.getByLabel('Supplier name')).toHaveValue('Leroy Construction')
-  await expect(page.getByLabel('Total', { exact: true })).toHaveValue('€1,500.60')
+  await expect(page.getByLabel('Total', { exact: true })).toHaveValue('1500.60')
+  await expect(page.getByText('Low confidence · 82%')).toBeVisible()
 
   await page.getByRole('tab', { name: 'Accounting' }).click()
   await expect(page.getByRole('heading', { name: 'No accounting entry yet' })).toBeVisible()
@@ -196,6 +214,38 @@ test('renders the invoice review sections from the detail endpoint', async ({ pa
 
   await page.getByRole('tab', { name: 'Activity' }).click()
   await expect(page.getByText('OCR analysis completed')).toBeVisible()
+})
+
+test('sends only changed OCR values and keeps the manual correction after reload', async ({ page }) => {
+  let currentDetails = invoiceDetails
+  let correctionPayload: unknown
+
+  await mockApiRoute(page, '/v1/invoices/42', async (route) => {
+    if (route.request().method() === 'PATCH') {
+      correctionPayload = route.request().postDataJSON()
+      currentDetails = correctedInvoiceDetails
+    }
+
+    await fulfillJson(route, 200, currentDetails)
+  })
+
+  await page.goto('/invoices/42')
+
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+  await page.getByLabel('Tax', { exact: true }).fill('260.10')
+  await expect(page.getByText('Unsaved change')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Request approval' })).toBeDisabled()
+
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+
+  await expect(page.getByRole('status')).toHaveText('Corrections saved.')
+  await expect(page.getByText('Edited manually')).toBeVisible()
+  expect(correctionPayload).toEqual({ totalTva: '260.10' })
+
+  await page.reload()
+
+  await expect(page.getByLabel('Tax', { exact: true })).toHaveValue('260.10')
+  await expect(page.getByText('Edited manually')).toBeVisible()
 })
 
 test('renders and controls the original multi-page PDF', async ({ page }) => {
