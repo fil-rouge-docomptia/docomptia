@@ -183,6 +183,37 @@ class InvoiceCorrectionControllerIntegrationTest {
     }
 
     @Test
+    void previewsInvoiceFileInlineWithItsMimeType() throws Exception {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+
+        mockMvc.perform(get("/api/v1/invoices/{id}/preview", uploadResponse.getInvoiceId()))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("inline")))
+                .andExpect(header().string("Content-Disposition", containsString("invoice.png")))
+                .andExpect(content().contentType(MediaType.IMAGE_PNG))
+                .andExpect(content().bytes(new byte[]{
+                        (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A
+                }));
+    }
+
+    @Test
+    void rejectsInvoiceFileThatCannotBePreviewed() throws Exception {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        InvoiceFile invoiceFile = invoiceFileRepository
+                .findByInvoiceInvoiceId(uploadResponse.getInvoiceId())
+                .orElseThrow();
+        invoiceFile.setMimeType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
+        invoiceFileRepository.save(invoiceFile);
+
+        mockMvc.perform(get("/api/v1/invoices/{id}/preview", uploadResponse.getInvoiceId()))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.code").value("INVOICE_FILE_NOT_PREVIEWABLE"))
+                .andExpect(jsonPath("$.message").value(
+                        "Invoice file cannot be previewed with MIME type: application/octet-stream"
+                ));
+    }
+
+    @Test
     @Sql(statements = {
             "ALTER TABLE organizations ALTER COLUMN organization_id RESTART WITH 2",
             "ALTER TABLE users ALTER COLUMN user_id RESTART WITH 2"
@@ -192,6 +223,23 @@ class InvoiceCorrectionControllerIntegrationTest {
         createInvoiceFile(inaccessibleInvoice);
 
         mockMvc.perform(get("/api/v1/invoices/{id}/file", inaccessibleInvoice.getInvoiceId()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("INVOICE_NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value(
+                        "Invoice " + inaccessibleInvoice.getInvoiceId() + " not found"
+                ));
+    }
+
+    @Test
+    @Sql(statements = {
+            "ALTER TABLE organizations ALTER COLUMN organization_id RESTART WITH 2",
+            "ALTER TABLE users ALTER COLUMN user_id RESTART WITH 2"
+    })
+    void doesNotPreviewInvoiceFileFromAnotherOrganization() throws Exception {
+        Invoice inaccessibleInvoice = createInvoiceInAnotherOrganization();
+        createInvoiceFile(inaccessibleInvoice);
+
+        mockMvc.perform(get("/api/v1/invoices/{id}/preview", inaccessibleInvoice.getInvoiceId()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("INVOICE_NOT_FOUND"))
                 .andExpect(jsonPath("$.message").value(
