@@ -2,6 +2,7 @@ import { apiBaseUrl } from '@/lib/env'
 import { clearAuthToken, getAuthToken } from '@/lib/auth-session'
 import { ApiError, authenticatedFetch } from '@/services/api'
 import type {
+  InvoiceCorrectionRequest,
   InvoiceDetails,
   InvoiceHistoryItem,
   InvoiceListQuery,
@@ -140,6 +141,22 @@ export async function getInvoiceDetails(
   const response = await authenticatedFetch(
     `${apiBaseUrl}/v1/invoices/${invoiceId}`,
     { signal },
+  )
+
+  return response.json() as Promise<InvoiceDetails>
+}
+
+export async function correctInvoice(
+  invoiceId: number,
+  corrections: InvoiceCorrectionRequest,
+): Promise<InvoiceDetails> {
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/v1/invoices/${invoiceId}`,
+    {
+      body: JSON.stringify(corrections),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH',
+    },
   )
 
   return response.json() as Promise<InvoiceDetails>

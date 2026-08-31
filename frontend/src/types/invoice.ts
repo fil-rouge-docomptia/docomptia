@@ -143,6 +143,17 @@ export type InvoiceDetails = {
   duplicateAlerts: InvoiceDuplicateAlert[]
 }
 
+export type InvoiceCorrectionRequest = {
+  commandReference?: string
+  dueDate?: string
+  invoiceDate?: string
+  invoiceNumber?: string
+  supplierName?: string
+  totalHt?: string
+  totalTtc?: string
+  totalTva?: string
+}
+
 export type InvoiceHistoryItem = {
   type: string
   action: string
