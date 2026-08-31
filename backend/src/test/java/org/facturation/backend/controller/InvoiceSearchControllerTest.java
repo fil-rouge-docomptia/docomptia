@@ -58,7 +58,7 @@ class InvoiceSearchControllerTest {
         invoice.setInvoiceId(112L);
         when(invoiceService.searchInvoices(
                 isNull(), eq("Orange"), eq("Docomptia"), eq("fac-2026"), isNull(), eq("2026-08-21"),
-                eq("2026-07-01"), eq("2026-07-31"), any(Pageable.class)))
+                eq("2026-07-01"), eq("2026-07-31"), eq("100.00"), eq("500.00"), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(invoice), PageRequest.of(1, 1), 3));
 
         mockMvc.perform(get("/api/v1/invoices")
@@ -70,6 +70,8 @@ class InvoiceSearchControllerTest {
                         .param("dueDate", "2026-08-21")
                         .param("startDate", "2026-07-01")
                         .param("endDate", "2026-07-31")
+                        .param("minAmount", "100.00")
+                        .param("maxAmount", "500.00")
                         .param("sortBy", "totalTtc")
                         .param("direction", "asc"))
                 .andExpect(status().isOk())
@@ -82,7 +84,7 @@ class InvoiceSearchControllerTest {
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(invoiceService).searchInvoices(
                 isNull(), eq("Orange"), eq("Docomptia"), eq("fac-2026"), isNull(), eq("2026-08-21"),
-                eq("2026-07-01"), eq("2026-07-31"), pageableCaptor.capture());
+                eq("2026-07-01"), eq("2026-07-31"), eq("100.00"), eq("500.00"), pageableCaptor.capture());
         Pageable pageable = pageableCaptor.getValue();
         assertEquals(1, pageable.getPageNumber());
         assertEquals(1, pageable.getPageSize());
@@ -105,7 +107,7 @@ class InvoiceSearchControllerTest {
 
         verify(invoiceService, never()).searchInvoices(
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                any(Pageable.class));
+                isNull(), isNull(), any(Pageable.class));
     }
 
     @Test
@@ -120,6 +122,6 @@ class InvoiceSearchControllerTest {
 
         verify(invoiceService, never()).searchInvoices(
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                any(Pageable.class));
+                isNull(), isNull(), any(Pageable.class));
     }
 }
