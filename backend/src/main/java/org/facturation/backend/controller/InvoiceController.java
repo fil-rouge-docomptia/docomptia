@@ -28,6 +28,7 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -74,7 +75,11 @@ public class InvoiceController {
     @GetMapping
     @Operation(summary = "Rechercher les factures")
     @Parameters({
-            @Parameter(name = "status", description = "Code du statut", example = "EXTRAITE"),
+            @Parameter(
+                    name = "status",
+                    description = "Codes des statuts, repetables ou separes par des virgules",
+                    example = "EXTRAITE,VALIDEE"
+            ),
             @Parameter(name = "supplier", description = "Nom ou identifiant du fournisseur", example = "Orange"),
             @Parameter(name = "client", description = "Nom ou identifiant du client", example = "Docomptia"),
             @Parameter(name = "invoiceNumber", description = "Numero de facture exact ou partiel", example = "FAC-2026"),
@@ -90,7 +95,7 @@ public class InvoiceController {
             @Parameter(name = "direction", description = "Sens du tri: ASC ou DESC")
     })
     public ResponseEntity<Page<InvoiceListItemResponse>> searchInvoices(
-            @Parameter(hidden = true) @RequestParam Map<String, String> params
+            @Parameter(hidden = true) @RequestParam MultiValueMap<String, String> params
     ) {
         if (!ALLOWED_SEARCH_PARAMS.containsAll(params.keySet())) {
             throw new IllegalArgumentException(
@@ -102,16 +107,16 @@ public class InvoiceController {
             );
         }
 
-        int page = parseNonNegativeInteger(params.getOrDefault("page", "0"), "page");
-        int size = parsePositiveInteger(params.getOrDefault("size", "20"), "size");
-        String sortBy = params.getOrDefault("sortBy", "createdAt");
+        int page = parseNonNegativeInteger(Optional.ofNullable(params.getFirst("page")).orElse("0"), "page");
+        int size = parsePositiveInteger(Optional.ofNullable(params.getFirst("size")).orElse("20"), "size");
+        String sortBy = Optional.ofNullable(params.getFirst("sortBy")).orElse("createdAt");
         String sortProperty = SORT_PROPERTIES.get(sortBy);
         if (sortProperty == null) {
             throw new IllegalArgumentException("Invalid invoice sort field: " + sortBy);
         }
         Sort.Direction direction;
         try {
-            direction = Sort.Direction.fromString(params.getOrDefault("direction", "DESC"));
+            direction = Sort.Direction.fromString(Optional.ofNullable(params.getFirst("direction")).orElse("DESC"));
         } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException("Invalid invoice sort direction", exception);
         }
@@ -123,15 +128,15 @@ public class InvoiceController {
 
         return ResponseEntity.ok(invoiceService.searchInvoices(
                 params.get("status"),
-                params.get("supplier"),
-                params.get("client"),
-                params.get("invoiceNumber"),
-                params.get("invoiceDate"),
-                params.get("dueDate"),
-                params.get("startDate"),
-                params.get("endDate"),
-                params.get("minAmount"),
-                params.get("maxAmount"),
+                params.getFirst("supplier"),
+                params.getFirst("client"),
+                params.getFirst("invoiceNumber"),
+                params.getFirst("invoiceDate"),
+                params.getFirst("dueDate"),
+                params.getFirst("startDate"),
+                params.getFirst("endDate"),
+                params.getFirst("minAmount"),
+                params.getFirst("maxAmount"),
                 pageRequest
         ));
     }
