@@ -46,6 +46,8 @@ public interface InvoiceService {
 
     Optional<MultipartFile> downloadFile(Long id);
 
+    Optional<MultipartFile> previewFile(Long id);
+
     Optional<InvoiceDetailsResponse> correctInvoice(Long id, InvoiceCorrectionRequest request);
 
     Optional<InvoiceDetailsResponse> assignClassification(Long id, InvoiceClassificationRequest request);
