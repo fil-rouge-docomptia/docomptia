@@ -94,6 +94,52 @@ class InvoiceOrganizationIsolationIntegrationTest {
     }
 
     @Test
+    void filtersByMultipleKnownStatusesWithinCurrentOrganization() {
+        Organization currentOrganization = organizationRepository.findById(1L).orElseThrow();
+        User currentUser = userRepository.findById(1L).orElseThrow();
+        Supplier currentSupplier = createSupplier(currentOrganization, "KAN-117 supplier", "17171717171717");
+        Invoice extractedInvoice = createInvoice(
+                currentOrganization, currentUser, currentSupplier, "KAN-117-EXTRACTED");
+        Invoice validatedInvoice = createInvoice(
+                currentOrganization, currentUser, currentSupplier, "KAN-117-VALIDATED");
+        validatedInvoice.setInvoiceStatus(invoiceStatusRepository.findByCode("VALIDEE").orElseThrow());
+        invoiceRepository.save(validatedInvoice);
+        Invoice depositedInvoice = createInvoice(
+                currentOrganization, currentUser, currentSupplier, "KAN-117-DEPOSITED");
+        depositedInvoice.setInvoiceStatus(invoiceStatusRepository.findByCode("DEPOSEE").orElseThrow());
+        invoiceRepository.save(depositedInvoice);
+
+        Organization otherOrganization = createOrganization();
+        User otherUser = createUser(otherOrganization);
+        Supplier otherSupplier = createSupplier(otherOrganization, "Other KAN-117 supplier", "18181818181818");
+        Invoice hiddenInvoice = createInvoice(
+                otherOrganization, otherUser, otherSupplier, "HIDDEN-KAN-117-VALIDATED");
+        hiddenInvoice.setInvoiceStatus(invoiceStatusRepository.findByCode("VALIDEE").orElseThrow());
+        invoiceRepository.save(hiddenInvoice);
+
+        Page<InvoiceListItemResponse> results = invoiceService.searchInvoices(
+                List.of("extraite,VALIDEE"), null, null, null, null, null, null, null, null, null,
+                Pageable.unpaged());
+
+        assertEquals(
+                List.of(extractedInvoice.getInvoiceId(), validatedInvoice.getInvoiceId()).stream().sorted().toList(),
+                results.map(InvoiceListItemResponse::getInvoiceId).stream().sorted().toList()
+        );
+    }
+
+    @Test
+    void rejectsAnUnknownStatus() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> invoiceService.searchInvoices(
+                        List.of("EXTRAITE", "INCONNU"), null, null, null, null, null, null, null, null, null,
+                        Pageable.unpaged())
+        );
+
+        assertEquals("Unknown invoice status: INCONNU", exception.getMessage());
+    }
+
+    @Test
     void searchesBySupplierNameOrIdentifierWithinCurrentOrganization() {
         Organization currentOrganization = organizationRepository.findById(1L).orElseThrow();
         User currentUser = userRepository.findById(1L).orElseThrow();

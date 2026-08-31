@@ -58,12 +58,18 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class InvoiceServiceImpl implements InvoiceService {
 
     private static final BigDecimal MAX_PERSISTED_AMOUNT = new BigDecimal("9999999999.99");
     private static final int AMOUNT_SCALE = 2;
+    private static final Set<String> KNOWN_STATUS_CODES = Stream.of(InvoiceStatusCode.values())
+            .map(InvoiceStatusCode::getCode)
+            .collect(Collectors.toUnmodifiableSet());
     private static final List<DateTimeFormatter> DATE_FORMATTERS = List.of(
             DateTimeFormatter.ofPattern("d/M/yyyy"),
             DateTimeFormatter.ofPattern("d-M-yyyy"),
@@ -209,7 +215,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional
     public Page<InvoiceListItemResponse> searchInvoices(
-            String status,
+            List<String> statuses,
             String supplier,
             String client,
             String invoiceNumber,
@@ -222,7 +228,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             Pageable pageable
     ) {
         Long organizationId = currentUserService.getCurrentUser().getOrganization().getOrganizationId();
-        String statusFilter = toNullableValue(status);
+        List<String> statusFilters = normalizeStatusFilters(statuses);
         String supplierFilter = toNullableValue(supplier);
         String clientFilter = toNullableValue(client);
         String invoiceNumberFilter = toNullableValue(invoiceNumber);
@@ -237,7 +243,7 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         return invoiceRepository.findAll(byOrganization(organizationId).and(buildInvoiceSearchSpecification(
                         organizationId,
-                        statusFilter,
+                        statusFilters,
                         supplierFilter,
                         clientFilter,
                         invoiceNumberFilter,
@@ -685,6 +691,25 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
     }
 
+    private List<String> normalizeStatusFilters(List<String> statuses) {
+        if (statuses == null) {
+            return List.of();
+        }
+        return statuses.stream()
+                .filter(Objects::nonNull)
+                .flatMap(status -> Stream.of(status.split(",")))
+                .map(this::toNullableValue)
+                .filter(Objects::nonNull)
+                .map(status -> status.toUpperCase(Locale.ROOT))
+                .peek(status -> {
+                    if (!KNOWN_STATUS_CODES.contains(status)) {
+                        throw new IllegalArgumentException("Unknown invoice status: " + status);
+                    }
+                })
+                .distinct()
+                .toList();
+    }
+
     private String requireNotBlank(String value, String fieldName) {
         if (isBlank(value)) {
             throw new IllegalArgumentException(fieldName + " is required");
@@ -723,7 +748,7 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     private Specification<Invoice> buildInvoiceSearchSpecification(
             Long organizationId,
-            String status,
+            List<String> statuses,
             String supplier,
             String client,
             String invoiceNumber,
@@ -741,11 +766,8 @@ public class InvoiceServiceImpl implements InvoiceService {
                     organizationId
             ));
 
-            if (status != null) {
-                predicates.add(criteriaBuilder.equal(
-                        criteriaBuilder.lower(root.get("invoiceStatus").get("code")),
-                        status.toLowerCase()
-                ));
+            if (!statuses.isEmpty()) {
+                predicates.add(root.get("invoiceStatus").get("code").in(statuses));
             }
 
             if (supplier != null) {

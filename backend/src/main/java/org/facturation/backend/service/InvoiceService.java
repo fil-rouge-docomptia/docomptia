@@ -29,7 +29,7 @@ public interface InvoiceService {
     Optional<InvoiceDetailsResponse> retryOcr(Long invoiceId);
 
     Page<InvoiceListItemResponse> searchInvoices(
-            String status,
+            List<String> statuses,
             String supplier,
             String client,
             String invoiceNumber,
