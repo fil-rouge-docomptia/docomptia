@@ -42,6 +42,8 @@ public interface InvoiceService {
             Pageable pageable
     );
 
+    Page<InvoiceListItemResponse> findPendingValidationInvoices(Pageable pageable);
+
     Optional<InvoiceDetailsResponse> findDetailsById(Long id);
 
     Optional<MultipartFile> downloadFile(Long id);
