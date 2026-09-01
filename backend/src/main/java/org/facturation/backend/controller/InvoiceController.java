@@ -55,6 +55,7 @@ public class InvoiceController {
             "status", "supplier", "client", "invoiceNumber", "invoiceDate", "dueDate", "startDate", "endDate",
             "minAmount", "maxAmount", "page", "size", "sortBy", "direction"
     );
+    private static final Set<String> ALLOWED_PAGINATION_PARAMS = Set.of("page", "size", "sortBy", "direction");
     private static final Map<String, String> SORT_PROPERTIES = Map.of(
             "createdAt", "createdAt",
             "invoiceDate", "invoiceDate",
@@ -107,24 +108,7 @@ public class InvoiceController {
             );
         }
 
-        int page = parseNonNegativeInteger(Optional.ofNullable(params.getFirst("page")).orElse("0"), "page");
-        int size = parsePositiveInteger(Optional.ofNullable(params.getFirst("size")).orElse("20"), "size");
-        String sortBy = Optional.ofNullable(params.getFirst("sortBy")).orElse("createdAt");
-        String sortProperty = SORT_PROPERTIES.get(sortBy);
-        if (sortProperty == null) {
-            throw new IllegalArgumentException("Invalid invoice sort field: " + sortBy);
-        }
-        Sort.Direction direction;
-        try {
-            direction = Sort.Direction.fromString(Optional.ofNullable(params.getFirst("direction")).orElse("DESC"));
-        } catch (IllegalArgumentException exception) {
-            throw new IllegalArgumentException("Invalid invoice sort direction", exception);
-        }
-        PageRequest pageRequest = PageRequest.of(
-                page,
-                size,
-                Sort.by(direction, sortProperty).and(Sort.by("invoiceId").ascending())
-        );
+        PageRequest pageRequest = createPageRequest(params);
 
         return ResponseEntity.ok(invoiceService.searchInvoices(
                 params.get("status"),
@@ -139,6 +123,59 @@ public class InvoiceController {
                 params.getFirst("maxAmount"),
                 pageRequest
         ));
+    }
+
+    @GetMapping("/pending-validation")
+    @Operation(
+            summary = "Lister les factures en attente de validation",
+            description = "Retourne une page de factures A_VERIFIER de l'organisation du validateur connecte"
+    )
+    @Parameters({
+            @Parameter(name = "page", description = "Numero de page, commence a zero", example = "0"),
+            @Parameter(name = "size", description = "Nombre de factures par page", example = "20"),
+            @Parameter(name = "sortBy", description = "Champ de tri: invoiceDate, totalTtc ou status"),
+            @Parameter(name = "direction", description = "Sens du tri: ASC ou DESC")
+    })
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Page de factures en attente retournee"),
+            @ApiResponse(responseCode = "401", description = "Authentification requise"),
+            @ApiResponse(responseCode = "403", description = "Role validateur requis")
+    })
+    public ResponseEntity<Page<InvoiceListItemResponse>> findPendingValidationInvoices(
+            @Parameter(hidden = true) @RequestParam MultiValueMap<String, String> params
+    ) {
+        if (!ALLOWED_PAGINATION_PARAMS.containsAll(params.keySet())) {
+            throw new IllegalArgumentException(
+                    "Unsupported pending validation parameters: "
+                            + String.join(", ", params.keySet().stream()
+                            .filter(param -> !ALLOWED_PAGINATION_PARAMS.contains(param))
+                            .sorted()
+                            .toList())
+            );
+        }
+
+        return ResponseEntity.ok(invoiceService.findPendingValidationInvoices(createPageRequest(params)));
+    }
+
+    private PageRequest createPageRequest(MultiValueMap<String, String> params) {
+        int page = parseNonNegativeInteger(Optional.ofNullable(params.getFirst("page")).orElse("0"), "page");
+        int size = parsePositiveInteger(Optional.ofNullable(params.getFirst("size")).orElse("20"), "size");
+        String sortBy = Optional.ofNullable(params.getFirst("sortBy")).orElse("createdAt");
+        String sortProperty = SORT_PROPERTIES.get(sortBy);
+        if (sortProperty == null) {
+            throw new IllegalArgumentException("Invalid invoice sort field: " + sortBy);
+        }
+        Sort.Direction direction;
+        try {
+            direction = Sort.Direction.fromString(Optional.ofNullable(params.getFirst("direction")).orElse("DESC"));
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("Invalid invoice sort direction", exception);
+        }
+        return PageRequest.of(
+                page,
+                size,
+                Sort.by(direction, sortProperty).and(Sort.by("invoiceId").ascending())
+        );
     }
 
     private int parseNonNegativeInteger(String value, String fieldName) {

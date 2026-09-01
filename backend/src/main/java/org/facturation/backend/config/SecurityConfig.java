@@ -81,10 +81,12 @@ public class SecurityConfig {
                         .hasAnyRole(BusinessPermission.MANAGE_ORGANIZATION.roleCodes())
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/organizations/current")
                         .hasAnyRole(BusinessPermission.MANAGE_ORGANIZATION.roleCodes())
-                        .requestMatchers(HttpMethod.GET, "/api/v1/invoices", "/api/v1/invoices/**")
-                        .hasAnyRole(BusinessPermission.VIEW_INVOICES.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/dashboard/summary")
                         .hasAnyRole(BusinessPermission.VIEW_DASHBOARD.roleCodes())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/invoices/pending-validation")
+                        .hasAnyRole(BusinessPermission.VALIDATE_INVOICES.roleCodes())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/invoices", "/api/v1/invoices/**")
+                        .hasAnyRole(BusinessPermission.VIEW_INVOICES.roleCodes())
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/invoices/*/validate",
                                 "/api/v1/invoices/*/request-correction",

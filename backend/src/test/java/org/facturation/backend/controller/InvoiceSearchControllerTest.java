@@ -95,6 +95,42 @@ class InvoiceSearchControllerTest {
     }
 
     @Test
+    void returnsPendingValidationInvoicesWithRequestedPaginationAndSort() throws Exception {
+        InvoiceListItemResponse invoice = new InvoiceListItemResponse();
+        invoice.setInvoiceId(144L);
+        invoice.setStatus("A_VERIFIER");
+        when(invoiceService.findPendingValidationInvoices(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(invoice), PageRequest.of(1, 1), 3));
+
+        mockMvc.perform(get("/api/v1/invoices/pending-validation")
+                        .param("page", "1")
+                        .param("size", "1")
+                        .param("sortBy", "invoiceDate")
+                        .param("direction", "asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].invoiceId").value(144))
+                .andExpect(jsonPath("$.content[0].status").value("A_VERIFIER"))
+                .andExpect(jsonPath("$.totalElements").value(3));
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(invoiceService).findPendingValidationInvoices(pageableCaptor.capture());
+        Pageable pageable = pageableCaptor.getValue();
+        assertEquals(1, pageable.getPageNumber());
+        assertEquals(1, pageable.getPageSize());
+        assertEquals("ASC", pageable.getSort().getOrderFor("invoiceDate").getDirection().name());
+    }
+
+    @Test
+    void pendingValidationListRejectsFiltersThatCouldChangeItsStatusScope() throws Exception {
+        mockMvc.perform(get("/api/v1/invoices/pending-validation").param("status", "VALIDEE"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("Unsupported pending validation parameters: status"));
+
+        verify(invoiceService, never()).findPendingValidationInvoices(any(Pageable.class));
+    }
+
+    @Test
     void rejectsInvalidPaginationValues() throws Exception {
         mockMvc.perform(get("/api/v1/invoices").param("page", "-1"))
                 .andExpect(status().isBadRequest())

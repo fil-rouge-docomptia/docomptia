@@ -268,6 +268,19 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional
+    public Page<InvoiceListItemResponse> findPendingValidationInvoices(Pageable pageable) {
+        Long organizationId = currentUserService.getCurrentUser().getOrganization().getOrganizationId();
+        Specification<Invoice> pendingValidation = (root, query, criteriaBuilder) -> criteriaBuilder.equal(
+                root.get("invoiceStatus").get("code"),
+                InvoiceStatusCode.A_VERIFIER.getCode()
+        );
+
+        return invoiceRepository.findAll(byOrganization(organizationId).and(pendingValidation), pageable)
+                .map(invoiceResponseMapper::toListItemResponse);
+    }
+
+    @Override
+    @Transactional
     public Optional<InvoiceDetailsResponse> findDetailsById(Long id) {
         User user = currentUserService.getCurrentUser();
         return invoiceRepository.findByInvoiceIdAndOrganizationOrganizationId(
