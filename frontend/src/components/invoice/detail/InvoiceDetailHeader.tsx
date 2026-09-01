@@ -6,9 +6,13 @@ import { InvoiceStatusBadge } from '@/components/invoice/InvoiceStatusBadge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import type { RoleCode } from '@/types/auth'
-import type { InvoiceDetails } from '@/types/invoice'
+import type { InvoiceDetails, InvoiceDuplicateAlert } from '@/types/invoice'
 
-import { canCorrectInvoice, isRetryableOcrError } from './invoice-detail-utils'
+import {
+  canCorrectInvoice,
+  canProcessInvoice,
+  isRetryableOcrError,
+} from './invoice-detail-utils'
 
 type CorrectionState = {
   dirty: boolean
@@ -17,31 +21,38 @@ type CorrectionState = {
 
 type InvoiceDetailHeaderProps = {
   correctionState: CorrectionState
+  duplicateAlert: InvoiceDuplicateAlert | null
+  duplicateDecisionPending: boolean
   invoice: InvoiceDetails
+  onIgnoreDuplicate: () => Promise<void>
   onRequestApproval: () => Promise<void>
+  onReviewDuplicate: () => void
   onRetryOcr: () => Promise<void>
   role?: RoleCode
   showCorrectionAction: boolean
 }
 
-const processingRoles: RoleCode[] = ['ADMIN', 'OPERATEUR_COMPTABLE']
-
 export function InvoiceDetailHeader({
   correctionState,
+  duplicateAlert,
+  duplicateDecisionPending,
   invoice,
+  onIgnoreDuplicate,
   onRequestApproval,
+  onReviewDuplicate,
   onRetryOcr,
   role,
   showCorrectionAction,
 }: InvoiceDetailHeaderProps) {
-  const [actionError, setActionError] = useState<'approval' | 'ocr' | null>(null)
+  const [actionError, setActionError] = useState<'approval' | 'duplicate' | 'ocr' | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [retryingOcr, setRetryingOcr] = useState(false)
-  const canProcessInvoice = Boolean(role && processingRoles.includes(role))
+  const canProcess = canProcessInvoice(role)
+  const hasPendingDuplicate = Boolean(duplicateAlert)
   const canRequestApproval =
-    invoice.status === 'EXTRAITE' && canProcessInvoice
+    invoice.status === 'EXTRAITE' && canProcess && !hasPendingDuplicate
   const canRetryOcr = invoice.status === 'ERREUR_OCR'
-    && canProcessInvoice
+    && canProcess
     && isRetryableOcrError(invoice.ocrError)
   const canSaveCorrections = showCorrectionAction
     && canCorrectInvoice(invoice.status, role)
@@ -73,6 +84,16 @@ export function InvoiceDetailHeader({
     }
   }
 
+  const handleIgnoreDuplicate = async () => {
+    setActionError(null)
+
+    try {
+      await onIgnoreDuplicate()
+    } catch {
+      setActionError('duplicate')
+    }
+  }
+
   return (
     <header className="border-b border-border pb-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -92,12 +113,12 @@ export function InvoiceDetailHeader({
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <span>{invoice.invoiceNumber ?? `Invoice ${invoice.invoiceId}`}</span>
             <span aria-hidden="true">·</span>
-            <InvoiceStatusBadge status={invoice.status} />
+            <InvoiceStatusBadge status={hasPendingDuplicate ? 'DUPLICATE_SUSPECTED' : invoice.status} />
           </div>
         </div>
 
         <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
-          {canSaveCorrections ? (
+          {canSaveCorrections && (!hasPendingDuplicate || correctionState.dirty) ? (
             <Button
               className="w-full lg:w-auto"
               disabled={!correctionState.dirty || correctionState.saving}
@@ -111,6 +132,32 @@ export function InvoiceDetailHeader({
                 <Save aria-hidden="true" />
               )}
               {correctionState.saving ? 'Saving…' : 'Save'}
+            </Button>
+          ) : null}
+
+          {hasPendingDuplicate && canProcess ? (
+            <Button
+              className="w-full lg:w-auto"
+              disabled={duplicateDecisionPending || correctionState.dirty}
+              onClick={() => void handleIgnoreDuplicate()}
+              type="button"
+              variant="secondary"
+            >
+              {duplicateDecisionPending ? (
+                <LoaderCircle aria-hidden="true" className="animate-spin" />
+              ) : null}
+              {duplicateDecisionPending ? 'Updating…' : 'Not a duplicate'}
+            </Button>
+          ) : null}
+
+          {hasPendingDuplicate ? (
+            <Button
+              className="w-full lg:w-auto"
+              disabled={duplicateDecisionPending}
+              onClick={onReviewDuplicate}
+              type="button"
+            >
+              Review duplicate
             </Button>
           ) : null}
 
@@ -153,6 +200,8 @@ export function InvoiceDetailHeader({
           <AlertDescription>
             {actionError === 'ocr'
               ? 'OCR could not be restarted. The original file is still available.'
+              : actionError === 'duplicate'
+                ? 'The duplicate decision could not be saved. Review the match and try again.'
               : 'The invoice could not be submitted. Check the required fields and try again.'}
           </AlertDescription>
         </Alert>

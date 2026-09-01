@@ -4,9 +4,13 @@ import { InvoiceApprovalTab } from '@/components/invoice/detail/InvoiceApprovalT
 import { InvoiceDetailsTab } from '@/components/invoice/detail/InvoiceDetailsTab'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { RoleCode } from '@/types/auth'
-import type { InvoiceDetails } from '@/types/invoice'
+import type {
+  InvoiceDetails,
+  InvoiceDuplicateAlert,
+  InvoiceDuplicateDecision,
+} from '@/types/invoice'
 
-import { canCorrectInvoice } from './invoice-detail-utils'
+import { canCorrectInvoice, canProcessInvoice } from './invoice-detail-utils'
 
 export type InvoiceDetailTab = 'accounting' | 'activity' | 'approval' | 'details'
 
@@ -17,10 +21,15 @@ type CorrectionState = {
 
 type InvoiceWorkflowPanelProps = {
   activeTab: InvoiceDetailTab
+  duplicateAlert: InvoiceDuplicateAlert | null
+  duplicateDecisionError: boolean
+  duplicateDecisionPending: InvoiceDuplicateDecision | null
   invoice: InvoiceDetails
   onActiveTabChange: (tab: InvoiceDetailTab) => void
   onCorrectionStateChange: (state: CorrectionState) => void
+  onIgnoreDuplicate: () => Promise<void>
   onInvoiceUpdated: (invoice: InvoiceDetails) => void
+  onReviewDuplicate: () => void
   role?: RoleCode
 }
 
@@ -29,10 +38,15 @@ const tabClassName =
 
 export function InvoiceWorkflowPanel({
   activeTab,
+  duplicateAlert,
+  duplicateDecisionError,
+  duplicateDecisionPending,
   invoice,
   onActiveTabChange,
   onCorrectionStateChange,
+  onIgnoreDuplicate,
   onInvoiceUpdated,
+  onReviewDuplicate,
   role,
 }: InvoiceWorkflowPanelProps) {
   return (
@@ -54,9 +68,15 @@ export function InvoiceWorkflowPanel({
         <TabsContent className="m-0 focus-visible:ring-inset" value="details">
           <InvoiceDetailsTab
             canEdit={canCorrectInvoice(invoice.status, role)}
+            canProcessDuplicate={canProcessInvoice(role)}
+            duplicateAlert={duplicateAlert}
+            duplicateDecisionError={duplicateDecisionError}
+            duplicateDecisionPending={Boolean(duplicateDecisionPending)}
             invoice={invoice}
             onCorrectionStateChange={onCorrectionStateChange}
+            onIgnoreDuplicate={onIgnoreDuplicate}
             onInvoiceUpdated={onInvoiceUpdated}
+            onReviewDuplicate={onReviewDuplicate}
           />
         </TabsContent>
         <TabsContent className="m-0 focus-visible:ring-inset" value="accounting">

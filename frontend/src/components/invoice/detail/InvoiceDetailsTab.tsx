@@ -15,9 +15,11 @@ import { correctInvoice } from '@/services/invoice'
 import type {
   InvoiceCorrectionRequest,
   InvoiceDetails,
+  InvoiceDuplicateAlert,
   OcrFieldResponse,
 } from '@/types/invoice'
 
+import { InvoiceDuplicateWarning } from './InvoiceDuplicateWarning'
 import { InvoiceOcrFailureAlert } from './InvoiceOcrFailureAlert'
 import {
   getConfidencePercent,
@@ -242,16 +244,28 @@ function DetailSection({
 
 type InvoiceDetailsTabProps = {
   canEdit: boolean
+  canProcessDuplicate: boolean
+  duplicateAlert: InvoiceDuplicateAlert | null
+  duplicateDecisionError: boolean
+  duplicateDecisionPending: boolean
   invoice: InvoiceDetails
   onCorrectionStateChange: (state: CorrectionState) => void
+  onIgnoreDuplicate: () => Promise<void>
   onInvoiceUpdated: (invoice: InvoiceDetails) => void
+  onReviewDuplicate: () => void
 }
 
 export function InvoiceDetailsTab({
   canEdit,
+  canProcessDuplicate,
+  duplicateAlert,
+  duplicateDecisionError,
+  duplicateDecisionPending,
   invoice,
   onCorrectionStateChange,
+  onIgnoreDuplicate,
   onInvoiceUpdated,
+  onReviewDuplicate,
 }: InvoiceDetailsTabProps) {
   const formRef = useRef<HTMLFormElement>(null)
   const [draft, setDraft] = useState(() => getCorrectionDraft(invoice))
@@ -334,6 +348,17 @@ export function InvoiceDetailsTab({
           canCorrect={canEdit}
           error={invoice.ocrError}
           onStartManualCorrection={handleStartManualCorrection}
+        />
+      ) : duplicateAlert ? (
+        <InvoiceDuplicateWarning
+          alert={duplicateAlert}
+          canDecide={canProcessDuplicate}
+          decisionBlocked={changedFields.size > 0}
+          decisionError={duplicateDecisionError}
+          decisionPending={duplicateDecisionPending}
+          invoice={invoice}
+          onIgnore={onIgnoreDuplicate}
+          onReview={onReviewDuplicate}
         />
       ) : reviewCount > 0 ? (
         <Alert className="border-warning/30 bg-warning-muted">
