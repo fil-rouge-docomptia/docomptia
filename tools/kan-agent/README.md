@@ -68,7 +68,9 @@ KAN_AGENT_PORT=4312 make agent
 
 Le Makefile transmet automatiquement l'UID et le GID du developpeur au
 conteneur afin d'eviter la creation de fichiers appartenant a `root` dans le
-depot. Codex doit avoir ete authentifie une premiere fois sur la machine hote.
+depot. L'image active aussi `bubblewrap` en mode setuid et le compose applique
+les options de securite Docker requises par le sandbox Linux de Codex. Codex
+doit avoir ete authentifie une premiere fois sur la machine hote.
 
 ### Proxy D'entreprise
 

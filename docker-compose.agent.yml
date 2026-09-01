@@ -11,9 +11,17 @@ services:
         - corporate_ca
     init: true
     user: "${KAN_AGENT_UID:-1000}:${KAN_AGENT_GID:-1000}"
-    # Codex uses bubblewrap; Docker's default seccomp profile blocks its user namespace.
+    # Codex uses bubblewrap inside the container; relax Docker's outer sandbox enough
+    # for the inner Codex sandbox to initialize as a non-root user.
     security_opt:
       - seccomp=unconfined
+      - apparmor=unconfined
+    cap_add:
+      - SYS_ADMIN
+      - SYS_CHROOT
+      - SETUID
+      - SETGID
+      - SYS_PTRACE
     env_file:
       - ./tools/kan-agent/.env.local
     environment:

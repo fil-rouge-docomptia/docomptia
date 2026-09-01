@@ -1,0 +1,64 @@
+name: Deploy staging
+
+on:
+  push:
+    branches:
+      - staging
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to staging VPS
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          if grep -q '\\n' <<<"$SSH_PRIVATE_KEY"; then
+            printf '%b' "$SSH_PRIVATE_KEY" > ~/.ssh/staging_key
+          else
+            printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/staging_key
+          fi
+          sed -i 's/\r$//' ~/.ssh/staging_key
+          chmod 600 ~/.ssh/staging_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Update and restart staging services
+        env:
+          SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+          SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
+          SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.STAGING_DEPLOY_PATH }}
+        run: |
+          ssh -i ~/.ssh/staging_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "cd '$DEPLOY_PATH' && \
+            git fetch origin staging && \
+            git checkout staging && \
+            git pull --ff-only origin staging && \
+            docker compose --env-file env/.env.staging \
+              -f docker-compose.yml \
+              -f docker-compose.staging.yml \
+              up --build -d"
+
+      - name: Check staging health
+        env:
+          HEALTHCHECK_URL: ${{ secrets.STAGING_HEALTHCHECK_URL }}
+        run: |
+          curl --fail --show-error --silent \
+            --retry 12 \
+            --retry-delay 5 \
+            --retry-all-errors \
+            "$HEALTHCHECK_URL" > /dev/null
