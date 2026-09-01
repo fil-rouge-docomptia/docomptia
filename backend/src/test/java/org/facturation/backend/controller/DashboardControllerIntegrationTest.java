@@ -92,10 +92,17 @@ class DashboardControllerIntegrationTest {
         Invoice deposited = createInvoice(currentUser, InvoiceStatusCode.DEPOSEE, "DASH-DEPOSITED", "10", "2", "12");
         deposited.setInvoiceDate(LocalDate.of(2026, 8, 1));
         Invoice extracted = createInvoice(currentUser, InvoiceStatusCode.EXTRAITE, "DASH-EXTRACTED", "20", "4", "24");
-        createInvoice(currentUser, InvoiceStatusCode.A_VERIFIER, "DASH-TO-VALIDATE", "30", "6", "36");
+        extracted.setUpdatedAt(LocalDateTime.of(2026, 8, 20, 12, 0));
+        Invoice awaitingValidation = createInvoice(
+                currentUser, InvoiceStatusCode.A_VERIFIER, "DASH-TO-VALIDATE", "30", "6", "36"
+        );
+        awaitingValidation.setUpdatedAt(LocalDateTime.of(2026, 8, 20, 11, 0));
         Invoice exportable = createInvoice(currentUser, InvoiceStatusCode.EXPORTABLE, "DASH-EXPORTABLE", "40", "8", "48");
         exportable.setInvoiceDate(LocalDate.of(2026, 8, 31));
-        createInvoice(currentUser, InvoiceStatusCode.ERREUR_OCR, "DASH-OCR-ERROR", null, null, null);
+        Invoice ocrError = createInvoice(
+                currentUser, InvoiceStatusCode.ERREUR_OCR, "DASH-OCR-ERROR", null, null, null
+        );
+        ocrError.setUpdatedAt(LocalDateTime.of(2026, 8, 20, 10, 0));
         Invoice outsidePeriod = createInvoice(
                 currentUser, InvoiceStatusCode.VALIDEE, "DASH-OUTSIDE-PERIOD", "500", "100", "600"
         );
@@ -147,7 +154,14 @@ class DashboardControllerIntegrationTest {
                 .andExpect(jsonPath("$.statusDistribution[9].status").value("REJETEE"))
                 .andExpect(jsonPath("$.statusDistribution[9].count").value(0))
                 .andExpect(jsonPath("$.statusDistribution[10].status").value("VALIDEE"))
-                .andExpect(jsonPath("$.statusDistribution[10].count").value(0));
+                .andExpect(jsonPath("$.statusDistribution[10].count").value(0))
+                .andExpect(jsonPath("$.actionRequiredInvoices.length()").value(3))
+                .andExpect(jsonPath("$.actionRequiredInvoices[0].invoiceNumber").value("DASH-EXTRACTED"))
+                .andExpect(jsonPath("$.actionRequiredInvoices[0].requiredAction").value("VERIFIER"))
+                .andExpect(jsonPath("$.actionRequiredInvoices[1].invoiceNumber").value("DASH-TO-VALIDATE"))
+                .andExpect(jsonPath("$.actionRequiredInvoices[1].requiredAction").value("VALIDER"))
+                .andExpect(jsonPath("$.actionRequiredInvoices[2].invoiceNumber").value("DASH-OCR-ERROR"))
+                .andExpect(jsonPath("$.actionRequiredInvoices[2].requiredAction").value("DEBLOQUER"));
     }
 
     @Test
@@ -193,7 +207,46 @@ class DashboardControllerIntegrationTest {
                 .andExpect(jsonPath("$.statusDistribution.length()").value(InvoiceStatusCode.values().length))
                 .andExpect(jsonPath("$.statusDistribution[*].count").value(org.hamcrest.Matchers.everyItem(
                         org.hamcrest.Matchers.is(0)
-                )));
+                )))
+                .andExpect(jsonPath("$.actionRequiredInvoices").isEmpty());
+    }
+
+    @Test
+    void limitsActionRequiredInvoicesAndReturnsTheCorrectionAction() throws Exception {
+        User currentUser = userRepository.findById(1L).orElseThrow();
+        Invoice rejected = createInvoice(
+                currentUser, InvoiceStatusCode.REJETEE, "DASH-REJECTED", "10", "2", "12"
+        );
+        rejected.setUpdatedAt(LocalDateTime.of(2026, 8, 22, 12, 0));
+        Invoice extracted = createInvoice(
+                currentUser, InvoiceStatusCode.EXTRAITE, "DASH-EXTRACTED-LIMIT", "20", "4", "24"
+        );
+        extracted.setUpdatedAt(LocalDateTime.of(2026, 8, 22, 11, 0));
+        Invoice excludedByLimit = createInvoice(
+                currentUser, InvoiceStatusCode.A_VERIFIER, "DASH-EXCLUDED-BY-LIMIT", "30", "6", "36"
+        );
+        excludedByLimit.setUpdatedAt(LocalDateTime.of(2026, 8, 22, 10, 0));
+        invoiceRepository.flush();
+
+        mockMvc.perform(get("/api/v1/dashboard/summary")
+                        .param("startDate", "2026-08-01")
+                        .param("endDate", "2026-08-31")
+                        .param("actionLimit", "2")
+                        .header("Authorization", "Bearer " + loginAndGetToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actionRequiredInvoices.length()").value(2))
+                .andExpect(jsonPath("$.actionRequiredInvoices[0].invoiceNumber").value("DASH-REJECTED"))
+                .andExpect(jsonPath("$.actionRequiredInvoices[0].requiredAction").value("CORRIGER"))
+                .andExpect(jsonPath("$.actionRequiredInvoices[1].invoiceNumber").value("DASH-EXTRACTED-LIMIT"));
+    }
+
+    @Test
+    void rejectsAnInvalidActionInvoiceLimit() throws Exception {
+        mockMvc.perform(get("/api/v1/dashboard/summary")
+                        .param("actionLimit", "101")
+                        .header("Authorization", "Bearer " + loginAndGetToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("actionLimit must be between 1 and 100"));
     }
 
     private Invoice createInvoice(

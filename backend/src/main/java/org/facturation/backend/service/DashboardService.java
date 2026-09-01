@@ -6,5 +6,5 @@ import java.time.LocalDate;
 
 public interface DashboardService {
 
-    DashboardSummaryResponse getSummary(LocalDate startDate, LocalDate endDate);
+    DashboardSummaryResponse getSummary(LocalDate startDate, LocalDate endDate, int actionLimit);
 }
