@@ -90,9 +90,11 @@ class DashboardControllerIntegrationTest {
     void returnsTheCurrentOrganizationsSummaryForTheRequestedPeriod() throws Exception {
         User currentUser = userRepository.findById(1L).orElseThrow();
         Invoice deposited = createInvoice(currentUser, InvoiceStatusCode.DEPOSEE, "DASH-DEPOSITED", "10", "2", "12");
+        deposited.setInvoiceDate(LocalDate.of(2026, 8, 1));
         Invoice extracted = createInvoice(currentUser, InvoiceStatusCode.EXTRAITE, "DASH-EXTRACTED", "20", "4", "24");
         createInvoice(currentUser, InvoiceStatusCode.A_VERIFIER, "DASH-TO-VALIDATE", "30", "6", "36");
         Invoice exportable = createInvoice(currentUser, InvoiceStatusCode.EXPORTABLE, "DASH-EXPORTABLE", "40", "8", "48");
+        exportable.setInvoiceDate(LocalDate.of(2026, 8, 31));
         createInvoice(currentUser, InvoiceStatusCode.ERREUR_OCR, "DASH-OCR-ERROR", null, null, null);
         Invoice outsidePeriod = createInvoice(
                 currentUser, InvoiceStatusCode.VALIDEE, "DASH-OUTSIDE-PERIOD", "500", "100", "600"
