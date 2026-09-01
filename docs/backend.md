@@ -171,13 +171,14 @@ refuse lorsque `validationRequired` vaut `false`.
 
 | Methode | Endpoint | Role |
 | --- | --- | --- |
-| `GET` | `/api/v1/suppliers?page=0&size=20` | Retourne une page de fournisseurs de l'organisation courante |
+| `GET` | `/api/v1/suppliers?query=orange&page=0&size=20` | Recherche une page de fournisseurs par raison sociale, nom commercial ou identifiant legal normalise dans l'organisation courante |
 | `GET` | `/api/v1/suppliers/{id}` | Retourne le detail d'un fournisseur de l'organisation courante |
-| `PATCH` | `/api/v1/suppliers/{id}` | Modifie les informations legales et de contact d'un fournisseur de l'organisation courante |
+| `PATCH` | `/api/v1/suppliers/{id}` | Modifie la raison sociale, le nom commercial et les informations de contact d'un fournisseur de l'organisation courante, sans ecraser directement ses identifiants legaux |
+| `PATCH` | `/api/v1/suppliers/{supplierId}/legal-identifiers/{identifierId}` | Clot un identifiant legal courant et cree son remplacement historise avec auteur, date et motif |
 
-Un fournisseur absent ou rattache a une autre organisation retourne `404`. La modification
-retourne `400` pour un identifiant legal invalide et `409` lorsqu'un SIRET ou un numero de TVA
-est deja utilise par un autre fournisseur de l'organisation courante.
+Le detail expose les identifiants courants et leur historique. Un fournisseur absent ou rattache a une autre organisation retourne `404`. La modification
+retourne `400` si elle tente d'ecraser directement un identifiant legal. Le remplacement d'un identifiant applique les controles francais uniquement pour
+les schemas et pays francais et retourne `409` lorsqu'un identifiant actif est deja utilise par un autre fournisseur de l'organisation courante.
 
 ## Endpoints Plan Comptable MVP
 
