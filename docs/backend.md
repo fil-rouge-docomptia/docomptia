@@ -124,11 +124,14 @@ par defaut.
 
 | Methode | Endpoint | Role |
 | --- | --- | --- |
-| `GET` | `/api/v1/dashboard/summary?startDate=2026-08-01&endDate=2026-08-31` | Retourne les volumes et montants, la repartition par statut, les files de travail et les alertes de l'organisation courante. Les bornes optionnelles filtrent inclusivement la date de facture. |
+| `GET` | `/api/v1/dashboard/summary?startDate=2026-08-01&endDate=2026-08-31&actionLimit=10` | Retourne les volumes et montants, la repartition par statut, les files de travail, les alertes et les factures necessitant une action de l'organisation courante. Les bornes optionnelles filtrent inclusivement la date de facture. |
 
 Une periode dont la date de debut est posterieure a la date de fin retourne `400`. Les alertes de
 doublon comptent les factures ayant au moins une alerte en attente; les ecritures desequilibrees
 sont comptees une fois par ecriture.
+Les factures necessitant une action sont triees de la plus recemment modifiee a la plus ancienne.
+`actionLimit` vaut 10 par defaut et accepte une valeur comprise entre 1 et 100. Chaque facture
+indique `CORRIGER`, `VERIFIER`, `VALIDER` ou `DEBLOQUER` dans `requiredAction` selon son statut.
 
 ## Endpoint Referentiels MVP
 
