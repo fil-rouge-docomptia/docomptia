@@ -74,7 +74,7 @@ export function DashboardMetricGrid({
   return (
     <section
       aria-label="Invoice indicators"
-      className="grid grid-cols-1 gap-4 sm:grid-cols-2 min-[1200px]:grid-cols-4"
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
     >
       {summary
         ? metrics.map((metric) => <MetricCard key={metric.label} metric={metric} />)

@@ -17,7 +17,7 @@ export function DashboardAttentionCard({
 }: DashboardAttentionCardProps) {
   if (error) {
     return (
-      <Card className="min-h-[260px] shadow-elevation-1">
+      <Card className="min-h-[260px] min-w-0 shadow-elevation-1">
         <DashboardBlockError
           message="Attention items are unavailable."
           onRetry={onRetry}
@@ -27,7 +27,7 @@ export function DashboardAttentionCard({
   }
 
   return (
-    <Card className="min-h-[260px] p-4 shadow-elevation-1">
+    <Card className="min-h-[260px] min-w-0 p-4 shadow-elevation-1">
       <h2 className="text-lg font-semibold leading-7 text-foreground">Attention required</h2>
       <p className="text-xs leading-4 text-muted-foreground">
         Items that need intervention before accounting.

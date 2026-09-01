@@ -41,14 +41,14 @@ export function DashboardSpendingOverview({
   const maximum = Math.max(...rows.map((row) => row.value), 0)
 
   return (
-    <section aria-labelledby="dashboard-spending-title">
+    <section aria-labelledby="dashboard-spending-title" className="min-w-0 max-w-full">
       <DashboardSectionHeader
         action={<DashboardSectionAction>View report</DashboardSectionAction>}
         description="Invoice totals over the selected period."
         title="Spending overview"
         titleId="dashboard-spending-title"
       />
-      <Card className="min-h-[172px] p-4 shadow-elevation-1">
+      <Card className="min-h-[172px] min-w-0 max-w-full p-4 shadow-elevation-1">
         {error ? (
           <DashboardBlockError
             message="Spending totals are unavailable."

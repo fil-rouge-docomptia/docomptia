@@ -44,14 +44,14 @@ export function DashboardRecentInvoices({
   onRetry,
 }: DashboardRecentInvoicesProps) {
   return (
-    <section aria-labelledby="dashboard-recent-invoices-title">
+    <section aria-labelledby="dashboard-recent-invoices-title" className="min-w-0 max-w-full">
       <DashboardSectionHeader
         action={<DashboardSectionAction>View all</DashboardSectionAction>}
         description="Latest documents added to the workspace."
         title="Recent invoices"
         titleId="dashboard-recent-invoices-title"
       />
-      <Card className="min-h-[204px] overflow-hidden shadow-elevation-1">
+      <Card className="min-h-[204px] min-w-0 max-w-full overflow-hidden shadow-elevation-1">
         {error ? (
           <DashboardBlockError
             message="Recent invoices are unavailable."
