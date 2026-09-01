@@ -36,6 +36,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -292,6 +293,51 @@ class DashboardControllerIntegrationTest {
     }
 
     @Test
+    void countsOnlyCurrentOrganizationsCurrentlyUnbalancedEntriesForTheRequestedPeriod() throws Exception {
+        User currentUser = userRepository.findById(1L).orElseThrow();
+        Invoice unbalancedInvoice = createInvoice(
+                currentUser, InvoiceStatusCode.VALIDEE, "DASH-UNBALANCED", "10", "2", "12"
+        );
+        unbalancedInvoice.setInvoiceDate(LocalDate.of(2026, 8, 1));
+        AccountingEntryLine lineToCorrect = createUnbalancedEntry(unbalancedInvoice, currentUser);
+
+        Invoice outsidePeriodInvoice = createInvoice(
+                currentUser, InvoiceStatusCode.VALIDEE, "DASH-UNBALANCED-OUTSIDE", "10", "2", "12"
+        );
+        outsidePeriodInvoice.setInvoiceDate(LocalDate.of(2026, 7, 31));
+        createUnbalancedEntry(outsidePeriodInvoice, currentUser);
+
+        createInvoiceForAnotherOrganization();
+        invoiceRepository.flush();
+
+        String token = loginAndGetToken();
+        mockMvc.perform(get("/api/v1/dashboard/summary")
+                        .param("startDate", "2026-08-01")
+                        .param("endDate", "2026-08-31")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.alerts.unbalancedAccountingEntries").value(1));
+
+        mockMvc.perform(patch("/api/v1/accounting-entries/{entryId}/lines/{lineId}",
+                        lineToCorrect.getAccountingEntry().getAccountingEntryId(),
+                        lineToCorrect.getAccountingEntryLineId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"creditAmount": 10.00}
+                                """)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.balanced").value(true));
+
+        mockMvc.perform(get("/api/v1/dashboard/summary")
+                        .param("startDate", "2026-08-01")
+                        .param("endDate", "2026-08-31")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.alerts.unbalancedAccountingEntries").value(0));
+    }
+
+    @Test
     void limitsActionRequiredInvoicesAndReturnsTheCorrectionAction() throws Exception {
         User currentUser = userRepository.findById(1L).orElseThrow();
         Invoice rejected = createInvoice(
@@ -374,7 +420,7 @@ class DashboardControllerIntegrationTest {
         duplicateAlertRepository.save(alert);
     }
 
-    private void createUnbalancedEntry(Invoice invoice, User user) {
+    private AccountingEntryLine createUnbalancedEntry(Invoice invoice, User user) {
         AccountingEntry entry = new AccountingEntry();
         entry.setInvoice(invoice);
         entry.setCreatedByUser(user);
@@ -386,7 +432,9 @@ class DashboardControllerIntegrationTest {
         entry.setUpdatedAt(LocalDateTime.now());
         accountingEntryRepository.save(entry);
 
-        ChartOfAccount account = createDashboardAccount(invoice.getOrganization());
+        ChartOfAccount account = createDashboardAccount(
+                invoice.getOrganization(), entry.getAccountingEntryId()
+        );
         AccountingEntryLine line = new AccountingEntryLine();
         line.setAccountingEntry(entry);
         line.setAccount(account);
@@ -395,7 +443,7 @@ class DashboardControllerIntegrationTest {
         line.setDebitAmount(new BigDecimal("10.00"));
         line.setCreditAmount(BigDecimal.ZERO.setScale(2));
         line.setCreatedAt(LocalDateTime.now());
-        accountingEntryLineRepository.save(line);
+        return accountingEntryLineRepository.save(line);
     }
 
     private Supplier getOrCreateSupplier(Organization organization) {
@@ -414,10 +462,10 @@ class DashboardControllerIntegrationTest {
                 });
     }
 
-    private ChartOfAccount createDashboardAccount(Organization organization) {
+    private ChartOfAccount createDashboardAccount(Organization organization, Long accountingEntryId) {
         ChartOfAccount account = new ChartOfAccount();
         account.setOrganization(organization);
-        account.setAccountNumber("DASH-" + organization.getOrganizationId());
+        account.setAccountNumber("DASH-" + organization.getOrganizationId() + "-" + accountingEntryId);
         account.setAccountLabel("Dashboard test account");
         account.setAccountType("TEST");
         account.setActive(true);
