@@ -20,6 +20,10 @@ export function canCorrectInvoice(status: string, role?: RoleCode) {
   )
 }
 
+export function canProcessInvoice(role?: RoleCode) {
+  return Boolean(role && correctionRoles.includes(role))
+}
+
 export function isRetryableOcrError(error: InvoiceOcrError | null) {
   return !error || !nonRetryableOcrErrorCodes.has(error.code)
 }

@@ -4,20 +4,23 @@ import { Link, useParams } from 'react-router-dom'
 
 import { InvoiceDetailHeader } from '@/components/invoice/detail/InvoiceDetailHeader'
 import { InvoiceDocumentPanel } from '@/components/invoice/detail/InvoiceDocumentPanel'
+import { InvoiceDuplicateReviewDialog } from '@/components/invoice/detail/InvoiceDuplicateReviewDialog'
 import { InvoiceWorkflowPanel } from '@/components/invoice/detail/InvoiceWorkflowPanel'
 import type { InvoiceDetailTab } from '@/components/invoice/detail/InvoiceWorkflowPanel'
+import { canProcessInvoice } from '@/components/invoice/detail/invoice-detail-utils'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/hooks/use-auth'
 import { ApiError } from '@/services/api'
 import {
+  decideInvoiceDuplicateAlert,
   getInvoiceDetails,
   isInvoiceOcrFailureResponse,
   retryInvoiceOcr,
   submitInvoiceForValidation,
 } from '@/services/invoice'
-import type { InvoiceDetails } from '@/types/invoice'
+import type { InvoiceDetails, InvoiceDuplicateDecision } from '@/types/invoice'
 
 function InvoiceDetailsSkeleton() {
   return (
@@ -72,12 +75,20 @@ export default function InvoiceDetailsPage() {
   const [retryCount, setRetryCount] = useState(0)
   const [activeTab, setActiveTab] = useState<InvoiceDetailTab>('details')
   const [correctionState, setCorrectionState] = useState({ dirty: false, saving: false })
+  const [duplicateReviewOpen, setDuplicateReviewOpen] = useState(false)
+  const [duplicateDecisionState, setDuplicateDecisionState] = useState<{
+    error: boolean
+    pending: InvoiceDuplicateDecision | null
+  }>({ error: false, pending: null })
   const invoiceId = Number(invoiceIdParam)
   const validInvoiceId = Number.isInteger(invoiceId) && invoiceId > 0
   const requestKey = `${invoiceIdParam}:${retryCount}`
   const currentRequest = requestState.requestKey === requestKey
   const error = !validInvoiceId || (currentRequest && requestState.error)
   const invoice = currentRequest ? requestState.invoice : null
+  const pendingDuplicateAlert = invoice?.duplicateAlerts.find(
+    (alert) => alert.decision === 'PENDING',
+  ) ?? null
 
   useEffect(() => {
     if (!validInvoiceId) {
@@ -114,6 +125,37 @@ export default function InvoiceDetailsPage() {
       ...currentState,
       invoice: updatedInvoice,
     }))
+  }
+
+  const handleReviewDuplicate = () => {
+    setDuplicateDecisionState((currentState) => ({ ...currentState, error: false }))
+    setDuplicateReviewOpen(true)
+  }
+
+  const handleDuplicateDecision = async (
+    decision: InvoiceDuplicateDecision,
+    reason?: string,
+  ) => {
+    if (!pendingDuplicateAlert) {
+      return
+    }
+
+    setDuplicateDecisionState({ error: false, pending: decision })
+
+    try {
+      const updatedInvoice = await decideInvoiceDuplicateAlert(
+        invoiceId,
+        pendingDuplicateAlert.alertId,
+        { decision, reason },
+      )
+      handleInvoiceUpdated(updatedInvoice)
+      setCorrectionState({ dirty: false, saving: false })
+      setDuplicateReviewOpen(false)
+      setDuplicateDecisionState({ error: false, pending: null })
+    } catch (decisionError) {
+      setDuplicateDecisionState({ error: true, pending: null })
+      throw decisionError
+    }
   }
 
   const handleRetryOcr = async () => {
@@ -175,8 +217,12 @@ export default function InvoiceDetailsPage() {
     <div className="space-y-5">
       <InvoiceDetailHeader
         correctionState={correctionState}
+        duplicateAlert={pendingDuplicateAlert}
+        duplicateDecisionPending={Boolean(duplicateDecisionState.pending)}
         invoice={invoice}
+        onIgnoreDuplicate={() => handleDuplicateDecision('IGNORE')}
         onRequestApproval={handleRequestApproval}
+        onReviewDuplicate={handleReviewDuplicate}
         onRetryOcr={handleRetryOcr}
         role={user?.role.code}
         showCorrectionAction={activeTab === 'details'}
@@ -189,14 +235,31 @@ export default function InvoiceDetailsPage() {
         </div>
         <InvoiceWorkflowPanel
           activeTab={activeTab}
+          duplicateAlert={pendingDuplicateAlert}
+          duplicateDecisionError={duplicateDecisionState.error}
+          duplicateDecisionPending={duplicateDecisionState.pending}
           invoice={invoice}
-          key={`${invoice.invoiceId}:${invoice.status}:${invoice.ocrError?.occurredAt ?? ''}`}
+          key={`${invoice.invoiceId}:${invoice.status}:${invoice.ocrError?.occurredAt ?? ''}:${invoice.duplicateAlerts.map((alert) => `${alert.alertId}-${alert.decision}`).join(',')}`}
           onActiveTabChange={setActiveTab}
           onCorrectionStateChange={setCorrectionState}
+          onIgnoreDuplicate={() => handleDuplicateDecision('IGNORE')}
           onInvoiceUpdated={handleInvoiceUpdated}
+          onReviewDuplicate={handleReviewDuplicate}
           role={user?.role.code}
         />
       </div>
+
+      <InvoiceDuplicateReviewDialog
+        alert={pendingDuplicateAlert}
+        canDecide={canProcessInvoice(user?.role.code)}
+        decisionBlocked={correctionState.dirty}
+        decisionError={duplicateDecisionState.error}
+        decisionPending={duplicateDecisionState.pending}
+        invoice={invoice}
+        onDecision={handleDuplicateDecision}
+        onOpenChange={setDuplicateReviewOpen}
+        open={duplicateReviewOpen}
+      />
     </div>
   )
 }
