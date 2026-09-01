@@ -47,8 +47,12 @@ public class DashboardServiceImpl implements DashboardService {
     public DashboardSummaryResponse getSummary(LocalDate startDate, LocalDate endDate) {
         validatePeriod(startDate, endDate);
         Long organizationId = currentUserService.getCurrentUser().getOrganization().getOrganizationId();
+        boolean hasStartDate = startDate != null;
+        boolean hasEndDate = endDate != null;
         List<InvoiceRepository.DashboardStatusAggregate> aggregates =
-                invoiceRepository.aggregateDashboardByStatus(organizationId, startDate, endDate);
+                invoiceRepository.aggregateDashboardByStatus(
+                        organizationId, hasStartDate, startDate, hasEndDate, endDate
+                );
         Map<String, Long> countsByStatus = aggregates.stream().collect(Collectors.toMap(
                 InvoiceRepository.DashboardStatusAggregate::getStatus,
                 InvoiceRepository.DashboardStatusAggregate::getInvoiceCount
@@ -69,9 +73,14 @@ public class DashboardServiceImpl implements DashboardService {
         DashboardAlertsResponse alerts = new DashboardAlertsResponse(
                 count(countsByStatus, InvoiceStatusCode.ERREUR_OCR),
                 duplicateAlertRepository.countDistinctInvoicesForDashboard(
-                        organizationId, DuplicateAlertDecision.PENDING, startDate, endDate
+                        organizationId,
+                        DuplicateAlertDecision.PENDING,
+                        hasStartDate,
+                        startDate,
+                        hasEndDate,
+                        endDate
                 ),
-                countUnbalancedEntries(organizationId, startDate, endDate)
+                countUnbalancedEntries(organizationId, hasStartDate, startDate, hasEndDate, endDate)
         );
         List<DashboardStatusCountResponse> statusDistribution = aggregates.stream()
                 .map(aggregate -> new DashboardStatusCountResponse(
@@ -99,8 +108,16 @@ public class DashboardServiceImpl implements DashboardService {
         return countsByStatus.getOrDefault(status.getCode(), 0L);
     }
 
-    private long countUnbalancedEntries(Long organizationId, LocalDate startDate, LocalDate endDate) {
-        return accountingEntryLineRepository.findDashboardEntryBalances(organizationId, startDate, endDate).stream()
+    private long countUnbalancedEntries(
+            Long organizationId,
+            boolean hasStartDate,
+            LocalDate startDate,
+            boolean hasEndDate,
+            LocalDate endDate
+    ) {
+        return accountingEntryLineRepository.findDashboardEntryBalances(
+                        organizationId, hasStartDate, startDate, hasEndDate, endDate
+                ).stream()
                 .filter(balance -> balance.getTotalDebit().compareTo(balance.getTotalCredit()) != 0)
                 .count();
     }
