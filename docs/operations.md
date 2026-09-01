@@ -24,6 +24,43 @@ cp env/.env.prod.example env/.env.prod
 make prod
 ```
 
+## Deploiement Production
+
+Le deploiement production est gere par le workflow GitHub Actions
+`Deploy production`.
+
+Mode de declenchement recommande:
+
+- declencher le workflow manuellement avec `workflow_dispatch`;
+- utiliser l'environnement GitHub `production`;
+- proteger cet environnement avec une validation explicite avant execution.
+
+Le workflow production deploie la branche `main` sur le VPS de production avec:
+
+```bash
+docker compose --env-file env/.env.prod \
+  -f docker-compose.yml \
+  -f docker-compose.prod.yml \
+  up --build -d
+```
+
+Les secrets de production doivent etre configures dans l'environnement GitHub
+`production`, pas dans Git:
+
+```text
+PROD_SSH_HOST
+PROD_SSH_PORT
+PROD_SSH_USER
+PROD_SSH_PRIVATE_KEY
+PROD_SSH_KNOWN_HOSTS
+PROD_DEPLOY_PATH
+PROD_HEALTHCHECK_URL
+```
+
+Le fichier `env/.env.prod` doit rester uniquement sur le VPS de production. Il
+est cree depuis `env/.env.prod.example`, puis complete avec les vraies valeurs
+sensibles de production.
+
 ## Arreter
 
 ```bash
