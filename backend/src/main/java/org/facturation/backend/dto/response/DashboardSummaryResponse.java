@@ -7,6 +7,7 @@ public record DashboardSummaryResponse(
         DashboardTotalsResponse totals,
         DashboardWorkQueuesResponse workQueues,
         DashboardAlertsResponse alerts,
-        List<DashboardStatusCountResponse> statusDistribution
+        List<DashboardStatusCountResponse> statusDistribution,
+        List<DashboardActionRequiredInvoiceResponse> actionRequiredInvoices
 ) {
 }

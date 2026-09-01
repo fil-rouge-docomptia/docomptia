@@ -34,8 +34,10 @@ public class DashboardController {
             @Parameter(description = "Debut inclusif de la periode de facturation")
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @Parameter(description = "Fin inclusive de la periode de facturation")
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @Parameter(description = "Nombre maximal de factures necessitant une action", example = "10")
+            @RequestParam(defaultValue = "10") int actionLimit
     ) {
-        return ResponseEntity.ok(dashboardService.getSummary(startDate, endDate));
+        return ResponseEntity.ok(dashboardService.getSummary(startDate, endDate, actionLimit));
     }
 }
