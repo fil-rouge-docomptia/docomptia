@@ -36,14 +36,16 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
                    coalesce(sum(i.totalTtc), 0) as totalTtc
             from Invoice i
             where i.organization.organizationId = :organizationId
-              and (:startDate is null or i.invoiceDate >= :startDate)
-              and (:endDate is null or i.invoiceDate <= :endDate)
+              and (:hasStartDate = false or i.invoiceDate >= :startDate)
+              and (:hasEndDate = false or i.invoiceDate <= :endDate)
             group by i.invoiceStatus.code
             order by i.invoiceStatus.code
             """)
     List<DashboardStatusAggregate> aggregateDashboardByStatus(
             @Param("organizationId") Long organizationId,
+            @Param("hasStartDate") boolean hasStartDate,
             @Param("startDate") LocalDate startDate,
+            @Param("hasEndDate") boolean hasEndDate,
             @Param("endDate") LocalDate endDate
     );
 

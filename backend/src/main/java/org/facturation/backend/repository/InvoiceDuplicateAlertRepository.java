@@ -18,13 +18,15 @@ public interface InvoiceDuplicateAlertRepository extends JpaRepository<InvoiceDu
             from InvoiceDuplicateAlert alert
             where alert.invoice.organization.organizationId = :organizationId
               and alert.decision = :decision
-              and (:startDate is null or alert.invoice.invoiceDate >= :startDate)
-              and (:endDate is null or alert.invoice.invoiceDate <= :endDate)
+              and (:hasStartDate = false or alert.invoice.invoiceDate >= :startDate)
+              and (:hasEndDate = false or alert.invoice.invoiceDate <= :endDate)
             """)
     long countDistinctInvoicesForDashboard(
             @Param("organizationId") Long organizationId,
             @Param("decision") DuplicateAlertDecision decision,
+            @Param("hasStartDate") boolean hasStartDate,
             @Param("startDate") LocalDate startDate,
+            @Param("hasEndDate") boolean hasEndDate,
             @Param("endDate") LocalDate endDate
     );
 

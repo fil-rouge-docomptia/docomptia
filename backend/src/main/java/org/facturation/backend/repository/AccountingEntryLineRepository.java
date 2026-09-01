@@ -23,13 +23,15 @@ public interface AccountingEntryLineRepository extends JpaRepository<AccountingE
                    coalesce(sum(line.creditAmount), 0) as totalCredit
             from AccountingEntryLine line
             where line.accountingEntry.invoice.organization.organizationId = :organizationId
-              and (:startDate is null or line.accountingEntry.invoice.invoiceDate >= :startDate)
-              and (:endDate is null or line.accountingEntry.invoice.invoiceDate <= :endDate)
+              and (:hasStartDate = false or line.accountingEntry.invoice.invoiceDate >= :startDate)
+              and (:hasEndDate = false or line.accountingEntry.invoice.invoiceDate <= :endDate)
             group by line.accountingEntry.accountingEntryId
             """)
     List<DashboardEntryBalance> findDashboardEntryBalances(
             @Param("organizationId") Long organizationId,
+            @Param("hasStartDate") boolean hasStartDate,
             @Param("startDate") LocalDate startDate,
+            @Param("hasEndDate") boolean hasEndDate,
             @Param("endDate") LocalDate endDate
     );
 
