@@ -1,0 +1,68 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to production VPS
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          if grep -q '\\n' <<<"$SSH_PRIVATE_KEY"; then
+            printf '%b' "$SSH_PRIVATE_KEY" > ~/.ssh/production_key
+          else
+            printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/production_key
+          fi
+          sed -i 's/\r$//' ~/.ssh/production_key
+          chmod 600 ~/.ssh/production_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Update and restart production services
+        env:
+          SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          SSH_PORT: ${{ secrets.PROD_SSH_PORT }}
+          SSH_USER: ${{ secrets.PROD_SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.PROD_DEPLOY_PATH }}
+        run: |
+          ssh \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -i ~/.ssh/production_key \
+            -p "$SSH_PORT" \
+            "$SSH_USER@$SSH_HOST" \
+            "cd '$DEPLOY_PATH' && \
+            git fetch origin main && \
+            git checkout main && \
+            git pull --ff-only origin main && \
+            docker compose --env-file env/.env.prod \
+              -f docker-compose.yml \
+              -f docker-compose.prod.yml \
+              up --build -d"
+
+      - name: Check production health
+        env:
+          HEALTHCHECK_URL: ${{ secrets.PROD_HEALTHCHECK_URL }}
+        run: |
+          curl --fail --show-error --silent \
+            --retry 12 \
+            --retry-delay 5 \
+            --retry-all-errors \
+            "$HEALTHCHECK_URL" > /dev/null
