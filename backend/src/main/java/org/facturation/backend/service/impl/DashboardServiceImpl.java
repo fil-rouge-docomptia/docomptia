@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -82,9 +84,10 @@ public class DashboardServiceImpl implements DashboardService {
                 ),
                 countUnbalancedEntries(organizationId, hasStartDate, startDate, hasEndDate, endDate)
         );
-        List<DashboardStatusCountResponse> statusDistribution = aggregates.stream()
-                .map(aggregate -> new DashboardStatusCountResponse(
-                        aggregate.getStatus(), aggregate.getInvoiceCount()
+        List<DashboardStatusCountResponse> statusDistribution = Arrays.stream(InvoiceStatusCode.values())
+                .sorted(Comparator.comparing(InvoiceStatusCode::getCode))
+                .map(status -> new DashboardStatusCountResponse(
+                        status.getCode(), count(countsByStatus, status)
                 ))
                 .toList();
 
