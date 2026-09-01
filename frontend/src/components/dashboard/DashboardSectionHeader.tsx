@@ -14,7 +14,7 @@ export function DashboardSectionHeader({
   titleId,
 }: DashboardSectionHeaderProps) {
   return (
-    <header className="mb-6 flex min-h-12 items-center justify-between gap-4">
+    <header className="mb-4 flex min-h-12 items-center justify-between gap-4">
       <div className="min-w-0">
         <h2
           className="text-xl font-semibold leading-7 tracking-[-0.25px] text-foreground"
