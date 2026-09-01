@@ -212,6 +212,43 @@ class DashboardControllerIntegrationTest {
     }
 
     @Test
+    void countsOnlyCurrentOrganizationsOcrErrorsForTheRequestedPeriod() throws Exception {
+        User currentUser = userRepository.findById(1L).orElseThrow();
+        Invoice startDateOcrError = createInvoice(
+                currentUser, InvoiceStatusCode.ERREUR_OCR, "DASH-OCR-START", null, null, null
+        );
+        startDateOcrError.setInvoiceDate(LocalDate.of(2026, 8, 1));
+        Invoice endDateOcrError = createInvoice(
+                currentUser, InvoiceStatusCode.ERREUR_OCR, "DASH-OCR-END", null, null, null
+        );
+        endDateOcrError.setInvoiceDate(LocalDate.of(2026, 8, 31));
+        createInvoice(currentUser, InvoiceStatusCode.EXTRAITE, "DASH-NOT-OCR-ERROR", "10", "2", "12");
+        Invoice outsidePeriodOcrError = createInvoice(
+                currentUser, InvoiceStatusCode.ERREUR_OCR, "DASH-OCR-OUTSIDE", null, null, null
+        );
+        outsidePeriodOcrError.setInvoiceDate(LocalDate.of(2026, 7, 31));
+
+        User otherOrganizationUser = createUserForNewOrganization(
+                "Dashboard OCR other organization",
+                "dashboard-ocr-other@example.com",
+                "73282932000066",
+                "other-dashboard-ocr@example.com",
+                "unused"
+        );
+        createInvoice(
+                otherOrganizationUser, InvoiceStatusCode.ERREUR_OCR, "DASH-OCR-OTHER-ORG", null, null, null
+        );
+        invoiceRepository.flush();
+
+        mockMvc.perform(get("/api/v1/dashboard/summary")
+                        .param("startDate", "2026-08-01")
+                        .param("endDate", "2026-08-31")
+                        .header("Authorization", "Bearer " + loginAndGetToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.alerts.ocrErrors").value(2));
+    }
+
+    @Test
     void limitsActionRequiredInvoicesAndReturnsTheCorrectionAction() throws Exception {
         User currentUser = userRepository.findById(1L).orElseThrow();
         Invoice rejected = createInvoice(
