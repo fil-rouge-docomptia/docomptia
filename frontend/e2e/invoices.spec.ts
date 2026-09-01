@@ -118,6 +118,53 @@ const invoiceHistory = [
   },
 ]
 
+const pendingDuplicateAlert = {
+  alertId: 71,
+  confidenceLevel: 'PROBABLE',
+  createdAt: '2026-08-13T10:31:00',
+  decidedAt: null,
+  decidedByUserId: null,
+  decision: 'PENDING',
+  decisionReason: null,
+  invoiceDate: '2026-08-13',
+  matchingInvoiceId: 39,
+  matchingInvoiceNumber: 'INV-2026-0398',
+  supplierId: 12,
+  totalTtc: '1500.60',
+  type: 'PROBABLE',
+}
+
+const duplicateInvoiceDetails = {
+  ...invoiceDetails,
+  duplicateAlerts: [pendingDuplicateAlert],
+}
+
+const matchingInvoiceDetails = {
+  ...invoiceDetails,
+  dueDate: '2026-09-10',
+  filePath: '/invoices/Leroy Construction — INV-2026-0398.pdf',
+  invoiceId: 39,
+  invoiceNumber: 'INV-2026-0398',
+}
+
+function duplicateDecisionDetails(
+  decision: 'CONFIRM' | 'IGNORE' | 'REJECT',
+  status: 'A_VERIFIER' | 'REJETEE',
+  reason: string | null = null,
+) {
+  return {
+    ...duplicateInvoiceDetails,
+    duplicateAlerts: [{
+      ...pendingDuplicateAlert,
+      decidedAt: '2026-09-01T11:45:00',
+      decidedByUserId: 1,
+      decision,
+      decisionReason: reason,
+    }],
+    status,
+  }
+}
+
 const correctedInvoiceDetails = {
   ...invoiceDetails,
   ocrAnalysis: {
@@ -234,6 +281,132 @@ test('renders the invoice review sections from the detail endpoint', async ({ pa
 
   await page.getByRole('tab', { name: 'Activity' }).click()
   await expect(page.getByText('OCR analysis completed')).toBeVisible()
+})
+
+test('shows the suspected duplicate and compares the backend detection criteria', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) =>
+    fulfillJson(route, 200, duplicateInvoiceDetails),
+  )
+  await mockApiRoute(page, '/v1/invoices/39', (route) =>
+    fulfillJson(route, 200, matchingInvoiceDetails),
+  )
+
+  await page.goto('/invoices/42')
+
+  await expect(page.getByText('Duplicate suspected')).toBeVisible()
+  await expect(page.getByText('Possible duplicate invoice')).toBeVisible()
+  await expect(page.getByText(/Matches INV-2026-0398 from Leroy Construction/)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Request approval' })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Review duplicate' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Review possible duplicate' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText('matching supplier, invoice date and total amount')).toBeVisible()
+  await expect(dialog.getByRole('row', { name: /Supplier/ })).toContainText('Leroy Construction')
+  await expect(dialog.getByRole('row', { name: /Invoice number/ })).toContainText('INV-2026-0398')
+  await expect(dialog.getByRole('row', { name: /Invoice date/ })).toContainText('13 Aug 2026')
+  await expect(dialog.getByRole('row', { name: /Total/ })).toContainText('€1,500.60')
+  await expect(dialog.getByRole('link', { name: 'Open similar invoice' })).toHaveAttribute(
+    'href',
+    '/invoices/39',
+  )
+})
+
+test('ignores a suspected duplicate and refreshes its status and activity', async ({ page }) => {
+  let decisionPayload: unknown
+  const updatedInvoice = duplicateDecisionDetails('IGNORE', 'A_VERIFIER', 'Two distinct purchases')
+  const duplicateHistory = [{
+    action: 'IGNORE',
+    author: 'Alex Martin',
+    authorId: 1,
+    comment: 'Two distinct purchases',
+    date: '2026-09-01T11:45:00',
+    duplicateAlertId: 71,
+    fieldName: null,
+    newValue: null,
+    oldValue: null,
+    type: 'DUPLICATE_DECISION',
+  }]
+
+  await mockApiRoute(page, '/v1/invoices/42', (route) =>
+    fulfillJson(route, 200, duplicateInvoiceDetails),
+  )
+  await mockApiRoute(page, '/v1/invoices/42/duplicate-alerts/71/decision', async (route) => {
+    decisionPayload = route.request().postDataJSON()
+    await fulfillJson(route, 200, updatedInvoice)
+  })
+  await mockApiRoute(page, '/v1/invoices/42/history', (route) =>
+    fulfillJson(route, 200, duplicateHistory),
+  )
+
+  await page.goto('/invoices/42')
+  await page.getByRole('button', { name: 'Not a duplicate' }).first().click()
+
+  await expect(page.getByText('Waiting approval')).toBeVisible()
+  await expect(page.getByText('Possible duplicate invoice')).toHaveCount(0)
+  expect(decisionPayload).toEqual({ decision: 'IGNORE' })
+
+  await page.getByRole('tab', { name: 'Activity' }).click()
+  await expect(page.getByText('IGNORE')).toBeVisible()
+  await expect(page.getByText('Two distinct purchases')).toBeVisible()
+  await expect(page.getByText(/1 Sept 2026, 11:45 · Alex Martin/)).toBeVisible()
+})
+
+test('confirms a duplicate from the comparison and updates the invoice immediately', async ({ page }) => {
+  let decisionPayload: unknown
+
+  await mockApiRoute(page, '/v1/invoices/42', (route) =>
+    fulfillJson(route, 200, duplicateInvoiceDetails),
+  )
+  await mockApiRoute(page, '/v1/invoices/39', (route) =>
+    fulfillJson(route, 200, matchingInvoiceDetails),
+  )
+  await mockApiRoute(page, '/v1/invoices/42/duplicate-alerts/71/decision', async (route) => {
+    decisionPayload = route.request().postDataJSON()
+    await fulfillJson(route, 200, duplicateDecisionDetails('CONFIRM', 'REJETEE'))
+  })
+
+  await page.goto('/invoices/42')
+  await page.getByRole('button', { name: 'Review duplicate' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Confirm duplicate' }).click()
+
+  await expect(page.getByText('Rejected')).toBeVisible()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(decisionPayload).toEqual({ decision: 'CONFIRM' })
+})
+
+test('requires and submits a reason when rejecting the suspected invoice', async ({ page }) => {
+  let decisionPayload: unknown
+
+  await mockApiRoute(page, '/v1/invoices/42', (route) =>
+    fulfillJson(route, 200, duplicateInvoiceDetails),
+  )
+  await mockApiRoute(page, '/v1/invoices/39', (route) =>
+    fulfillJson(route, 200, matchingInvoiceDetails),
+  )
+  await mockApiRoute(page, '/v1/invoices/42/duplicate-alerts/71/decision', async (route) => {
+    decisionPayload = route.request().postDataJSON()
+    await fulfillJson(
+      route,
+      200,
+      duplicateDecisionDetails('REJECT', 'REJETEE', 'Document sent by mistake'),
+    )
+  })
+
+  await page.goto('/invoices/42')
+  await page.getByRole('button', { name: 'Review duplicate' }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('button', { name: 'Reject invoice…' }).click()
+  await expect(dialog.getByRole('button', { name: 'Reject invoice', exact: true })).toBeDisabled()
+  await dialog.getByLabel('Rejection reason').fill('Document sent by mistake')
+  await dialog.getByRole('button', { name: 'Reject invoice', exact: true }).click()
+
+  await expect(page.getByText('Rejected')).toBeVisible()
+  expect(decisionPayload).toEqual({
+    decision: 'REJECT',
+    reason: 'Document sent by mistake',
+  })
 })
 
 test('sends only changed OCR values and keeps the manual correction after reload', async ({ page }) => {
