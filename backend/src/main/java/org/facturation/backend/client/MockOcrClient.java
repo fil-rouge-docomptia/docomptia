@@ -20,6 +20,12 @@ public class MockOcrClient implements OcrClient {
         supplierField.setNormalizedValue("Orange SA");
         supplierField.setConfidenceScore("0.95");
 
+        OcrFieldResponse siretField = new OcrFieldResponse();
+        siretField.setFieldName("siret");
+        siretField.setRawValue("380 129 866 00014");
+        siretField.setNormalizedValue("38012986600014");
+        siretField.setConfidenceScore("0.98");
+
         OcrFieldResponse invoiceNumberField = new OcrFieldResponse();
         invoiceNumberField.setFieldName("invoiceNumber");
         invoiceNumberField.setRawValue("INV-" + System.currentTimeMillis());
@@ -52,6 +58,7 @@ public class MockOcrClient implements OcrClient {
         response.setConfidenceScore("0.92");
         response.setFields(List.of(
                 supplierField,
+                siretField,
                 invoiceNumberField,
                 totalHtField,
                 totalTvaField,

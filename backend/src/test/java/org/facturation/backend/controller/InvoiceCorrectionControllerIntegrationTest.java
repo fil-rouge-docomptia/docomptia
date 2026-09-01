@@ -254,7 +254,8 @@ class InvoiceCorrectionControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "invoiceDate": "2026-08-07"
+                                  "invoiceDate": "2026-08-07",
+                                  "supplierId": 1
                                 }
                                 """))
                 .andExpect(status().isOk());
@@ -344,7 +345,8 @@ class InvoiceCorrectionControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "invoiceDate": "2026-08-07"
+                                  "invoiceDate": "2026-08-07",
+                                  "supplierId": 1
                                 }
                                 """))
                 .andExpect(status().isOk());
@@ -390,6 +392,7 @@ class InvoiceCorrectionControllerIntegrationTest {
     private void submitCompleteInvoiceForValidation(Long invoiceId) {
         InvoiceCorrectionRequest request = new InvoiceCorrectionRequest();
         request.setInvoiceDate("2026-08-07");
+        request.setSupplierId(1L);
         invoiceService.correctInvoice(invoiceId, request).orElseThrow();
         invoiceService.submitForValidation(invoiceId).orElseThrow();
     }

@@ -9,9 +9,9 @@ public class SupplierUpdateRequest {
     private String name;
     @Schema(description = "Raison sociale", example = "Orange SA")
     private String legalName;
-    @Schema(description = "SIRET a 14 chiffres. Une chaine vide supprime la valeur.", example = "38012986600014")
+    @Schema(description = "Champ legacy conserve pour compatibilite. Un changement effectif doit passer par l'endpoint de remplacement d'identifiant legal.", example = "38012986600014")
     private String siret;
-    @Schema(description = "Numero de TVA intracommunautaire francais. Une chaine vide supprime la valeur.", example = "FR89380129866")
+    @Schema(description = "Champ legacy conserve pour compatibilite. Un changement effectif doit passer par l'endpoint de remplacement d'identifiant legal.", example = "FR89380129866")
     private String vatNumber;
     @Schema(description = "Adresse email. Une chaine vide supprime la valeur.", example = "factures@orange.com")
     private String email;

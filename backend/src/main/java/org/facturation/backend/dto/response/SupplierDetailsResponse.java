@@ -9,6 +9,7 @@ public class SupplierDetailsResponse extends SupplierListItemResponse {
     private String address;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private java.util.List<SupplierLegalIdentifierResponse> legalIdentifierHistory = java.util.List.of();
 
     public String getEmail() {
         return email;
@@ -49,4 +50,7 @@ public class SupplierDetailsResponse extends SupplierListItemResponse {
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
     }
+
+    public java.util.List<SupplierLegalIdentifierResponse> getLegalIdentifierHistory() { return legalIdentifierHistory; }
+    public void setLegalIdentifierHistory(java.util.List<SupplierLegalIdentifierResponse> history) { this.legalIdentifierHistory = history; }
 }

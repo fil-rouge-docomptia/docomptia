@@ -21,6 +21,8 @@ public class InvoiceCorrectionRequest {
     private String totalTtc;
     @Schema(description = "Nom ou raison sociale d'un fournisseur existant dans l'organisation courante", example = "Orange")
     private String supplierName;
+    @Schema(description = "Identifiant canonique du fournisseur selectionne manuellement", example = "1")
+    private Long supplierId;
 
     public String getInvoiceNumber() {
         return invoiceNumber;
@@ -85,4 +87,7 @@ public class InvoiceCorrectionRequest {
     public void setSupplierName(String supplierName) {
         this.supplierName = supplierName;
     }
+
+    public Long getSupplierId() { return supplierId; }
+    public void setSupplierId(Long supplierId) { this.supplierId = supplierId; }
 }

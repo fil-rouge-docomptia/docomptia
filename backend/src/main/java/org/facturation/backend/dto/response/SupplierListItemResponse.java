@@ -7,6 +7,9 @@ public class SupplierListItemResponse {
     private String legalName;
     private String siret;
     private String vatNumber;
+    private String tradeName;
+    private String countryCode;
+    private java.util.List<SupplierLegalIdentifierResponse> currentLegalIdentifiers = java.util.List.of();
 
     public Long getSupplierId() {
         return supplierId;
@@ -47,4 +50,11 @@ public class SupplierListItemResponse {
     public void setVatNumber(String vatNumber) {
         this.vatNumber = vatNumber;
     }
+
+    public String getTradeName() { return tradeName; }
+    public void setTradeName(String tradeName) { this.tradeName = tradeName; }
+    public String getCountryCode() { return countryCode; }
+    public void setCountryCode(String countryCode) { this.countryCode = countryCode; }
+    public java.util.List<SupplierLegalIdentifierResponse> getCurrentLegalIdentifiers() { return currentLegalIdentifiers; }
+    public void setCurrentLegalIdentifiers(java.util.List<SupplierLegalIdentifierResponse> identifiers) { this.currentLegalIdentifiers = identifiers; }
 }

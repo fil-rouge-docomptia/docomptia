@@ -9,6 +9,7 @@ import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.Supplier;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.facturation.backend.dto.request.SupplierLegalIdentifierReplacementRequest;
 
 import java.util.List;
 import java.util.Optional;
@@ -21,7 +22,7 @@ public interface SupplierService {
 
     Supplier save(Supplier supplier);
 
-    Page<SupplierListItemResponse> findPage(Pageable pageable);
+    Page<SupplierListItemResponse> findPage(String query, Pageable pageable);
 
     SupplierDetailsResponse findDetailsById(Long id);
 
@@ -34,4 +35,7 @@ public interface SupplierService {
     Optional<Supplier> findByLegalIdentifiers(Organization organization, String siret, String vatNumber);
 
     Supplier resolveForInvoiceUpload(Long supplierId, Organization organization, OcrAnalysisResponse ocrAnalysis);
+
+    SupplierDetailsResponse replaceLegalIdentifier(Long supplierId, Long identifierId,
+                                                    SupplierLegalIdentifierReplacementRequest request);
 }
