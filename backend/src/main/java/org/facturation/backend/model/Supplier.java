@@ -9,28 +9,14 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 
 import java.time.LocalDateTime;
+import java.text.Normalizer;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 
 @Entity
-@Table(
-        name = "suppliers",
-        uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "uk_suppliers_organization_name",
-                        columnNames = {"organization_id", "name"}
-                ),
-                @UniqueConstraint(
-                        name = "uk_suppliers_organization_siret",
-                        columnNames = {"organization_id", "siret"}
-                ),
-                @UniqueConstraint(
-                        name = "uk_suppliers_organization_vat_number",
-                        columnNames = {"organization_id", "vat_number"}
-                )
-        }
-)
+@Table(name = "suppliers")
 public class Supplier {
 
     @Override
@@ -73,6 +59,10 @@ public class Supplier {
     private String phone;
 
     private String address;
+
+    @Column(length = 2)
+    private String countryCode;
+    private String searchName;
 
     private LocalDateTime createdAt;
 
@@ -148,6 +138,26 @@ public class Supplier {
 
     public void setAddress(String address) {
         this.address = address;
+    }
+
+    public String getCountryCode() {
+        return countryCode;
+    }
+
+    public void setCountryCode(String countryCode) {
+        this.countryCode = countryCode;
+    }
+
+    @PrePersist
+    @PreUpdate
+    void updateSearchName() {
+        searchName = normalizeForSearch(legalName) + " " + normalizeForSearch(name);
+    }
+
+    private String normalizeForSearch(String value) {
+        if (value == null) return "";
+        return Normalizer.normalize(value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "").toLowerCase(java.util.Locale.ROOT);
     }
 
     public LocalDateTime getCreatedAt() {

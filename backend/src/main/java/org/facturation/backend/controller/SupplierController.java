@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.SupplierUpdateRequest;
+import org.facturation.backend.dto.request.SupplierLegalIdentifierReplacementRequest;
 import org.facturation.backend.dto.response.SupplierDetailsResponse;
 import org.facturation.backend.dto.response.SupplierListItemResponse;
 import org.facturation.backend.service.SupplierService;
@@ -38,14 +39,16 @@ public class SupplierController {
             @Parameter(description = "Numero de page, commence a zero", example = "0")
             @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Nombre de fournisseurs par page", example = "20")
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "20") int size,
+            @Parameter(description = "Raison sociale, nom commercial ou identifiant legal")
+            @RequestParam(required = false) String query
     ) {
         PageRequest pageRequest = PageRequest.of(
                 page,
                 size,
                 Sort.by("name").ascending().and(Sort.by("supplierId").ascending())
         );
-        return ResponseEntity.ok(supplierService.findPage(pageRequest));
+        return ResponseEntity.ok(supplierService.findPage(query, pageRequest));
     }
 
     @GetMapping("/{id}")
@@ -68,5 +71,15 @@ public class SupplierController {
             @RequestBody SupplierUpdateRequest request
     ) {
         return ResponseEntity.ok(supplierService.update(id, request));
+    }
+
+    @PatchMapping("/{supplierId}/legal-identifiers/{identifierId}")
+    @Operation(summary = "Clore un identifiant legal et enregistrer son remplacement")
+    public ResponseEntity<SupplierDetailsResponse> replaceLegalIdentifier(
+            @PathVariable Long supplierId,
+            @PathVariable Long identifierId,
+            @RequestBody SupplierLegalIdentifierReplacementRequest request
+    ) {
+        return ResponseEntity.ok(supplierService.replaceLegalIdentifier(supplierId, identifierId, request));
     }
 }

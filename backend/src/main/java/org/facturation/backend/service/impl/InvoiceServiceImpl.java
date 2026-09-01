@@ -544,15 +544,23 @@ public class InvoiceServiceImpl implements InvoiceService {
             invoice.setTotalTtc(totalTtc);
         }
 
-        if (request.getSupplierName() != null) {
-            Supplier supplier = supplierService.findRequiredByName(invoice, request.getSupplierName());
+        if (request.getSupplierId() != null) {
+            Supplier supplier = supplierService.findRequiredByIdForOrganization(
+                    request.getSupplierId(), invoice.getOrganization());
             registerCorrection(
                     appliedCorrections,
-                    "supplierName",
+                    "supplierId",
                     extractSupplierName(invoice.getSupplier()),
                     extractSupplierName(supplier)
             );
             invoice.setSupplier(supplier);
+            invoice.setSupplierLegalNameSnapshot(supplier.getLegalName());
+            invoice.setSupplierAddressSnapshot(supplier.getAddress());
+            invoice.setSupplierIdentifiersSnapshot(java.util.stream.Stream.of(supplier.getSiret(), supplier.getVatNumber())
+                    .filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.joining(", ")));
+            invoice.setSupplierMatchConfirmed(true);
+        } else if (request.getSupplierName() != null) {
+            throw new IllegalArgumentException("supplierId is required to attach a supplier");
         }
 
         return appliedCorrections;
@@ -620,6 +628,13 @@ public class InvoiceServiceImpl implements InvoiceService {
             OcrAnalysisResponse ocrAnalysis
     ) {
         invoice.setSupplier(supplier);
+        if (supplier != null) {
+            invoice.setSupplierLegalNameSnapshot(supplier.getLegalName());
+            invoice.setSupplierAddressSnapshot(supplier.getAddress());
+            invoice.setSupplierIdentifiersSnapshot(java.util.stream.Stream.of(supplier.getSiret(), supplier.getVatNumber())
+                    .filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.joining(", ")));
+            invoice.setSupplierMatchConfirmed(true);
+        }
         invoice.setInvoiceNumber(invoiceOcrService.extractOptionalNormalizedValue(ocrAnalysis, "invoiceNumber").orElse(null));
         invoice.setCommandReference(invoiceOcrService.extractOptionalNormalizedValue(ocrAnalysis, "commandReference").orElse(null));
         invoice.setInvoiceDate(invoiceOcrService.extractDate(ocrAnalysis, "invoiceDate").orElse(null));
@@ -652,6 +667,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 || request.getTotalHt() != null
                 || request.getTotalTva() != null
                 || request.getTotalTtc() != null
+                || request.getSupplierId() != null
                 || request.getSupplierName() != null;
     }
 

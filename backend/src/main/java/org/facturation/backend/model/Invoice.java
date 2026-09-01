@@ -64,6 +64,11 @@ public class Invoice {
 
     private String description;
 
+    private String supplierLegalNameSnapshot;
+    private String supplierAddressSnapshot;
+    private String supplierIdentifiersSnapshot;
+    private Boolean supplierMatchConfirmed;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
@@ -183,6 +188,15 @@ public class Invoice {
     public void setDescription(String description) {
         this.description = description;
     }
+
+    public String getSupplierLegalNameSnapshot() { return supplierLegalNameSnapshot; }
+    public void setSupplierLegalNameSnapshot(String value) { this.supplierLegalNameSnapshot = value; }
+    public String getSupplierAddressSnapshot() { return supplierAddressSnapshot; }
+    public void setSupplierAddressSnapshot(String value) { this.supplierAddressSnapshot = value; }
+    public String getSupplierIdentifiersSnapshot() { return supplierIdentifiersSnapshot; }
+    public void setSupplierIdentifiersSnapshot(String value) { this.supplierIdentifiersSnapshot = value; }
+    public Boolean getSupplierMatchConfirmed() { return supplierMatchConfirmed; }
+    public void setSupplierMatchConfirmed(Boolean value) { this.supplierMatchConfirmed = value; }
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
