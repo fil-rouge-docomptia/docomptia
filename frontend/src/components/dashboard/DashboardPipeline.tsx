@@ -42,7 +42,7 @@ export function DashboardPipeline({
   const sortedStatuses = statuses ? sortStatuses(statuses) : null
 
   return (
-    <section aria-labelledby="dashboard-pipeline-title">
+    <section aria-labelledby="dashboard-pipeline-title" className="min-w-0 max-w-full">
       <DashboardSectionHeader
         action={<DashboardSectionAction>View invoices</DashboardSectionAction>}
         description="Live distribution across the invoice processing lifecycle."
@@ -73,11 +73,11 @@ export function DashboardPipeline({
             No invoices in the selected period.
           </div>
         ) : (
-          <div className="h-full overflow-x-auto">
+          <div className="h-full min-w-0 max-w-full overflow-x-auto">
             <div className="flex h-full min-w-max items-center px-4">
               {sortedStatuses.map((status, index) => (
                 <div className="flex items-center" key={status.status}>
-                  {index > 0 ? <span aria-hidden="true" className="mx-3 h-px w-8 bg-border" /> : null}
+                  {index > 0 ? <span aria-hidden="true" className="mx-2 h-px w-6 bg-border" /> : null}
                   <div className="flex min-w-28 flex-col items-center gap-3">
                     <InvoiceStatusBadge status={status.status} />
                     <span className="text-xs font-medium text-foreground">

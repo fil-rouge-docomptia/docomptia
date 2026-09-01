@@ -99,8 +99,8 @@ export default function DashboardPage() {
       <PageHeader
         actions={
           <>
-            <Button className="h-11 md:h-10" disabled type="button" variant="outline">
-              Last 30 days
+            <Button asChild className="h-11 md:h-10" variant="outline">
+              <span>Last 30 days</span>
             </Button>
             <Button asChild className="h-11 md:h-10">
               <Link to="/inbox?upload=1">
@@ -126,29 +126,29 @@ export default function DashboardPage() {
         statuses={summary?.statusDistribution ?? null}
       />
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
-        <div className="order-2 xl:col-start-1 xl:row-start-1">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
+        <div className="order-2 min-w-0 xl:col-start-1 xl:row-start-1">
           <DashboardRecentInvoices
             error={recentInvoicesError}
             invoices={recentInvoices}
             onRetry={retryRecentInvoices}
           />
         </div>
-        <aside className="order-1 xl:col-start-2 xl:row-start-1">
+        <aside className="order-1 min-w-0 xl:col-start-2 xl:row-start-1">
           <DashboardAttentionCard
             alerts={summary?.alerts ?? null}
             error={summaryError}
             onRetry={retrySummary}
           />
         </aside>
-        <div className="order-3 xl:col-start-1 xl:row-start-2">
+        <div className="order-3 min-w-0 xl:col-start-1 xl:row-start-2">
           <DashboardSpendingOverview
             error={summaryError}
             onRetry={retrySummary}
             summary={summary}
           />
         </div>
-        <div className="order-4 xl:col-start-2 xl:row-start-2">
+        <div className="order-4 min-w-0 xl:col-start-2 xl:row-start-2">
           <DashboardActivityPanel />
         </div>
       </div>
