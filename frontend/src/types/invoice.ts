@@ -121,6 +121,13 @@ export type InvoiceDuplicateAlert = {
   decisionReason: string | null
 }
 
+export type InvoiceDuplicateDecision = 'CONFIRM' | 'IGNORE' | 'REJECT'
+
+export type InvoiceDuplicateDecisionRequest = {
+  decision: InvoiceDuplicateDecision
+  reason?: string
+}
+
 export type InvoiceDetails = {
   invoiceId: number
   invoiceNumber: string | null

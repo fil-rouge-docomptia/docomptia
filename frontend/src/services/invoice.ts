@@ -4,6 +4,7 @@ import { ApiError, authenticatedFetch } from '@/services/api'
 import type {
   InvoiceCorrectionRequest,
   InvoiceDetails,
+  InvoiceDuplicateDecisionRequest,
   InvoiceHistoryItem,
   InvoiceListQuery,
   InvoiceOcrFailureResponse,
@@ -158,6 +159,23 @@ export async function correctInvoice(
       body: JSON.stringify(corrections),
       headers: { 'Content-Type': 'application/json' },
       method: 'PATCH',
+    },
+  )
+
+  return response.json() as Promise<InvoiceDetails>
+}
+
+export async function decideInvoiceDuplicateAlert(
+  invoiceId: number,
+  alertId: number,
+  decision: InvoiceDuplicateDecisionRequest,
+): Promise<InvoiceDetails> {
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/v1/invoices/${invoiceId}/duplicate-alerts/${alertId}/decision`,
+    {
+      body: JSON.stringify(decision),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
     },
   )
 
