@@ -7,9 +7,16 @@ import java.util.regex.Pattern;
 @Service
 public class FrenchLegalIdentifierValidator {
 
+    private static final Pattern SIREN_PATTERN = Pattern.compile("\\d{9}");
     private static final Pattern SIRET_PATTERN = Pattern.compile("\\d{14}");
     private static final Pattern VAT_NUMBER_PATTERN = Pattern.compile("FR[A-Z0-9]{2}\\d{9}");
     private static final Pattern NUMERIC_VAT_KEY_PATTERN = Pattern.compile("\\d{2}");
+
+    public boolean isValidSiren(String siren) {
+        return SIREN_PATTERN.matcher(siren).matches()
+                && !containsOnlyZeros(siren)
+                && hasValidLuhnChecksum(siren);
+    }
 
     public boolean isValidSiret(String siret) {
         return SIRET_PATTERN.matcher(siret).matches()

@@ -5,6 +5,7 @@ import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
+import org.facturation.backend.dto.response.InvoiceSupplierResponse;
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
 import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.Invoice;
@@ -103,6 +104,13 @@ public class InvoiceResponseMapper {
         response.setDueDate(invoice.getDueDate() == null ? null : invoice.getDueDate().toString());
         response.setStatus(invoice.getInvoiceStatus().getCode());
         response.setSupplierName(extractSupplierName(invoice));
+        if (invoice.getSupplier() != null) {
+            response.setSupplier(new InvoiceSupplierResponse(
+                    invoice.getSupplier().getSupplierId(), invoice.getSupplier().getLegalName(),
+                    invoice.getSupplier().getName(), invoice.getSupplier().getCountryCode(),
+                    invoice.getSupplierLegalNameSnapshot(), invoice.getSupplierAddressSnapshot(),
+                    invoice.getSupplierIdentifiersSnapshot(), Boolean.TRUE.equals(invoice.getSupplierMatchConfirmed())));
+        }
         response.setCurrencyCode(invoice.getCurrencyCode());
         response.setTotalHt(toStringOrNull(invoice.getTotalHt()));
         response.setTotalTva(toStringOrNull(invoice.getTotalTva()));

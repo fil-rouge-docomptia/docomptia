@@ -52,6 +52,18 @@ ALTER TABLE users ALTER COLUMN user_id RESTART WITH 2;
 
 INSERT INTO suppliers (supplier_id, organization_id, name, legal_name, siret, vat_number, email, phone, address, created_at, updated_at)
 VALUES (1, 1, 'Orange', 'Orange SA', '38012986600014', 'FR89380129866', 'factures@orange.com', '3900', '111 quai du President Roosevelt, 92130 Issy-les-Moulineaux', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+ALTER TABLE suppliers ALTER COLUMN supplier_id RESTART WITH 2;
+
+UPDATE suppliers SET country_code = 'FR' WHERE supplier_id = 1;
+UPDATE suppliers SET search_name = 'orange sa orange' WHERE supplier_id = 1;
+
+INSERT INTO supplier_legal_identifiers (supplier_legal_identifier_id, organization_id, supplier_id, type, scheme, country_code, raw_value, normalized_value, source, verified, created_at, updated_at)
+VALUES (1, 1, 1, 'BUSINESS_REGISTRATION', 'FR_SIREN', 'FR', '380129866', '380129866', 'IMPORT', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT INTO supplier_legal_identifiers (supplier_legal_identifier_id, organization_id, supplier_id, type, scheme, country_code, raw_value, normalized_value, source, verified, created_at, updated_at)
+VALUES (2, 1, 1, 'ESTABLISHMENT', 'FR_SIRET', 'FR', '38012986600014', '38012986600014', 'IMPORT', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT INTO supplier_legal_identifiers (supplier_legal_identifier_id, organization_id, supplier_id, type, scheme, country_code, raw_value, normalized_value, source, verified, created_at, updated_at)
+VALUES (3, 1, 1, 'VAT', 'EU_VAT', 'FR', 'FR89380129866', 'FR89380129866', 'IMPORT', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+ALTER TABLE supplier_legal_identifiers ALTER COLUMN supplier_legal_identifier_id RESTART WITH 4;
 
 INSERT INTO chart_of_accounts (account_id, organization_id, account_number, account_label, account_type, is_active, created_at, updated_at)
 VALUES (1, 1, '401000', 'Fournisseurs', 'PASSIF', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);

@@ -12,7 +12,6 @@ import org.facturation.backend.service.SupplierService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -143,6 +142,25 @@ class SupplierServiceIntegrationTest {
     }
 
     @Test
+    void createsForeignSupplierFromVatNumberWithoutFrenchValidation() {
+        Organization organization = createOrganization("foreign-automatic-creation");
+        long supplierCountBefore = supplierRepository.count();
+        OcrAnalysisResponse ocrAnalysis = new OcrAnalysisResponse();
+        ocrAnalysis.setFields(List.of(
+                ocrField("supplierName", "Belgian supplier"),
+                ocrField("vatNumber", "BE 0123.456.789")
+        ));
+
+        Supplier result = supplierService.resolveForInvoiceUpload(null, organization, ocrAnalysis);
+
+        assertNotNull(result);
+        assertEquals("Belgian supplier", result.getName());
+        assertEquals("BE0123456789", result.getVatNumber());
+        assertEquals("BE", result.getCountryCode());
+        assertEquals(supplierCountBefore + 1, supplierRepository.count());
+    }
+
+    @Test
     void rejectsAutomaticCreationWithInvalidSiret() {
         Organization organization = createOrganization("invalid-automatic-creation");
         OcrAnalysisResponse ocrAnalysis = new OcrAnalysisResponse();
@@ -207,7 +225,7 @@ class SupplierServiceIntegrationTest {
     }
 
     @Test
-    void reusesExistingSupplierByNameInsteadOfCreatingOne() {
+    void doesNotReuseExistingSupplierByName() {
         Organization organization = createOrganization("existing-name");
         Supplier existingSupplier = createSupplier(organization, "Existing supplier", null, null);
         long supplierCountBefore = supplierRepository.count();
@@ -219,9 +237,9 @@ class SupplierServiceIntegrationTest {
 
         Supplier result = supplierService.resolveForInvoiceUpload(null, organization, ocrAnalysis);
 
-        assertEquals(existingSupplier.getSupplierId(), result.getSupplierId());
+        assertTrue(!existingSupplier.getSupplierId().equals(result.getSupplierId()));
         assertEquals("FR89380129866", result.getVatNumber());
-        assertEquals(supplierCountBefore, supplierRepository.count());
+        assertEquals(supplierCountBefore + 1, supplierRepository.count());
     }
 
     @Test
@@ -242,12 +260,12 @@ class SupplierServiceIntegrationTest {
     }
 
     @Test
-    void databaseRejectsDuplicateSiretWithinOrganization() {
+    void legacySupplierColumnsNoLongerDefineDatabaseIdentity() {
         Organization organization = createOrganization("duplicate-siret-database");
         createSupplier(organization, "First database supplier", "38012986600014", null);
         Supplier duplicate = supplier(organization, "Second database supplier", "38012986600014", null);
 
-        assertThrows(DataIntegrityViolationException.class, () -> supplierRepository.saveAndFlush(duplicate));
+        assertNotNull(supplierRepository.saveAndFlush(duplicate).getSupplierId());
     }
 
     @Test

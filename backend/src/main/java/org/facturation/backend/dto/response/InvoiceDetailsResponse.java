@@ -11,6 +11,7 @@ public class InvoiceDetailsResponse {
     private String dueDate;
     private String status;
     private String supplierName;
+    private InvoiceSupplierResponse supplier;
     private ClassificationResponse classification;
     private String currencyCode;
     private String totalHt;
@@ -77,6 +78,9 @@ public class InvoiceDetailsResponse {
     public void setSupplierName(String supplierName) {
         this.supplierName = supplierName;
     }
+
+    public InvoiceSupplierResponse getSupplier() { return supplier; }
+    public void setSupplier(InvoiceSupplierResponse supplier) { this.supplier = supplier; }
 
     public ClassificationResponse getClassification() { return classification; }
 
