@@ -95,7 +95,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <PageHeader
         actions={
           <>
@@ -126,7 +126,7 @@ export default function DashboardPage() {
         statuses={summary?.statusDistribution ?? null}
       />
 
-      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
         <div className="order-2 min-w-0 xl:col-start-1 xl:row-start-1">
           <DashboardRecentInvoices
             error={recentInvoicesError}
