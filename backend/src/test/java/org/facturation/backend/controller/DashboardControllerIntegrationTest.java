@@ -123,7 +123,29 @@ class DashboardControllerIntegrationTest {
                 .andExpect(jsonPath("$.alerts.ocrErrors").value(1))
                 .andExpect(jsonPath("$.alerts.pendingDuplicates").value(1))
                 .andExpect(jsonPath("$.alerts.unbalancedAccountingEntries").value(1))
-                .andExpect(jsonPath("$.statusDistribution.length()").value(5));
+                .andExpect(jsonPath("$.statusDistribution.length()").value(InvoiceStatusCode.values().length))
+                .andExpect(jsonPath("$.statusDistribution[0].status").value("ARCHIVEE"))
+                .andExpect(jsonPath("$.statusDistribution[0].count").value(0))
+                .andExpect(jsonPath("$.statusDistribution[1].status").value("A_VERIFIER"))
+                .andExpect(jsonPath("$.statusDistribution[1].count").value(1))
+                .andExpect(jsonPath("$.statusDistribution[2].status").value("COMPTABILISEE"))
+                .andExpect(jsonPath("$.statusDistribution[2].count").value(0))
+                .andExpect(jsonPath("$.statusDistribution[3].status").value("DEPOSEE"))
+                .andExpect(jsonPath("$.statusDistribution[3].count").value(1))
+                .andExpect(jsonPath("$.statusDistribution[4].status").value("ERREUR_OCR"))
+                .andExpect(jsonPath("$.statusDistribution[4].count").value(1))
+                .andExpect(jsonPath("$.statusDistribution[5].status").value("EXPORTABLE"))
+                .andExpect(jsonPath("$.statusDistribution[5].count").value(1))
+                .andExpect(jsonPath("$.statusDistribution[6].status").value("EXPORTEE"))
+                .andExpect(jsonPath("$.statusDistribution[6].count").value(0))
+                .andExpect(jsonPath("$.statusDistribution[7].status").value("EXTRAITE"))
+                .andExpect(jsonPath("$.statusDistribution[7].count").value(1))
+                .andExpect(jsonPath("$.statusDistribution[8].status").value("OCR_EN_COURS"))
+                .andExpect(jsonPath("$.statusDistribution[8].count").value(0))
+                .andExpect(jsonPath("$.statusDistribution[9].status").value("REJETEE"))
+                .andExpect(jsonPath("$.statusDistribution[9].count").value(0))
+                .andExpect(jsonPath("$.statusDistribution[10].status").value("VALIDEE"))
+                .andExpect(jsonPath("$.statusDistribution[10].count").value(0));
     }
 
     @Test
@@ -166,7 +188,10 @@ class DashboardControllerIntegrationTest {
                 .andExpect(jsonPath("$.alerts.ocrErrors").value(0))
                 .andExpect(jsonPath("$.alerts.pendingDuplicates").value(0))
                 .andExpect(jsonPath("$.alerts.unbalancedAccountingEntries").value(0))
-                .andExpect(jsonPath("$.statusDistribution.length()").value(0));
+                .andExpect(jsonPath("$.statusDistribution.length()").value(InvoiceStatusCode.values().length))
+                .andExpect(jsonPath("$.statusDistribution[*].count").value(org.hamcrest.Matchers.everyItem(
+                        org.hamcrest.Matchers.is(0)
+                )));
     }
 
     private Invoice createInvoice(
