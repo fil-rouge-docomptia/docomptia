@@ -249,6 +249,49 @@ class DashboardControllerIntegrationTest {
     }
 
     @Test
+    void countsOnlyCurrentOrganizationsPendingDuplicateInvoicesForTheRequestedPeriod() throws Exception {
+        User currentUser = userRepository.findById(1L).orElseThrow();
+        Invoice matchingInvoice = createInvoice(
+                currentUser, InvoiceStatusCode.EXTRAITE, "DASH-DUPLICATE-MATCH", "10", "2", "12"
+        );
+        Invoice startDateDuplicate = createInvoice(
+                currentUser, InvoiceStatusCode.EXTRAITE, "DASH-DUPLICATE-START", "10", "2", "12"
+        );
+        startDateDuplicate.setInvoiceDate(LocalDate.of(2026, 8, 1));
+        createPendingDuplicateAlert(startDateDuplicate, matchingInvoice);
+        createPendingDuplicateAlert(startDateDuplicate, createInvoice(
+                currentUser, InvoiceStatusCode.EXTRAITE, "DASH-DUPLICATE-SECOND-MATCH", "10", "2", "12"
+        ));
+
+        Invoice endDateDuplicate = createInvoice(
+                currentUser, InvoiceStatusCode.EXTRAITE, "DASH-DUPLICATE-END", "20", "4", "24"
+        );
+        endDateDuplicate.setInvoiceDate(LocalDate.of(2026, 8, 31));
+        createPendingDuplicateAlert(endDateDuplicate, matchingInvoice);
+
+        Invoice resolvedDuplicate = createInvoice(
+                currentUser, InvoiceStatusCode.EXTRAITE, "DASH-DUPLICATE-RESOLVED", "30", "6", "36"
+        );
+        createDuplicateAlert(resolvedDuplicate, matchingInvoice, DuplicateAlertDecision.IGNORE);
+
+        Invoice outsidePeriodDuplicate = createInvoice(
+                currentUser, InvoiceStatusCode.EXTRAITE, "DASH-DUPLICATE-OUTSIDE", "40", "8", "48"
+        );
+        outsidePeriodDuplicate.setInvoiceDate(LocalDate.of(2026, 7, 31));
+        createPendingDuplicateAlert(outsidePeriodDuplicate, matchingInvoice);
+
+        createInvoiceForAnotherOrganization();
+        invoiceRepository.flush();
+
+        mockMvc.perform(get("/api/v1/dashboard/summary")
+                        .param("startDate", "2026-08-01")
+                        .param("endDate", "2026-08-31")
+                        .header("Authorization", "Bearer " + loginAndGetToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.alerts.pendingDuplicates").value(2));
+    }
+
+    @Test
     void limitsActionRequiredInvoicesAndReturnsTheCorrectionAction() throws Exception {
         User currentUser = userRepository.findById(1L).orElseThrow();
         Invoice rejected = createInvoice(
@@ -311,6 +354,14 @@ class DashboardControllerIntegrationTest {
     }
 
     private void createPendingDuplicateAlert(Invoice invoice, Invoice matchingInvoice) {
+        createDuplicateAlert(invoice, matchingInvoice, DuplicateAlertDecision.PENDING);
+    }
+
+    private void createDuplicateAlert(
+            Invoice invoice,
+            Invoice matchingInvoice,
+            DuplicateAlertDecision decision
+    ) {
         InvoiceDuplicateAlert alert = new InvoiceDuplicateAlert();
         alert.setInvoice(invoice);
         alert.setMatchingInvoice(matchingInvoice);
@@ -318,7 +369,7 @@ class DashboardControllerIntegrationTest {
         alert.setAlertType(DuplicateAlertType.PROBABLE);
         alert.setInvoiceDate(invoice.getInvoiceDate());
         alert.setTotalTtc(invoice.getTotalTtc());
-        alert.setDecision(DuplicateAlertDecision.PENDING);
+        alert.setDecision(decision);
         alert.setCreatedAt(LocalDateTime.now());
         duplicateAlertRepository.save(alert);
     }
