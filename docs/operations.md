@@ -84,7 +84,7 @@ manuellement.
 
 ## Create PR From Staging To Main
 
-Le workflow GitHub Actions `Create PR from staging to main` ouvre une PR de
+Le workflow GitHub Actions `Create PR from staging to main` prepare une PR de
 `staging` vers `main` apres validation du VPS staging.
 
 Il sert quand les tests staging sont OK et que l'on veut proposer ces
@@ -96,15 +96,15 @@ Mode de declenchement:
 GitHub -> Actions -> Create PR from staging to main -> Run workflow
 ```
 
-Le workflow ouvre une PR avec:
+Le workflow affiche un lien GitHub pour ouvrir une PR avec:
 
 ```text
 base: main
 compare: staging
 ```
 
-Il ne merge pas automatiquement dans `main`. La verification de la PR, la CI et
-le merge final restent manuels.
+Il ne cree pas et ne merge pas automatiquement la PR. L'ouverture de la PR, sa
+verification, la CI et le merge final restent manuels.
 
 Si `staging` ne contient aucun commit a envoyer vers `main`, le workflow
 s'arrete sans creer de PR.
