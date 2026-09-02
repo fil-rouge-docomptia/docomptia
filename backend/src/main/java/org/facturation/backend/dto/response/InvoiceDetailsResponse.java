@@ -13,6 +13,7 @@ public class InvoiceDetailsResponse {
     private String supplierName;
     private InvoiceSupplierResponse supplier;
     private ClassificationResponse classification;
+    private InvoiceAssigneeResponse assignee;
     private String currencyCode;
     private String totalHt;
     private String totalTva;
@@ -85,6 +86,14 @@ public class InvoiceDetailsResponse {
     public ClassificationResponse getClassification() { return classification; }
 
     public void setClassification(ClassificationResponse classification) { this.classification = classification; }
+
+    public InvoiceAssigneeResponse getAssignee() {
+        return assignee;
+    }
+
+    public void setAssignee(InvoiceAssigneeResponse assignee) {
+        this.assignee = assignee;
+    }
 
     public String getCurrencyCode() {
         return currencyCode;
