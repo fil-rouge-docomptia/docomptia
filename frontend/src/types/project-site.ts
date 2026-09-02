@@ -20,3 +20,8 @@ export type ProjectSiteListQuery = {
   page: number
   size: number
 }
+
+export type ProjectSiteInput = {
+  description: string
+  name: string
+}

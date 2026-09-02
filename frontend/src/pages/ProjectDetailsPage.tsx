@@ -5,10 +5,13 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ProjectSiteDetailHeader } from '@/components/project/detail/ProjectSiteDetailHeader'
 import { ProjectSiteOverviewTab } from '@/components/project/detail/ProjectSiteOverviewTab'
 import { ProjectSiteUnavailableTab } from '@/components/project/detail/ProjectSiteUnavailableTab'
+import { ProjectSiteDialog } from '@/components/project/ProjectSiteDialog'
+import { canManageProjectSites } from '@/components/project/project-site-utils'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useAuth } from '@/hooks/use-auth'
 import { getProjectSite } from '@/services/project-site'
 import type { ProjectSite } from '@/types/project-site'
 
@@ -44,12 +47,14 @@ function ProjectDetailsSkeleton() {
 export default function ProjectDetailsPage() {
   const { projectId: projectIdParam } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
+  const { user } = useAuth()
   const [requestState, setRequestState] = useState<{
     error: boolean
     projectSite: ProjectSite | null
     requestKey: string
   }>({ error: false, projectSite: null, requestKey: '' })
   const [retryCount, setRetryCount] = useState(0)
+  const [editOpen, setEditOpen] = useState(false)
   const projectId = Number(projectIdParam)
   const validProjectId = Number.isInteger(projectId) && projectId > 0
   const requestKey = `${projectIdParam}:${retryCount}`
@@ -119,8 +124,8 @@ export default function ProjectDetailsPage() {
   return (
     <div className="space-y-6">
       <ProjectSiteDetailHeader
-        canEdit={false}
-        onEdit={() => undefined}
+        canEdit={canManageProjectSites(user?.role.code)}
+        onEdit={() => setEditOpen(true)}
         projectSite={projectSite}
       />
 
@@ -168,6 +173,21 @@ export default function ProjectDetailsPage() {
           />
         </TabsContent>
       </Tabs>
+
+      {editOpen ? (
+        <ProjectSiteDialog
+          onOpenChange={setEditOpen}
+          onSaved={(updatedProjectSite) => {
+            setRequestState({
+              error: false,
+              projectSite: updatedProjectSite,
+              requestKey,
+            })
+          }}
+          open
+          projectSite={projectSite}
+        />
+      ) : null}
     </div>
   )
 }
