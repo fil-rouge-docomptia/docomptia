@@ -28,12 +28,10 @@ export function DashboardPeriodSelect({
     >
       <SelectTrigger
         aria-label="Dashboard period"
-        className="h-11 w-[180px] md:h-10 md:w-[190px]"
+        className="h-11 w-[180px] justify-start gap-2 md:h-10 md:w-[190px] [&>svg:last-child]:ml-auto"
       >
-        <span className="flex min-w-0 items-center gap-2">
-          <CalendarDays aria-hidden="true" className="size-4 shrink-0" />
-          <SelectValue />
-        </span>
+        <CalendarDays aria-hidden="true" className="size-4 shrink-0" />
+        <SelectValue className="min-w-0 flex-1 text-left" />
       </SelectTrigger>
       <SelectContent align="start" className="w-[var(--radix-select-trigger-width)]">
         {dashboardPeriodOptions.map((option) => (

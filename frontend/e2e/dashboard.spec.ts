@@ -231,6 +231,17 @@ test('applies every calendar period preset to the dashboard requests', async ({ 
   await expect(periodSelect).toContainText('Last 30 days')
   await expect(page).toHaveURL(/\/dashboard\?period=last-30-days$/)
 
+  const calendarBox = await periodSelect.locator('svg').first().boundingBox()
+  const periodLabelBox = await periodSelect.getByText('Last 30 days').boundingBox()
+  expect(calendarBox).not.toBeNull()
+  expect(periodLabelBox).not.toBeNull()
+  expect((calendarBox?.x ?? 0) + (calendarBox?.width ?? 0))
+    .toBeLessThan(periodLabelBox?.x ?? 0)
+  expect(Math.abs(
+    (calendarBox?.y ?? 0) + (calendarBox?.height ?? 0) / 2
+    - (periodLabelBox?.y ?? 0) - (periodLabelBox?.height ?? 0) / 2,
+  )).toBeLessThan(2)
+
   const presets = [
     { endDate: '2026-09-02', label: 'Last 12 months', startDate: '2025-10-01', value: 'last-12-months' },
     { endDate: '2026-09-02', label: 'Current month', startDate: '2026-09-01', value: 'current-month' },
