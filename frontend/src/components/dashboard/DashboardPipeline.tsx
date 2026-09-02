@@ -1,17 +1,19 @@
 import { Link } from 'react-router-dom'
 
 import { DashboardBlockError } from '@/components/dashboard/DashboardBlockError'
+import { getDashboardInvoiceListHref } from '@/components/dashboard/dashboard-navigation'
 import { DashboardSectionHeader } from '@/components/dashboard/DashboardSectionHeader'
 import { InvoiceStatusBadge } from '@/components/invoice/InvoiceStatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { DashboardStatusCount } from '@/types/dashboard'
+import type { DashboardPeriodQuery, DashboardStatusCount } from '@/types/dashboard'
 
 type DashboardPipelineProps = {
   error: boolean
   onRetry: () => void
+  period: DashboardPeriodQuery
   statuses: DashboardStatusCount[] | null
 }
 
@@ -37,6 +39,7 @@ function selectPipelineStatuses(statuses: DashboardStatusCount[]) {
 export function DashboardPipeline({
   error,
   onRetry,
+  period,
   statuses,
 }: DashboardPipelineProps) {
   const pipelineStatuses = statuses ? selectPipelineStatuses(statuses) : null
@@ -86,7 +89,7 @@ export function DashboardPipeline({
                   <Link
                     aria-label={`View ${status.label} invoices`}
                     className="flex min-w-28 flex-col items-center gap-1 rounded-md ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    to={`/invoices?status=${status.status}`}
+                    to={getDashboardInvoiceListHref(status.status, period)}
                   >
                     <span className="p-2">
                       <InvoiceStatusBadge label={status.label} status={status.status} />

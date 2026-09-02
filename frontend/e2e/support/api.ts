@@ -55,8 +55,8 @@ export async function mockApiRoute(
   })
 }
 
-export async function mockCurrentUser(page: Page) {
-  await mockApiRoute(page, '/v1/users/me', (route) => fulfillJson(route, 200, currentUser))
+export async function mockCurrentUser(page: Page, user = currentUser) {
+  await mockApiRoute(page, '/v1/users/me', (route) => fulfillJson(route, 200, user))
 }
 
 export async function seedAuthSession(page: Page) {
