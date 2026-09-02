@@ -13,6 +13,7 @@ import LoginRoutePage from '@/pages/LoginRoutePage'
 import ModulePlaceholderPage from '@/pages/ModulePlaceholderPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import OrganizationOnboardingPage from '@/pages/OrganizationOnboardingPage'
+import ProjectsPage from '@/pages/ProjectsPage'
 import RegisterPage from '@/pages/RegisterPage'
 import SupplierDetailsPage from '@/pages/SupplierDetailsPage'
 import SuppliersPage from '@/pages/SuppliersPage'
@@ -106,12 +107,7 @@ export const privateRoutes = [
   },
   {
     path: '/projects',
-    element: (
-      <ModulePlaceholderPage
-        description="Organize invoices across projects and operating sites."
-        title="Projects / Sites"
-      />
-    ),
+    element: <ProjectsPage />,
   },
   {
     path: '/reports',
