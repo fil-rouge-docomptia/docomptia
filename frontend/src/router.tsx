@@ -13,6 +13,7 @@ import ModulePlaceholderPage from '@/pages/ModulePlaceholderPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import OrganizationOnboardingPage from '@/pages/OrganizationOnboardingPage'
 import RegisterPage from '@/pages/RegisterPage'
+import SupplierDetailsPage from '@/pages/SupplierDetailsPage'
 import SuppliersPage from '@/pages/SuppliersPage'
 import TeamOnboardingPage from '@/pages/TeamOnboardingPage'
 import WorkflowOnboardingPage from '@/pages/WorkflowOnboardingPage'
@@ -96,12 +97,7 @@ export const privateRoutes = [
   },
   {
     path: '/suppliers/:supplierId',
-    element: (
-      <ModulePlaceholderPage
-        description="Review this supplier's legal identity and activity."
-        title="Supplier details"
-      />
-    ),
+    element: <SupplierDetailsPage />,
   },
   {
     path: '/clients',
