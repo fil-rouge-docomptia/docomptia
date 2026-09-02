@@ -13,6 +13,7 @@ import ModulePlaceholderPage from '@/pages/ModulePlaceholderPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import OrganizationOnboardingPage from '@/pages/OrganizationOnboardingPage'
 import RegisterPage from '@/pages/RegisterPage'
+import SuppliersPage from '@/pages/SuppliersPage'
 import TeamOnboardingPage from '@/pages/TeamOnboardingPage'
 import WorkflowOnboardingPage from '@/pages/WorkflowOnboardingPage'
 import WorkspaceReadyOnboardingPage from '@/pages/WorkspaceReadyOnboardingPage'
@@ -91,10 +92,14 @@ export const privateRoutes = [
   },
   {
     path: '/suppliers',
+    element: <SuppliersPage />,
+  },
+  {
+    path: '/suppliers/:supplierId',
     element: (
       <ModulePlaceholderPage
-        description="Manage the suppliers available to invoice workflows."
-        title="Suppliers"
+        description="Review this supplier's legal identity and activity."
+        title="Supplier details"
       />
     ),
   },
