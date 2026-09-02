@@ -1,23 +1,43 @@
-import { useEffect, useState } from 'react'
-import { AlertCircle, FileText, Grid2X2, List } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { AlertCircle } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 
+import {
+  DocumentFilters,
+  type DocumentView,
+} from '@/components/document/DocumentFilters'
 import { DocumentGrid } from '@/components/document/DocumentGrid'
 import { DocumentTable } from '@/components/document/DocumentTable'
 import { InvoicePagination } from '@/components/invoice/InvoicePagination'
+import { invoiceStatusLabels } from '@/components/invoice/invoice-status'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { listInvoices } from '@/services/invoice'
-import type { InvoicePage } from '@/types/invoice'
-
-type DocumentView = 'grid' | 'table'
+import type {
+  InvoiceFilterUpdates,
+  InvoiceListFilters,
+  InvoicePage,
+} from '@/types/invoice'
 
 const pageSizes: Record<DocumentView, number> = {
   grid: 6,
   table: 8,
 }
+const filterParamKeys: (keyof InvoiceListFilters)[] = [
+  'client',
+  'dueDate',
+  'endDate',
+  'invoiceDate',
+  'invoiceNumber',
+  'maxAmount',
+  'minAmount',
+  'startDate',
+  'status',
+  'supplier',
+]
 
 function parsePage(value: string | null) {
   const page = Number(value)
@@ -28,23 +48,76 @@ function parseView(value: string | null): DocumentView {
   return value === 'grid' ? 'grid' : 'table'
 }
 
-function DocumentsSkeleton({ view }: { view: DocumentView }) {
-  if (view === 'grid') {
-    return (
-      <div aria-label="Loading documents" className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {Array.from({ length: pageSizes.grid }, (_, index) => (
-          <Skeleton className="h-72" key={index} />
-        ))}
-      </div>
-    )
+function parseFilters(searchParams: URLSearchParams): InvoiceListFilters {
+  const filters: InvoiceListFilters = {}
+  const readValue = (key: Exclude<keyof InvoiceListFilters, 'status'>) => {
+    const value = searchParams.get(key)?.trim()
+    if (value) {
+      filters[key] = value
+    }
   }
 
+  filterParamKeys
+    .filter((key): key is Exclude<keyof InvoiceListFilters, 'status'> => key !== 'status')
+    .forEach(readValue)
+
+  const statuses = searchParams
+    .getAll('status')
+    .flatMap((value) => value.split(','))
+    .map((status) => status.trim().toUpperCase())
+    .filter((status, index, values) => (
+      Boolean(invoiceStatusLabels[status]) && values.indexOf(status) === index
+    ))
+
+  if (statuses.length) {
+    filters.status = statuses
+  }
+
+  return filters
+}
+
+function DocumentsSkeleton() {
   return (
-    <div aria-label="Loading documents" className="overflow-hidden rounded-lg border border-border">
-      <div className="h-10 bg-muted/70" />
-      {Array.from({ length: pageSizes.table }, (_, index) => (
-        <Skeleton className="h-14 w-full rounded-none border-b last:border-b-0" key={index} />
+    <div aria-label="Loading documents" className="space-y-3">
+      <div className="flex items-center justify-between gap-4">
+        <Skeleton className="h-9 w-full max-w-80" />
+        <Skeleton className="hidden h-9 w-60 sm:block" />
+      </div>
+      {Array.from({ length: 5 }, (_, index) => (
+        <Skeleton className="h-12 w-full" key={index} />
       ))}
+    </div>
+  )
+}
+
+type DocumentEmptyStateProps = {
+  filtered: boolean
+  onClear: () => void
+}
+
+function DocumentEmptyState({ filtered, onClear }: DocumentEmptyStateProps) {
+  return (
+    <div className="flex justify-center pt-9">
+      <section className="flex min-h-[236px] w-full max-w-xl flex-col items-center justify-center gap-4 rounded-xl border border-border bg-card p-10 text-center">
+        <Badge variant="secondary">{filtered ? 'No results' : 'No documents'}</Badge>
+        <div className="space-y-3">
+          <h2 className="text-xl font-semibold tracking-[-0.25px] text-foreground">
+            {filtered ? 'No documents found' : 'No documents yet'}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {filtered
+              ? 'Try adjusting your search or filters.'
+              : 'Processed and archived documents will appear here.'}
+          </p>
+        </div>
+        {filtered ? (
+          <Button onClick={onClear} type="button">Clear filters</Button>
+        ) : (
+          <Button asChild>
+            <Link to="/inbox?upload=1">Go to inbox</Link>
+          </Button>
+        )}
+      </section>
     </div>
   )
 }
@@ -60,10 +133,12 @@ export default function DocumentsPage() {
   const view = parseView(searchParams.get('view'))
   const currentPage = parsePage(searchParams.get('page'))
   const pageSize = pageSizes[view]
-  const requestKey = `${view}:${currentPage}:${retryCount}`
+  const filters = useMemo(() => parseFilters(searchParams), [searchParams])
+  const requestKey = `${view}:${currentPage}:${JSON.stringify(filters)}:${retryCount}`
   const currentRequest = requestState.requestKey === requestKey
   const error = currentRequest && requestState.error
   const documentPage = currentRequest ? requestState.page : null
+  const hasActiveFilters = Object.keys(filters).length > 0
 
   useEffect(() => {
     const controller = new AbortController()
@@ -71,6 +146,7 @@ export default function DocumentsPage() {
     listInvoices(
       {
         direction: 'DESC',
+        ...filters,
         page: currentPage - 1,
         size: pageSize,
         sortBy: 'createdAt',
@@ -87,7 +163,7 @@ export default function DocumentsPage() {
       })
 
     return () => controller.abort()
-  }, [currentPage, pageSize, requestKey, view])
+  }, [currentPage, filters, pageSize, requestKey])
 
   const updateSearchParams = (updates: Record<string, string | null>) => {
     setSearchParams((currentParams) => {
@@ -107,6 +183,34 @@ export default function DocumentsPage() {
     updateSearchParams({ page: '1', view: nextView === 'table' ? null : nextView })
   }
 
+  const handleFilterChange = (updates: InvoiceFilterUpdates) => {
+    setSearchParams((currentParams) => {
+      const nextParams = new URLSearchParams(currentParams)
+
+      Object.entries(updates).forEach(([key, value]) => {
+        nextParams.delete(key)
+
+        if (Array.isArray(value)) {
+          value.forEach((item) => nextParams.append(key, item))
+        } else if (value) {
+          nextParams.set(key, value)
+        }
+      })
+
+      nextParams.set('page', '1')
+      return nextParams
+    })
+  }
+
+  const handleFilterReset = () => {
+    setSearchParams((currentParams) => {
+      const nextParams = new URLSearchParams(currentParams)
+      filterParamKeys.forEach((key) => nextParams.delete(key))
+      nextParams.set('page', '1')
+      return nextParams
+    })
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -114,82 +218,55 @@ export default function DocumentsPage() {
         title="Documents"
       />
 
-      <section aria-label="Document display controls" className="flex justify-end">
-        <div aria-label="Document view" className="grid grid-cols-2" role="group">
-          <Button
-            aria-pressed={view === 'table'}
-            className="rounded-r-none"
-            onClick={() => handleViewChange('table')}
-            size="sm"
-            type="button"
-            variant={view === 'table' ? 'secondary' : 'outline'}
-          >
-            <List aria-hidden="true" />
-            Table
-          </Button>
-          <Button
-            aria-pressed={view === 'grid'}
-            className="rounded-l-none"
-            onClick={() => handleViewChange('grid')}
-            size="sm"
-            type="button"
-            variant={view === 'grid' ? 'secondary' : 'outline'}
-          >
-            <Grid2X2 aria-hidden="true" />
-            Preview grid
-          </Button>
-        </div>
-      </section>
-
-      {error ? (
-        <Alert variant="destructive">
-          <AlertCircle aria-hidden="true" />
-          <AlertTitle>Unable to load documents</AlertTitle>
-          <AlertDescription className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p>Check your connection, then try again.</p>
-            <Button
-              onClick={() => setRetryCount((count) => count + 1)}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Try again
-            </Button>
-          </AlertDescription>
-        </Alert>
-      ) : !documentPage ? (
-        <DocumentsSkeleton view={view} />
-      ) : documentPage.content.length === 0 ? (
-        <section className="flex min-h-80 flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card px-6 py-12 text-center">
-          <span className="flex size-12 items-center justify-center rounded-full bg-accent text-accent-foreground">
-            <FileText aria-hidden="true" className="size-6" />
-          </span>
-          <h2 className="mt-4 text-base font-semibold text-foreground">No documents yet</h2>
-          <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            Processed supplier invoices will appear in this document library.
-          </p>
-          <Button asChild className="mt-5">
-            <Link to="/inbox?upload=1">Upload an invoice</Link>
-          </Button>
-        </section>
+      {!documentPage && !error ? (
+        <DocumentsSkeleton />
       ) : (
-        <section aria-label="Documents" className="space-y-4">
-          {view === 'table' ? (
-            <div className="overflow-hidden rounded-lg border border-border bg-card shadow-elevation-1">
-              <DocumentTable documents={documentPage.content} />
-            </div>
-          ) : (
-            <DocumentGrid documents={documentPage.content} />
-          )}
-          <InvoicePagination
-            currentPage={documentPage.number + 1}
-            itemLabel="documents"
-            onPageChange={(page) => updateSearchParams({ page: String(page) })}
-            pageSize={documentPage.size}
-            totalElements={documentPage.totalElements}
-            totalPages={documentPage.totalPages}
+        <>
+          <DocumentFilters
+            filters={filters}
+            onChange={handleFilterChange}
+            onViewChange={handleViewChange}
+            view={view}
           />
-        </section>
+
+          {error ? (
+            <Alert variant="destructive">
+              <AlertCircle aria-hidden="true" />
+              <AlertTitle>Unable to load documents</AlertTitle>
+              <AlertDescription className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p>Check your connection, then try again.</p>
+                <Button
+                  onClick={() => setRetryCount((count) => count + 1)}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Try again
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : documentPage?.content.length === 0 ? (
+            <DocumentEmptyState filtered={hasActiveFilters} onClear={handleFilterReset} />
+          ) : documentPage ? (
+            <section aria-label="Documents" className="space-y-4">
+              {view === 'table' ? (
+                <div className="overflow-hidden rounded-lg border border-border bg-card shadow-elevation-1">
+                  <DocumentTable documents={documentPage.content} />
+                </div>
+              ) : (
+                <DocumentGrid documents={documentPage.content} />
+              )}
+              <InvoicePagination
+                currentPage={documentPage.number + 1}
+                itemLabel="documents"
+                onPageChange={(page) => updateSearchParams({ page: String(page) })}
+                pageSize={documentPage.size}
+                totalElements={documentPage.totalElements}
+                totalPages={documentPage.totalPages}
+              />
+            </section>
+          ) : null}
+        </>
       )}
     </div>
   )
