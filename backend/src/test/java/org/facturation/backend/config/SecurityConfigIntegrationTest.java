@@ -257,7 +257,7 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void operatorCanAssignAClassificationButAccountingManagerCannot() throws Exception {
+    void operatorCanAssignInvoiceResourcesButAccountingManagerCannot() throws Exception {
         mockMvc.perform(patch("/api/v1/invoices/999999/classification")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"classificationId\":1}")
@@ -267,6 +267,16 @@ class SecurityConfigIntegrationTest {
         assertForbidden(patch("/api/v1/invoices/999999/classification")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"classificationId\":1}"), tokenFor("manager-security@facturation-demo.fr"));
+
+        mockMvc.perform(patch("/api/v1/invoices/999999/assignee")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":1}")
+                        .header("Authorization", "Bearer " + tokenFor("operator-security@facturation-demo.fr")))
+                .andExpect(status().isNotFound());
+
+        assertForbidden(patch("/api/v1/invoices/999999/assignee")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"userId\":1}"), tokenFor("manager-security@facturation-demo.fr"));
     }
 
     @Test

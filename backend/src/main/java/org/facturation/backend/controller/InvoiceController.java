@@ -8,9 +8,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.DuplicateAlertDecisionRequest;
+import org.facturation.backend.dto.request.InvoiceAssigneeRequest;
+import org.facturation.backend.dto.request.InvoiceClassificationRequest;
 import org.facturation.backend.dto.request.InvoiceCorrectionDemandRequest;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
-import org.facturation.backend.dto.request.InvoiceClassificationRequest;
 import org.facturation.backend.dto.request.InvoiceRejectionRequest;
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
@@ -322,6 +323,23 @@ public class InvoiceController {
             @RequestBody InvoiceClassificationRequest request
     ) {
         return ResponseEntity.ok(requireInvoiceResponse(invoiceService.assignClassification(id, request), id));
+    }
+
+    @PatchMapping("/{id}/assignee")
+    @Operation(
+            summary = "Affecter une facture a un utilisateur actif",
+            description = "Enregistre l'affectation courante et son auteur dans l'organisation authentifiee"
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Facture affectee"),
+            @ApiResponse(responseCode = "400", description = "Utilisateur inactif ou affectation inchangee"),
+            @ApiResponse(responseCode = "404", description = "Facture ou utilisateur introuvable dans l'organisation")
+    })
+    public ResponseEntity<InvoiceDetailsResponse> assignUser(
+            @PathVariable Long id,
+            @RequestBody InvoiceAssigneeRequest request
+    ) {
+        return ResponseEntity.ok(requireInvoiceResponse(invoiceService.assignUser(id, request), id));
     }
 
     @PostMapping("/{id}/submit-for-validation")

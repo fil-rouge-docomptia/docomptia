@@ -1,6 +1,7 @@
 package org.facturation.backend.mapper;
 
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
+import org.facturation.backend.dto.response.InvoiceAssigneeResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
@@ -118,6 +119,14 @@ public class InvoiceResponseMapper {
         response.setDuplicateAlerts(duplicateAlertService.findByInvoiceId(invoice.getInvoiceId()));
         if (invoice.getClassification() != null) {
             response.setClassification(classificationResponseMapper.toResponse(invoice.getClassification()));
+        }
+        if (invoice.getAssignedUser() != null) {
+            response.setAssignee(new InvoiceAssigneeResponse(
+                    invoice.getAssignedUser().getUserId(),
+                    invoice.getAssignedUser().getFirstName(),
+                    invoice.getAssignedUser().getLastName(),
+                    invoice.getAssignedUser().getEmail()
+            ));
         }
 
         invoiceFileRepository.findByInvoiceInvoiceId(invoice.getInvoiceId())
