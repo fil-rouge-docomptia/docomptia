@@ -12,6 +12,7 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { getDashboardSummary } from '@/services/dashboard'
 import { listInvoices } from '@/services/invoice'
+import { getCurrentOrganization } from '@/services/organization'
 import type { DashboardPeriodQuery, DashboardSummary } from '@/types/dashboard'
 import type { InvoiceListItem } from '@/types/invoice'
 
@@ -46,6 +47,9 @@ export default function DashboardPage() {
   const [recentInvoices, setRecentInvoices] = useState<InvoiceListItem[] | null>(null)
   const [recentInvoicesError, setRecentInvoicesError] = useState(false)
   const [recentInvoicesRetryCount, setRecentInvoicesRetryCount] = useState(0)
+  const [currencyCode, setCurrencyCode] = useState<string | null>(null)
+  const [currencyError, setCurrencyError] = useState(false)
+  const [currencyRetryCount, setCurrencyRetryCount] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -83,6 +87,20 @@ export default function DashboardPage() {
     return () => controller.abort()
   }, [recentInvoicesRetryCount])
 
+  useEffect(() => {
+    const controller = new AbortController()
+
+    getCurrentOrganization(controller.signal)
+      .then((organization) => setCurrencyCode(organization.defaultCurrencyCode ?? 'EUR'))
+      .catch((error: unknown) => {
+        if (!isAbortError(error)) {
+          setCurrencyError(true)
+        }
+      })
+
+    return () => controller.abort()
+  }, [currencyRetryCount])
+
   const retrySummary = () => {
     setSummary(null)
     setSummaryError(false)
@@ -92,6 +110,12 @@ export default function DashboardPage() {
     setRecentInvoices(null)
     setRecentInvoicesError(false)
     setRecentInvoicesRetryCount((count) => count + 1)
+  }
+  const retrySpendingOverview = () => {
+    retrySummary()
+    setCurrencyCode(null)
+    setCurrencyError(false)
+    setCurrencyRetryCount((count) => count + 1)
   }
 
   return (
@@ -146,8 +170,9 @@ export default function DashboardPage() {
         </aside>
         <div className="order-3 min-w-0 xl:col-start-1 xl:row-start-2">
           <DashboardSpendingOverview
-            error={summaryError}
-            onRetry={retrySummary}
+            currencyCode={currencyCode}
+            error={summaryError || currencyError}
+            onRetry={retrySpendingOverview}
             summary={summary}
           />
         </div>
