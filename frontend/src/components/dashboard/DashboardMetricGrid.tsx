@@ -1,13 +1,15 @@
 import { Link } from 'react-router-dom'
 
 import { DashboardBlockError } from '@/components/dashboard/DashboardBlockError'
+import { getDashboardInvoiceListHref } from '@/components/dashboard/dashboard-navigation'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { DashboardSummary } from '@/types/dashboard'
+import type { DashboardPeriodQuery, DashboardSummary } from '@/types/dashboard'
 
 type DashboardMetricGridProps = {
   error: boolean
   onRetry: () => void
+  period: DashboardPeriodQuery
   summary: DashboardSummary | null
 }
 
@@ -64,22 +66,23 @@ function MetricSkeleton() {
 export function DashboardMetricGrid({
   error,
   onRetry,
+  period,
   summary,
 }: DashboardMetricGridProps) {
   const metrics: Metric[] = summary
     ? [
         {
-          href: '/invoices?status=DEPOSEE',
+          href: getDashboardInvoiceListHref('DEPOSEE', period),
           label: 'To process',
           value: summary.workQueues.toProcess,
         },
         {
-          href: '/invoices?status=A_VERIFIER',
+          href: getDashboardInvoiceListHref('A_VERIFIER', period),
           label: 'Waiting for approval',
           value: summary.workQueues.awaitingValidation,
         },
         {
-          href: '/invoices?status=EXPORTABLE',
+          href: getDashboardInvoiceListHref('EXPORTABLE', period),
           label: 'Ready to export',
           value: summary.workQueues.exportable,
         },

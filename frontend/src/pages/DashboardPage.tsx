@@ -180,12 +180,14 @@ export default function DashboardPage() {
       <DashboardMetricGrid
         error={summaryError}
         onRetry={retrySummary}
+        period={period}
         summary={summary}
       />
 
       <DashboardPipeline
         error={summaryError}
         onRetry={retrySummary}
+        period={period}
         statuses={summary?.statusDistribution ?? null}
       />
 

@@ -161,6 +161,7 @@ test('renders the Figma dashboard structure with API data', async ({ page }) => 
 })
 
 test('opens the invoice list with the selected dashboard status', async ({ page }) => {
+  await page.clock.setFixedTime(new Date(2026, 8, 2, 12))
   await mockDashboardRequests(page)
 
   await page.goto('/dashboard')
@@ -172,9 +173,18 @@ test('opens the invoice list with the selected dashboard status', async ({ page 
   })
 
   await expect(statusLinks).toHaveCount(3)
-  await expect(statusLinks.nth(0)).toHaveAttribute('href', '/invoices?status=DEPOSEE')
-  await expect(statusLinks.nth(1)).toHaveAttribute('href', '/invoices?status=A_VERIFIER')
-  await expect(statusLinks.nth(2)).toHaveAttribute('href', '/invoices?status=EXPORTABLE')
+  await expect(statusLinks.nth(0)).toHaveAttribute(
+    'href',
+    '/invoices?status=DEPOSEE&startDate=2026-08-04&endDate=2026-09-02',
+  )
+  await expect(statusLinks.nth(1)).toHaveAttribute(
+    'href',
+    '/invoices?status=A_VERIFIER&startDate=2026-08-04&endDate=2026-09-02',
+  )
+  await expect(statusLinks.nth(2)).toHaveAttribute(
+    'href',
+    '/invoices?status=EXPORTABLE&startDate=2026-08-04&endDate=2026-09-02',
+  )
 
   await processingIssuesButton.click()
 
@@ -189,8 +199,11 @@ test('opens the invoice list with the selected dashboard status', async ({ page 
   await statusLinks.nth(0).click()
   await filteredRequest
 
-  await expect(page).toHaveURL(/\/invoices\?status=DEPOSEE$/)
+  await expect(page).toHaveURL(
+    /\/invoices\?status=DEPOSEE&startDate=2026-08-04&endDate=2026-09-02$/,
+  )
   await expect(page.getByLabel('Filter by status')).toContainText('To process')
+  await expect(page.getByText('Invoice period: 4 Aug 2026 – 2 Sept 2026')).toBeVisible()
 })
 
 test('opens recent invoices and the complete invoice list', async ({ page }) => {
@@ -331,6 +344,7 @@ test('keeps the selected period visible when it contains no invoices', async ({ 
 })
 
 test('links every pipeline step to its exact invoice status', async ({ page }) => {
+  await page.clock.setFixedTime(new Date(2026, 8, 2, 12))
   await mockDashboardRequests(page)
 
   await page.goto('/dashboard')
@@ -351,7 +365,10 @@ test('links every pipeline step to its exact invoice status', async ({ page }) =
 
   for (const [label, status] of expectedSteps) {
     await expect(pipeline.getByRole('link', { name: `View ${label} invoices` }))
-      .toHaveAttribute('href', `/invoices?status=${status}`)
+      .toHaveAttribute(
+        'href',
+        `/invoices?status=${status}&startDate=2026-08-04&endDate=2026-09-02`,
+      )
   }
 
   await expect(pipeline.getByText('Archived')).toHaveCount(0)
@@ -365,8 +382,11 @@ test('links every pipeline step to its exact invoice status', async ({ page }) =
   await pipeline.getByRole('link', { name: 'View Needs review invoices' }).click()
   await filteredRequest
 
-  await expect(page).toHaveURL(/\/invoices\?status=EXTRAITE$/)
+  await expect(page).toHaveURL(
+    /\/invoices\?status=EXTRAITE&startDate=2026-08-04&endDate=2026-09-02$/,
+  )
   await expect(page.getByLabel('Filter by status')).toContainText('Needs review')
+  await expect(page.getByText('Invoice period: 4 Aug 2026 – 2 Sept 2026')).toBeVisible()
 })
 
 test('shows the pipeline empty state when every lifecycle count is zero', async ({ page }) => {
