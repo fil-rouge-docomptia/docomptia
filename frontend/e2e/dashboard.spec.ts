@@ -30,13 +30,17 @@ const dashboardSummary = {
     unbalancedAccountingEntries: 5,
   },
   statusDistribution: [
-    { count: 24, status: 'DEPOSEE' },
-    { count: 7, status: 'OCR_EN_COURS' },
-    { count: 5, status: 'EXTRAITE' },
+    { count: 4, status: 'ARCHIVEE' },
     { count: 12, status: 'A_VERIFIER' },
-    { count: 18, status: 'VALIDEE' },
+    { count: 6, status: 'COMPTABILISEE' },
+    { count: 24, status: 'DEPOSEE' },
+    { count: 2, status: 'ERREUR_OCR' },
     { count: 38, status: 'EXPORTABLE' },
     { count: 142, status: 'EXPORTEE' },
+    { count: 5, status: 'EXTRAITE' },
+    { count: 7, status: 'OCR_EN_COURS' },
+    { count: 1, status: 'REJETEE' },
+    { count: 18, status: 'VALIDEE' },
   ],
 }
 
@@ -69,12 +73,15 @@ const recentInvoicePage = {
   totalPages: 1,
 }
 
-async function mockDashboardRequests(page: Parameters<typeof mockCurrentUser>[0]) {
+async function mockDashboardRequests(
+  page: Parameters<typeof mockCurrentUser>[0],
+  summary = dashboardSummary,
+) {
   await mockApiRoute(page, '/v1/dashboard/summary*', async (route) => {
     const url = new URL(route.request().url())
     expect(url.searchParams.get('startDate')).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     expect(url.searchParams.get('endDate')).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-    await fulfillJson(route, 200, dashboardSummary)
+    await fulfillJson(route, 200, summary)
   })
   await mockApiRoute(page, '/v1/invoices*', (route) => fulfillJson(route, 200, recentInvoicePage))
 }
@@ -137,6 +144,62 @@ test('opens the invoice list with the selected dashboard status', async ({ page 
 
   await expect(page).toHaveURL(/\/invoices\?status=DEPOSEE$/)
   await expect(page.getByLabel('Filter by status')).toContainText('To process')
+})
+
+test('links every pipeline step to its exact invoice status', async ({ page }) => {
+  await mockDashboardRequests(page)
+
+  await page.goto('/dashboard')
+
+  const pipeline = page.getByRole('region', { name: 'Invoice processing pipeline' })
+  const expectedSteps = [
+    ['To process', 'DEPOSEE'],
+    ['Processing', 'OCR_EN_COURS'],
+    ['Needs review', 'EXTRAITE'],
+    ['Waiting for approval', 'A_VERIFIER'],
+    ['Approved', 'VALIDEE'],
+    ['Ready to export', 'EXPORTABLE'],
+    ['Exported', 'EXPORTEE'],
+  ]
+
+  await expect(pipeline.getByRole('link', { name: 'View invoices', exact: true }))
+    .toHaveAttribute('href', '/invoices')
+
+  for (const [label, status] of expectedSteps) {
+    await expect(pipeline.getByRole('link', { name: `View ${label} invoices` }))
+      .toHaveAttribute('href', `/invoices?status=${status}`)
+  }
+
+  await expect(pipeline.getByText('Archived')).toHaveCount(0)
+  await expect(pipeline.getByText('OCR error')).toHaveCount(0)
+
+  const filteredRequest = page.waitForRequest((request) => {
+    const url = new URL(request.url())
+    return url.pathname.endsWith('/v1/invoices') && url.searchParams.get('status') === 'EXTRAITE'
+  })
+
+  await pipeline.getByRole('link', { name: 'View Needs review invoices' }).click()
+  await filteredRequest
+
+  await expect(page).toHaveURL(/\/invoices\?status=EXTRAITE$/)
+  await expect(page.getByLabel('Filter by status')).toContainText('Needs review')
+})
+
+test('shows the pipeline empty state when every lifecycle count is zero', async ({ page }) => {
+  const emptySummary = {
+    ...dashboardSummary,
+    statusDistribution: dashboardSummary.statusDistribution.map((status) => ({
+      ...status,
+      count: 0,
+    })),
+  }
+  await mockDashboardRequests(page, emptySummary)
+
+  await page.goto('/dashboard')
+
+  const pipeline = page.getByRole('region', { name: 'Invoice processing pipeline' })
+  await expect(pipeline.getByText('No invoices in the selected period.')).toBeVisible()
+  await expect(pipeline.getByRole('link', { name: /^View .+ invoices$/ })).toHaveCount(0)
 })
 
 test('keeps independent blocks visible when the summary is unavailable', async ({ page }) => {

@@ -9,8 +9,8 @@ const statusClasses: Record<string, string> = {
   DEPOSEE: 'border-border bg-secondary text-secondary-foreground',
   DUPLICATE_SUSPECTED: 'border-warning/20 bg-warning-muted text-warning-muted-foreground',
   ERREUR_OCR: 'border-destructive/20 bg-destructive/10 text-destructive',
-  EXPORTEE: 'border-success/20 bg-success-muted text-success',
-  EXPORTABLE: 'border-success/20 bg-success-muted text-success',
+  EXPORTEE: 'border-border bg-background text-foreground',
+  EXPORTABLE: 'border-primary bg-primary text-primary-foreground',
   EXTRAITE: 'border-warning/20 bg-warning-muted text-warning-muted-foreground',
   OCR_EN_COURS: 'border-info/20 bg-info-muted text-info',
   REJETEE: 'border-destructive/20 bg-destructive/10 text-destructive',
@@ -18,16 +18,17 @@ const statusClasses: Record<string, string> = {
 }
 
 type InvoiceStatusBadgeProps = {
+  label?: string
   status: string
 }
 
-export function InvoiceStatusBadge({ status }: InvoiceStatusBadgeProps) {
+export function InvoiceStatusBadge({ label, status }: InvoiceStatusBadgeProps) {
   return (
     <Badge
       className={statusClasses[status] ?? 'border-border bg-background text-foreground'}
       variant="outline"
     >
-      {invoiceStatusLabels[status] ?? status.replaceAll('_', ' ')}
+      {label ?? invoiceStatusLabels[status] ?? status.replaceAll('_', ' ')}
     </Badge>
   )
 }

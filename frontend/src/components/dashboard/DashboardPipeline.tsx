@@ -1,10 +1,11 @@
+import { Link } from 'react-router-dom'
+
 import { DashboardBlockError } from '@/components/dashboard/DashboardBlockError'
-import {
-  DashboardSectionAction,
-  DashboardSectionHeader,
-} from '@/components/dashboard/DashboardSectionHeader'
+import { DashboardSectionHeader } from '@/components/dashboard/DashboardSectionHeader'
 import { InvoiceStatusBadge } from '@/components/invoice/InvoiceStatusBadge'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { DashboardStatusCount } from '@/types/dashboard'
 
@@ -14,23 +15,22 @@ type DashboardPipelineProps = {
   statuses: DashboardStatusCount[] | null
 }
 
-const statusOrder = [
-  'DEPOSEE',
-  'OCR_EN_COURS',
-  'EXTRAITE',
-  'A_VERIFIER',
-  'VALIDEE',
-  'EXPORTABLE',
-  'EXPORTEE',
-]
+const pipelineSteps = [
+  { label: 'To process', status: 'DEPOSEE' },
+  { label: 'Processing', status: 'OCR_EN_COURS' },
+  { label: 'Needs review', status: 'EXTRAITE' },
+  { label: 'Waiting for approval', status: 'A_VERIFIER' },
+  { label: 'Approved', status: 'VALIDEE' },
+  { label: 'Ready to export', status: 'EXPORTABLE' },
+  { label: 'Exported', status: 'EXPORTEE' },
+] as const
 
-function sortStatuses(statuses: DashboardStatusCount[]) {
-  return [...statuses].sort((left, right) => {
-    const leftIndex = statusOrder.indexOf(left.status)
-    const rightIndex = statusOrder.indexOf(right.status)
+function selectPipelineStatuses(statuses: DashboardStatusCount[]) {
+  const countsByStatus = new Map(statuses.map((status) => [status.status, status.count]))
 
-    return (leftIndex === -1 ? statusOrder.length : leftIndex) -
-      (rightIndex === -1 ? statusOrder.length : rightIndex)
+  return pipelineSteps.flatMap((step) => {
+    const count = countsByStatus.get(step.status)
+    return count === undefined ? [] : [{ ...step, count }]
   })
 }
 
@@ -39,12 +39,17 @@ export function DashboardPipeline({
   onRetry,
   statuses,
 }: DashboardPipelineProps) {
-  const sortedStatuses = statuses ? sortStatuses(statuses) : null
+  const pipelineStatuses = statuses ? selectPipelineStatuses(statuses) : null
+  const hasInvoices = pipelineStatuses?.some((status) => status.count > 0) ?? false
 
   return (
     <section aria-labelledby="dashboard-pipeline-title" className="min-w-0 max-w-full">
       <DashboardSectionHeader
-        action={<DashboardSectionAction>View invoices</DashboardSectionAction>}
+        action={(
+          <Button asChild className="bg-accent text-accent-foreground" variant="ghost">
+            <Link to="/invoices">View invoices</Link>
+          </Button>
+        )}
         description="Live distribution across the invoice processing lifecycle."
         title="Invoice processing pipeline"
         titleId="dashboard-pipeline-title"
@@ -59,7 +64,7 @@ export function DashboardPipeline({
             message="The processing pipeline is unavailable."
             onRetry={onRetry}
           />
-        ) : !sortedStatuses ? (
+        ) : !pipelineStatuses ? (
           <div aria-label="Loading invoice processing pipeline" className="flex h-full items-center gap-5 overflow-hidden px-4">
             {Array.from({ length: 7 }, (_, index) => (
               <div className="flex min-w-28 flex-col items-center gap-3" key={index}>
@@ -68,22 +73,28 @@ export function DashboardPipeline({
               </div>
             ))}
           </div>
-        ) : sortedStatuses.length === 0 ? (
+        ) : !hasInvoices ? (
           <div className="flex h-full items-center justify-center px-4 text-sm text-muted-foreground">
             No invoices in the selected period.
           </div>
         ) : (
           <div className="h-full min-w-0 max-w-full overflow-x-auto">
-            <div className="flex h-full min-w-max items-center px-4">
-              {sortedStatuses.map((status, index) => (
-                <div className="flex items-center" key={status.status}>
-                  {index > 0 ? <span aria-hidden="true" className="mx-2 h-px w-6 bg-border" /> : null}
-                  <div className="flex min-w-28 flex-col items-center gap-3">
-                    <InvoiceStatusBadge status={status.status} />
+            <div className="flex h-full min-w-max items-start gap-2 p-4">
+              {pipelineStatuses.map((status, index) => (
+                <div className="flex items-start gap-2" key={status.status}>
+                  {index > 0 ? <Separator className="w-6" /> : null}
+                  <Link
+                    aria-label={`View ${status.label} invoices`}
+                    className="flex min-w-28 flex-col items-center gap-1 rounded-md ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    to={`/invoices?status=${status.status}`}
+                  >
+                    <span className="p-2">
+                      <InvoiceStatusBadge label={status.label} status={status.status} />
+                    </span>
                     <span className="text-xs font-medium text-foreground">
                       {status.count.toLocaleString('en-GB')}
                     </span>
-                  </div>
+                  </Link>
                 </div>
               ))}
             </div>
