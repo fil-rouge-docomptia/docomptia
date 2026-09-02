@@ -1,19 +1,6 @@
 import { Badge } from '@/components/ui/badge'
 
-const statusLabels: Record<string, string> = {
-  A_VERIFIER: 'Waiting approval',
-  ARCHIVEE: 'Archived',
-  COMPTABILISEE: 'Accounted',
-  DEPOSEE: 'To process',
-  DUPLICATE_SUSPECTED: 'Duplicate suspected',
-  ERREUR_OCR: 'OCR error',
-  EXPORTEE: 'Exported',
-  EXPORTABLE: 'Ready to export',
-  EXTRAITE: 'Needs review',
-  OCR_EN_COURS: 'Processing',
-  REJETEE: 'Rejected',
-  VALIDEE: 'Approved',
-}
+import { invoiceStatusLabels } from './invoice-status'
 
 const statusClasses: Record<string, string> = {
   A_VERIFIER: 'border-warning/20 bg-warning-muted text-warning-muted-foreground',
@@ -40,7 +27,7 @@ export function InvoiceStatusBadge({ status }: InvoiceStatusBadgeProps) {
       className={statusClasses[status] ?? 'border-border bg-background text-foreground'}
       variant="outline"
     >
-      {statusLabels[status] ?? status.replaceAll('_', ' ')}
+      {invoiceStatusLabels[status] ?? status.replaceAll('_', ' ')}
     </Badge>
   )
 }
