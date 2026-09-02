@@ -22,6 +22,7 @@ function getPageItems(currentPage: number, totalPages: number): PageItem[] {
 
 type InvoicePaginationProps = {
   currentPage: number
+  itemLabel?: string
   onPageChange: (page: number) => void
   pageSize: number
   totalElements: number
@@ -30,6 +31,7 @@ type InvoicePaginationProps = {
 
 export function InvoicePagination({
   currentPage,
+  itemLabel = 'invoices',
   onPageChange,
   pageSize,
   totalElements,
@@ -40,11 +42,11 @@ export function InvoicePagination({
 
   return (
     <nav
-      aria-label="Invoice pagination"
+      aria-label={itemLabel === 'invoices' ? 'Invoice pagination' : 'Document pagination'}
       className="flex flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
     >
       <p className="text-sm text-muted-foreground">
-        {firstItem}–{lastItem} of {totalElements} invoices
+        {firstItem}–{lastItem} of {totalElements} {itemLabel}
       </p>
 
       <div className="flex items-center gap-1">
