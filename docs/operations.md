@@ -61,6 +61,23 @@ Le fichier `env/.env.prod` doit rester uniquement sur le VPS de production. Il
 est cree depuis `env/.env.prod.example`, puis complete avec les vraies valeurs
 sensibles de production.
 
+## Synchroniser Staging Avec Main
+
+Le workflow GitHub Actions `Sync main to staging` permet de remettre la branche
+`staging` au meme niveau que `main` sans passer par une PR manuelle.
+
+Mode de declenchement:
+
+```text
+GitHub -> Actions -> Sync main to staging -> Run workflow
+```
+
+Le workflow fait un fast-forward strict de `staging` vers `main`, puis pousse
+`staging`. Ce push relance automatiquement le workflow `Deploy staging`.
+
+Si `staging` contient des commits absents de `main`, le fast-forward echoue. Il
+faut alors resoudre l'ecart manuellement avant de relancer la synchronisation.
+
 ## Arreter
 
 ```bash
