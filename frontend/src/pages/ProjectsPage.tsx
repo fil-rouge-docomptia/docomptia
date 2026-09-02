@@ -3,12 +3,15 @@ import { AlertCircle, Building2, ChevronDown, Plus, Search } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 
 import { PageHeader } from '@/components/layout/PageHeader'
+import { ProjectSiteDialog } from '@/components/project/ProjectSiteDialog'
 import { ProjectSitePagination } from '@/components/project/ProjectSitePagination'
 import { ProjectSiteTable } from '@/components/project/ProjectSiteTable'
+import { canManageProjectSites } from '@/components/project/project-site-utils'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useAuth } from '@/hooks/use-auth'
 import { listProjectSites } from '@/services/project-site'
 import type { ProjectSitePage } from '@/types/project-site'
 
@@ -48,12 +51,14 @@ function ProjectSiteTableSkeleton() {
 
 export default function ProjectsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const { user } = useAuth()
   const [requestState, setRequestState] = useState<ProjectSiteRequestState>({
     error: false,
     projectSitePage: null,
     requestKey: '',
   })
   const [retryCount, setRetryCount] = useState(0)
+  const [createOpen, setCreateOpen] = useState(false)
   const currentPage = parsePage(searchParams.get('page'))
   const requestKey = `${currentPage}:${retryCount}`
   const isCurrentRequest = requestState.requestKey === requestKey
@@ -90,12 +95,12 @@ export default function ProjectsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        actions={(
-          <Button disabled title="Project creation is reserved for a later workflow">
+        actions={canManageProjectSites(user?.role.code) ? (
+          <Button onClick={() => setCreateOpen(true)} type="button">
             <Plus aria-hidden="true" />
             Create project
           </Button>
-        )}
+        ) : undefined}
         description="Track invoice organization by project or construction site."
         title="Projects & sites"
       />
@@ -176,6 +181,14 @@ export default function ProjectsPage() {
           />
         </section>
       )}
+
+      {createOpen ? (
+        <ProjectSiteDialog
+          onOpenChange={setCreateOpen}
+          onSaved={() => setRetryCount((count) => count + 1)}
+          open
+        />
+      ) : null}
     </div>
   )
 }
