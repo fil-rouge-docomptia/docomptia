@@ -13,6 +13,7 @@ import LoginRoutePage from '@/pages/LoginRoutePage'
 import ModulePlaceholderPage from '@/pages/ModulePlaceholderPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import OrganizationOnboardingPage from '@/pages/OrganizationOnboardingPage'
+import ProjectDetailsPage from '@/pages/ProjectDetailsPage'
 import ProjectsPage from '@/pages/ProjectsPage'
 import RegisterPage from '@/pages/RegisterPage'
 import SupplierDetailsPage from '@/pages/SupplierDetailsPage'
@@ -108,6 +109,10 @@ export const privateRoutes = [
   {
     path: '/projects',
     element: <ProjectsPage />,
+  },
+  {
+    path: '/projects/:projectId',
+    element: <ProjectDetailsPage />,
   },
   {
     path: '/reports',
