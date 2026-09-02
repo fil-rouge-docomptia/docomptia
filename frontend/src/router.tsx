@@ -4,6 +4,7 @@ import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth/RouteGuard'
 import { AppShell } from '@/components/layout/AppShell'
 import AccountingOnboardingPage from '@/pages/AccountingOnboardingPage'
 import DashboardPage from '@/pages/DashboardPage'
+import DocumentsPage from '@/pages/DocumentsPage'
 import InvoiceUploadPage from '@/pages/InvoiceUploadPage'
 import InvoiceDetailsPage from '@/pages/InvoiceDetailsPage'
 import InvoicesPage from '@/pages/InvoicesPage'
@@ -84,12 +85,7 @@ export const privateRoutes = [
   },
   {
     path: '/documents',
-    element: (
-      <ModulePlaceholderPage
-        description="Find the documents attached to your organization."
-        title="Documents"
-      />
-    ),
+    element: <DocumentsPage />,
   },
   {
     path: '/suppliers',
