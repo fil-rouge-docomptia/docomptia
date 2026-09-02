@@ -61,33 +61,39 @@ Le fichier `env/.env.prod` doit rester uniquement sur le VPS de production. Il
 est cree depuis `env/.env.prod.example`, puis complete avec les vraies valeurs
 sensibles de production.
 
-## Synchroniser Main Vers Staging
+## Update Staging From Main
 
-Le workflow GitHub Actions `Sync main to staging` permet de remettre la branche
+Le workflow GitHub Actions `Update staging from main` remet la branche
 `staging` au meme niveau que `main`.
+
+Il sert quand `main` a avance et que l'on veut repartir d'un staging propre
+avant de tester de nouvelles features.
 
 Mode de declenchement:
 
 ```text
-GitHub -> Actions -> Sync main to staging -> Run workflow
+GitHub -> Actions -> Update staging from main -> Run workflow
 ```
 
 Le workflow fait un fast-forward strict de `staging` vers `main`, puis pousse
 `staging`. Ce push relance automatiquement le workflow `Deploy staging`.
 
-Si `staging` contient des commits absents de `main`, le fast-forward echoue. Il
-faut alors passer par une PR de promotion `staging` vers `main`, ou resoudre
-l'ecart manuellement.
+Si `staging` contient des commits absents de `main`, le fast-forward echoue.
+Dans ce cas, il faut d'abord envoyer `staging` vers `main` ou resoudre l'ecart
+manuellement.
 
-## Promouvoir Staging Vers Main
+## Create PR From Staging To Main
 
-Le workflow GitHub Actions `Create staging promotion PR` permet de creer une PR
-de promotion de `staging` vers `main` apres validation du VPS staging.
+Le workflow GitHub Actions `Create PR from staging to main` ouvre une PR de
+`staging` vers `main` apres validation du VPS staging.
+
+Il sert quand les tests staging sont OK et que l'on veut proposer ces
+changements pour la branche principale.
 
 Mode de declenchement:
 
 ```text
-GitHub -> Actions -> Create staging promotion PR -> Run workflow
+GitHub -> Actions -> Create PR from staging to main -> Run workflow
 ```
 
 Le workflow ouvre une PR avec:
@@ -100,8 +106,8 @@ compare: staging
 Il ne merge pas automatiquement dans `main`. La verification de la PR, la CI et
 le merge final restent manuels.
 
-Si `staging` ne contient aucun commit a promouvoir, le workflow s'arrete sans
-creer de PR.
+Si `staging` ne contient aucun commit a envoyer vers `main`, le workflow
+s'arrete sans creer de PR.
 
 ## Arreter
 
