@@ -61,6 +61,30 @@ Le fichier `env/.env.prod` doit rester uniquement sur le VPS de production. Il
 est cree depuis `env/.env.prod.example`, puis complete avec les vraies valeurs
 sensibles de production.
 
+## Promouvoir Staging Vers Main
+
+Le workflow GitHub Actions `Create staging promotion PR` permet de creer une PR
+de promotion de `staging` vers `main` apres validation du VPS staging.
+
+Mode de declenchement:
+
+```text
+GitHub -> Actions -> Create staging promotion PR -> Run workflow
+```
+
+Le workflow ouvre une PR avec:
+
+```text
+base: main
+compare: staging
+```
+
+Il ne merge pas automatiquement dans `main`. La verification de la PR, la CI et
+le merge final restent manuels.
+
+Si `staging` ne contient aucun commit a promouvoir, le workflow s'arrete sans
+creer de PR.
+
 ## Arreter
 
 ```bash
