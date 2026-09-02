@@ -73,9 +73,21 @@ const recentInvoicePage = {
   totalPages: 1,
 }
 
+const currentOrganization = {
+  organizationId: 1,
+  name: 'Acme',
+  legalName: 'Acme SAS',
+  siret: '12345678901234',
+  email: 'billing@acme.test',
+  phone: null,
+  address: null,
+  defaultCurrencyCode: 'EUR',
+}
+
 async function mockDashboardRequests(
   page: Parameters<typeof mockCurrentUser>[0],
   summary = dashboardSummary,
+  currencyCode = currentOrganization.defaultCurrencyCode,
 ) {
   await mockApiRoute(page, '/v1/dashboard/summary*', async (route) => {
     const url = new URL(route.request().url())
@@ -84,6 +96,10 @@ async function mockDashboardRequests(
     await fulfillJson(route, 200, summary)
   })
   await mockApiRoute(page, '/v1/invoices*', (route) => fulfillJson(route, 200, recentInvoicePage))
+  await mockApiRoute(page, '/v1/organizations/current', (route) => fulfillJson(route, 200, {
+    ...currentOrganization,
+    defaultCurrencyCode: currencyCode,
+  }))
 }
 
 test.beforeEach(async ({ page }) => {
@@ -144,6 +160,32 @@ test('opens the invoice list with the selected dashboard status', async ({ page 
 
   await expect(page).toHaveURL(/\/invoices\?status=DEPOSEE$/)
   await expect(page.getByLabel('Filter by status')).toContainText('To process')
+})
+
+test('opens recent invoices and the complete invoice list', async ({ page }) => {
+  await mockDashboardRequests(page)
+
+  await page.goto('/dashboard')
+
+  const recentInvoices = page.getByRole('region', { name: 'Recent invoices' })
+  await expect(recentInvoices.getByRole('link', { name: 'View all' }))
+    .toHaveAttribute('href', '/invoices')
+
+  await recentInvoices.getByRole('link', { name: 'Open invoice INV-2026-0912' }).click()
+
+  await expect(page).toHaveURL(/\/invoices\/91$/)
+})
+
+test('shows spending totals with the organization currency and selected period', async ({ page }) => {
+  await mockDashboardRequests(page, dashboardSummary, 'GBP')
+
+  await page.goto('/dashboard')
+
+  const spending = page.getByRole('region', { name: 'Spending overview' })
+  await expect(spending.getByText('£120,000').first()).toBeVisible()
+  await expect(spending.getByText(/3 Aug 2026 .* 1 Sept 2026/)).toBeVisible()
+  await expect(spending.getByRole('link', { name: 'View report' }))
+    .toHaveAttribute('href', '/reports')
 })
 
 test('links every pipeline step to its exact invoice status', async ({ page }) => {

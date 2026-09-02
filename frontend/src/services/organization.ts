@@ -6,8 +6,8 @@ import type {
   OrganizationUpdate,
 } from '@/types/organization'
 
-export async function getCurrentOrganization(): Promise<Organization> {
-  const response = await authenticatedFetch(`${apiBaseUrl}/v1/organizations/current`)
+export async function getCurrentOrganization(signal?: AbortSignal): Promise<Organization> {
+  const response = await authenticatedFetch(`${apiBaseUrl}/v1/organizations/current`, { signal })
 
   return (await response.json()) as Organization
 }
