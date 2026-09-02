@@ -106,6 +106,39 @@ test('renders the Figma dashboard structure with API data', async ({ page }) => 
   await expect(page.getByText('Activity feed unavailable')).toBeVisible()
 })
 
+test('opens the invoice list with the selected dashboard status', async ({ page }) => {
+  await mockDashboardRequests(page)
+
+  await page.goto('/dashboard')
+
+  const indicators = page.getByRole('region', { name: 'Invoice indicators' })
+  const statusLinks = indicators.getByRole('link', { name: 'View filtered list' })
+  const processingIssuesButton = indicators.getByRole('button', {
+    name: 'View filtered list',
+  })
+
+  await expect(statusLinks).toHaveCount(3)
+  await expect(statusLinks.nth(0)).toHaveAttribute('href', '/invoices?status=DEPOSEE')
+  await expect(statusLinks.nth(1)).toHaveAttribute('href', '/invoices?status=A_VERIFIER')
+  await expect(statusLinks.nth(2)).toHaveAttribute('href', '/invoices?status=EXPORTABLE')
+
+  await processingIssuesButton.click()
+
+  await expect(page).toHaveURL(/\/dashboard#processing-issues$/)
+  await expect(page.locator('#processing-issues')).toBeInViewport()
+
+  const filteredRequest = page.waitForRequest((request) => {
+    const url = new URL(request.url())
+    return url.pathname.endsWith('/v1/invoices') && url.searchParams.get('status') === 'DEPOSEE'
+  })
+
+  await statusLinks.nth(0).click()
+  await filteredRequest
+
+  await expect(page).toHaveURL(/\/invoices\?status=DEPOSEE$/)
+  await expect(page.getByLabel('Filter by status')).toContainText('To process')
+})
+
 test('keeps independent blocks visible when the summary is unavailable', async ({ page }) => {
   await mockApiRoute(page, '/v1/dashboard/summary*', (route) => fulfillJson(route, 503, {
     message: 'Summary temporarily unavailable',
