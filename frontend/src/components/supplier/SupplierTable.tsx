@@ -104,7 +104,7 @@ export function SupplierTable({ suppliers }: SupplierTableProps) {
                     {identifiers.map((identifier) => (
                       <Badge
                         className="gap-1 border-border bg-background font-normal text-foreground"
-                        key={identifier.supplierLegalIdentifierId}
+                        key={identifier.identifierId}
                         title={identifierLabel(identifier)}
                         variant="outline"
                       >
