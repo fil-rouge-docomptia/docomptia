@@ -1,5 +1,5 @@
 export type SupplierLegalIdentifier = {
-  supplierLegalIdentifierId: number
+  identifierId: number
   type: string
   scheme: string
   countryCode: string
@@ -13,6 +13,32 @@ export type SupplierLegalIdentifier = {
   createdByUserId: number | null
   createdAt: string
   updatedAt: string
+}
+
+export type SupplierDetails = SupplierListItem & {
+  email: string | null
+  phone: string | null
+  address: string | null
+  createdAt: string
+  updatedAt: string
+  legalIdentifierHistory: SupplierLegalIdentifier[]
+}
+
+export type SupplierUpdate = {
+  address?: string
+  email?: string
+  legalName?: string
+  name?: string
+  phone?: string
+}
+
+export type SupplierLegalIdentifierReplacement = {
+  countryCode: string
+  reason: string
+  scheme: string
+  type: string
+  validFrom?: string
+  value: string
 }
 
 export type SupplierListItem = {
