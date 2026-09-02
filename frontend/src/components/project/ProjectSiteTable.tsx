@@ -2,6 +2,7 @@ import type { KeyboardEvent } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
+import { formatProjectSiteDate } from '@/components/project/project-site-utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,17 +14,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import type { ProjectSite } from '@/types/project-site'
-
-function formatDate(value: string) {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime())
-    ? value
-    : new Intl.DateTimeFormat('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      }).format(date)
-}
 
 export function ProjectSiteTable({ projectSites }: { projectSites: ProjectSite[] }) {
   const navigate = useNavigate()
@@ -80,7 +70,7 @@ export function ProjectSiteTable({ projectSites }: { projectSites: ProjectSite[]
               </Badge>
             </TableCell>
             <TableCell className="h-14 whitespace-nowrap px-4 py-2 text-xs text-muted-foreground">
-              {formatDate(projectSite.updatedAt)}
+              {formatProjectSiteDate(projectSite.updatedAt)}
             </TableCell>
             <TableCell className="h-14 px-2 py-2 text-right">
               <Button
