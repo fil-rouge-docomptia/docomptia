@@ -1,4 +1,4 @@
-name: Create staging promotion PR
+name: Create PR from staging to main
 
 on:
   workflow_dispatch:
@@ -8,12 +8,12 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: create-staging-promotion-pr
+  group: create-pr-from-staging-to-main
   cancel-in-progress: false
 
 jobs:
   create-pr:
-    name: Open staging to main pull request
+    name: Create PR from staging to main
     runs-on: ubuntu-latest
 
     steps:
@@ -22,14 +22,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Create promotion pull request
+      - name: Create pull request from staging to main
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           git fetch origin main staging
 
           if [ "$(git rev-list --count origin/main..origin/staging)" -eq 0 ]; then
-            echo "No staging commits to promote to main."
+            echo "No staging commits to send to main."
             exit 0
           fi
 
@@ -41,16 +41,16 @@ jobs:
             --jq '.[0].url // empty')"
 
           if [ -n "$existing_pr_url" ]; then
-            echo "A staging promotion PR already exists: $existing_pr_url"
+            echo "A PR from staging to main already exists: $existing_pr_url"
             exit 0
           fi
 
           gh pr create \
             --base main \
             --head staging \
-            --title "Promote staging to main" \
+            --title "Merge staging into main" \
             --body "## Resume
-          - Promeut les changements valides sur staging vers main.
+          - Envoie les changements valides sur staging vers main.
           - La PR reste a relire et merger manuellement.
 
           ## Verification
