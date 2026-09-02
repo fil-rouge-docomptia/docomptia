@@ -113,11 +113,19 @@ test('opens the invoice list with the selected dashboard status', async ({ page 
 
   const indicators = page.getByRole('region', { name: 'Invoice indicators' })
   const statusLinks = indicators.getByRole('link', { name: 'View filtered list' })
+  const processingIssuesButton = indicators.getByRole('button', {
+    name: 'View filtered list',
+  })
 
   await expect(statusLinks).toHaveCount(3)
   await expect(statusLinks.nth(0)).toHaveAttribute('href', '/invoices?status=DEPOSEE')
   await expect(statusLinks.nth(1)).toHaveAttribute('href', '/invoices?status=A_VERIFIER')
   await expect(statusLinks.nth(2)).toHaveAttribute('href', '/invoices?status=EXPORTABLE')
+
+  await processingIssuesButton.click()
+
+  await expect(page).toHaveURL(/\/dashboard#processing-issues$/)
+  await expect(page.locator('#processing-issues')).toBeInViewport()
 
   const filteredRequest = page.waitForRequest((request) => {
     const url = new URL(request.url())
