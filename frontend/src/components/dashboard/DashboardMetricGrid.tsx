@@ -12,12 +12,15 @@ type DashboardMetricGridProps = {
 }
 
 type Metric = {
-  href?: string
+  href: string
   label: string
   value: number
 }
 
 function MetricCard({ metric }: { metric: Metric }) {
+  const actionClassName =
+    'mt-auto flex h-10 w-fit items-center rounded-md px-2 text-sm font-medium text-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
+
   return (
     <Card className="h-[124px] shadow-elevation-1">
       <div className="flex h-full flex-col p-4">
@@ -25,17 +28,23 @@ function MetricCard({ metric }: { metric: Metric }) {
         <p className="text-3xl font-semibold leading-9 tracking-[-0.75px] text-foreground">
           {metric.value.toLocaleString('en-GB')}
         </p>
-        {metric.href ? (
+        {metric.href.startsWith('#') ? (
+          <button
+            className={actionClassName}
+            onClick={() => {
+              window.location.hash = metric.href
+            }}
+            type="button"
+          >
+            View filtered list
+          </button>
+        ) : (
           <Link
-            className="mt-auto flex h-10 w-fit items-center rounded-md px-2 text-sm font-medium text-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className={actionClassName}
             to={metric.href}
           >
             View filtered list
           </Link>
-        ) : (
-          <span className="mt-auto flex h-10 w-fit items-center rounded-md px-2 text-sm font-medium text-primary">
-            View filtered list
-          </span>
         )}
       </div>
     </Card>
@@ -75,6 +84,7 @@ export function DashboardMetricGrid({
           value: summary.workQueues.exportable,
         },
         {
+          href: '#processing-issues',
           label: 'Processing issues',
           value:
             summary.alerts.ocrErrors +
