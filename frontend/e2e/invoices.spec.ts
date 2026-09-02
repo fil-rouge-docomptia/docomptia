@@ -259,6 +259,78 @@ test('renders the paginated API data and opens the selected invoice', async ({ p
   await expect(page.getByRole('heading', { level: 1, name: 'Leroy Construction' })).toBeVisible()
 })
 
+test('combines supported invoice filters and exposes active filters', async ({ page }) => {
+  const requestedUrls: URL[] = []
+
+  await mockApiRoute(page, '/v1/invoices*', async (route) => {
+    requestedUrls.push(new URL(route.request().url()))
+    await fulfillJson(route, 200, firstPage)
+  })
+
+  await page.goto('/invoices')
+  await expect(page.getByText('Acme Supplies')).toBeVisible()
+
+  await page.getByRole('searchbox', { name: 'Search invoices' }).fill('INV-2026')
+  await page.getByRole('searchbox', { name: 'Search invoices' }).press('Enter')
+
+  await page.getByLabel('Filter by status').click()
+  await page.getByRole('option', { name: 'Needs review' }).click()
+
+  await page.getByRole('button', { exact: true, name: 'Supplier' }).click()
+  await page.locator('#invoice-supplier-filter').fill('Acme')
+  await page.getByRole('button', { exact: true, name: 'Apply' }).click()
+
+  await page.getByRole('button', { name: 'More filters' }).click()
+  await expect(page.getByRole('heading', { name: 'Advanced filters' })).toBeVisible()
+  await expect(page.locator('#invoice-ocr-confidence-filter')).toBeDisabled()
+  await expect(page.locator('#invoice-export-status-filter')).toBeDisabled()
+  await expect(page.locator('#invoice-category-filter')).toBeDisabled()
+  await page.locator('#invoice-due-date-filter').fill('2026-09-12')
+  await page.locator('#invoice-amount-filter').click()
+  await page.getByRole('option', { name: '€500 to €1,000' }).click()
+  await page.getByRole('button', { name: 'Apply filters' }).click()
+
+  await expect.poll(() => {
+    const requestUrl = requestedUrls.at(-1)
+    return {
+      category: requestUrl?.searchParams.get('category'),
+      dueDate: requestUrl?.searchParams.get('dueDate'),
+      exportStatus: requestUrl?.searchParams.get('exportStatus'),
+      invoiceNumber: requestUrl?.searchParams.get('invoiceNumber'),
+      maxAmount: requestUrl?.searchParams.get('maxAmount'),
+      minAmount: requestUrl?.searchParams.get('minAmount'),
+      ocrConfidence: requestUrl?.searchParams.get('ocrConfidence'),
+      status: requestUrl?.searchParams.getAll('status'),
+      supplier: requestUrl?.searchParams.get('supplier'),
+    }
+  }).toEqual({
+    category: null,
+    dueDate: '2026-09-12',
+    exportStatus: null,
+    invoiceNumber: 'INV-2026',
+    maxAmount: '1000',
+    minAmount: '500',
+    ocrConfidence: null,
+    status: ['EXTRAITE'],
+    supplier: 'Acme',
+  })
+
+  await expect(page.getByRole('button', { name: 'Remove Invoice: INV-2026' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove Status: Needs review' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove Supplier: Acme' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove Due date: 12 Sept 2026' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Remove Amount:/ })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Clear all' }).click()
+
+  await expect.poll(() => {
+    const requestUrl = requestedUrls.at(-1)
+    return ['invoiceNumber', 'status', 'supplier', 'dueDate', 'minAmount', 'maxAmount']
+      .every((key) => !requestUrl?.searchParams.has(key))
+  }).toBe(true)
+  await expect(page.getByLabel('Active invoice filters')).toHaveCount(0)
+})
+
 test('renders the invoice review sections from the detail endpoint', async ({ page }) => {
   await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, invoiceDetails))
   await mockApiRoute(page, '/v1/invoices/42/history', (route) => fulfillJson(route, 200, invoiceHistory))
@@ -652,6 +724,7 @@ test('keeps current filters while changing page and sort', async ({ page }) => {
   await expect.poll(() => new URL(page.url()).searchParams.get('direction')).toBe('DESC')
   await expect.poll(() => requestedUrls.at(-1)?.searchParams.get('sortBy')).toBe('totalTtc')
   expect(requestedUrls.at(-1)?.searchParams.get('direction')).toBe('DESC')
+  expect(requestedUrls.at(-1)?.searchParams.getAll('status')).toEqual(['EXTRAITE'])
 })
 
 test('shows an empty state when the organization has no invoices', async ({ page }) => {

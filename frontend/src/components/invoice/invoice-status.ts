@@ -1,0 +1,14 @@
+export const invoiceStatusLabels: Record<string, string> = {
+  A_VERIFIER: 'Waiting approval',
+  ARCHIVEE: 'Archived',
+  COMPTABILISEE: 'Accounted',
+  DEPOSEE: 'To process',
+  DUPLICATE_SUSPECTED: 'Duplicate suspected',
+  ERREUR_OCR: 'OCR error',
+  EXPORTEE: 'Exported',
+  EXPORTABLE: 'Ready to export',
+  EXTRAITE: 'Needs review',
+  OCR_EN_COURS: 'Processing',
+  REJETEE: 'Rejected',
+  VALIDEE: 'Approved',
+}

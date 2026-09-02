@@ -65,7 +65,24 @@ export type InvoicePage = {
 export type InvoiceSortField = 'createdAt' | 'invoiceDate' | 'totalTtc' | 'status'
 export type SortDirection = 'ASC' | 'DESC'
 
-export type InvoiceListQuery = {
+export type InvoiceListFilters = {
+  client?: string
+  dueDate?: string
+  endDate?: string
+  invoiceDate?: string
+  invoiceNumber?: string
+  maxAmount?: string
+  minAmount?: string
+  startDate?: string
+  status?: string[]
+  supplier?: string
+}
+
+export type InvoiceFilterUpdates = {
+  [Key in keyof InvoiceListFilters]?: InvoiceListFilters[Key]
+}
+
+export type InvoiceListQuery = InvoiceListFilters & {
   direction: SortDirection
   page: number
   size: number

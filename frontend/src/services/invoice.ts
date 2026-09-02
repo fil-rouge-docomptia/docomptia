@@ -129,6 +129,27 @@ export async function listInvoices(
     size: String(query.size),
     sortBy: query.sortBy,
   })
+
+  query.status?.forEach((status) => searchParams.append('status', status))
+
+  const optionalFilters = {
+    client: query.client,
+    dueDate: query.dueDate,
+    endDate: query.endDate,
+    invoiceDate: query.invoiceDate,
+    invoiceNumber: query.invoiceNumber,
+    maxAmount: query.maxAmount,
+    minAmount: query.minAmount,
+    startDate: query.startDate,
+    supplier: query.supplier,
+  }
+
+  Object.entries(optionalFilters).forEach(([key, value]) => {
+    if (value) {
+      searchParams.set(key, value)
+    }
+  })
+
   const response = await authenticatedFetch(
     `${apiBaseUrl}/v1/invoices?${searchParams.toString()}`,
     { signal },
