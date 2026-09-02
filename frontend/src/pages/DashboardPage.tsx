@@ -16,6 +16,7 @@ import {
 } from '@/components/dashboard/dashboard-period'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
+import { useAuth } from '@/hooks/use-auth'
 import { getDashboardSummary } from '@/services/dashboard'
 import { listInvoices } from '@/services/invoice'
 import { getCurrentOrganization } from '@/services/organization'
@@ -42,6 +43,7 @@ function isAbortError(error: unknown) {
 }
 
 export default function DashboardPage() {
+  const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const periodPreset = parseDashboardPeriodPreset(searchParams.get(PERIOD_QUERY_PARAM))
   const period = useMemo(() => getDashboardPeriod(periodPreset), [periodPreset])
@@ -181,6 +183,7 @@ export default function DashboardPage() {
         error={summaryError}
         onRetry={retrySummary}
         period={period}
+        role={user?.role.code}
         summary={summary}
       />
 

@@ -4,24 +4,32 @@ import { DashboardBlockError } from '@/components/dashboard/DashboardBlockError'
 import { getDashboardInvoiceListHref } from '@/components/dashboard/dashboard-navigation'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import type { RoleCode } from '@/types/auth'
 import type { DashboardPeriodQuery, DashboardSummary } from '@/types/dashboard'
 
 type DashboardMetricGridProps = {
   error: boolean
   onRetry: () => void
   period: DashboardPeriodQuery
+  role?: RoleCode
   summary: DashboardSummary | null
 }
 
 type Metric = {
+  allowedRoles: RoleCode[]
   href: string
   label: string
   value: number
 }
 
-function MetricCard({ metric }: { metric: Metric }) {
+const allRoles: RoleCode[] = ['ADMIN', 'OPERATEUR_COMPTABLE', 'RESPONSABLE_COMPTABLE']
+const processingRoles: RoleCode[] = ['ADMIN', 'OPERATEUR_COMPTABLE']
+const validationRoles: RoleCode[] = ['RESPONSABLE_COMPTABLE']
+
+function MetricCard({ metric, role }: { metric: Metric; role?: RoleCode }) {
   const actionClassName =
     'mt-auto flex h-10 w-fit items-center rounded-md px-2 text-sm font-medium text-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
+  const showAction = Boolean(role && metric.allowedRoles.includes(role))
 
   return (
     <Card className="h-[124px] shadow-elevation-1">
@@ -30,7 +38,7 @@ function MetricCard({ metric }: { metric: Metric }) {
         <p className="text-3xl font-semibold leading-9 tracking-[-0.75px] text-foreground">
           {metric.value.toLocaleString('en-GB')}
         </p>
-        {metric.href.startsWith('#') ? (
+        {!showAction ? null : metric.href.startsWith('#') ? (
           <button
             className={actionClassName}
             onClick={() => {
@@ -67,26 +75,31 @@ export function DashboardMetricGrid({
   error,
   onRetry,
   period,
+  role,
   summary,
 }: DashboardMetricGridProps) {
   const metrics: Metric[] = summary
     ? [
         {
+          allowedRoles: processingRoles,
           href: getDashboardInvoiceListHref('DEPOSEE', period),
           label: 'To process',
           value: summary.workQueues.toProcess,
         },
         {
+          allowedRoles: validationRoles,
           href: getDashboardInvoiceListHref('A_VERIFIER', period),
           label: 'Waiting for approval',
           value: summary.workQueues.awaitingValidation,
         },
         {
+          allowedRoles: allRoles,
           href: getDashboardInvoiceListHref('EXPORTABLE', period),
           label: 'Ready to export',
           value: summary.workQueues.exportable,
         },
         {
+          allowedRoles: allRoles,
           href: '#processing-issues',
           label: 'Processing issues',
           value:
@@ -114,7 +127,9 @@ export function DashboardMetricGrid({
       className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
     >
       {summary
-        ? metrics.map((metric) => <MetricCard key={metric.label} metric={metric} />)
+        ? metrics.map((metric) => (
+            <MetricCard key={metric.label} metric={metric} role={role} />
+          ))
         : Array.from({ length: 4 }, (_, index) => <MetricSkeleton key={index} />)}
     </section>
   )

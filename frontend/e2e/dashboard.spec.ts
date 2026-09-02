@@ -5,6 +5,7 @@ import {
   mockApiRoute,
   mockCurrentUser,
   seedAuthSession,
+  currentUser,
 } from './support/api'
 
 const dashboardSummary = {
@@ -172,16 +173,12 @@ test('opens the invoice list with the selected dashboard status', async ({ page 
     name: 'View filtered list',
   })
 
-  await expect(statusLinks).toHaveCount(3)
+  await expect(statusLinks).toHaveCount(2)
   await expect(statusLinks.nth(0)).toHaveAttribute(
     'href',
     '/invoices?status=DEPOSEE&startDate=2026-08-04&endDate=2026-09-02',
   )
   await expect(statusLinks.nth(1)).toHaveAttribute(
-    'href',
-    '/invoices?status=A_VERIFIER&startDate=2026-08-04&endDate=2026-09-02',
-  )
-  await expect(statusLinks.nth(2)).toHaveAttribute(
     'href',
     '/invoices?status=EXPORTABLE&startDate=2026-08-04&endDate=2026-09-02',
   )
@@ -204,6 +201,37 @@ test('opens the invoice list with the selected dashboard status', async ({ page 
   )
   await expect(page.getByLabel('Filter by status')).toContainText('To process')
   await expect(page.getByText('Invoice period: 4 Aug 2026 – 2 Sept 2026')).toBeVisible()
+})
+
+test('only offers dashboard queue actions allowed for the current role', async ({ page }) => {
+  await page.unroute('**/api/v1/users/me')
+  await mockCurrentUser(page, {
+    ...currentUser,
+    role: {
+      ...currentUser.role,
+      code: 'RESPONSABLE_COMPTABLE',
+      label: 'Accounting manager',
+    },
+  })
+  await page.clock.setFixedTime(new Date(2026, 8, 2, 12))
+  await mockDashboardRequests(page)
+
+  await page.goto('/dashboard')
+
+  const indicators = page.getByRole('region', { name: 'Invoice indicators' })
+  const toProcessCard = indicators.getByText('To process').locator('..')
+  const approvalCard = indicators.getByText('Waiting for approval').locator('..')
+  const exportCard = indicators.getByText('Ready to export').locator('..')
+
+  await expect(toProcessCard.getByRole('link', { name: 'View filtered list' })).toHaveCount(0)
+  await expect(approvalCard.getByRole('link', { name: 'View filtered list' })).toHaveAttribute(
+    'href',
+    '/invoices?status=A_VERIFIER&startDate=2026-08-04&endDate=2026-09-02',
+  )
+  await expect(exportCard.getByRole('link', { name: 'View filtered list' })).toHaveAttribute(
+    'href',
+    '/invoices?status=EXPORTABLE&startDate=2026-08-04&endDate=2026-09-02',
+  )
 })
 
 test('opens recent invoices and the complete invoice list', async ({ page }) => {
