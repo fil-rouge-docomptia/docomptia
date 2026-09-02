@@ -42,6 +42,10 @@ public class Invoice {
     @JoinColumn(name = "created_by_user_id", nullable = false)
     private User createdByUser;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_user_id")
+    private User assignedUser;
+
     private String invoiceNumber;
 
     private String commandReference;
@@ -115,6 +119,14 @@ public class Invoice {
 
     public void setCreatedByUser(User createdByUser) {
         this.createdByUser = createdByUser;
+    }
+
+    public User getAssignedUser() {
+        return assignedUser;
+    }
+
+    public void setAssignedUser(User assignedUser) {
+        this.assignedUser = assignedUser;
     }
 
     public String getInvoiceNumber() {
