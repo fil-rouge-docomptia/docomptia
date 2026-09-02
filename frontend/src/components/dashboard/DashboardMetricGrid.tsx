@@ -33,7 +33,7 @@ function MetricCard({ metric }: { metric: Metric }) {
             View filtered list
           </Link>
         ) : (
-          <span className="mt-auto flex h-10 items-center text-sm font-medium text-primary">
+          <span className="mt-auto flex h-10 w-fit items-center rounded-md px-2 text-sm font-medium text-primary">
             View filtered list
           </span>
         )}
