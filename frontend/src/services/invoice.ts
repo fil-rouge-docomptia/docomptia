@@ -227,6 +227,18 @@ export async function getInvoiceFile(
   return response.blob()
 }
 
+export async function getInvoicePreview(
+  invoiceId: number,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/v1/invoices/${invoiceId}/preview`,
+    { signal },
+  )
+
+  return response.blob()
+}
+
 export async function submitInvoiceForValidation(
   invoiceId: number,
 ): Promise<InvoiceStatusResponse> {
