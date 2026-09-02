@@ -134,7 +134,10 @@ export default function DashboardPage() {
             onRetry={retryRecentInvoices}
           />
         </div>
-        <aside className="order-1 min-w-0 xl:col-start-2 xl:row-start-1">
+        <aside
+          className="order-1 min-w-0 scroll-mt-6 xl:col-start-2 xl:row-start-1"
+          id="processing-issues"
+        >
           <DashboardAttentionCard
             alerts={summary?.alerts ?? null}
             error={summaryError}
