@@ -5,15 +5,14 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 concurrency:
   group: create-pr-from-staging-to-main
   cancel-in-progress: false
 
 jobs:
-  create-pr:
-    name: Create PR from staging to main
+  prepare-pr:
+    name: Prepare PR from staging to main
     runs-on: ubuntu-latest
 
     steps:
@@ -22,37 +21,30 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Create pull request from staging to main
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Prepare pull request link from staging to main
         run: |
           git fetch origin main staging
 
-          if [ "$(git rev-list --count origin/main..origin/staging)" -eq 0 ]; then
+          commits_to_send="$(git rev-list --count origin/main..origin/staging)"
+          if [ "$commits_to_send" -eq 0 ]; then
             echo "No staging commits to send to main."
+            {
+              echo "## Create PR from staging to main"
+              echo
+              echo "No staging commits to send to main."
+            } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
-          existing_pr_url="$(gh pr list \
-            --base main \
-            --head staging \
-            --state open \
-            --json url \
-            --jq '.[0].url // empty')"
+          pr_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/main...staging?quick_pull=1"
 
-          if [ -n "$existing_pr_url" ]; then
-            echo "A PR from staging to main already exists: $existing_pr_url"
-            exit 0
-          fi
-
-          gh pr create \
-            --base main \
-            --head staging \
-            --title "Merge staging into main" \
-            --body "## Resume
-          - Envoie les changements valides sur staging vers main.
-          - La PR reste a relire et merger manuellement.
-
-          ## Verification
-          - Verifier que le deploiement staging est OK avant merge.
-          - Verifier que la CI de cette PR est OK."
+          echo "Open this link to create the PR: $pr_url"
+          {
+            echo "## Create PR from staging to main"
+            echo
+            echo "$commits_to_send staging commit(s) can be sent to main."
+            echo
+            echo "[Open the PR from staging to main]($pr_url)"
+            echo
+            echo "The workflow does not create or merge the PR automatically."
+          } >> "$GITHUB_STEP_SUMMARY"
