@@ -100,6 +100,16 @@ test.beforeEach(async ({ page }) => {
 
 test('renders legal supplier data and opens the selected supplier', async ({ page }) => {
   await mockApiRoute(page, '/v1/suppliers*', (route) => fulfillJson(route, 200, supplierPage))
+  await mockApiRoute(page, '/v1/suppliers/42', (route) => fulfillJson(route, 200, {
+    ...supplierPage.content[0],
+    address: '12 rue des Ateliers, 75011 Paris',
+    createdAt: '2026-08-01T09:00:00',
+    email: 'contact@leroy-construction.fr',
+    legalIdentifierHistory: supplierPage.content[0].currentLegalIdentifiers,
+    phone: '+33 1 42 00 00 00',
+    updatedAt: '2026-08-30T14:30:00',
+  }))
+  await mockApiRoute(page, '/v1/invoices*', (route) => fulfillJson(route, 200, emptyPage))
 
   await page.goto('/suppliers')
 
@@ -114,7 +124,7 @@ test('renders legal supplier data and opens the selected supplier', async ({ pag
   await page.getByRole('link', { name: 'Open supplier Leroy Construction SAS' }).click()
 
   await expect(page).toHaveURL(/\/suppliers\/42$/)
-  await expect(page.getByRole('heading', { name: 'Supplier details' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Leroy Construction SAS' })).toBeVisible()
 })
 
 test('searches by legal identity and keeps pagination in the URL', async ({ page }) => {
