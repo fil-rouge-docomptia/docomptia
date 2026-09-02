@@ -1,9 +1,10 @@
+import type { KeyboardEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+
 import { DashboardBlockError } from '@/components/dashboard/DashboardBlockError'
-import {
-  DashboardSectionAction,
-  DashboardSectionHeader,
-} from '@/components/dashboard/DashboardSectionHeader'
+import { DashboardSectionHeader } from '@/components/dashboard/DashboardSectionHeader'
 import { InvoiceStatusBadge } from '@/components/invoice/InvoiceStatusBadge'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -32,10 +33,14 @@ function formatAmount(invoice: InvoiceListItem) {
     return invoice.totalTtc
   }
 
-  return new Intl.NumberFormat('en-GB', {
-    currency: invoice.currencyCode ?? 'EUR',
-    style: 'currency',
-  }).format(value)
+  try {
+    return new Intl.NumberFormat('en-GB', {
+      currency: invoice.currencyCode ?? 'EUR',
+      style: 'currency',
+    }).format(value)
+  } catch {
+    return `${invoice.totalTtc} ${invoice.currencyCode ?? ''}`.trim()
+  }
 }
 
 export function DashboardRecentInvoices({
@@ -43,11 +48,26 @@ export function DashboardRecentInvoices({
   invoices,
   onRetry,
 }: DashboardRecentInvoicesProps) {
+  const navigate = useNavigate()
+  const openInvoice = (invoiceId: number) => navigate(`/invoices/${invoiceId}`)
+  const handleRowKeyDown = (
+    event: KeyboardEvent<HTMLTableRowElement>,
+    invoiceId: number,
+  ) => {
+    if (event.key === 'Enter') {
+      openInvoice(invoiceId)
+    }
+  }
+
   return (
     <section aria-labelledby="dashboard-recent-invoices-title" className="min-w-0 max-w-full">
       <DashboardSectionHeader
-        action={<DashboardSectionAction>View all</DashboardSectionAction>}
-        description="Latest documents added to the workspace."
+        action={(
+          <Button asChild className="bg-accent text-accent-foreground" variant="ghost">
+            <Link to="/invoices">View all</Link>
+          </Button>
+        )}
+        description="Latest invoices added to the workspace."
         title="Recent invoices"
         titleId="dashboard-recent-invoices-title"
       />
@@ -84,7 +104,15 @@ export function DashboardRecentInvoices({
             </TableHeader>
             <TableBody>
               {invoices.map((invoice) => (
-                <TableRow className="h-[41px] hover:bg-transparent" key={invoice.invoiceId}>
+                <TableRow
+                  aria-label={`Open invoice ${invoice.invoiceNumber || invoice.invoiceId}`}
+                  className="h-[41px] cursor-pointer focus-visible:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                  key={invoice.invoiceId}
+                  onClick={() => openInvoice(invoice.invoiceId)}
+                  onKeyDown={(event) => handleRowKeyDown(event, invoice.invoiceId)}
+                  role="link"
+                  tabIndex={0}
+                >
                   <TableCell className="py-2 font-medium">{invoice.supplierName ?? 'Unknown supplier'}</TableCell>
                   <TableCell className="py-2">{invoice.invoiceNumber ?? 'Pending number'}</TableCell>
                   <TableCell className="py-2">{formatAmount(invoice)}</TableCell>

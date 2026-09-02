@@ -146,6 +146,20 @@ test('opens the invoice list with the selected dashboard status', async ({ page 
   await expect(page.getByLabel('Filter by status')).toContainText('To process')
 })
 
+test('opens recent invoices and the complete invoice list', async ({ page }) => {
+  await mockDashboardRequests(page)
+
+  await page.goto('/dashboard')
+
+  const recentInvoices = page.getByRole('region', { name: 'Recent invoices' })
+  await expect(recentInvoices.getByRole('link', { name: 'View all' }))
+    .toHaveAttribute('href', '/invoices')
+
+  await recentInvoices.getByRole('link', { name: 'Open invoice INV-2026-0912' }).click()
+
+  await expect(page).toHaveURL(/\/invoices\/91$/)
+})
+
 test('links every pipeline step to its exact invoice status', async ({ page }) => {
   await mockDashboardRequests(page)
 
