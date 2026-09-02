@@ -42,7 +42,7 @@ export function InvoicePagination({
 
   return (
     <nav
-      aria-label={`${itemLabel[0].toUpperCase()}${itemLabel.slice(1)} pagination`}
+      aria-label={itemLabel === 'invoices' ? 'Invoice pagination' : 'Document pagination'}
       className="flex flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
     >
       <p className="text-sm text-muted-foreground">
