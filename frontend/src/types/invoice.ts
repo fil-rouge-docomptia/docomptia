@@ -78,6 +78,10 @@ export type InvoiceListFilters = {
   supplier?: string
 }
 
+export type InvoiceFilterUpdates = {
+  [Key in keyof InvoiceListFilters]?: InvoiceListFilters[Key]
+}
+
 export type InvoiceListQuery = InvoiceListFilters & {
   direction: SortDirection
   page: number

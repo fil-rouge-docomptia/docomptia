@@ -1,15 +1,19 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertCircle, FileText, Upload } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 
+import { InvoiceFilters } from '@/components/invoice/InvoiceFilters'
 import { InvoicePagination } from '@/components/invoice/InvoicePagination'
 import { InvoiceTable } from '@/components/invoice/InvoiceTable'
+import { invoiceStatusLabels } from '@/components/invoice/invoice-status'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { listInvoices } from '@/services/invoice'
 import type {
+  InvoiceFilterUpdates,
+  InvoiceListFilters,
   InvoicePage,
   InvoiceSortField,
   SortDirection,
@@ -17,6 +21,18 @@ import type {
 
 const PAGE_SIZE = 8
 const sortableFields: InvoiceSortField[] = ['createdAt', 'invoiceDate', 'totalTtc', 'status']
+const filterParamKeys: (keyof InvoiceListFilters)[] = [
+  'client',
+  'dueDate',
+  'endDate',
+  'invoiceDate',
+  'invoiceNumber',
+  'maxAmount',
+  'minAmount',
+  'startDate',
+  'status',
+  'supplier',
+]
 
 type InvoiceRequestState = {
   error: boolean
@@ -37,6 +53,34 @@ function parseSortField(value: string | null): InvoiceSortField {
 
 function parseDirection(value: string | null): SortDirection {
   return value?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC'
+}
+
+function parseFilters(searchParams: URLSearchParams): InvoiceListFilters {
+  const filters: InvoiceListFilters = {}
+  const readValue = (key: Exclude<keyof InvoiceListFilters, 'status'>) => {
+    const value = searchParams.get(key)?.trim()
+    if (value) {
+      filters[key] = value
+    }
+  }
+
+  filterParamKeys
+    .filter((key): key is Exclude<keyof InvoiceListFilters, 'status'> => key !== 'status')
+    .forEach(readValue)
+
+  const statuses = searchParams
+    .getAll('status')
+    .flatMap((value) => value.split(','))
+    .map((status) => status.trim().toUpperCase())
+    .filter((status, index, values) => (
+      Boolean(invoiceStatusLabels[status]) && values.indexOf(status) === index
+    ))
+
+  if (statuses.length) {
+    filters.status = statuses
+  }
+
+  return filters
 }
 
 function InvoiceTableSkeleton() {
@@ -68,10 +112,12 @@ export default function InvoicesPage() {
   const currentPage = parsePage(searchParams.get('page'))
   const sortBy = parseSortField(searchParams.get('sortBy'))
   const direction = parseDirection(searchParams.get('direction'))
-  const requestKey = `${currentPage}:${sortBy}:${direction}:${retryCount}`
+  const filters = useMemo(() => parseFilters(searchParams), [searchParams])
+  const requestKey = `${currentPage}:${sortBy}:${direction}:${JSON.stringify(filters)}:${retryCount}`
   const isCurrentRequest = requestState.requestKey === requestKey
   const error = isCurrentRequest && requestState.error
   const invoicePage = isCurrentRequest ? requestState.invoicePage : null
+  const hasActiveFilters = Object.keys(filters).length > 0
 
   useEffect(() => {
     const controller = new AbortController()
@@ -79,6 +125,7 @@ export default function InvoicesPage() {
     listInvoices(
       {
         direction,
+        ...filters,
         page: currentPage - 1,
         size: PAGE_SIZE,
         sortBy,
@@ -103,7 +150,7 @@ export default function InvoicesPage() {
       })
 
     return () => controller.abort()
-  }, [currentPage, direction, requestKey, sortBy])
+  }, [currentPage, direction, filters, requestKey, sortBy])
 
   const updateSearchParams = useCallback(
     (updates: Record<string, string>) => {
@@ -123,6 +170,34 @@ export default function InvoicesPage() {
   const handleSortChange = (field: InvoiceSortField) => {
     const nextDirection = sortBy === field && direction === 'DESC' ? 'ASC' : 'DESC'
     updateSearchParams({ direction: nextDirection, page: '1', sortBy: field })
+  }
+
+  const handleFilterChange = (updates: InvoiceFilterUpdates) => {
+    setSearchParams((currentParams) => {
+      const nextParams = new URLSearchParams(currentParams)
+
+      Object.entries(updates).forEach(([key, value]) => {
+        nextParams.delete(key)
+
+        if (Array.isArray(value)) {
+          value.forEach((item) => nextParams.append(key, item))
+        } else if (value) {
+          nextParams.set(key, value)
+        }
+      })
+
+      nextParams.set('page', '1')
+      return nextParams
+    })
+  }
+
+  const handleFilterReset = () => {
+    setSearchParams((currentParams) => {
+      const nextParams = new URLSearchParams(currentParams)
+      filterParamKeys.forEach((key) => nextParams.delete(key))
+      nextParams.set('page', '1')
+      return nextParams
+    })
   }
 
   return (
@@ -145,6 +220,12 @@ export default function InvoicesPage() {
         title="Invoices"
       />
 
+      <InvoiceFilters
+        filters={filters}
+        onChange={handleFilterChange}
+        onReset={handleFilterReset}
+      />
+
       {error ? (
         <Alert variant="destructive">
           <AlertCircle aria-hidden="true" />
@@ -163,16 +244,26 @@ export default function InvoicesPage() {
           <span className="mb-4 flex size-12 items-center justify-center rounded-full bg-accent text-accent-foreground">
             <FileText aria-hidden="true" className="size-6" />
           </span>
-          <h2 className="text-base font-semibold text-foreground">No invoices yet</h2>
+          <h2 className="text-base font-semibold text-foreground">
+            {hasActiveFilters ? 'No matching invoices' : 'No invoices yet'}
+          </h2>
           <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            Upload a supplier invoice to start its validation workflow.
+            {hasActiveFilters
+              ? 'Try adjusting or clearing the current filters.'
+              : 'Upload a supplier invoice to start its validation workflow.'}
           </p>
-          <Button asChild className="mt-5">
-            <Link to="/inbox?upload=1">
-              <Upload aria-hidden="true" />
-              Upload invoices
-            </Link>
-          </Button>
+          {hasActiveFilters ? (
+            <Button className="mt-5" onClick={handleFilterReset} type="button" variant="outline">
+              Clear filters
+            </Button>
+          ) : (
+            <Button asChild className="mt-5">
+              <Link to="/inbox?upload=1">
+                <Upload aria-hidden="true" />
+                Upload invoices
+              </Link>
+            </Button>
+          )}
         </section>
       ) : (
         <section aria-label="Invoice list" className="overflow-hidden rounded-lg border border-border bg-card shadow-elevation-1">
