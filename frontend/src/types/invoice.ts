@@ -89,6 +89,11 @@ export type InvoiceListQuery = InvoiceListFilters & {
   sortBy: InvoiceSortField
 }
 
+export type InvoicePageQuery = Pick<
+  InvoiceListQuery,
+  'direction' | 'page' | 'size' | 'sortBy'
+>
+
 export type InvoiceClassification = {
   classificationId: number
   type: string
