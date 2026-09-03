@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { ApiError } from '@/services/api'
 import { correctInvoice } from '@/services/invoice'
 import type {
   InvoiceCorrectionRequest,
@@ -21,13 +22,15 @@ import type {
 
 import { InvoiceDuplicateWarning } from './InvoiceDuplicateWarning'
 import { InvoiceOcrFailureAlert } from './InvoiceOcrFailureAlert'
+import { SupplierCombobox } from './SupplierCombobox'
+import type { SupplierComboboxValue } from './SupplierCombobox'
 import {
   getConfidencePercent,
   getOcrField,
   isLowConfidence,
 } from './invoice-detail-utils'
 
-type CorrectionFieldName = keyof InvoiceCorrectionRequest
+type CorrectionFieldName = Exclude<keyof InvoiceCorrectionRequest, 'supplierId'>
 
 type CorrectionDraft = Record<CorrectionFieldName, string>
 
@@ -44,10 +47,6 @@ type FieldDefinition = {
   type?: 'date' | 'text'
 }
 
-const supplierFields: FieldDefinition[] = [
-  { fieldName: 'supplierName', label: 'Supplier name', required: true },
-]
-
 const invoiceInformationFields: FieldDefinition[] = [
   { fieldName: 'invoiceNumber', label: 'Invoice number', required: true },
   { fieldName: 'invoiceDate', label: 'Issue date', required: true, type: 'date' },
@@ -62,7 +61,6 @@ const amountFields: FieldDefinition[] = [
 ]
 
 const correctionFields = [
-  ...supplierFields,
   ...invoiceInformationFields,
   ...amountFields,
 ]
@@ -73,10 +71,25 @@ function getCorrectionDraft(invoice: InvoiceDetails): CorrectionDraft {
     dueDate: invoice.dueDate ?? '',
     invoiceDate: invoice.invoiceDate ?? '',
     invoiceNumber: invoice.invoiceNumber ?? '',
-    supplierName: invoice.supplierName ?? '',
     totalHt: invoice.totalHt ?? '',
     totalTtc: invoice.totalTtc ?? '',
     totalTva: invoice.totalTva ?? '',
+  }
+}
+
+function getSupplierValue(invoice: InvoiceDetails): SupplierComboboxValue | null {
+  if (!invoice.supplier) {
+    return null
+  }
+
+  return {
+    countryCode: invoice.supplier.currentCountryCode,
+    identifiers: invoice.supplier.snapshotIdentifiers
+      ? [invoice.supplier.snapshotIdentifiers]
+      : [],
+    legalName: invoice.supplier.currentLegalName,
+    supplierId: invoice.supplier.supplierId,
+    tradeName: invoice.supplier.currentTradeName,
   }
 }
 
@@ -268,11 +281,20 @@ export function InvoiceDetailsTab({
   onReviewDuplicate,
 }: InvoiceDetailsTabProps) {
   const formRef = useRef<HTMLFormElement>(null)
+  const supplierInputId = useId()
   const [draft, setDraft] = useState(() => getCorrectionDraft(invoice))
+  const [selectedSupplier, setSelectedSupplier] = useState(() => getSupplierValue(invoice))
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
-  const corrections = getCorrections(draft, invoice)
-  const changedFields = new Set(Object.keys(corrections) as CorrectionFieldName[])
-  const missingCount = correctionFields.filter(
+  const [saveErrorMessage, setSaveErrorMessage] = useState('')
+  const fieldCorrections = getCorrections(draft, invoice)
+  const supplierChanged = (selectedSupplier?.supplierId ?? null)
+    !== (invoice.supplier?.supplierId ?? null)
+  const corrections: InvoiceCorrectionRequest = supplierChanged && selectedSupplier
+    ? { ...fieldCorrections, supplierId: selectedSupplier.supplierId }
+    : fieldCorrections
+  const changedFields = new Set(Object.keys(fieldCorrections) as CorrectionFieldName[])
+  const hasCorrections = Object.keys(corrections).length > 0
+  const missingCount = (selectedSupplier ? 0 : 1) + correctionFields.filter(
     ({ fieldName, required }) => required && !draft[fieldName].trim(),
   ).length
   const lowConfidenceCount = correctionFields.filter(({ fieldName }) => (
@@ -292,8 +314,20 @@ export function InvoiceDetailsTab({
     const nextDraft = { ...draft, [fieldName]: value }
     setDraft(nextDraft)
     setSaveStatus('idle')
+    setSaveErrorMessage('')
     onCorrectionStateChange({
-      dirty: Object.keys(getCorrections(nextDraft, invoice)).length > 0,
+      dirty: supplierChanged || Object.keys(getCorrections(nextDraft, invoice)).length > 0,
+      saving: false,
+    })
+  }
+
+  const handleSupplierChange = (supplier: SupplierComboboxValue) => {
+    setSelectedSupplier(supplier)
+    setSaveStatus('idle')
+    setSaveErrorMessage('')
+    onCorrectionStateChange({
+      dirty: supplier.supplierId !== (invoice.supplier?.supplierId ?? null)
+        || Object.keys(fieldCorrections).length > 0,
       saving: false,
     })
   }
@@ -313,7 +347,7 @@ export function InvoiceDetailsTab({
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    if (!canEdit || Object.keys(corrections).length === 0) {
+    if (!canEdit || !hasCorrections) {
       return
     }
 
@@ -323,17 +357,26 @@ export function InvoiceDetailsTab({
     try {
       const updatedInvoice = await correctInvoice(invoice.invoiceId, corrections)
       setDraft(getCorrectionDraft(updatedInvoice))
+      setSelectedSupplier(getSupplierValue(updatedInvoice))
       setSaveStatus('saved')
+      setSaveErrorMessage('')
       onInvoiceUpdated(updatedInvoice)
       onCorrectionStateChange({ dirty: false, saving: false })
-    } catch {
+    } catch (saveError) {
       setSaveStatus('error')
+      setSaveErrorMessage(
+        saveError instanceof ApiError && saveError.status === 409
+          ? saveError.message
+          : 'Your changes are still available. Check the values and try again.',
+      )
       onCorrectionStateChange({ dirty: true, saving: false })
     }
   }
 
   const handleStartManualCorrection = () => {
-    formRef.current?.querySelector<HTMLInputElement>('input:not(:disabled)')?.focus()
+    formRef.current
+      ?.querySelector<HTMLElement>('button[role="combobox"]:not(:disabled), input:not(:disabled)')
+      ?.focus()
   }
 
   return (
@@ -374,9 +417,7 @@ export function InvoiceDetailsTab({
       {saveStatus === 'error' ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to save corrections</AlertTitle>
-          <AlertDescription>
-            Your changes are still available. Check the values and try again.
-          </AlertDescription>
+          <AlertDescription>{saveErrorMessage}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -388,7 +429,27 @@ export function InvoiceDetailsTab({
         description="Legal identity matched against the supplier directory."
         title="Supplier"
       >
-        {supplierFields.map(renderField)}
+        <div className="space-y-2 rounded-lg border border-border bg-card p-4">
+          <div className="space-y-1.5">
+            <Label
+              className="text-xs font-medium text-foreground"
+              htmlFor={supplierInputId}
+            >
+              Supplier
+            </Label>
+            <SupplierCombobox
+              disabled={!canEdit}
+              id={supplierInputId}
+              onValueChange={handleSupplierChange}
+              value={selectedSupplier}
+            />
+          </div>
+          <FieldStatus
+            changed={supplierChanged}
+            field={getOcrField(invoice, 'supplierName')}
+            missing={!selectedSupplier}
+          />
+        </div>
       </DetailSection>
 
       <DetailSection

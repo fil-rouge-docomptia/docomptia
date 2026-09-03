@@ -7,6 +7,7 @@ import type {
   InvoiceDuplicateDecisionRequest,
   InvoiceHistoryItem,
   InvoiceListQuery,
+  InvoicePageQuery,
   InvoiceOcrFailureResponse,
   InvoicePage,
   InvoiceStatusResponse,
@@ -152,6 +153,25 @@ export async function listInvoices(
 
   const response = await authenticatedFetch(
     `${apiBaseUrl}/v1/invoices?${searchParams.toString()}`,
+    { signal },
+  )
+
+  return response.json() as Promise<InvoicePage>
+}
+
+export async function listPendingValidationInvoices(
+  query: InvoicePageQuery,
+  signal?: AbortSignal,
+): Promise<InvoicePage> {
+  const searchParams = new URLSearchParams({
+    direction: query.direction,
+    page: String(query.page),
+    size: String(query.size),
+    sortBy: query.sortBy,
+  })
+
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/v1/invoices/pending-validation?${searchParams.toString()}`,
     { signal },
   )
 

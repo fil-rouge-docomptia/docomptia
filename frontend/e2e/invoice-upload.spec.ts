@@ -21,6 +21,67 @@ const supportedFiles = [
   },
 ]
 
+const inboxInvoicePage = {
+  content: [
+    {
+      currencyCode: 'EUR',
+      dueDate: '2026-09-12',
+      invoiceDate: '2026-08-13',
+      invoiceId: 42,
+      invoiceNumber: 'INV-2026-0042',
+      status: 'EXTRAITE',
+      supplierName: 'Acme Supplies',
+      totalTtc: '1250.50',
+    },
+    {
+      currencyCode: 'EUR',
+      dueDate: null,
+      invoiceDate: '2026-08-12',
+      invoiceId: 41,
+      invoiceNumber: 'INV-2026-0041',
+      status: 'OCR_EN_COURS',
+      supplierName: 'Saint-Gobain',
+      totalTtc: '2340.80',
+    },
+    {
+      currencyCode: 'EUR',
+      dueDate: null,
+      invoiceDate: '2026-08-11',
+      invoiceId: 40,
+      invoiceNumber: 'INV-2026-0040',
+      status: 'ERREUR_OCR',
+      supplierName: null,
+      totalTtc: null,
+    },
+    {
+      currencyCode: 'EUR',
+      dueDate: null,
+      invoiceDate: '2026-08-10',
+      invoiceId: 39,
+      invoiceNumber: 'INV-2026-0039',
+      status: 'DEPOSEE',
+      supplierName: 'Vinci Energies',
+      totalTtc: '7815.20',
+    },
+  ],
+  number: 0,
+  size: 8,
+  totalElements: 4,
+  totalPages: 1,
+}
+
+async function mockInboxList(page: Page, response = inboxInvoicePage) {
+  await mockApiRoute(page, '/v1/invoices*', async (route) => {
+    const url = new URL(route.request().url())
+    if (route.request().method() !== 'GET' || !url.pathname.endsWith('/v1/invoices')) {
+      await route.fallback()
+      return
+    }
+
+    await fulfillJson(route, 200, response)
+  })
+}
+
 async function captureBrowserUpload(page: Page) {
   await page.addInitScript(() => {
     const originalSend = XMLHttpRequest.prototype.send
@@ -54,6 +115,134 @@ async function completeBrowserUpload(page: Page) {
 test.beforeEach(async ({ page }) => {
   await seedAuthSession(page)
   await mockCurrentUser(page)
+  await mockInboxList(page)
+})
+
+test('renders the Figma inbox statuses and opens a selected invoice', async ({ page }) => {
+  const listRequest = page.waitForRequest((request) => {
+    const url = new URL(request.url())
+    return request.method() === 'GET' && url.pathname.endsWith('/v1/invoices')
+  })
+
+  await page.goto('/inbox')
+
+  const requestUrl = new URL((await listRequest).url())
+  expect(requestUrl.searchParams.getAll('status')).toEqual([
+    'DEPOSEE',
+    'OCR_EN_COURS',
+    'EXTRAITE',
+    'ERREUR_OCR',
+  ])
+  await expect(page.getByRole('heading', { name: 'Inbox' })).toBeVisible()
+  await expect(page.getByRole('tab', { name: 'All' })).toHaveAttribute('data-state', 'active')
+  await expect(page.getByRole('tab', { name: 'New' })).toBeVisible()
+  await expect(page.getByRole('tab', { exact: true, name: 'Processing' })).toBeVisible()
+  await expect(page.getByRole('tab', { name: 'Needs review' })).toBeVisible()
+  await expect(page.getByRole('tab', { name: 'Processing failed' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Inbox invoice list' })).toBeVisible()
+  await expect(page.getByText('Acme Supplies')).toBeVisible()
+  await expect(page.getByText('OCR error')).toBeVisible()
+  await expect(page.getByText('1–4 of 4 invoices')).toBeVisible()
+
+  await page.getByRole('link', { name: 'Open invoice INV-2026-0042' }).click()
+  await expect(page).toHaveURL(/\/invoices\/42$/)
+})
+
+test('filters the inbox by processing state, invoice number and supplier', async ({ page }) => {
+  const requestedUrls: URL[] = []
+  await mockApiRoute(page, '/v1/invoices*', async (route) => {
+    const url = new URL(route.request().url())
+    if (route.request().method() !== 'GET' || !url.pathname.endsWith('/v1/invoices')) {
+      await route.fallback()
+      return
+    }
+
+    requestedUrls.push(url)
+    await fulfillJson(route, 200, inboxInvoicePage)
+  })
+
+  await page.goto('/inbox')
+  await expect(page.getByText('Acme Supplies')).toBeVisible()
+
+  await page.getByRole('tab', { name: 'Processing failed' }).click()
+  await expect.poll(() => requestedUrls.at(-1)?.searchParams.getAll('status'))
+    .toEqual(['ERREUR_OCR'])
+
+  await page.getByRole('searchbox', { name: 'Search inbox' }).fill('INV-2026-0040')
+  await page.getByRole('searchbox', { name: 'Search inbox' }).press('Enter')
+  await expect.poll(() => requestedUrls.at(-1)?.searchParams.get('invoiceNumber'))
+    .toBe('INV-2026-0040')
+
+  await page.getByRole('button', { exact: true, name: 'Supplier' }).click()
+  await page.locator('#inbox-supplier-filter').fill('Vinci')
+  await page.getByRole('button', { exact: true, name: 'Apply' }).click()
+
+  await expect.poll(() => ({
+    invoiceNumber: requestedUrls.at(-1)?.searchParams.get('invoiceNumber'),
+    status: requestedUrls.at(-1)?.searchParams.getAll('status'),
+    supplier: requestedUrls.at(-1)?.searchParams.get('supplier'),
+  })).toEqual({
+    invoiceNumber: 'INV-2026-0040',
+    status: ['ERREUR_OCR'],
+    supplier: 'Vinci',
+  })
+  await expect(page).toHaveURL(/view=processing-failed/)
+  await expect(page).toHaveURL(/invoiceNumber=INV-2026-0040/)
+  await expect(page).toHaveURL(/supplier=Vinci/)
+})
+
+test('shows the inbox loading and filtered empty states', async ({ page }) => {
+  let releaseList: () => void = () => undefined
+  const listGate = new Promise<void>((resolve) => {
+    releaseList = resolve
+  })
+  await mockApiRoute(page, '/v1/invoices*', async (route) => {
+    const url = new URL(route.request().url())
+    if (route.request().method() !== 'GET' || !url.pathname.endsWith('/v1/invoices')) {
+      await route.fallback()
+      return
+    }
+
+    await listGate
+    await fulfillJson(route, 200, {
+      ...inboxInvoicePage,
+      content: [],
+      totalElements: 0,
+      totalPages: 0,
+    })
+  })
+
+  await page.goto('/inbox?view=processing-failed')
+  await expect(page.getByLabel('Loading inbox invoices')).toBeVisible()
+
+  releaseList()
+  await expect(page.getByRole('heading', { name: 'No matching inbox invoices' })).toBeVisible()
+  await page.getByRole('button', { name: 'Clear filters' }).click()
+  await expect(page.getByRole('heading', { name: 'Inbox is empty' })).toBeVisible()
+})
+
+test('keeps the inbox available while retrying a list error', async ({ page }) => {
+  let requestCount = 0
+  await mockApiRoute(page, '/v1/invoices*', async (route) => {
+    const url = new URL(route.request().url())
+    if (route.request().method() !== 'GET' || !url.pathname.endsWith('/v1/invoices')) {
+      await route.fallback()
+      return
+    }
+
+    requestCount += 1
+    await fulfillJson(route, requestCount === 1 ? 503 : 200, requestCount === 1
+      ? { message: 'Inbox unavailable' }
+      : inboxInvoicePage)
+  })
+
+  await page.goto('/inbox')
+
+  await expect(page.getByRole('heading', { exact: true, name: 'Inbox' })).toBeVisible()
+  await expect(page.getByText('Unable to load inbox invoices')).toBeVisible()
+  await page.getByRole('button', { name: 'Try again' }).click()
+  await expect(page.getByText('Acme Supplies')).toBeVisible()
+  expect(requestCount).toBe(2)
 })
 
 test('opens the Figma upload sheet from the inbox header', async ({ page }) => {

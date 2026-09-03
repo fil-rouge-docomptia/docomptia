@@ -1,38 +1,41 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Upload } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 
 import { DashboardActivityPanel } from '@/components/dashboard/DashboardActivityPanel'
 import { DashboardAttentionCard } from '@/components/dashboard/DashboardAttentionCard'
 import { DashboardMetricGrid } from '@/components/dashboard/DashboardMetricGrid'
+import { DashboardPeriodSelect } from '@/components/dashboard/DashboardPeriodSelect'
 import { DashboardPipeline } from '@/components/dashboard/DashboardPipeline'
 import { DashboardRecentInvoices } from '@/components/dashboard/DashboardRecentInvoices'
 import { DashboardSpendingOverview } from '@/components/dashboard/DashboardSpendingOverview'
+import {
+  getDashboardPeriod,
+  parseDashboardPeriodPreset,
+  type DashboardPeriodPreset,
+} from '@/components/dashboard/dashboard-period'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
+import { useAuth } from '@/hooks/use-auth'
 import { getDashboardSummary } from '@/services/dashboard'
 import { listInvoices } from '@/services/invoice'
-import type { DashboardPeriodQuery, DashboardSummary } from '@/types/dashboard'
+import { getCurrentOrganization } from '@/services/organization'
+import type { DashboardSummary } from '@/types/dashboard'
 import type { InvoiceListItem } from '@/types/invoice'
 
 const RECENT_INVOICE_COUNT = 4
+const PERIOD_QUERY_PARAM = 'period'
 
-function toIsoDate(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+type RequestState<T> = {
+  data: T | null
+  error: boolean
+  requestKey: string
 }
 
-function getLastThirtyDays(): DashboardPeriodQuery {
-  const endDate = new Date()
-  const startDate = new Date(endDate)
-  startDate.setDate(startDate.getDate() - 29)
-
-  return {
-    endDate: toIsoDate(endDate),
-    startDate: toIsoDate(startDate),
-  }
+const initialRequestState = {
+  data: null,
+  error: false,
+  requestKey: '',
 }
 
 function isAbortError(error: unknown) {
@@ -40,26 +43,57 @@ function isAbortError(error: unknown) {
 }
 
 export default function DashboardPage() {
-  const [summary, setSummary] = useState<DashboardSummary | null>(null)
-  const [summaryError, setSummaryError] = useState(false)
+  const { user } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const periodPreset = parseDashboardPeriodPreset(searchParams.get(PERIOD_QUERY_PARAM))
+  const period = useMemo(() => getDashboardPeriod(periodPreset), [periodPreset])
   const [summaryRetryCount, setSummaryRetryCount] = useState(0)
-  const [recentInvoices, setRecentInvoices] = useState<InvoiceListItem[] | null>(null)
-  const [recentInvoicesError, setRecentInvoicesError] = useState(false)
   const [recentInvoicesRetryCount, setRecentInvoicesRetryCount] = useState(0)
+  const summaryRequestKey = `${period.startDate}:${period.endDate}:${summaryRetryCount}`
+  const recentInvoicesRequestKey = `${period.startDate}:${period.endDate}:${recentInvoicesRetryCount}`
+  const [summaryState, setSummaryState] = useState<RequestState<DashboardSummary>>(initialRequestState)
+  const [recentInvoicesState, setRecentInvoicesState] = useState<RequestState<InvoiceListItem[]>>(initialRequestState)
+  const [currencyCode, setCurrencyCode] = useState<string | null>(null)
+  const [currencyError, setCurrencyError] = useState(false)
+  const [currencyRetryCount, setCurrencyRetryCount] = useState(0)
+  const summaryIsCurrent = summaryState.requestKey === summaryRequestKey
+  const recentInvoicesAreCurrent = recentInvoicesState.requestKey === recentInvoicesRequestKey
+  const summary = summaryIsCurrent ? summaryState.data : null
+  const summaryError = summaryIsCurrent && summaryState.error
+  const recentInvoices = recentInvoicesAreCurrent ? recentInvoicesState.data : null
+  const recentInvoicesError = recentInvoicesAreCurrent && recentInvoicesState.error
+
+  useEffect(() => {
+    if (searchParams.get(PERIOD_QUERY_PARAM) !== periodPreset) {
+      setSearchParams((currentParams) => {
+        const nextParams = new URLSearchParams(currentParams)
+        nextParams.set(PERIOD_QUERY_PARAM, periodPreset)
+        return nextParams
+      }, { replace: true })
+    }
+  }, [periodPreset, searchParams, setSearchParams])
 
   useEffect(() => {
     const controller = new AbortController()
 
-    getDashboardSummary(getLastThirtyDays(), controller.signal)
-      .then(setSummary)
+    getDashboardSummary(period, controller.signal)
+      .then((nextSummary) => setSummaryState({
+        data: nextSummary,
+        error: false,
+        requestKey: summaryRequestKey,
+      }))
       .catch((error: unknown) => {
         if (!isAbortError(error)) {
-          setSummaryError(true)
+          setSummaryState({
+            data: null,
+            error: true,
+            requestKey: summaryRequestKey,
+          })
         }
       })
 
     return () => controller.abort()
-  }, [summaryRetryCount])
+  }, [period, summaryRequestKey])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -67,31 +101,64 @@ export default function DashboardPage() {
     listInvoices(
       {
         direction: 'DESC',
+        endDate: period.endDate,
         page: 0,
         size: RECENT_INVOICE_COUNT,
         sortBy: 'createdAt',
+        startDate: period.startDate,
       },
       controller.signal,
     )
-      .then((invoicePage) => setRecentInvoices(invoicePage.content))
+      .then((invoicePage) => setRecentInvoicesState({
+        data: invoicePage.content,
+        error: false,
+        requestKey: recentInvoicesRequestKey,
+      }))
       .catch((error: unknown) => {
         if (!isAbortError(error)) {
-          setRecentInvoicesError(true)
+          setRecentInvoicesState({
+            data: null,
+            error: true,
+            requestKey: recentInvoicesRequestKey,
+          })
         }
       })
 
     return () => controller.abort()
-  }, [recentInvoicesRetryCount])
+  }, [period.endDate, period.startDate, recentInvoicesRequestKey])
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    getCurrentOrganization(controller.signal)
+      .then((organization) => setCurrencyCode(organization.defaultCurrencyCode ?? 'EUR'))
+      .catch((error: unknown) => {
+        if (!isAbortError(error)) {
+          setCurrencyError(true)
+        }
+      })
+
+    return () => controller.abort()
+  }, [currencyRetryCount])
 
   const retrySummary = () => {
-    setSummary(null)
-    setSummaryError(false)
     setSummaryRetryCount((count) => count + 1)
   }
   const retryRecentInvoices = () => {
-    setRecentInvoices(null)
-    setRecentInvoicesError(false)
     setRecentInvoicesRetryCount((count) => count + 1)
+  }
+  const retrySpendingOverview = () => {
+    retrySummary()
+    setCurrencyCode(null)
+    setCurrencyError(false)
+    setCurrencyRetryCount((count) => count + 1)
+  }
+  const selectPeriod = (nextPeriod: DashboardPeriodPreset) => {
+    setSearchParams((currentParams) => {
+      const nextParams = new URLSearchParams(currentParams)
+      nextParams.set(PERIOD_QUERY_PARAM, nextPeriod)
+      return nextParams
+    })
   }
 
   return (
@@ -99,9 +166,7 @@ export default function DashboardPage() {
       <PageHeader
         actions={
           <>
-            <Button asChild className="h-11 md:h-10" variant="outline">
-              <span>Last 30 days</span>
-            </Button>
+            <DashboardPeriodSelect onValueChange={selectPeriod} value={periodPreset} />
             <Button asChild className="h-11 md:h-10">
               <Link to="/inbox?upload=1">
                 <Upload aria-hidden="true" />
@@ -117,12 +182,15 @@ export default function DashboardPage() {
       <DashboardMetricGrid
         error={summaryError}
         onRetry={retrySummary}
+        period={period}
+        role={user?.role.code}
         summary={summary}
       />
 
       <DashboardPipeline
         error={summaryError}
         onRetry={retrySummary}
+        period={period}
         statuses={summary?.statusDistribution ?? null}
       />
 
@@ -146,8 +214,9 @@ export default function DashboardPage() {
         </aside>
         <div className="order-3 min-w-0 xl:col-start-1 xl:row-start-2">
           <DashboardSpendingOverview
-            error={summaryError}
-            onRetry={retrySummary}
+            currencyCode={currencyCode}
+            error={summaryError || currencyError}
+            onRetry={retrySpendingOverview}
             summary={summary}
           />
         </div>
