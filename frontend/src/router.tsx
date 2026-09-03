@@ -3,6 +3,7 @@ import { Navigate, createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth/RouteGuard'
 import { AppShell } from '@/components/layout/AppShell'
 import AccountingOnboardingPage from '@/pages/AccountingOnboardingPage'
+import ApprovalReviewPage from '@/pages/ApprovalReviewPage'
 import ApprovalsPage from '@/pages/ApprovalsPage'
 import DashboardPage from '@/pages/DashboardPage'
 import DocumentsPage from '@/pages/DocumentsPage'
@@ -63,6 +64,10 @@ export const privateRoutes = [
   {
     path: '/approvals',
     element: <ApprovalsPage />,
+  },
+  {
+    path: '/approvals/:invoiceId',
+    element: <ApprovalReviewPage />,
   },
   {
     path: '/accounting',
