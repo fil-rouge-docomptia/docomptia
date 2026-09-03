@@ -16,6 +16,7 @@ import OrganizationOnboardingPage from '@/pages/OrganizationOnboardingPage'
 import ProjectDetailsPage from '@/pages/ProjectDetailsPage'
 import ProjectsPage from '@/pages/ProjectsPage'
 import RegisterPage from '@/pages/RegisterPage'
+import ReportsPage from '@/pages/ReportsPage'
 import SupplierDetailsPage from '@/pages/SupplierDetailsPage'
 import SuppliersPage from '@/pages/SuppliersPage'
 import TeamOnboardingPage from '@/pages/TeamOnboardingPage'
@@ -116,12 +117,7 @@ export const privateRoutes = [
   },
   {
     path: '/reports',
-    element: (
-      <ModulePlaceholderPage
-        description="Analyze invoice processing and accounting activity."
-        title="Reports"
-      />
-    ),
+    element: <ReportsPage />,
   },
   {
     path: '/integrations',

@@ -13,11 +13,13 @@ import {
 } from '@/components/ui/select'
 
 type DashboardPeriodSelectProps = {
+  ariaLabel?: string
   onValueChange: (value: DashboardPeriodPreset) => void
   value: DashboardPeriodPreset
 }
 
 export function DashboardPeriodSelect({
+  ariaLabel = 'Dashboard period',
   onValueChange,
   value,
 }: DashboardPeriodSelectProps) {
@@ -27,7 +29,7 @@ export function DashboardPeriodSelect({
       value={value}
     >
       <SelectTrigger
-        aria-label="Dashboard period"
+        aria-label={ariaLabel}
         className="h-11 w-[180px] justify-start gap-2 md:h-10 md:w-[190px] [&>svg:last-child]:ml-auto"
       >
         <CalendarDays aria-hidden="true" className="size-4 shrink-0" />
