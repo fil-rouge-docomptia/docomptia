@@ -45,7 +45,7 @@ test.describe('authentication journeys', () => {
     await page.getByLabel('Password').fill('password')
     await page.getByRole('button', { name: 'Continue', exact: true }).click()
 
-    await expect(page).toHaveURL(/\/dashboard$/)
+    await expect(page).toHaveURL(/\/dashboard\?period=last-30-days$/)
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
     await expect
       .poll(() => page.evaluate((key) => window.sessionStorage.getItem(key), AUTH_TOKEN_STORAGE_KEY))

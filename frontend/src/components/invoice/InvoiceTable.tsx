@@ -81,6 +81,7 @@ function SortButton({ activeDirection, children, onClick }: SortButtonProps) {
 
 type InvoiceTableProps = {
   direction: SortDirection
+  getInvoiceHref?: (invoice: InvoiceListItem, index: number) => string
   invoices: InvoiceListItem[]
   onSortChange: (sortBy: InvoiceSortField) => void
   sortBy: InvoiceSortField
@@ -88,6 +89,7 @@ type InvoiceTableProps = {
 
 export function InvoiceTable({
   direction,
+  getInvoiceHref,
   invoices,
   onSortChange,
   sortBy,
@@ -95,10 +97,16 @@ export function InvoiceTable({
   const navigate = useNavigate()
   const activeDirection = (field: InvoiceSortField) =>
     sortBy === field ? direction : undefined
-  const openInvoice = (invoiceId: number) => navigate(`/invoices/${invoiceId}`)
-  const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, invoiceId: number) => {
+  const openInvoice = (invoice: InvoiceListItem, index: number) => {
+    navigate(getInvoiceHref?.(invoice, index) ?? `/invoices/${invoice.invoiceId}`)
+  }
+  const handleRowKeyDown = (
+    event: KeyboardEvent<HTMLTableRowElement>,
+    invoice: InvoiceListItem,
+    index: number,
+  ) => {
     if (event.key === 'Enter') {
-      openInvoice(invoiceId)
+      openInvoice(invoice, index)
     }
   }
 
@@ -148,13 +156,13 @@ export function InvoiceTable({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {invoices.map((invoice) => (
+        {invoices.map((invoice, index) => (
           <TableRow
             aria-label={`Open invoice ${invoice.invoiceNumber || invoice.invoiceId}`}
             className="h-12 cursor-pointer focus-visible:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             key={invoice.invoiceId}
-            onClick={() => openInvoice(invoice.invoiceId)}
-            onKeyDown={(event) => handleRowKeyDown(event, invoice.invoiceId)}
+            onClick={() => openInvoice(invoice, index)}
+            onKeyDown={(event) => handleRowKeyDown(event, invoice, index)}
             role="link"
             tabIndex={0}
           >

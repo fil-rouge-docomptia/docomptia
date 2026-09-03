@@ -3,6 +3,8 @@ import { Navigate, createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth/RouteGuard'
 import { AppShell } from '@/components/layout/AppShell'
 import AccountingOnboardingPage from '@/pages/AccountingOnboardingPage'
+import ApprovalReviewPage from '@/pages/ApprovalReviewPage'
+import ApprovalsPage from '@/pages/ApprovalsPage'
 import DashboardPage from '@/pages/DashboardPage'
 import DocumentsPage from '@/pages/DocumentsPage'
 import InvoiceUploadPage from '@/pages/InvoiceUploadPage'
@@ -16,6 +18,7 @@ import OrganizationOnboardingPage from '@/pages/OrganizationOnboardingPage'
 import ProjectDetailsPage from '@/pages/ProjectDetailsPage'
 import ProjectsPage from '@/pages/ProjectsPage'
 import RegisterPage from '@/pages/RegisterPage'
+import ReportsPage from '@/pages/ReportsPage'
 import SupplierDetailsPage from '@/pages/SupplierDetailsPage'
 import SuppliersPage from '@/pages/SuppliersPage'
 import TeamOnboardingPage from '@/pages/TeamOnboardingPage'
@@ -60,12 +63,11 @@ export const privateRoutes = [
   },
   {
     path: '/approvals',
-    element: (
-      <ModulePlaceholderPage
-        description="Review invoices waiting for an accounting decision."
-        title="Approvals"
-      />
-    ),
+    element: <ApprovalsPage />,
+  },
+  {
+    path: '/approvals/:invoiceId',
+    element: <ApprovalReviewPage />,
   },
   {
     path: '/accounting',
@@ -116,12 +118,7 @@ export const privateRoutes = [
   },
   {
     path: '/reports',
-    element: (
-      <ModulePlaceholderPage
-        description="Analyze invoice processing and accounting activity."
-        title="Reports"
-      />
-    ),
+    element: <ReportsPage />,
   },
   {
     path: '/integrations',

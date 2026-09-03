@@ -97,10 +97,82 @@ const invoiceDetails = {
   },
   ocrError: null,
   status: 'EXTRAITE',
+  supplier: {
+    confirmed: true,
+    currentCountryCode: 'FR',
+    currentLegalName: 'Leroy Construction SAS',
+    currentTradeName: 'Leroy Construction',
+    snapshotAddress: '12 rue des Ateliers, 75011 Paris',
+    snapshotIdentifiers: 'SIRET 12345678900012, VAT FR12123456789',
+    snapshotLegalName: 'Leroy Construction SAS',
+    supplierId: 42,
+  },
   supplierName: 'Leroy Construction',
   totalHt: '1250.50',
   totalTtc: '1500.60',
   totalTva: '250.10',
+}
+
+const supplierOptionsPage = {
+  content: [
+    {
+      countryCode: 'FR',
+      currentLegalIdentifiers: [{
+        countryCode: 'FR',
+        scheme: 'FR_SIRET',
+        validTo: null,
+        value: '12345678900012',
+      }],
+      legalName: 'Leroy Construction SAS',
+      name: 'Leroy Construction',
+      siret: '12345678900012',
+      supplierId: 42,
+      tradeName: 'Leroy Construction',
+      vatNumber: 'FR12123456789',
+    },
+    {
+      countryCode: 'FR',
+      currentLegalIdentifiers: [
+        {
+          countryCode: 'FR',
+          scheme: 'FR_SIRET',
+          validTo: null,
+          value: '55210055400013',
+        },
+        {
+          countryCode: 'FR',
+          scheme: 'EU_VAT',
+          validTo: null,
+          value: 'FR78552100554',
+        },
+      ],
+      legalName: 'Vinci Energies France SAS',
+      name: 'Vinci Energies',
+      siret: '55210055400013',
+      supplierId: 84,
+      tradeName: 'Vinci Energies',
+      vatNumber: 'FR78552100554',
+    },
+  ],
+  number: 0,
+  size: 20,
+  totalElements: 2,
+  totalPages: 1,
+}
+
+const reassignedInvoiceDetails = {
+  ...invoiceDetails,
+  supplier: {
+    confirmed: true,
+    currentCountryCode: 'FR',
+    currentLegalName: 'Vinci Energies France SAS',
+    currentTradeName: 'Vinci Energies',
+    snapshotAddress: '2169 boulevard de la Défense, 92000 Nanterre',
+    snapshotIdentifiers: 'SIRET 55210055400013, VAT FR78552100554',
+    snapshotLegalName: 'Vinci Energies France SAS',
+    supplierId: 84,
+  },
+  supplierName: 'Vinci Energies',
 }
 
 const invoiceHistory = [
@@ -341,7 +413,9 @@ test('renders the invoice review sections from the detail endpoint', async ({ pa
   await expect(page.getByText('Leroy Construction — INV-2026-0421.pdf')).toBeVisible()
   await expect(page.getByLabel('Original invoice document')).toBeVisible()
   await expect(page.getByText('1 field requires review')).toBeVisible()
-  await expect(page.getByLabel('Supplier name')).toHaveValue('Leroy Construction')
+  await expect(page.getByRole('combobox', { name: 'Supplier' })).toContainText(
+    'Leroy Construction SAS',
+  )
   await expect(page.getByLabel('Total', { exact: true })).toHaveValue('1500.60')
   await expect(page.getByText('Low confidence · 82%')).toBeVisible()
 
@@ -513,6 +587,77 @@ test('sends only changed OCR values and keeps the manual correction after reload
   await expect(page.getByText('Edited manually')).toBeVisible()
 })
 
+test('searches and attaches a supplier by its canonical identifier', async ({ page }) => {
+  const supplierQueries: string[] = []
+  let patchCount = 0
+  let correctionPayload: unknown
+
+  await mockApiRoute(page, '/v1/invoices/42', async (route) => {
+    if (route.request().method() === 'PATCH') {
+      patchCount += 1
+      correctionPayload = route.request().postDataJSON()
+      if (patchCount === 1) {
+        await fulfillJson(route, 409, {
+          code: 'SUPPLIER_IDENTIFIER_CONFLICT',
+          message: 'This supplier cannot be attached because its legal identifier conflicts.',
+        })
+        return
+      }
+    }
+
+    await fulfillJson(route, 200, patchCount ? reassignedInvoiceDetails : invoiceDetails)
+  })
+  await mockApiRoute(page, '/v1/suppliers*', async (route) => {
+    const requestUrl = new URL(route.request().url())
+    supplierQueries.push(requestUrl.searchParams.get('query') ?? '')
+    await fulfillJson(route, 200, supplierOptionsPage)
+  })
+
+  await page.goto('/invoices/42')
+  const supplierCombobox = page.getByRole('combobox', { name: 'Supplier' })
+  await supplierCombobox.click()
+  await page.getByRole('combobox', { name: 'Search suppliers' }).fill('Vinci')
+
+  await expect.poll(() => supplierQueries.at(-1)).toBe('Vinci')
+  await expect(page.getByRole('option', {
+    name: 'Select supplier Vinci Energies France SAS',
+  })).toContainText('SIRET 55210055400013')
+  await page.getByRole('option', {
+    name: 'Select supplier Vinci Energies France SAS',
+  }).click()
+
+  await expect(supplierCombobox).toContainText('Vinci Energies France SAS')
+  await expect(page.getByText('Unsaved change')).toBeVisible()
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+
+  await expect(page.getByRole('alert').filter({
+    hasText: 'Unable to save corrections',
+  })).toContainText('This supplier cannot be attached because its legal identifier conflicts.')
+  await expect(supplierCombobox).toContainText('Vinci Energies France SAS')
+
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+
+  await expect(page.getByRole('status')).toHaveText('Corrections saved.')
+  await expect(supplierCombobox).toContainText('Vinci Energies France SAS')
+  expect(correctionPayload).toEqual({ supplierId: 84 })
+})
+
+test('keeps an unmatched supplier explicit without creating a placeholder', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, {
+    ...invoiceDetails,
+    supplier: null,
+    supplierName: null,
+  }))
+
+  await page.goto('/invoices/42')
+
+  await expect(page.getByRole('combobox', { name: 'Supplier' })).toContainText(
+    'No supplier selected',
+  )
+  await expect(page.getByText('Missing field')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+})
+
 test('renders and controls the original multi-page PDF', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(Element.prototype, 'requestFullscreen', {
@@ -611,9 +756,9 @@ test('offers manual correction when the OCR failure cannot be retried', async ({
   await expect(page.getByRole('button', { name: 'Retry OCR' })).toHaveCount(0)
   await expect(page.getByText('This error cannot be fixed by retrying OCR.')).toBeVisible()
   await page.getByRole('button', { name: 'Enter details manually' }).click()
-  await expect(page.getByLabel('Supplier name')).toBeFocused()
+  await expect(page.getByRole('combobox', { name: 'Supplier' })).toBeFocused()
 
-  await page.getByLabel('Supplier name').fill('Leroy Construction corrected')
+  await page.getByLabel('Invoice number').fill('INV-2026-0421-CORRECTED')
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled()
 })
 
@@ -628,7 +773,9 @@ test('keeps a document error isolated from the invoice data', async ({ page }) =
   await expect(
     page.getByRole('alert').filter({ hasText: 'Unable to display the original invoice' }),
   ).toBeVisible()
-  await expect(page.getByLabel('Supplier name')).toHaveValue('Leroy Construction')
+  await expect(page.getByRole('combobox', { name: 'Supplier' })).toContainText(
+    'Leroy Construction SAS',
+  )
 })
 
 test('keeps an activity error isolated and allows retry', async ({ page }) => {

@@ -1,32 +1,54 @@
+import { Link } from 'react-router-dom'
+
 import { DashboardBlockError } from '@/components/dashboard/DashboardBlockError'
-import {
-  DashboardSectionAction,
-  DashboardSectionHeader,
-} from '@/components/dashboard/DashboardSectionHeader'
+import { DashboardSectionHeader } from '@/components/dashboard/DashboardSectionHeader'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { DashboardSummary } from '@/types/dashboard'
 
 type DashboardSpendingOverviewProps = {
+  currencyCode: string | null
   error: boolean
   onRetry: () => void
   summary: DashboardSummary | null
 }
 
-const numberFormatter = new Intl.NumberFormat('en-GB', {
-  maximumFractionDigits: 2,
-  minimumFractionDigits: 0,
+const periodDateFormatter = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
 })
+
+function formatAmount(value: number, currencyCode: string) {
+  try {
+    return new Intl.NumberFormat('en-GB', {
+      currency: currencyCode,
+      currencyDisplay: 'symbol',
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 0,
+      style: 'currency',
+    }).format(value)
+  } catch {
+    return `${value.toLocaleString('en-GB')} ${currencyCode}`
+  }
+}
+
+function formatPeriodDate(value: string) {
+  const date = new Date(`${value}T00:00:00`)
+  return Number.isNaN(date.getTime()) ? value : periodDateFormatter.format(date)
+}
 
 function formatPeriod(summary: DashboardSummary) {
   if (!summary.period.startDate || !summary.period.endDate) {
     return 'Selected period'
   }
 
-  return `${summary.period.startDate} – ${summary.period.endDate}`
+  return `${formatPeriodDate(summary.period.startDate)} – ${formatPeriodDate(summary.period.endDate)}`
 }
 
 export function DashboardSpendingOverview({
+  currencyCode,
   error,
   onRetry,
   summary,
@@ -43,7 +65,11 @@ export function DashboardSpendingOverview({
   return (
     <section aria-labelledby="dashboard-spending-title" className="min-w-0 max-w-full">
       <DashboardSectionHeader
-        action={<DashboardSectionAction>View report</DashboardSectionAction>}
+        action={(
+          <Button asChild className="bg-accent text-accent-foreground" variant="ghost">
+            <Link to="/reports">View report</Link>
+          </Button>
+        )}
         description="Invoice totals over the selected period."
         title="Spending overview"
         titleId="dashboard-spending-title"
@@ -54,7 +80,7 @@ export function DashboardSpendingOverview({
             message="Spending totals are unavailable."
             onRetry={onRetry}
           />
-        ) : !summary ? (
+        ) : !summary || !currencyCode ? (
           <div aria-label="Loading spending overview">
             <Skeleton className="h-4 w-32" />
             <Skeleton className="mt-1 h-8 w-28" />
@@ -70,7 +96,7 @@ export function DashboardSpendingOverview({
               <div>
                 <p className="text-xs font-medium text-muted-foreground">Total invoice amount</p>
                 <p className="text-2xl font-semibold leading-8 tracking-[-0.5px] text-foreground">
-                  {numberFormatter.format(Number(summary.totals.totalTtc))}
+                  {formatAmount(Number(summary.totals.totalTtc), currencyCode)}
                 </p>
               </div>
               <span className="text-right text-xs text-muted-foreground">{formatPeriod(summary)}</span>
@@ -86,7 +112,7 @@ export function DashboardSpendingOverview({
                     />
                   </span>
                   <span className="text-right text-xs font-medium text-foreground">
-                    {numberFormatter.format(row.value)}
+                    {formatAmount(row.value, currencyCode)}
                   </span>
                 </div>
               ))}
