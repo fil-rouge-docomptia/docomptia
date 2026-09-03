@@ -145,6 +145,17 @@ export type InvoiceDuplicateDecisionRequest = {
   reason?: string
 }
 
+export type InvoiceSupplier = {
+  confirmed: boolean
+  currentCountryCode: string | null
+  currentLegalName: string
+  currentTradeName: string | null
+  snapshotAddress: string | null
+  snapshotIdentifiers: string | null
+  snapshotLegalName: string | null
+  supplierId: number
+}
+
 export type InvoiceDetails = {
   invoiceId: number
   invoiceNumber: string | null
@@ -152,6 +163,7 @@ export type InvoiceDetails = {
   invoiceDate: string | null
   dueDate: string | null
   status: string
+  supplier: InvoiceSupplier | null
   supplierName: string | null
   classification: InvoiceClassification | null
   currencyCode: string | null
@@ -170,7 +182,7 @@ export type InvoiceCorrectionRequest = {
   dueDate?: string
   invoiceDate?: string
   invoiceNumber?: string
-  supplierName?: string
+  supplierId?: number
   totalHt?: string
   totalTtc?: string
   totalTva?: string
