@@ -185,6 +185,17 @@ export default function ApprovalsPage() {
     updateSearchParams({ direction: nextDirection, page: '1', sortBy: field })
   }
 
+  const getApprovalReviewHref = (invoice: InvoiceListItem, index: number) => {
+    const returnTo = `/approvals${searchParams.size ? `?${searchParams.toString()}` : ''}`
+    const reviewParams = new URLSearchParams({
+      position: String(invoicePage ? invoicePage.number * invoicePage.size + index + 1 : index + 1),
+      returnTo,
+      total: String(invoicePage?.totalElements ?? 0),
+    })
+
+    return `/approvals/${invoice.invoiceId}?${reviewParams.toString()}`
+  }
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -229,6 +240,7 @@ export default function ApprovalsPage() {
           >
             <InvoiceTable
               direction={direction}
+              getInvoiceHref={getApprovalReviewHref}
               invoices={invoicePage.content}
               onSortChange={handleSortChange}
               sortBy={sortBy}
