@@ -3,6 +3,7 @@ import { Navigate, createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth/RouteGuard'
 import { AppShell } from '@/components/layout/AppShell'
 import AccountingOnboardingPage from '@/pages/AccountingOnboardingPage'
+import ApprovalsPage from '@/pages/ApprovalsPage'
 import DashboardPage from '@/pages/DashboardPage'
 import DocumentsPage from '@/pages/DocumentsPage'
 import InvoiceUploadPage from '@/pages/InvoiceUploadPage'
@@ -61,12 +62,7 @@ export const privateRoutes = [
   },
   {
     path: '/approvals',
-    element: (
-      <ModulePlaceholderPage
-        description="Review invoices waiting for an accounting decision."
-        title="Approvals"
-      />
-    ),
+    element: <ApprovalsPage />,
   },
   {
     path: '/accounting',
