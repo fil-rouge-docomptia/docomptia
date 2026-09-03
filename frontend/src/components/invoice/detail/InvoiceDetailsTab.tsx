@@ -287,7 +287,8 @@ export function InvoiceDetailsTab({
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [saveErrorMessage, setSaveErrorMessage] = useState('')
   const fieldCorrections = getCorrections(draft, invoice)
-  const supplierChanged = selectedSupplier?.supplierId !== (invoice.supplier?.supplierId ?? null)
+  const supplierChanged = (selectedSupplier?.supplierId ?? null)
+    !== (invoice.supplier?.supplierId ?? null)
   const corrections: InvoiceCorrectionRequest = supplierChanged && selectedSupplier
     ? { ...fieldCorrections, supplierId: selectedSupplier.supplierId }
     : fieldCorrections
