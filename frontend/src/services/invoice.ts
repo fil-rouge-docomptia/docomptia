@@ -272,6 +272,17 @@ export async function submitInvoiceForValidation(
   return response.json() as Promise<InvoiceStatusResponse>
 }
 
+export async function approveInvoice(
+  invoiceId: number,
+): Promise<InvoiceStatusResponse> {
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/v1/invoices/${invoiceId}/validate`,
+    { method: 'POST' },
+  )
+
+  return response.json() as Promise<InvoiceStatusResponse>
+}
+
 export async function rejectInvoice(
   invoiceId: number,
   request: InvoiceRejectionRequest,

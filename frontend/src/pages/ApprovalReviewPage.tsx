@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
-import { AlertCircle, ArrowLeft } from 'lucide-react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
+import { AlertCircle, ArrowLeft, BadgeCheck } from 'lucide-react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
 
 import { ApprovalDecisionPanel } from '@/components/approval/ApprovalDecisionPanel'
 import { ApprovalReviewContext } from '@/components/approval/ApprovalReviewContext'
@@ -9,16 +10,56 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/hooks/use-auth'
-import { getInvoiceDetails } from '@/services/invoice'
-import type { InvoiceDetails } from '@/types/invoice'
+import {
+  approveInvoice,
+  getInvoiceDetails,
+  listPendingValidationInvoices,
+} from '@/services/invoice'
+import type {
+  InvoiceDetails,
+  InvoiceListItem,
+  InvoiceSortField,
+  SortDirection,
+} from '@/types/invoice'
+
+const DEFAULT_QUEUE_SIZE = 8
+const queueSortFields: InvoiceSortField[] = ['createdAt', 'invoiceDate', 'totalTtc']
+
+type ApprovalAction = 'approved' | 'approving' | 'idle' | 'loading-next'
+
+type NextInvoice = {
+  invoice: InvoiceListItem
+  queueIndex: number
+  queuePage: number
+}
 
 function parsePositiveInteger(value: string | null) {
   const number = Number(value)
   return Number.isInteger(number) && number > 0 ? number : null
 }
 
+function parseNonNegativeInteger(value: string | null) {
+  const number = Number(value)
+  return Number.isInteger(number) && number >= 0 ? number : null
+}
+
+function parseSortField(value: string | null): InvoiceSortField {
+  return queueSortFields.includes(value as InvoiceSortField)
+    ? value as InvoiceSortField
+    : 'invoiceDate'
+}
+
+function parseDirection(value: string | null): SortDirection {
+  return value?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC'
+}
+
 function getReturnPath(value: string | null) {
   return value && /^\/approvals(?:\?|$)/.test(value) ? value : '/approvals'
+}
+
+function getReturnSearchParams(returnTo: string) {
+  const queryIndex = returnTo.indexOf('?')
+  return new URLSearchParams(queryIndex >= 0 ? returnTo.slice(queryIndex + 1) : '')
 }
 
 function ApprovalReviewSkeleton() {
@@ -52,8 +93,12 @@ function ApprovalReviewSkeleton() {
 export default function ApprovalReviewPage() {
   const { invoiceId: invoiceIdParam } = useParams()
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const { user } = useAuth()
   const [retryCount, setRetryCount] = useState(0)
+  const [action, setAction] = useState<ApprovalAction>('idle')
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [queueComplete, setQueueComplete] = useState(false)
   const [requestState, setRequestState] = useState<{
     error: boolean
     invoice: InvoiceDetails | null
@@ -68,6 +113,14 @@ export default function ApprovalReviewPage() {
   const returnTo = getReturnPath(searchParams.get('returnTo'))
   const position = parsePositiveInteger(searchParams.get('position'))
   const total = parsePositiveInteger(searchParams.get('total'))
+  const queueSize = parsePositiveInteger(searchParams.get('queueSize')) ?? DEFAULT_QUEUE_SIZE
+  const returnSearchParams = getReturnSearchParams(returnTo)
+  const returnPage = parsePositiveInteger(returnSearchParams.get('page')) ?? 1
+  const queuePage = parseNonNegativeInteger(searchParams.get('queuePage')) ?? returnPage - 1
+  const queueIndex = parseNonNegativeInteger(searchParams.get('queueIndex'))
+  const sortBy = parseSortField(returnSearchParams.get('sortBy'))
+  const direction = parseDirection(returnSearchParams.get('direction'))
+  const hasNextInvoice = !position || !total || position < total
   const queueContext = position && total
     ? `Invoice ${position} of ${total}`
     : 'Approval queue invoice'
@@ -105,6 +158,117 @@ export default function ApprovalReviewPage() {
     return () => controller.abort()
   }, [invoiceId, requestKey, validInvoiceId])
 
+  const findNextInvoice = useCallback(async (currentInvoiceRemoved: boolean) => {
+    const invoicePage = await listPendingValidationInvoices({
+      direction,
+      page: queuePage,
+      size: queueSize,
+      sortBy,
+    })
+    const currentIndex = queueIndex
+      ?? invoicePage.content.findIndex((item) => item.invoiceId === invoiceId)
+    const candidateIndex = currentInvoiceRemoved
+      ? Math.max(currentIndex, 0)
+      : currentIndex >= 0 ? currentIndex + 1 : 0
+    const candidate = invoicePage.content[candidateIndex]
+
+    if (candidate) {
+      return { invoice: candidate, queueIndex: candidateIndex, queuePage } satisfies NextInvoice
+    }
+
+    if (!currentInvoiceRemoved && invoicePage.number + 1 < invoicePage.totalPages) {
+      const nextPageNumber = invoicePage.number + 1
+      const nextPage = await listPendingValidationInvoices({
+        direction,
+        page: nextPageNumber,
+        size: queueSize,
+        sortBy,
+      })
+      const firstInvoice = nextPage.content[0]
+
+      if (firstInvoice) {
+        return { invoice: firstInvoice, queueIndex: 0, queuePage: nextPageNumber } satisfies NextInvoice
+      }
+    }
+
+    return null
+  }, [direction, invoiceId, queueIndex, queuePage, queueSize, sortBy])
+
+  const openNextInvoice = useCallback((nextInvoice: NextInvoice) => {
+    const nextParams = new URLSearchParams(searchParams)
+
+    if (position) {
+      nextParams.set('position', String(position + 1))
+    }
+    nextParams.set('queueIndex', String(nextInvoice.queueIndex))
+    nextParams.set('queuePage', String(nextInvoice.queuePage))
+    nextParams.set('queueSize', String(queueSize))
+
+    setAction('idle')
+    setActionError(null)
+    setQueueComplete(false)
+    navigate(`/approvals/${nextInvoice.invoice.invoiceId}?${nextParams.toString()}`)
+  }, [navigate, position, queueSize, searchParams])
+
+  const handleApprove = useCallback(async () => {
+    if (!invoice || action !== 'idle') {
+      return
+    }
+
+    setActionError(null)
+    setAction('approving')
+
+    try {
+      await approveInvoice(invoice.invoiceId)
+    } catch {
+      setAction('idle')
+      setActionError('The backend did not confirm the approval. Please try again.')
+      return
+    }
+
+    toast.success('Invoice approved', {
+      description: `${invoice.invoiceNumber ?? `Invoice ${invoice.invoiceId}`} was approved. Continue with the next invoice.`,
+    })
+    setAction('loading-next')
+
+    try {
+      const nextInvoice = await findNextInvoice(true)
+
+      if (nextInvoice) {
+        openNextInvoice(nextInvoice)
+      } else {
+        setQueueComplete(true)
+        setAction('idle')
+      }
+    } catch {
+      setAction('approved')
+      setActionError('The invoice was approved, but the next invoice could not be loaded. Return to the queue to continue.')
+    }
+  }, [action, findNextInvoice, invoice, openNextInvoice])
+
+  const handleNextInvoice = useCallback(async () => {
+    if (action !== 'idle') {
+      return
+    }
+
+    setActionError(null)
+    setAction('loading-next')
+
+    try {
+      const nextInvoice = await findNextInvoice(false)
+
+      if (nextInvoice) {
+        openNextInvoice(nextInvoice)
+      } else {
+        setActionError('No other pending invoice is available in this queue.')
+        setAction('idle')
+      }
+    } catch {
+      setActionError('The next invoice could not be loaded. Please try again.')
+      setAction('idle')
+    }
+  }, [action, findNextInvoice, openNextInvoice])
+
   if (error) {
     return (
       <div className="mx-auto max-w-2xl space-y-5 pt-6">
@@ -139,6 +303,27 @@ export default function ApprovalReviewPage() {
     return <ApprovalReviewSkeleton />
   }
 
+  if (queueComplete) {
+    return (
+      <div className="mx-auto flex min-h-[36rem] max-w-2xl items-center justify-center py-8">
+        <section className="w-full rounded-lg border border-border bg-card px-8 py-12 text-center shadow-elevation-1">
+          <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-success-muted text-success">
+            <BadgeCheck aria-hidden="true" className="size-6" />
+          </span>
+          <h1 className="mt-5 text-2xl font-semibold tracking-[-0.5px] text-foreground">
+            Approval queue complete
+          </h1>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+            This was the final eligible invoice in your current review sequence.
+          </p>
+          <Button asChild className="mt-6">
+            <Link to={returnTo}>Return to approvals</Link>
+          </Button>
+        </section>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-5">
       <header>
@@ -152,7 +337,7 @@ export default function ApprovalReviewPage() {
           Approval review
         </h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          {queueContext} · Review the document, invoice data and accounting context.
+          {queueContext} · Review with keyboard shortcuts and auto-advance.
         </p>
       </header>
 
@@ -163,7 +348,14 @@ export default function ApprovalReviewPage() {
         </div>
         <div className="min-w-0 border-t border-border xl:h-[49rem] xl:overflow-y-auto xl:border-l xl:border-t-0">
           <ApprovalDecisionPanel
+            actionError={actionError}
+            approvalConfirmed={action === 'approved'}
+            hasNextInvoice={hasNextInvoice}
             invoice={invoice}
+            isApproving={action === 'approving'}
+            isLoadingNext={action === 'loading-next'}
+            onApprove={handleApprove}
+            onNextInvoice={handleNextInvoice}
             onStatusChanged={handleStatusChanged}
             role={user?.role.code}
           />

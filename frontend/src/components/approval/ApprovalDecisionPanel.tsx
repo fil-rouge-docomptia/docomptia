@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
-import { BadgeCheck, CircleAlert, MessageSquareText, X } from 'lucide-react'
+import {
+  ArrowRight,
+  BadgeCheck,
+  CircleAlert,
+  MessageSquareText,
+  X,
+} from 'lucide-react'
 
 import { InvoiceCorrectionRequestDialog } from '@/components/approval/InvoiceCorrectionRequestDialog'
 import { InvoiceRejectionDialog } from '@/components/approval/InvoiceRejectionDialog'
@@ -41,15 +47,49 @@ function getBlockingReasons(invoice: InvoiceDetails, role?: RoleCode) {
   return reasons
 }
 
-export function ApprovalDecisionPanel({
-  invoice,
-  onStatusChanged,
-  role,
-}: {
+function KeyboardKey({ children }: { children: string }) {
+  return (
+    <kbd
+      aria-hidden="true"
+      className="ml-auto flex size-5 items-center justify-center rounded border border-current/20 bg-background/80 text-[10px] font-semibold"
+    >
+      {children}
+    </kbd>
+  )
+}
+
+function isTypingTarget(target: EventTarget | null) {
+  return target instanceof HTMLElement && (
+    target.isContentEditable
+    || ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)
+  )
+}
+
+type ApprovalDecisionPanelProps = {
+  actionError: string | null
+  approvalConfirmed: boolean
+  hasNextInvoice: boolean
   invoice: InvoiceDetails
+  isApproving: boolean
+  isLoadingNext: boolean
+  onApprove: () => void
+  onNextInvoice: () => void
   onStatusChanged: (status: string) => void
   role?: RoleCode
-}) {
+}
+
+export function ApprovalDecisionPanel({
+  actionError,
+  approvalConfirmed,
+  hasNextInvoice,
+  invoice,
+  isApproving,
+  isLoadingNext,
+  onApprove,
+  onNextInvoice,
+  onStatusChanged,
+  role,
+}: ApprovalDecisionPanelProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [correctionDialogOpen, setCorrectionDialogOpen] = useState(false)
   const [correctionReason, setCorrectionReason] = useState<string | null>(null)
@@ -58,6 +98,7 @@ export function ApprovalDecisionPanel({
   const [historyRetryCount, setHistoryRetryCount] = useState(0)
   const blockingReasons = getBlockingReasons(invoice, role)
   const ready = blockingReasons.length === 0
+  const busy = approvalConfirmed || isApproving || isLoadingNext
   const decisionHelpId = `approval-decision-help-${invoice.invoiceId}`
   const correctionRequested = invoice.status === 'EXTRAITE' && correctionReason !== null
   const rejected = invoice.status === 'REJETEE'
@@ -86,37 +127,40 @@ export function ApprovalDecisionPanel({
   }, [historyRetryCount, invoice.invoiceId, rejected, rejectionReason])
 
   useEffect(() => {
-    if (!ready || rejected || dialogOpen || correctionDialogOpen) {
-      return
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const target = event.target
-      const editing = target instanceof HTMLElement && (
-        target.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)
-      )
+    const handleShortcut = (event: KeyboardEvent) => {
+      if (
+        event.altKey
+        || event.ctrlKey
+        || event.metaKey
+        || event.repeat
+        || event.shiftKey
+        || dialogOpen
+        || correctionDialogOpen
+        || isTypingTarget(event.target)
+      ) {
+        return
+      }
 
       const shortcut = event.key.toLowerCase()
-      if (
-        !editing &&
-        !event.altKey &&
-        !event.ctrlKey &&
-        !event.metaKey &&
-        !event.shiftKey &&
-        (shortcut === 'c' || shortcut === 'r')
-      ) {
+
+      if (shortcut === 'a' && ready && !busy) {
         event.preventDefault()
-        if (shortcut === 'c') {
-          setCorrectionDialogOpen(true)
-        } else {
-          setDialogOpen(true)
-        }
+        onApprove()
+      } else if (shortcut === 'r' && ready && !busy) {
+        event.preventDefault()
+        setDialogOpen(true)
+      } else if (shortcut === 'c' && ready && !busy) {
+        event.preventDefault()
+        setCorrectionDialogOpen(true)
+      } else if (shortcut === 'n' && hasNextInvoice && !busy) {
+        event.preventDefault()
+        onNextInvoice()
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [correctionDialogOpen, dialogOpen, ready, rejected])
+    document.addEventListener('keydown', handleShortcut)
+    return () => document.removeEventListener('keydown', handleShortcut)
+  }, [busy, correctionDialogOpen, dialogOpen, hasNextInvoice, onApprove, onNextInvoice, ready])
 
   const handleReject = async (reason: string) => {
     const response = await rejectInvoice(invoice.invoiceId, { reason })
@@ -197,10 +241,24 @@ export function ApprovalDecisionPanel({
 
   return (
     <aside aria-label="Approval decision" className="p-5">
-      <h2 className="text-sm font-semibold text-foreground">Decision</h2>
-      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold tracking-[-0.25px] text-foreground">Decision</h2>
+        <Badge className="gap-1.5 border-success/20 bg-success-muted text-success" variant="outline">
+          <span aria-hidden="true" className="size-1.5 rounded-full bg-success" />
+          Auto-advance · On
+        </Badge>
+      </div>
+      <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
         Review the document and contextual data before choosing an action.
       </p>
+
+      {actionError ? (
+        <Alert className="mt-5" variant="destructive">
+          <CircleAlert aria-hidden="true" />
+          <AlertTitle>Unable to complete the action</AlertTitle>
+          <AlertDescription>{actionError}</AlertDescription>
+        </Alert>
+      ) : null}
 
       {ready ? (
         <div className="mt-5 rounded-lg border border-success/20 bg-success-muted p-4">
@@ -227,47 +285,65 @@ export function ApprovalDecisionPanel({
       <div className="mt-5 space-y-2">
         <Button
           aria-describedby={decisionHelpId}
+          aria-label="Approve invoice"
           className="w-full"
-          disabled
+          disabled={!ready || busy}
+          onClick={onApprove}
           type="button"
         >
           <BadgeCheck aria-hidden="true" />
-          Approve invoice
+          {approvalConfirmed ? 'Approved' : isApproving ? 'Approving…' : 'Approve'}
+          <KeyboardKey>A</KeyboardKey>
         </Button>
-        <div className="flex items-center gap-2">
-          <Button
-            aria-describedby={decisionHelpId}
-            className="w-full"
-            disabled={!ready}
-            onClick={() => setDialogOpen(true)}
-            type="button"
-            variant="destructive"
-          >
-            <X aria-hidden="true" />
-            Reject invoice
-          </Button>
-          <Badge className="h-6 w-9 justify-center" variant="outline">R</Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            aria-describedby={decisionHelpId}
-            className="w-full"
-            disabled={!ready}
-            onClick={() => setCorrectionDialogOpen(true)}
-            type="button"
-            variant="outline"
-          >
-            <MessageSquareText aria-hidden="true" />
-            Request changes
-          </Button>
-          <Badge className="h-6 w-9 justify-center" variant="outline">C</Badge>
-        </div>
+        <Button
+          aria-describedby={decisionHelpId}
+          aria-label="Reject invoice"
+          className="w-full"
+          disabled={!ready || busy}
+          onClick={() => setDialogOpen(true)}
+          type="button"
+          variant="destructive"
+        >
+          <X aria-hidden="true" />
+          Reject
+          <KeyboardKey>R</KeyboardKey>
+        </Button>
+        <Button
+          aria-describedby={decisionHelpId}
+          aria-label="Request correction"
+          className="w-full"
+          disabled={!ready || busy}
+          onClick={() => setCorrectionDialogOpen(true)}
+          type="button"
+          variant="outline"
+        >
+          <MessageSquareText aria-hidden="true" />
+          Request changes
+          <KeyboardKey>C</KeyboardKey>
+        </Button>
+        <Button
+          aria-describedby={decisionHelpId}
+          aria-label="Next invoice"
+          className="w-full"
+          disabled={!hasNextInvoice || busy}
+          onClick={onNextInvoice}
+          type="button"
+          variant="outline"
+        >
+          <ArrowRight aria-hidden="true" />
+          {isLoadingNext ? 'Opening next…' : 'Next invoice'}
+          <KeyboardKey>N</KeyboardKey>
+        </Button>
       </div>
 
-      <p className="mt-3 text-xs leading-5 text-muted-foreground" id={decisionHelpId}>
-        {ready
-          ? 'Select an action or press R to reject and C to request changes.'
-          : 'Resolve the blocking items before choosing a decision.'}
+      <div className="mt-5 rounded-lg border border-border bg-muted/40 p-3" id={decisionHelpId}>
+        <p className="text-xs font-medium text-foreground">After a decision</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          The next pending invoice opens automatically. Use N to skip without deciding.
+        </p>
+      </div>
+      <p className="mt-4 text-center text-[11px] leading-4 text-muted-foreground">
+        Tab moves focus · Enter confirms · Esc closes dialogs
       </p>
 
       <InvoiceCorrectionRequestDialog
