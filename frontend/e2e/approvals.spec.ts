@@ -179,6 +179,107 @@ test('blocks decisions when required invoice data is missing', async ({ page }) 
   await expect(page.getByRole('button', { name: 'Reject invoice' })).toBeDisabled()
 })
 
+test('rejects an invoice after backend confirmation and shows the persisted reason', async ({ page }) => {
+  let releaseRejection: () => void = () => undefined
+  const rejectionPending = new Promise<void>((resolve) => {
+    releaseRejection = resolve
+  })
+  let rejectionRequest: { method: string; payload: unknown } | null = null
+
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, approvalDetails)
+  ))
+  await mockApiRoute(page, '/v1/invoices/42/file', fulfillOriginalInvoiceImage)
+  await mockApiRoute(page, '/v1/invoices/42/reject', async (route) => {
+    rejectionRequest = {
+      method: route.request().method(),
+      payload: route.request().postDataJSON(),
+    }
+    await rejectionPending
+    await fulfillJson(route, 200, { invoiceId: 42, status: 'REJETEE' })
+  })
+
+  await page.goto('/approvals/42')
+  await expect(page.getByText('Ready for decision')).toBeVisible()
+  await page.keyboard.press('r')
+
+  const dialog = page.getByRole('dialog', { name: 'Reject invoice' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('radio', { name: 'Incorrect amount' })).toBeChecked()
+  await dialog.getByRole('radio', { name: 'Wrong supplier' }).check()
+  await dialog.getByLabel('Comment').fill('Supplier identity does not match.')
+  await dialog.getByRole('button', { name: 'Reject invoice', exact: true }).click()
+
+  await expect(dialog.getByRole('button', { name: 'Rejecting…' })).toBeDisabled()
+  await expect(page.getByText('Invoice rejected')).toHaveCount(0)
+
+  releaseRejection()
+
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByText('Invoice rejected')).toBeVisible()
+  await expect(page.getByText('Rejected', { exact: true })).toBeVisible()
+  await expect(page.getByText('Wrong supplier: Supplier identity does not match.')).toBeVisible()
+  expect(rejectionRequest).toEqual({
+    method: 'POST',
+    payload: { reason: 'Wrong supplier: Supplier identity does not match.' },
+  })
+})
+
+test('keeps the rejection form values when the backend rejects the request', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, approvalDetails)
+  ))
+  await mockApiRoute(page, '/v1/invoices/42/file', fulfillOriginalInvoiceImage)
+  await mockApiRoute(page, '/v1/invoices/42/reject', (route) => (
+    fulfillJson(route, 500, { code: 'INTERNAL_ERROR', message: 'Unavailable' })
+  ))
+
+  await page.goto('/approvals/42')
+  await page.getByRole('button', { name: 'Reject invoice' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Reject invoice' })
+  await dialog.getByRole('radio', { name: 'Other' }).check()
+  await dialog.getByLabel('Comment').fill('The document belongs to another organization.')
+  await dialog.getByRole('button', { name: 'Reject invoice', exact: true }).click()
+
+  await expect(dialog.getByRole('alert')).toContainText(
+    'Unable to reject the invoice. Your reason and comment have been kept.',
+  )
+  await expect(dialog.getByRole('radio', { name: 'Other' })).toBeChecked()
+  await expect(dialog.getByLabel('Comment')).toHaveValue(
+    'The document belongs to another organization.',
+  )
+  await expect(page.getByText('Waiting approval')).toBeVisible()
+})
+
+test('loads the recorded rejection reason for an already rejected invoice', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, {
+    ...approvalDetails,
+    status: 'REJETEE',
+  }))
+  await mockApiRoute(page, '/v1/invoices/42/file', fulfillOriginalInvoiceImage)
+  await mockApiRoute(page, '/v1/invoices/42/history', (route) => fulfillJson(route, 200, [
+    {
+      action: 'REJECTION',
+      author: 'Marie Laurent',
+      authorId: 3,
+      comment: 'Incorrect amount: The VAT amount is incorrect.',
+      date: '2026-08-20T10:15:00',
+      duplicateAlertId: null,
+      fieldName: null,
+      newValue: null,
+      oldValue: null,
+      type: 'VALIDATION_DECISION',
+    },
+  ]))
+
+  await page.goto('/approvals/42')
+
+  await expect(page.getByText('Invoice rejected')).toBeVisible()
+  await expect(page.getByText('Rejected', { exact: true })).toBeVisible()
+  await expect(page.getByText('Incorrect amount: The VAT amount is incorrect.')).toBeVisible()
+})
+
 test('keeps approval sorting and pagination in the URL', async ({ page }) => {
   const requestedUrls: URL[] = []
 
