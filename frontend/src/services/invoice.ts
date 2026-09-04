@@ -2,6 +2,7 @@ import { apiBaseUrl } from '@/lib/env'
 import { clearAuthToken, getAuthToken } from '@/lib/auth-session'
 import { ApiError, authenticatedFetch } from '@/services/api'
 import type {
+  InvoiceCorrectionDemandRequest,
   InvoiceCorrectionRequest,
   InvoiceDetails,
   InvoiceDuplicateDecisionRequest,
@@ -277,6 +278,22 @@ export async function rejectInvoice(
 ): Promise<InvoiceStatusResponse> {
   const response = await authenticatedFetch(
     `${apiBaseUrl}/v1/invoices/${invoiceId}/reject`,
+    {
+      body: JSON.stringify(request),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+    },
+  )
+
+  return response.json() as Promise<InvoiceStatusResponse>
+}
+
+export async function requestInvoiceCorrection(
+  invoiceId: number,
+  request: InvoiceCorrectionDemandRequest,
+): Promise<InvoiceStatusResponse> {
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/v1/invoices/${invoiceId}/request-correction`,
     {
       body: JSON.stringify(request),
       headers: { 'Content-Type': 'application/json' },
