@@ -1,7 +1,11 @@
+import { useEffect, useState } from 'react'
 import { BadgeCheck, CircleAlert, MessageSquareText, X } from 'lucide-react'
 
+import { InvoiceRejectionDialog } from '@/components/approval/InvoiceRejectionDialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { getInvoiceHistory, rejectInvoice } from '@/services/invoice'
 import type { RoleCode } from '@/types/auth'
 import type { InvoiceDetails } from '@/types/invoice'
 
@@ -38,14 +42,121 @@ function getBlockingReasons(invoice: InvoiceDetails, role?: RoleCode) {
 
 export function ApprovalDecisionPanel({
   invoice,
+  onRejected,
   role,
 }: {
   invoice: InvoiceDetails
+  onRejected: (status: string) => void
   role?: RoleCode
 }) {
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null)
+  const [historyError, setHistoryError] = useState(false)
+  const [historyRetryCount, setHistoryRetryCount] = useState(0)
   const blockingReasons = getBlockingReasons(invoice, role)
   const ready = blockingReasons.length === 0
   const decisionHelpId = `approval-decision-help-${invoice.invoiceId}`
+  const rejected = invoice.status === 'REJETEE'
+
+  useEffect(() => {
+    if (!rejected || rejectionReason) {
+      return
+    }
+
+    const controller = new AbortController()
+
+    getInvoiceHistory(invoice.invoiceId, controller.signal)
+      .then((history) => {
+        const latestRejection = history.findLast((item) => (
+          item.type === 'VALIDATION_DECISION' && item.action === 'REJECTION'
+        ))
+        setRejectionReason(latestRejection?.comment ?? null)
+      })
+      .catch((requestError: unknown) => {
+        if (!(requestError instanceof DOMException && requestError.name === 'AbortError')) {
+          setHistoryError(true)
+        }
+      })
+
+    return () => controller.abort()
+  }, [historyRetryCount, invoice.invoiceId, rejected, rejectionReason])
+
+  useEffect(() => {
+    if (!ready || rejected || dialogOpen) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target
+      const editing = target instanceof HTMLElement && (
+        target.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)
+      )
+
+      if (
+        !editing &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === 'r'
+      ) {
+        event.preventDefault()
+        setDialogOpen(true)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [dialogOpen, ready, rejected])
+
+  const handleReject = async (reason: string) => {
+    const response = await rejectInvoice(invoice.invoiceId, { reason })
+    setRejectionReason(reason)
+    onRejected(response.status)
+  }
+
+  if (rejected) {
+    return (
+      <aside aria-label="Approval decision" className="p-5">
+        <div className="rounded-md bg-destructive p-4 text-destructive-foreground">
+          <h2 className="text-xs font-medium tracking-[0.1px]">Invoice rejected</h2>
+          <p className="mt-1.5 text-xs leading-4">
+            Review the rejection reason, update the invoice, and resubmit it for approval.
+          </p>
+        </div>
+
+        <div className="mt-5 rounded-lg border border-border p-4">
+          <p className="text-xs font-medium tracking-[0.1px] text-muted-foreground">
+            Rejection reason
+          </p>
+          {rejectionReason ? (
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-5 text-foreground">
+              {rejectionReason}
+            </p>
+          ) : historyError ? (
+            <div className="mt-2 space-y-3">
+              <p className="text-sm text-destructive">Unable to load the rejection reason.</p>
+              <Button
+                onClick={() => {
+                  setHistoryError(false)
+                  setHistoryRetryCount((count) => count + 1)
+                }}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                Try again
+              </Button>
+            </div>
+          ) : (
+            <p aria-live="polite" className="mt-2 text-sm text-muted-foreground">
+              Loading rejection reason…
+            </p>
+          )}
+        </div>
+      </aside>
+    )
+  }
 
   return (
     <aside aria-label="Approval decision" className="p-5">
@@ -96,21 +207,33 @@ export function ApprovalDecisionPanel({
           <MessageSquareText aria-hidden="true" />
           Request correction
         </Button>
-        <Button
-          aria-describedby={decisionHelpId}
-          className="w-full"
-          disabled
-          type="button"
-          variant="destructive"
-        >
-          <X aria-hidden="true" />
-          Reject invoice
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            aria-describedby={decisionHelpId}
+            className="w-full"
+            disabled={!ready}
+            onClick={() => setDialogOpen(true)}
+            type="button"
+            variant="destructive"
+          >
+            <X aria-hidden="true" />
+            Reject invoice
+          </Button>
+          <Badge className="h-6 w-9 justify-center" variant="outline">R</Badge>
+        </div>
       </div>
 
       <p className="mt-3 text-xs leading-5 text-muted-foreground" id={decisionHelpId}>
-        Decision actions will be activated by the approval, correction and rejection workflows.
+        {ready
+          ? 'Select Reject invoice or press R to record a rejection reason.'
+          : 'Resolve the blocking items before choosing a decision.'}
       </p>
+
+      <InvoiceRejectionDialog
+        onOpenChange={setDialogOpen}
+        onReject={handleReject}
+        open={dialogOpen}
+      />
     </aside>
   )
 }
