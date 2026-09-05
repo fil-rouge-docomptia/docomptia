@@ -1,6 +1,7 @@
 package org.facturation.backend.service.impl;
 
 import org.facturation.backend.exception.InvoiceStatusTransitionException;
+import org.facturation.backend.exception.ArchivedInvoiceNotModifiableException;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatus;
 import org.facturation.backend.model.InvoiceStatusCode;
@@ -72,7 +73,11 @@ class InvoiceStatusWorkflowServiceIntegrationTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = InvoiceStatusCode.class, names = "VALIDEE", mode = EnumSource.Mode.EXCLUDE)
+    @EnumSource(
+            value = InvoiceStatusCode.class,
+            names = {"VALIDEE", "ARCHIVEE"},
+            mode = EnumSource.Mode.EXCLUDE
+    )
     void blocksAccountingEntryGenerationForEveryNonValidatedStatus(InvoiceStatusCode statusCode) {
         Invoice invoice = invoiceWithStatus(statusCode);
 
@@ -85,6 +90,27 @@ class InvoiceStatusWorkflowServiceIntegrationTest {
                 "Invoice 42 cannot generate an accounting entry; expected step: validate the invoice from status "
                         + statusCode.getCode(),
                 exception.getMessage()
+        );
+    }
+
+    @Test
+    void blocksEveryModificationOfAnArchivedInvoiceWithAnExplicitBusinessError() {
+        Invoice invoice = invoiceWithStatus(InvoiceStatusCode.ARCHIVEE);
+
+        ArchivedInvoiceNotModifiableException exception = assertThrows(
+                ArchivedInvoiceNotModifiableException.class,
+                () -> invoiceStatusWorkflowService.ensureCanGenerateAccountingEntry(invoice)
+        );
+
+        assertEquals("Archived invoice 42 is read-only and cannot be modified", exception.getMessage());
+        assertThrows(
+                ArchivedInvoiceNotModifiableException.class,
+                () -> invoiceStatusWorkflowService.transitionTo(
+                        invoice,
+                        InvoiceStatusCode.REJETEE,
+                        null,
+                        "Forbidden status change"
+                )
         );
     }
 

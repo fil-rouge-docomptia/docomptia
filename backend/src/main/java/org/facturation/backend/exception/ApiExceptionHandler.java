@@ -26,6 +26,7 @@ public class ApiExceptionHandler {
     private static final String CHART_OF_ACCOUNT_VALIDATION_ERROR_CODE = "CHART_OF_ACCOUNT_VALIDATION_ERROR";
     private static final String CHART_OF_ACCOUNT_CONFLICT_CODE = "CHART_OF_ACCOUNT_CONFLICT";
     private static final String INVOICE_ACTION_NOT_ALLOWED_CODE = "INVOICE_ACTION_NOT_ALLOWED";
+    private static final String ARCHIVED_INVOICE_NOT_MODIFIABLE_CODE = "ARCHIVED_INVOICE_NOT_MODIFIABLE";
     private static final String INVOICE_REQUIRED_FIELDS_MISSING_CODE = "INVOICE_REQUIRED_FIELDS_MISSING";
     private static final String DUPLICATE_ALERT_NOT_FOUND_CODE = "DUPLICATE_ALERT_NOT_FOUND";
     private static final String DUPLICATE_ALERT_ACTION_NOT_ALLOWED_CODE = "DUPLICATE_ALERT_ACTION_NOT_ALLOWED";
@@ -203,6 +204,13 @@ public class ApiExceptionHandler {
             InvoiceStatusTransitionException exception
     ) {
         return errorResponse(HttpStatus.CONFLICT, INVOICE_ACTION_NOT_ALLOWED_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(ArchivedInvoiceNotModifiableException.class)
+    public ResponseEntity<ApiErrorResponse> handleArchivedInvoiceNotModifiable(
+            ArchivedInvoiceNotModifiableException exception
+    ) {
+        return errorResponse(HttpStatus.CONFLICT, ARCHIVED_INVOICE_NOT_MODIFIABLE_CODE, exception.getMessage());
     }
 
     @ExceptionHandler(InvoiceMissingRequiredFieldsException.class)

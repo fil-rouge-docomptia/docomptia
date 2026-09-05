@@ -1,6 +1,7 @@
 package org.facturation.backend.service.impl;
 
 import org.facturation.backend.exception.InvoiceMissingRequiredFieldsException;
+import org.facturation.backend.exception.ArchivedInvoiceNotModifiableException;
 import org.facturation.backend.exception.InvoiceStatusTransitionException;
 import org.facturation.backend.exception.OcrRetryNotAllowedException;
 import org.facturation.backend.model.Invoice;
@@ -97,6 +98,7 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
             return;
         }
 
+        ensureModifiable(invoice);
         InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);
         switch (currentCode) {
             case EXTRAITE, A_VERIFIER, ERREUR_OCR, REJETEE -> {
@@ -107,6 +109,13 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
                     currentCode.getCode(),
                     "be corrected"
             );
+        }
+    }
+
+    @Override
+    public void ensureModifiable(Invoice invoice) {
+        if (getCurrentStatusCode(invoice) == InvoiceStatusCode.ARCHIVEE) {
+            throw new ArchivedInvoiceNotModifiableException(invoice.getInvoiceId());
         }
     }
 
@@ -176,6 +185,7 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
 
     @Override
     public void ensureCanGenerateAccountingEntry(Invoice invoice) {
+        ensureModifiable(invoice);
         InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);
         if (currentCode != InvoiceStatusCode.VALIDEE) {
             throw InvoiceStatusTransitionException.forAction(
@@ -208,6 +218,7 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
 
     @Override
     public void ensureCanTransition(Invoice invoice, InvoiceStatusCode targetCode) {
+        ensureModifiable(invoice);
         InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);
         if (currentCode == targetCode) {
             return;
@@ -234,6 +245,7 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     }
 
     private void ensureStatusChangeRequested(Invoice invoice, InvoiceStatusCode targetCode, String action) {
+        ensureModifiable(invoice);
         InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);
         if (currentCode == targetCode) {
             throw InvoiceStatusTransitionException.forAction(
@@ -245,6 +257,7 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     }
 
     private void ensureCurrentStatus(Invoice invoice, InvoiceStatusCode expectedCode, String action) {
+        ensureModifiable(invoice);
         InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);
         if (currentCode != expectedCode) {
             throw InvoiceStatusTransitionException.forAction(
