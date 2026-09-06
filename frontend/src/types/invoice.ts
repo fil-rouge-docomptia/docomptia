@@ -180,6 +180,7 @@ export type InvoiceDetails = {
   ocrError: InvoiceOcrError | null
   accountingEntry: AccountingEntry | null
   duplicateAlerts: InvoiceDuplicateAlert[]
+  history: InvoiceHistoryItem[]
 }
 
 export type InvoiceCorrectionRequest = {

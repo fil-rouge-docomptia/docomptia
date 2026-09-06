@@ -14,6 +14,7 @@ import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.repository.InvoiceFileRepository;
 import org.facturation.backend.service.AccountingEntryService;
 import org.facturation.backend.service.InvoiceDuplicateAlertService;
+import org.facturation.backend.service.InvoiceHistoryService;
 import org.facturation.backend.service.InvoiceOcrService;
 import org.facturation.backend.service.OcrErrorService;
 import org.springframework.stereotype.Component;
@@ -30,6 +31,7 @@ public class InvoiceResponseMapper {
     private final AccountingEntryService accountingEntryService;
     private final AccountingEntryMapper accountingEntryMapper;
     private final InvoiceDuplicateAlertService duplicateAlertService;
+    private final InvoiceHistoryService invoiceHistoryService;
     private final ClassificationResponseMapper classificationResponseMapper;
 
     public InvoiceResponseMapper(
@@ -40,6 +42,7 @@ public class InvoiceResponseMapper {
             AccountingEntryService accountingEntryService,
             AccountingEntryMapper accountingEntryMapper,
             InvoiceDuplicateAlertService duplicateAlertService,
+            InvoiceHistoryService invoiceHistoryService,
             ClassificationResponseMapper classificationResponseMapper
     ) {
         this.invoiceFileRepository = invoiceFileRepository;
@@ -49,6 +52,7 @@ public class InvoiceResponseMapper {
         this.accountingEntryService = accountingEntryService;
         this.accountingEntryMapper = accountingEntryMapper;
         this.duplicateAlertService = duplicateAlertService;
+        this.invoiceHistoryService = invoiceHistoryService;
         this.classificationResponseMapper = classificationResponseMapper;
     }
 
@@ -117,6 +121,7 @@ public class InvoiceResponseMapper {
         response.setTotalTva(toStringOrNull(invoice.getTotalTva()));
         response.setTotalTtc(toStringOrNull(invoice.getTotalTtc()));
         response.setDuplicateAlerts(duplicateAlertService.findByInvoiceId(invoice.getInvoiceId()));
+        response.setHistory(invoiceHistoryService.findByInvoiceId(invoice.getInvoiceId()));
         if (invoice.getClassification() != null) {
             response.setClassification(classificationResponseMapper.toResponse(invoice.getClassification()));
         }
