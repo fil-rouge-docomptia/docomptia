@@ -90,6 +90,7 @@ http://ocr:8000/ocr/analyze
 | `GET` | `/api/v1/invoices/{id}/comments?page=0&size=20` | Retourne une page de commentaires de l'organisation courante, du plus ancien au plus recent, avec leur auteur et leur date |
 | `PATCH` | `/api/v1/accounting-entries/{entryId}/lines/{lineId}` | Corrige le compte, le libelle, le debit ou le credit d'une ligne non exportee et historise les valeurs avant/apres |
 | `GET` | `/api/v1/notifications?unreadOnly=false&page=0&size=20` | Retourne les notifications de l'utilisateur connecte, de la plus recente a la plus ancienne. `unreadOnly=true` limite la page aux notifications non lues. |
+| `PATCH` | `/api/v1/notifications/{id}/read` | Marque comme lue une notification de l'utilisateur connecte et enregistre la date de premiere lecture. Les lectures suivantes conservent cette date. Une notification d'un autre utilisateur retourne `404`. |
 
 Les reponses d'ecriture exposent `totalDebit`, `totalCredit`, `balanceDifference` et `balanced`.
 Une correction desequilibree retire le statut `EXPORTABLE`; le statut est retabli lorsque
