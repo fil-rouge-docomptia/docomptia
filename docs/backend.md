@@ -89,6 +89,7 @@ http://ocr:8000/ocr/analyze
 | `POST` | `/api/v1/invoices/{id}/comments` | Ajoute un commentaire non vide a une facture de l'organisation courante avec l'utilisateur connecte comme auteur et l'integre a son historique |
 | `GET` | `/api/v1/invoices/{id}/comments?page=0&size=20` | Retourne une page de commentaires de l'organisation courante, du plus ancien au plus recent, avec leur auteur et leur date |
 | `PATCH` | `/api/v1/accounting-entries/{entryId}/lines/{lineId}` | Corrige le compte, le libelle, le debit ou le credit d'une ligne non exportee et historise les valeurs avant/apres |
+| `GET` | `/api/v1/notifications?unreadOnly=false&page=0&size=20` | Retourne les notifications de l'utilisateur connecte, de la plus recente a la plus ancienne. `unreadOnly=true` limite la page aux notifications non lues. |
 
 Les reponses d'ecriture exposent `totalDebit`, `totalCredit`, `balanceDifference` et `balanced`.
 Une correction desequilibree retire le statut `EXPORTABLE`; le statut est retabli lorsque
@@ -121,6 +122,7 @@ par defaut.
 | `VIEW_INVOICES` | Rechercher, consulter, telecharger une facture et son historique | Oui | Oui | Oui |
 | `COMMENT_INVOICES` | Ajouter un commentaire sur une facture | Oui | Oui | Oui |
 | `VIEW_DASHBOARD` | Consulter la synthese du dashboard de l'organisation | Oui | Oui | Oui |
+| `VIEW_NOTIFICATIONS` | Consulter ses propres notifications | Oui | Oui | Oui |
 | `PROCESS_INVOICES` | Deposer, corriger, relancer l'OCR, soumettre et traiter un doublon | Oui | Oui | Non |
 | `VALIDATE_INVOICES` | Valider, refuser ou demander une correction | Non | Non | Oui |
 | `MANAGE_ACCOUNTING_ENTRIES` | Generer une ecriture et corriger ses lignes | Oui | Oui | Oui |
