@@ -189,6 +189,9 @@ export default function ApprovalsPage() {
     const returnTo = `/approvals${searchParams.size ? `?${searchParams.toString()}` : ''}`
     const reviewParams = new URLSearchParams({
       position: String(invoicePage ? invoicePage.number * invoicePage.size + index + 1 : index + 1),
+      queueIndex: String(index),
+      queuePage: String(invoicePage?.number ?? currentPage - 1),
+      queueSize: String(invoicePage?.size ?? PAGE_SIZE),
       returnTo,
       total: String(invoicePage?.totalElements ?? 0),
     })

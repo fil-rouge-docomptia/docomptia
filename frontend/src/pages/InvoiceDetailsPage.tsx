@@ -213,6 +213,8 @@ export default function InvoiceDetailsPage() {
     return <InvoiceDetailsSkeleton />
   }
 
+  const approvalTabActive = activeTab === 'approval'
+
   return (
     <div className="space-y-5">
       <InvoiceDetailHeader
@@ -228,9 +230,19 @@ export default function InvoiceDetailsPage() {
         showCorrectionAction={activeTab === 'details'}
       />
 
-      <div className="grid min-w-0 overflow-hidden rounded-lg border border-border bg-card shadow-elevation-1 xl:h-[49rem] xl:grid-cols-[minmax(0,608fr)_8px_minmax(0,488fr)]">
-        <InvoiceDocumentPanel invoice={invoice} />
-        <div className="flex h-2 bg-muted xl:h-auto xl:justify-center">
+      <div
+        className={approvalTabActive
+          ? 'min-w-0 overflow-hidden rounded-lg border border-border bg-card shadow-elevation-1'
+          : 'grid min-w-0 overflow-hidden rounded-lg border border-border bg-card shadow-elevation-1 xl:h-[49rem] xl:grid-cols-[minmax(0,608fr)_8px_minmax(0,488fr)]'}
+      >
+        <div className={approvalTabActive ? 'hidden' : 'contents'}>
+          <InvoiceDocumentPanel invoice={invoice} />
+        </div>
+        <div
+          className={approvalTabActive
+            ? 'hidden'
+            : 'flex h-2 bg-muted xl:h-auto xl:justify-center'}
+        >
           <span className="h-px w-full bg-border xl:h-full xl:w-px" />
         </div>
         <InvoiceWorkflowPanel

@@ -92,6 +92,25 @@ const approvalDetails = {
   totalTva: '250.10',
 }
 
+const nextApprovalDetails = {
+  ...approvalDetails,
+  commandReference: 'PO-2026-0043',
+  filePath: '/invoices/Bati Services - INV-2026-0043.svg',
+  invoiceDate: '2026-08-19',
+  invoiceId: 43,
+  invoiceNumber: 'INV-2026-0043',
+  supplier: {
+    ...approvalDetails.supplier,
+    currentLegalName: 'Bati Services SAS',
+    currentTradeName: 'Bati Services',
+    supplierId: 13,
+  },
+  supplierName: 'Bati Services',
+  totalHt: '2083.33',
+  totalTtc: '2500.00',
+  totalTva: '416.67',
+}
+
 async function fulfillOriginalInvoiceImage(route: Route) {
   await route.fulfill({
     body: '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"><rect width="600" height="800" fill="white"/><text x="40" y="80">INV-2026-0042</text></svg>',
@@ -149,11 +168,110 @@ test('opens focus review and restores the approval queue context', async ({ page
   await expect(page.getByRole('heading', { name: 'Accounting context' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Decision' })).toBeVisible()
   await expect(page.getByText('Ready for decision')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Approve invoice' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Approve invoice' })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Next invoice' })).toBeEnabled()
 
   await page.getByRole('link', { name: 'Back to approvals' }).click()
   await expect(page).toHaveURL('/approvals?page=2&sortBy=totalTtc&direction=DESC')
   await expect(page.getByText('Acme Supplies')).toBeVisible()
+})
+
+test('waits for approval confirmation before showing success and advances', async ({ page }) => {
+  await page.setViewportSize({ height: 1000, width: 1440 })
+  let pendingRequestCount = 0
+  let validationRequested = false
+  let confirmValidation: (() => void) | undefined
+  const validationConfirmation = new Promise<void>((resolve) => {
+    confirmValidation = resolve
+  })
+
+  await mockApiRoute(page, '/v1/invoices/pending-validation*', async (route) => {
+    pendingRequestCount += 1
+    await fulfillJson(route, 200, pendingRequestCount === 1
+      ? approvalPage
+      : {
+          ...approvalPage,
+          content: [approvalPage.content[1]],
+          totalElements: 9,
+        })
+  })
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, approvalDetails)
+  ))
+  await mockApiRoute(page, '/v1/invoices/43', (route) => (
+    fulfillJson(route, 200, nextApprovalDetails)
+  ))
+  await mockApiRoute(page, '/v1/invoices/42/file', fulfillOriginalInvoiceImage)
+  await mockApiRoute(page, '/v1/invoices/43/file', fulfillOriginalInvoiceImage)
+  await mockApiRoute(page, '/v1/invoices/42/validate', async (route) => {
+    validationRequested = true
+    await validationConfirmation
+    await fulfillJson(route, 200, { invoiceId: 42, status: 'VALIDEE' })
+  })
+
+  await page.goto('/approvals')
+  await page.getByRole('link', { name: 'Open invoice INV-2026-0042' }).click()
+  await expect(page.getByRole('button', { name: 'Approve invoice' })).toBeEnabled()
+
+  await page.keyboard.press('a')
+
+  await expect.poll(() => validationRequested).toBe(true)
+  await expect(page.getByRole('button', { name: 'Approve invoice' })).toBeDisabled()
+  await expect(page.getByText('Invoice approved', { exact: true })).toHaveCount(0)
+
+  confirmValidation?.()
+
+  await expect(page.getByText('Invoice approved', { exact: true })).toBeVisible()
+  await expect(page.getByText(
+    'INV-2026-0042 was approved. Continue with the next invoice.',
+  )).toBeVisible()
+  await expect(page).toHaveURL(/\/approvals\/43\?/)
+  await expect(page.getByText('Invoice 2 of 10')).toBeVisible()
+  await expect(page.getByText('Bati Services').first()).toBeVisible()
+  expect(pendingRequestCount).toBe(2)
+})
+
+test('shows the end-of-queue state after approving the final invoice', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, approvalDetails)
+  ))
+  await mockApiRoute(page, '/v1/invoices/42/file', fulfillOriginalInvoiceImage)
+  await mockApiRoute(page, '/v1/invoices/42/validate', (route) => (
+    fulfillJson(route, 200, { invoiceId: 42, status: 'VALIDEE' })
+  ))
+  await mockApiRoute(page, '/v1/invoices/pending-validation*', (route) => (
+    fulfillJson(route, 200, emptyApprovalPage)
+  ))
+
+  await page.goto(
+    '/approvals/42?position=1&total=1&queuePage=0&queueIndex=0&queueSize=8&returnTo=%2Fapprovals',
+  )
+  await page.getByRole('button', { name: 'Approve invoice' }).click()
+
+  await expect(page.getByText('Invoice approved', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Approval queue complete' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Return to approvals' })).toBeVisible()
+})
+
+test('keeps the invoice open when approval is not confirmed', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, approvalDetails)
+  ))
+  await mockApiRoute(page, '/v1/invoices/42/file', fulfillOriginalInvoiceImage)
+  await mockApiRoute(page, '/v1/invoices/42/validate', (route) => (
+    fulfillJson(route, 409, {
+      code: 'INVOICE_ACTION_NOT_ALLOWED',
+      message: 'Invoice cannot be approved',
+    })
+  ))
+
+  await page.goto('/approvals/42?position=1&total=2')
+  await page.getByRole('button', { name: 'Approve invoice' }).click()
+
+  await expect(page.getByRole('alert')).toContainText('The backend did not confirm the approval.')
+  await expect(page.getByText('Invoice approved', { exact: true })).toHaveCount(0)
+  await expect(page).toHaveURL(/\/approvals\/42/)
+  await expect(page.getByRole('button', { name: 'Approve invoice' })).toBeEnabled()
 })
 
 test('blocks decisions when required invoice data is missing', async ({ page }) => {
