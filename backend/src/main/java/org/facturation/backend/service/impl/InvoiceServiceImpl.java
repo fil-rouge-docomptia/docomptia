@@ -41,6 +41,7 @@ import org.facturation.backend.service.InvoiceFileValidator;
 import org.facturation.backend.service.InvoiceOcrService;
 import org.facturation.backend.service.InvoiceService;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
+import org.facturation.backend.service.NotificationService;
 import org.facturation.backend.service.OcrErrorService;
 import org.facturation.backend.service.SupplierService;
 import org.facturation.backend.service.storage.InvoiceFileStorageService;
@@ -91,6 +92,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final InvoiceOcrService invoiceOcrService;
     private final InvoiceStatusWorkflowService invoiceStatusWorkflowService;
     private final OcrErrorService ocrErrorService;
+    private final NotificationService notificationService;
     private final SupplierService supplierService;
     private final CurrentUserService currentUserService;
     private final InvoiceFileRepository invoiceFileRepository;
@@ -108,6 +110,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             InvoiceOcrService invoiceOcrService,
             InvoiceStatusWorkflowService invoiceStatusWorkflowService,
             OcrErrorService ocrErrorService,
+            NotificationService notificationService,
             SupplierService supplierService,
             CurrentUserService currentUserService,
             InvoiceFileRepository invoiceFileRepository,
@@ -124,6 +127,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.invoiceOcrService = invoiceOcrService;
         this.invoiceStatusWorkflowService = invoiceStatusWorkflowService;
         this.ocrErrorService = ocrErrorService;
+        this.notificationService = notificationService;
         this.supplierService = supplierService;
         this.currentUserService = currentUserService;
         this.invoiceFileRepository = invoiceFileRepository;
@@ -204,6 +208,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         } catch (RuntimeException exception) {
             invoiceStatusWorkflowService.markOcrFailure(invoice, user);
             OcrError ocrError = ocrErrorService.recordFailure(invoice, exception);
+            notificationService.notifyOcrFailure(invoice, ocrError);
             throw new InvoiceOcrFailureException(invoice.getInvoiceId(), ocrError, exception);
         }
     }
