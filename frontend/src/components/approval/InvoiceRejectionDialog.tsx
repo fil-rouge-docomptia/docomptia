@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -70,6 +70,7 @@ export function InvoiceRejectionDialog({
   const [comment, setComment] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+  const pendingRef = useRef(false)
 
   const resetForm = () => {
     setReason('incorrect-amount')
@@ -89,6 +90,11 @@ export function InvoiceRejectionDialog({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+
+    if (pendingRef.current) {
+      return
+    }
+
     const rejectionReason = buildRejectionReason(reason, comment)
 
     if (!rejectionReason) {
@@ -97,6 +103,7 @@ export function InvoiceRejectionDialog({
     }
 
     setError(null)
+    pendingRef.current = true
     setPending(true)
 
     try {
@@ -106,6 +113,7 @@ export function InvoiceRejectionDialog({
     } catch (requestError: unknown) {
       setError(getRejectionErrorMessage(requestError))
     } finally {
+      pendingRef.current = false
       setPending(false)
     }
   }

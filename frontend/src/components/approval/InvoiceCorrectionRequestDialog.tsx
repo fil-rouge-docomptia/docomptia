@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -47,6 +47,7 @@ export function InvoiceCorrectionRequestDialog({
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+  const pendingRef = useRef(false)
   const trimmedReason = reason.trim()
 
   const resetForm = () => {
@@ -67,12 +68,17 @@ export function InvoiceCorrectionRequestDialog({
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
+    if (pendingRef.current) {
+      return
+    }
+
     if (!trimmedReason) {
       setError('Describe what needs to be corrected.')
       return
     }
 
     setError(null)
+    pendingRef.current = true
     setPending(true)
 
     try {
@@ -82,6 +88,7 @@ export function InvoiceCorrectionRequestDialog({
     } catch (requestError: unknown) {
       setError(getCorrectionRequestErrorMessage(requestError))
     } finally {
+      pendingRef.current = false
       setPending(false)
     }
   }
