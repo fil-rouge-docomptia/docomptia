@@ -12,6 +12,7 @@ public class InvoiceDetailsResponse {
     private String paymentDate;
     private String paymentReference;
     private Long paidByUserId;
+    private String archivedAt;
     private String status;
     private String supplierName;
     private InvoiceSupplierResponse supplier;
@@ -90,6 +91,14 @@ public class InvoiceDetailsResponse {
 
     public void setPaidByUserId(Long paidByUserId) {
         this.paidByUserId = paidByUserId;
+    }
+
+    public String getArchivedAt() {
+        return archivedAt;
+    }
+
+    public void setArchivedAt(String archivedAt) {
+        this.archivedAt = archivedAt;
     }
 
     public String getStatus() {

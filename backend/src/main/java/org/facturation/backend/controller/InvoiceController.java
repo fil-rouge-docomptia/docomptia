@@ -472,6 +472,20 @@ public class InvoiceController {
         return ResponseEntity.ok(requireInvoiceResponse(invoiceService.markInvoiceAsPaid(id, request), id));
     }
 
+    @PostMapping("/{id}/archive")
+    @Operation(
+            summary = "Archiver une facture exportee",
+            description = "Enregistre la date d'archivage, passe une facture EXPORTEE au statut ARCHIVEE et historise l'action"
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Facture archivee"),
+            @ApiResponse(responseCode = "404", description = "Facture introuvable dans l'organisation de l'utilisateur"),
+            @ApiResponse(responseCode = "409", description = "Seule une facture EXPORTEE peut etre archivee")
+    })
+    public ResponseEntity<InvoiceStatusResponse> archiveInvoice(@PathVariable Long id) {
+        return ResponseEntity.ok(requireInvoiceResponse(invoiceService.archiveInvoice(id), id));
+    }
+
     @PostMapping("/{invoiceId}/duplicate-alerts/{alertId}/decision")
     @Operation(summary = "Decider du traitement d'une alerte de doublon")
     @ApiResponses({

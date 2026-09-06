@@ -62,6 +62,8 @@ public class Invoice {
 
     private String paymentReference;
 
+    private LocalDateTime archivedAt;
+
     @Column(nullable = false, length = 3)
     private String currencyCode;
 
@@ -191,6 +193,14 @@ public class Invoice {
 
     public void setPaymentReference(String paymentReference) {
         this.paymentReference = paymentReference;
+    }
+
+    public LocalDateTime getArchivedAt() {
+        return archivedAt;
+    }
+
+    public void setArchivedAt(LocalDateTime archivedAt) {
+        this.archivedAt = archivedAt;
     }
 
     public String getCurrencyCode() {

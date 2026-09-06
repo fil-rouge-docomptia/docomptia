@@ -70,7 +70,6 @@ class InvoiceStatusWorkflowServiceIntegrationTest {
     void controlsPaidStatusTransitionsThroughTheInvoiceWorkflow() {
         Invoice exportedInvoice = invoiceWithStatus(InvoiceStatusCode.EXPORTEE);
         Invoice exportableInvoice = invoiceWithStatus(InvoiceStatusCode.EXPORTABLE);
-        Invoice paidInvoice = invoiceWithStatus(InvoiceStatusCode.PAYEE);
 
         assertDoesNotThrow(() -> invoiceStatusWorkflowService.ensureCanTransition(
                 exportedInvoice,
@@ -80,10 +79,21 @@ class InvoiceStatusWorkflowServiceIntegrationTest {
                 InvoiceStatusTransitionException.class,
                 () -> invoiceStatusWorkflowService.ensureCanTransition(exportableInvoice, InvoiceStatusCode.PAYEE)
         );
+    }
+
+    @Test
+    void allowsArchivingOnlyFromExportedStatus() {
+        Invoice exportedInvoice = invoiceWithStatus(InvoiceStatusCode.EXPORTEE);
+        Invoice paidInvoice = invoiceWithStatus(InvoiceStatusCode.PAYEE);
+
         assertDoesNotThrow(() -> invoiceStatusWorkflowService.ensureCanTransition(
-                paidInvoice,
+                exportedInvoice,
                 InvoiceStatusCode.ARCHIVEE
         ));
+        assertThrows(
+                InvoiceStatusTransitionException.class,
+                () -> invoiceStatusWorkflowService.ensureCanTransition(paidInvoice, InvoiceStatusCode.ARCHIVEE)
+        );
     }
 
     @Test

@@ -103,6 +103,8 @@ public class SecurityConfig {
                         .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())
                         .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/mark-paid")
                         .hasAnyRole(BusinessPermission.CONFIRM_INVOICE_PAYMENTS.roleCodes())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/archive")
+                        .hasAnyRole(BusinessPermission.ARCHIVE_INVOICES.roleCodes())
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/accounting-entries/**")
                         .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())
                         .requestMatchers(HttpMethod.POST,

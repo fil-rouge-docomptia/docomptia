@@ -112,6 +112,7 @@ public class InvoiceResponseMapper {
         if (invoice.getPaidByUser() != null) {
             response.setPaidByUserId(invoice.getPaidByUser().getUserId());
         }
+        response.setArchivedAt(invoice.getArchivedAt() == null ? null : invoice.getArchivedAt().toString());
         response.setStatus(invoice.getInvoiceStatus().getCode());
         response.setSupplierName(extractSupplierName(invoice));
         if (invoice.getSupplier() != null) {
