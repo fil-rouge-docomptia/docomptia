@@ -2,6 +2,7 @@ package org.facturation.backend.service.impl;
 
 import org.facturation.backend.exception.InvoiceStatusTransitionException;
 import org.facturation.backend.exception.ArchivedInvoiceNotModifiableException;
+import org.facturation.backend.exception.ExportedInvoiceNotModifiableException;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatus;
 import org.facturation.backend.model.InvoiceStatusCode;
@@ -97,6 +98,21 @@ class InvoiceStatusWorkflowServiceIntegrationTest {
     }
 
     @Test
+    void refusesDirectModificationOfExportedInvoice() {
+        Invoice exportedInvoice = invoiceWithStatus(InvoiceStatusCode.EXPORTEE);
+
+        ExportedInvoiceNotModifiableException exception = assertThrows(
+                ExportedInvoiceNotModifiableException.class,
+                () -> invoiceStatusWorkflowService.ensureDirectlyModifiable(exportedInvoice)
+        );
+
+        assertEquals(
+                "Exported invoice 42 cannot be modified directly; create a reversal instead",
+                exception.getMessage()
+        );
+    }
+
+    @Test
     void allowsAccountingEntryGenerationForValidatedInvoice() {
         Invoice invoice = invoiceWithStatus(InvoiceStatusCode.VALIDEE);
 
@@ -106,7 +122,7 @@ class InvoiceStatusWorkflowServiceIntegrationTest {
     @ParameterizedTest
     @EnumSource(
             value = InvoiceStatusCode.class,
-            names = {"VALIDEE", "ARCHIVEE"},
+            names = {"VALIDEE", "EXPORTEE", "ARCHIVEE"},
             mode = EnumSource.Mode.EXCLUDE
     )
     void blocksAccountingEntryGenerationForEveryNonValidatedStatus(InvoiceStatusCode statusCode) {

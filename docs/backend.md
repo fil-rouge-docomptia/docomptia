@@ -109,6 +109,11 @@ le payload est invalide ou n'applique aucune modification effective, et `409` si
 le statut courant interdit la correction. Une facture hors de l'organisation courante
 retourne `404`.
 
+Une facture `EXPORTEE` et son ecriture ne sont plus modifiables directement. Les routes de
+correction de facture, classement, affectation, doublon et commentaire retournent `409` avec le
+code metier `EXPORTED_INVOICE_NOT_MODIFIABLE`. La correction d'une ligne comptable conserve le
+code `ACCOUNTING_ENTRY_NOT_MODIFIABLE`; une correction apres export doit passer par une extourne.
+
 Dans les reponses OCR, `ocrAnalysis.fields[].corrected` vaut `true` lorsqu'une
 valeur normalisee provient d'une correction manuelle.
 
