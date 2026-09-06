@@ -426,11 +426,11 @@ Ce workflow regroupe les parametres qui pilotent les autres workflows.
 ### Utilisateurs et roles
 
 - invitation et desactivation d'un utilisateur;
-- roles administrateur, comptable, validateur et lecteur;
-- permissions eventuelles par dossier.
+- attribution d'un ou plusieurs roles systeme ou personnalises;
+- permissions atomiques effectives issues de l'union des roles attribues.
 
-La securisation technique de ces actions sera traitee apres la definition des
-besoins metier.
+La securisation technique de ces actions est centralisee par le backend et
+documentee dans `docs/rbac.md`.
 
 ### Plan comptable et regles
 

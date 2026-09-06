@@ -42,9 +42,9 @@ backend/src/main/resources/data-postgres.sql
 Il initialise les donnees minimales du MVP:
 
 - organisation par defaut;
-- roles;
+- roles systeme, permissions atomiques et associations roles-permissions;
 - statuts facture;
-- utilisateur admin de demo;
+- utilisateur Owner de demo;
 - fournisseur Orange;
 - comptes comptables de base;
 - regles comptables pour proposer une ecriture depuis une facture OCR.

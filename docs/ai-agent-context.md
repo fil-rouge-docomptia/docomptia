@@ -62,11 +62,15 @@ metier, la persistance, le stockage des fichiers et l'appel au service OCR.
 - Une facture exportee n'est pas modifiee directement; une correction passe par
   une extourne et une nouvelle ecriture.
 
-## Roles MVP
+## Roles Et Permissions MVP
 
-- `ADMIN`
-- `OPERATEUR_COMPTABLE`
-- `RESPONSABLE_COMPTABLE`
+- Les roles systeme MVP sont `OWNER`, `ADMIN`, `ACCOUNTING_MANAGER`,
+  `ACCOUNTANT`, `APPROVER` et `VIEWER`.
+- Un utilisateur peut cumuler plusieurs roles.
+- Les actions protegees sont autorisees par permissions atomiques, pas par nom
+  de role code en dur.
+- La matrice RBAC et la couverture des endpoints sont documentees dans
+  `docs/rbac.md`.
 
 ## Regles De Travail Jira
 

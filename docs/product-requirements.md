@@ -69,9 +69,10 @@ technique sans verification recente.
 | Administrateur | Configurer l'organisation, les comptes, les regles et les utilisateurs |
 | Auditeur | Consulter les preuves, historiques et journaux sans modifier |
 
-Les roles MVP retenus sont `ADMIN`, `OPERATEUR_COMPTABLE` et
-`RESPONSABLE_COMPTABLE`. Un role de validateur ou de lecteur peut etre ajoute
-lorsqu'un ticket fonctionnel l'exige.
+Les roles systeme MVP retenus sont `OWNER`, `ADMIN`, `ACCOUNTING_MANAGER`,
+`ACCOUNTANT`, `APPROVER` et `VIEWER`. Un utilisateur peut cumuler plusieurs
+roles; les autorisations effectives correspondent a l'union des permissions
+atomiques de ses roles.
 
 ## Priorites Produit
 

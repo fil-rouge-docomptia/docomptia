@@ -10,6 +10,7 @@ Documents disponibles:
 - [Exploitation et commandes utiles](operations.md)
 - [Conventions de commits Git](git-commit-guidelines.md)
 - [Contexte de l'agent IA](ai-agent-context.md)
+- [RBAC et permissions](rbac.md)
 - [Besoins produit consolides](product-requirements.md)
 - [Decisions projet validees](project-decisions.md)
 - [Workflows metier backend](backend-business-workflows.md)
