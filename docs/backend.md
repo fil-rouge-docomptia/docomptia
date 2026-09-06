@@ -87,6 +87,7 @@ http://ocr:8000/ocr/analyze
 | `GET` | `/api/v1/invoices/{id}/preview` | Retourne le PDF ou l'image originale avec une disposition `inline` et son type MIME si la facture appartient a l'organisation courante. Un format non previsualisable retourne `415`. |
 | `GET` | `/api/v1/invoices/{id}/history` | Retourne chronologiquement les changements de statut, corrections, affectations et decisions de l'organisation courante |
 | `POST` | `/api/v1/invoices/{id}/comments` | Ajoute un commentaire non vide a une facture de l'organisation courante avec l'utilisateur connecte comme auteur et l'integre a son historique |
+| `GET` | `/api/v1/invoices/{id}/comments?page=0&size=20` | Retourne une page de commentaires de l'organisation courante, du plus ancien au plus recent, avec leur auteur et leur date |
 | `PATCH` | `/api/v1/accounting-entries/{entryId}/lines/{lineId}` | Corrige le compte, le libelle, le debit ou le credit d'une ligne non exportee et historise les valeurs avant/apres |
 
 Les reponses d'ecriture exposent `totalDebit`, `totalCredit`, `balanceDifference` et `balanced`.
