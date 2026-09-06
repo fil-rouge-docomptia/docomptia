@@ -191,21 +191,6 @@ const reassignedInvoiceDetails = {
   supplierName: 'Vinci Energies',
 }
 
-const invoiceHistory = [
-  {
-    action: 'EXTRAITE',
-    author: 'Alex Martin',
-    authorId: 1,
-    comment: 'OCR analysis completed',
-    date: '2026-08-13T10:30:00',
-    duplicateAlertId: null,
-    fieldName: null,
-    newValue: null,
-    oldValue: null,
-    type: 'STATUS_CHANGE',
-  },
-]
-
 const approvalHistory = [
   {
     action: 'DEPOSEE',
