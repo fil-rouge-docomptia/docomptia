@@ -72,6 +72,19 @@ export default function ApprovalReviewPage() {
     ? `Invoice ${position} of ${total}`
     : 'Approval queue invoice'
 
+  const handleRejected = (status: string) => {
+    setRequestState((currentState) => {
+      if (currentState.requestKey !== requestKey || !currentState.invoice) {
+        return currentState
+      }
+
+      return {
+        ...currentState,
+        invoice: { ...currentState.invoice, status },
+      }
+    })
+  }
+
   useEffect(() => {
     if (!validInvoiceId) {
       return
@@ -149,7 +162,11 @@ export default function ApprovalReviewPage() {
           <ApprovalReviewContext invoice={invoice} />
         </div>
         <div className="min-w-0 border-t border-border xl:h-[49rem] xl:overflow-y-auto xl:border-l xl:border-t-0">
-          <ApprovalDecisionPanel invoice={invoice} role={user?.role.code} />
+          <ApprovalDecisionPanel
+            invoice={invoice}
+            onRejected={handleRejected}
+            role={user?.role.code}
+          />
         </div>
       </div>
     </div>
