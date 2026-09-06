@@ -131,6 +131,42 @@ class InvoiceSearchControllerTest {
     }
 
     @Test
+    void returnsInvoicesAssignedToCurrentUserWithStatusFilterAndPagination() throws Exception {
+        InvoiceListItemResponse invoice = new InvoiceListItemResponse();
+        invoice.setInvoiceId(189L);
+        when(invoiceService.findInvoicesAssignedToCurrentUser(
+                eq(List.of("EXTRAITE,A_VERIFIER")), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(invoice), PageRequest.of(1, 1), 2));
+
+        mockMvc.perform(get("/api/v1/invoices/assigned-to-me")
+                        .param("status", "EXTRAITE,A_VERIFIER")
+                        .param("page", "1")
+                        .param("size", "1")
+                        .param("sortBy", "totalTtc")
+                        .param("direction", "ASC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].invoiceId").value(189))
+                .andExpect(jsonPath("$.totalElements").value(2));
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(invoiceService).findInvoicesAssignedToCurrentUser(
+                eq(List.of("EXTRAITE,A_VERIFIER")), pageableCaptor.capture());
+        Pageable pageable = pageableCaptor.getValue();
+        assertEquals(1, pageable.getPageNumber());
+        assertEquals(1, pageable.getPageSize());
+        assertEquals("ASC", pageable.getSort().getOrderFor("totalTtc").getDirection().name());
+    }
+
+    @Test
+    void assignedInvoiceListRejectsUnsupportedFilters() throws Exception {
+        mockMvc.perform(get("/api/v1/invoices/assigned-to-me").param("supplier", "Orange"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Unsupported assigned invoice parameters: supplier"));
+
+        verify(invoiceService, never()).findInvoicesAssignedToCurrentUser(any(), any(Pageable.class));
+    }
+
+    @Test
     void rejectsInvalidPaginationValues() throws Exception {
         mockMvc.perform(get("/api/v1/invoices").param("page", "-1"))
                 .andExpect(status().isBadRequest())

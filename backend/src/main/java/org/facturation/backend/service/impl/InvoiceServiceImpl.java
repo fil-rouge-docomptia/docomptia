@@ -290,6 +290,30 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional
+    public Page<InvoiceListItemResponse> findInvoicesAssignedToCurrentUser(
+            List<String> statuses,
+            Pageable pageable
+    ) {
+        User currentUser = currentUserService.getCurrentUser();
+        Long organizationId = currentUser.getOrganization().getOrganizationId();
+        List<String> statusFilters = normalizeStatusFilters(statuses);
+        Specification<Invoice> assignedToCurrentUser = (root, query, criteriaBuilder) -> criteriaBuilder.equal(
+                root.get("assignedUser").get("userId"),
+                currentUser.getUserId()
+        );
+        Specification<Invoice> statusSpecification = (root, query, criteriaBuilder) -> statusFilters.isEmpty()
+                ? criteriaBuilder.conjunction()
+                : root.get("invoiceStatus").get("code").in(statusFilters);
+
+        return invoiceRepository.findAll(
+                        byOrganization(organizationId).and(assignedToCurrentUser).and(statusSpecification),
+                        pageable
+                )
+                .map(invoiceResponseMapper::toListItemResponse);
+    }
+
+    @Override
+    @Transactional
     public Optional<InvoiceDetailsResponse> findDetailsById(Long id) {
         User user = currentUserService.getCurrentUser();
         return invoiceRepository.findByInvoiceIdAndOrganizationOrganizationId(
