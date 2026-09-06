@@ -58,6 +58,9 @@ public class InvoiceController {
             "minAmount", "maxAmount", "page", "size", "sortBy", "direction"
     );
     private static final Set<String> ALLOWED_PAGINATION_PARAMS = Set.of("page", "size", "sortBy", "direction");
+    private static final Set<String> ALLOWED_ASSIGNED_INVOICE_PARAMS = Set.of(
+            "status", "page", "size", "sortBy", "direction"
+    );
     private static final Map<String, String> SORT_PROPERTIES = Map.of(
             "createdAt", "createdAt",
             "invoiceDate", "invoiceDate",
@@ -157,6 +160,46 @@ public class InvoiceController {
         }
 
         return ResponseEntity.ok(invoiceService.findPendingValidationInvoices(createPageRequest(params)));
+    }
+
+    @GetMapping("/assigned-to-me")
+    @Operation(
+            summary = "Lister mes factures affectees",
+            description = "Retourne une page de factures affectees a l'utilisateur connecte dans son organisation"
+    )
+    @Parameters({
+            @Parameter(
+                    name = "status",
+                    description = "Codes des statuts, repetables ou separes par des virgules",
+                    example = "EXTRAITE,A_VERIFIER"
+            ),
+            @Parameter(name = "page", description = "Numero de page, commence a zero", example = "0"),
+            @Parameter(name = "size", description = "Nombre de factures par page", example = "20"),
+            @Parameter(name = "sortBy", description = "Champ de tri: invoiceDate, totalTtc ou status"),
+            @Parameter(name = "direction", description = "Sens du tri: ASC ou DESC")
+    })
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Page de factures affectees retournee"),
+            @ApiResponse(responseCode = "400", description = "Statut ou pagination invalide"),
+            @ApiResponse(responseCode = "401", description = "Authentification requise")
+    })
+    public ResponseEntity<Page<InvoiceListItemResponse>> findInvoicesAssignedToCurrentUser(
+            @Parameter(hidden = true) @RequestParam MultiValueMap<String, String> params
+    ) {
+        if (!ALLOWED_ASSIGNED_INVOICE_PARAMS.containsAll(params.keySet())) {
+            throw new IllegalArgumentException(
+                    "Unsupported assigned invoice parameters: "
+                            + String.join(", ", params.keySet().stream()
+                            .filter(param -> !ALLOWED_ASSIGNED_INVOICE_PARAMS.contains(param))
+                            .sorted()
+                            .toList())
+            );
+        }
+
+        return ResponseEntity.ok(invoiceService.findInvoicesAssignedToCurrentUser(
+                params.get("status"),
+                createPageRequest(params)
+        ));
     }
 
     private PageRequest createPageRequest(MultiValueMap<String, String> params) {

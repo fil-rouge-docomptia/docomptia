@@ -45,6 +45,8 @@ public interface InvoiceService {
 
     Page<InvoiceListItemResponse> findPendingValidationInvoices(Pageable pageable);
 
+    Page<InvoiceListItemResponse> findInvoicesAssignedToCurrentUser(List<String> statuses, Pageable pageable);
+
     Optional<InvoiceDetailsResponse> findDetailsById(Long id);
 
     Optional<MultipartFile> downloadFile(Long id);
