@@ -310,7 +310,7 @@ export function ApprovalDecisionPanel({
         </Button>
         <Button
           aria-describedby={decisionHelpId}
-          aria-label="Request correction"
+          aria-label="Request changes"
           className="w-full"
           disabled={!ready || busy}
           onClick={() => setCorrectionDialogOpen(true)}
