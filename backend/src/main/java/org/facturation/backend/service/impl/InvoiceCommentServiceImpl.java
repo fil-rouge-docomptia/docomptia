@@ -11,6 +11,8 @@ import org.facturation.backend.repository.InvoiceCommentRepository;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.service.CurrentUserService;
 import org.facturation.backend.service.InvoiceCommentService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +36,22 @@ public class InvoiceCommentServiceImpl implements InvoiceCommentService {
         this.invoiceRepository = invoiceRepository;
         this.responseMapper = responseMapper;
         this.currentUserService = currentUserService;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<InvoiceCommentResponse> getComments(Long invoiceId, Pageable pageable) {
+        Long organizationId = currentUserService.getCurrentUser().getOrganization().getOrganizationId();
+        if (!invoiceRepository.existsByInvoiceIdAndOrganizationOrganizationId(invoiceId, organizationId)) {
+            throw new InvoiceNotFoundException(invoiceId);
+        }
+        return commentRepository
+                .findByInvoiceInvoiceIdAndInvoiceOrganizationOrganizationIdOrderByCreatedAtAscInvoiceCommentIdAsc(
+                        invoiceId,
+                        organizationId,
+                        pageable
+                )
+                .map(responseMapper::toResponse);
     }
 
     @Override

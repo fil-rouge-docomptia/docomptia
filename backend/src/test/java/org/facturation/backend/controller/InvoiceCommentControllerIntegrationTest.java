@@ -25,6 +25,9 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -94,6 +97,41 @@ class InvoiceCommentControllerIntegrationTest {
     }
 
     @Test
+    void returnsPaginatedCommentsInChronologicalOrderWithAuthorAndDate() throws Exception {
+        User author = userRepository.findByEmailIgnoreCase("admin@facturation-demo.fr").orElseThrow();
+        Invoice invoice = createInvoice(author);
+        LocalDateTime baseDate = LocalDateTime.of(2026, 9, 6, 10, 0);
+        saveComment(invoice, author, "Second comment", baseDate.plusMinutes(1));
+        saveComment(invoice, author, "First comment", baseDate);
+        saveComment(invoice, author, "Third comment", baseDate.plusMinutes(2));
+
+        mockMvc.perform(get("/api/v1/invoices/{id}/comments", invoice.getInvoiceId())
+                        .param("page", "0")
+                        .param("size", "2")
+                        .header("Authorization", "Bearer " + tokenFor(author)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].content").value("First comment"))
+                .andExpect(jsonPath("$.content[1].content").value("Second comment"))
+                .andExpect(jsonPath("$.content[*].authorId").value(everyItem(is(author.getUserId().intValue()))))
+                .andExpect(jsonPath("$.content[*].author").value(everyItem(is("Admin Demo"))))
+                .andExpect(jsonPath("$.content[*].createdAt").value(everyItem(notNullValue())))
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.totalPages").value(2))
+                .andExpect(jsonPath("$.number").value(0))
+                .andExpect(jsonPath("$.size").value(2));
+
+        mockMvc.perform(get("/api/v1/invoices/{id}/comments", invoice.getInvoiceId())
+                        .param("page", "1")
+                        .param("size", "2")
+                        .header("Authorization", "Bearer " + tokenFor(author)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].content").value("Third comment"))
+                .andExpect(jsonPath("$.number").value(1));
+    }
+
+    @Test
     void rejectsNullMissingOrBlankContentWithoutSavingComment() throws Exception {
         User author = userRepository.findByEmailIgnoreCase("admin@facturation-demo.fr").orElseThrow();
         Invoice invoice = createInvoice(author);
@@ -111,9 +149,14 @@ class InvoiceCommentControllerIntegrationTest {
             "ALTER TABLE organizations ALTER COLUMN organization_id RESTART WITH 2",
             "ALTER TABLE users ALTER COLUMN user_id RESTART WITH 2"
     })
-    void hidesInvoiceFromAnotherOrganization() throws Exception {
+    void hidesInvoiceAndCommentsFromAnotherOrganization() throws Exception {
         User author = userRepository.findByEmailIgnoreCase("admin@facturation-demo.fr").orElseThrow();
         Invoice inaccessibleInvoice = createInvoice(createUser(createOrganization()));
+
+        mockMvc.perform(get("/api/v1/invoices/{id}/comments", inaccessibleInvoice.getInvoiceId())
+                        .header("Authorization", "Bearer " + tokenFor(author)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("INVOICE_NOT_FOUND"));
 
         mockMvc.perform(post("/api/v1/invoices/{id}/comments", inaccessibleInvoice.getInvoiceId())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -130,6 +173,10 @@ class InvoiceCommentControllerIntegrationTest {
         User author = userRepository.findByEmailIgnoreCase("admin@facturation-demo.fr").orElseThrow();
         Invoice invoice = createInvoice(author);
 
+        mockMvc.perform(get("/api/v1/invoices/{id}/comments", invoice.getInvoiceId()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+
         mockMvc.perform(post("/api/v1/invoices/{id}/comments", invoice.getInvoiceId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"Authentication is required\"}"))
@@ -145,6 +192,15 @@ class InvoiceCommentControllerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVOICE_VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.message").value("Comment content is required"));
+    }
+
+    private void saveComment(Invoice invoice, User author, String content, LocalDateTime createdAt) {
+        InvoiceComment comment = new InvoiceComment();
+        comment.setInvoice(invoice);
+        comment.setAuthor(author);
+        comment.setContent(content);
+        comment.setCreatedAt(createdAt);
+        commentRepository.save(comment);
     }
 
     private Invoice createInvoice(User creator) {
