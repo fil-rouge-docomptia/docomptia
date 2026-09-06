@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/roles")
@@ -33,6 +34,12 @@ public class RoleController {
     }
 
     private static RoleResponse toResponse(Role role) {
-        return new RoleResponse(role.getCode(), role.getLabel());
+        return new RoleResponse(
+                role.getCode(),
+                role.getLabel(),
+                role.getPermissions().stream()
+                        .map(permission -> permission.getCode())
+                        .collect(Collectors.toUnmodifiableSet())
+        );
     }
 }

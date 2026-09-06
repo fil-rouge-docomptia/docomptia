@@ -34,7 +34,7 @@ class RegistrationControllerIntegrationTest {
     private PasswordEncoder passwordEncoder;
 
     @Test
-    void createsOrganizationAndActiveAdministratorTogether() throws Exception {
+    void createsOrganizationAndActiveOwnerTogether() throws Exception {
         mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registrationPayload(
@@ -47,18 +47,20 @@ class RegistrationControllerIntegrationTest {
                 .andExpect(jsonPath("$.organizationId").isNumber())
                 .andExpect(jsonPath("$.userId").isNumber())
                 .andExpect(jsonPath("$.email").value("new.admin@example.com"))
-                .andExpect(jsonPath("$.role").value("ADMIN"));
+                .andExpect(jsonPath("$.role").value("OWNER"))
+                .andExpect(jsonPath("$.roles[0].code").value("OWNER"))
+                .andExpect(jsonPath("$.permissions[?(@ == 'member.owner.manage')]").isNotEmpty());
 
-        var administrator = userRepository.findByEmailIgnoreCase("new.admin@example.com").orElseThrow();
-        assertThat(administrator.isActive()).isTrue();
-        assertThat(administrator.getRole().getCode()).isEqualTo("ADMIN");
-        assertThat(passwordEncoder.matches("registration-password", administrator.getPasswordHash())).isTrue();
-        assertThat(administrator.getOrganization().getName()).isEqualTo("New organization");
-        assertThat(administrator.getOrganization().getLegalName()).isEqualTo("New organization SAS");
-        assertThat(administrator.getOrganization().getSiret()).isEqualTo("73282932000074");
-        assertThat(administrator.getOrganization().getDefaultCurrencyCode()).isEqualTo("EUR");
-        assertThat(administrator.getOrganization().isValidationRequired()).isTrue();
-        assertThat(administrator.getOrganization().getValidationThreshold()).isNull();
+        var owner = userRepository.findByEmailIgnoreCase("new.admin@example.com").orElseThrow();
+        assertThat(owner.isActive()).isTrue();
+        assertThat(owner.getRole().getCode()).isEqualTo("OWNER");
+        assertThat(passwordEncoder.matches("registration-password", owner.getPasswordHash())).isTrue();
+        assertThat(owner.getOrganization().getName()).isEqualTo("New organization");
+        assertThat(owner.getOrganization().getLegalName()).isEqualTo("New organization SAS");
+        assertThat(owner.getOrganization().getSiret()).isEqualTo("73282932000074");
+        assertThat(owner.getOrganization().getDefaultCurrencyCode()).isEqualTo("EUR");
+        assertThat(owner.getOrganization().isValidationRequired()).isTrue();
+        assertThat(owner.getOrganization().getValidationThreshold()).isNull();
     }
 
     @Test
@@ -80,7 +82,7 @@ class RegistrationControllerIntegrationTest {
     }
 
     @Test
-    void rejectsSiretAlreadyUsedWithoutCreatingAdministrator() throws Exception {
+    void rejectsSiretAlreadyUsedWithoutCreatingOwner() throws Exception {
         long userCount = userRepository.count();
 
         mockMvc.perform(post("/api/v1/auth/register")

@@ -6,7 +6,7 @@ import org.facturation.backend.dto.request.UserStatusUpdateRequest;
 import org.facturation.backend.dto.request.UserRoleUpdateRequest;
 import org.facturation.backend.dto.response.UserListItemResponse;
 import org.facturation.backend.exception.InvalidUserException;
-import org.facturation.backend.exception.LastActiveAdministratorException;
+import org.facturation.backend.exception.LastActiveOwnerException;
 import org.facturation.backend.exception.UserEmailConflictException;
 import org.facturation.backend.exception.UserNotFoundException;
 import org.facturation.backend.mapper.UserResponseMapper;
@@ -16,10 +16,13 @@ import org.facturation.backend.model.Role;
 import org.facturation.backend.model.RoleCode;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.UserRepository;
+import org.facturation.backend.security.BusinessPermission;
+import org.facturation.backend.security.PermissionAuthority;
 import org.facturation.backend.service.AuditLogService;
 import org.facturation.backend.service.RoleService;
 import org.facturation.backend.service.UserService;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -28,12 +31,15 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -101,7 +107,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public UserListItemResponse invite(UserCreateRequest request, Organization organization) {
+    public UserListItemResponse invite(UserCreateRequest request, Organization organization, User administrator) {
         if (request == null) {
             throw new InvalidUserException("Request body is required");
         }
@@ -111,11 +117,12 @@ public class UserServiceImpl implements UserService {
             throw new UserEmailConflictException();
         }
 
-        Role role = findAllowedRole(request.getRoleCode());
+        Set<Role> roles = findAllowedRoles(request.getRoleCodes(), request.getRoleCode(), organization.getOrganizationId());
+        ensureOwnerRoleChangeIsAllowed(Set.of(), roles, administrator);
         LocalDateTime now = LocalDateTime.now();
         User user = new User();
         user.setOrganization(organization);
-        user.setRole(role);
+        user.setRoles(roles);
         user.setFirstName(requireValue(request.getFirstName(), "firstName"));
         user.setLastName(requireValue(request.getLastName(), "lastName"));
         user.setEmail(email);
@@ -125,7 +132,9 @@ public class UserServiceImpl implements UserService {
         user.setUpdatedAt(now);
 
         try {
-            return userResponseMapper.toListItemResponse(userRepository.saveAndFlush(user));
+            User savedUser = userRepository.saveAndFlush(user);
+            auditLogService.save(createRolesAuditLog(savedUser, administrator, Set.of(), roles, now));
+            return userResponseMapper.toListItemResponse(savedUser);
         } catch (DataIntegrityViolationException exception) {
             throw new UserEmailConflictException();
         }
@@ -193,7 +202,7 @@ public class UserServiceImpl implements UserService {
             throw new InvalidUserException("User already has the requested status");
         }
         if (!requestedStatus) {
-            ensureAnotherActiveAdministratorExists(user, organizationId);
+            ensureAnotherActiveOwnerExists(user, organizationId);
         }
 
         boolean previousStatus = user.isActive();
@@ -215,34 +224,46 @@ public class UserServiceImpl implements UserService {
         Long organizationId = administrator.getOrganization().getOrganizationId();
         User user = userRepository.findByUserIdAndOrganizationOrganizationId(id, organizationId)
                 .orElseThrow(() -> new UserNotFoundException(id));
-        Role role = findAllowedRole(request.getRoleCode());
-        if (user.getRole().getCode().equals(role.getCode())) {
-            throw new InvalidUserException("User already has the requested role");
+        Set<Role> requestedRoles = findAllowedRoles(request.getRoleCodes(), request.getRoleCode(), organizationId);
+        Set<Role> previousRoles = user.getEffectiveRoles();
+        if (roleCodes(previousRoles).equals(roleCodes(requestedRoles))) {
+            throw new InvalidUserException("User already has the requested roles");
         }
-        if (!RoleCode.ADMIN.getCode().equals(role.getCode())) {
-            ensureAnotherActiveAdministratorExists(user, organizationId);
+        ensureOwnerRoleChangeIsAllowed(previousRoles, requestedRoles, administrator);
+        if (!includesRoleCode(requestedRoles, RoleCode.OWNER)) {
+            ensureAnotherActiveOwnerExists(user, organizationId);
         }
 
-        String previousRoleCode = user.getRole().getCode();
         LocalDateTime now = LocalDateTime.now();
-        user.setRole(role);
+        user.setRoles(requestedRoles);
         user.setUpdatedAt(now);
         User savedUser = userRepository.save(user);
-        auditLogService.save(createRoleAuditLog(savedUser, administrator, previousRoleCode, now));
+        auditLogService.save(createRolesAuditLog(savedUser, administrator, previousRoles, requestedRoles, now));
         return userResponseMapper.toListItemResponse(savedUser);
     }
 
-    private void ensureAnotherActiveAdministratorExists(User user, Long organizationId) {
-        if (!user.isActive() || !RoleCode.ADMIN.getCode().equals(user.getRole().getCode())) {
+    private void ensureAnotherActiveOwnerExists(User user, Long organizationId) {
+        if (!user.isActive() || !includesRoleCode(user.getEffectiveRoles(), RoleCode.OWNER)) {
             return;
         }
 
-        boolean anotherActiveAdministratorExists = userRepository
-                .findActiveAdministratorsForUpdate(organizationId)
+        boolean anotherActiveOwnerExists = userRepository
+                .findActiveOwnersForUpdate(organizationId)
                 .stream()
-                .anyMatch(administrator -> !administrator.getUserId().equals(user.getUserId()));
-        if (!anotherActiveAdministratorExists) {
-            throw new LastActiveAdministratorException();
+                .anyMatch(owner -> !owner.getUserId().equals(user.getUserId()));
+        if (!anotherActiveOwnerExists) {
+            throw new LastActiveOwnerException();
+        }
+    }
+
+    private void ensureOwnerRoleChangeIsAllowed(Set<Role> previousRoles, Set<Role> requestedRoles, User administrator) {
+        boolean ownerRoleChanges =
+                includesRoleCode(previousRoles, RoleCode.OWNER) != includesRoleCode(requestedRoles, RoleCode.OWNER);
+        if (!ownerRoleChanges) {
+            return;
+        }
+        if (!PermissionAuthority.hasPermission(administrator, BusinessPermission.MEMBER_OWNER_MANAGE)) {
+            throw new AccessDeniedException("Owner role management requires member.owner.manage");
         }
     }
 
@@ -264,10 +285,11 @@ public class UserServiceImpl implements UserService {
         return auditLog;
     }
 
-    private AuditLog createRoleAuditLog(
+    private AuditLog createRolesAuditLog(
             User user,
             User administrator,
-            String previousRoleCode,
+            Set<Role> previousRoles,
+            Set<Role> requestedRoles,
             LocalDateTime changedAt
     ) {
         AuditLog auditLog = new AuditLog();
@@ -275,22 +297,41 @@ public class UserServiceImpl implements UserService {
         auditLog.setUser(administrator);
         auditLog.setEntityName(User.class.getSimpleName());
         auditLog.setEntityId(user.getUserId());
-        auditLog.setAction("ROLE_CHANGED");
-        auditLog.setOldValue("role=" + previousRoleCode);
-        auditLog.setNewValue("role=" + user.getRole().getCode());
+        auditLog.setAction("ROLES_CHANGED");
+        auditLog.setOldValue("roles=" + String.join(",", roleCodes(previousRoles)));
+        auditLog.setNewValue("roles=" + String.join(",", roleCodes(requestedRoles)));
         auditLog.setCreatedAt(changedAt);
         return auditLog;
     }
 
-    private Role findAllowedRole(String requestedRoleCode) {
-        String roleCode = requireValue(requestedRoleCode, "roleCode").toUpperCase(Locale.ROOT);
-        RoleCode allowedRole;
-        try {
-            allowedRole = RoleCode.fromCode(roleCode);
-        } catch (IllegalStateException exception) {
-            throw new InvalidUserException("roleCode is not allowed");
+    private Set<Role> findAllowedRoles(List<String> requestedRoleCodes, String requestedRoleCode, Long organizationId) {
+        List<String> roleCodes = requestedRoleCodes == null || requestedRoleCodes.isEmpty()
+                ? List.of(requireValue(requestedRoleCode, "roleCode"))
+                : requestedRoleCodes;
+        LinkedHashSet<Role> roles = new LinkedHashSet<>();
+        for (String requestedCode : roleCodes) {
+            String roleCode = requireValue(requestedCode, "roleCode").toUpperCase(Locale.ROOT);
+            try {
+                roles.add(roleService.findAssignableRole(roleCode, organizationId));
+            } catch (IllegalArgumentException exception) {
+                throw new InvalidUserException(exception.getMessage());
+            }
         }
-        return roleService.findByCode(allowedRole);
+        if (roles.isEmpty()) {
+            throw new InvalidUserException("At least one role is required");
+        }
+        return roles;
+    }
+
+    private boolean includesRoleCode(Set<Role> roles, RoleCode roleCode) {
+        return roles.stream().anyMatch(role -> roleCode.getCode().equals(role.getCode()));
+    }
+
+    private List<String> roleCodes(Set<Role> roles) {
+        return roles.stream()
+                .map(Role::getCode)
+                .sorted()
+                .collect(Collectors.toList());
     }
 
     private String requireValue(String requestedValue, String fieldName) {

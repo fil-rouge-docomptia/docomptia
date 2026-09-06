@@ -35,23 +35,24 @@ class RoleControllerIntegrationTest {
     private String jwtSecret;
 
     @Test
-    void adminListsAvailableRolesWithCodeAndLabel() throws Exception {
+    void userWithRoleReadPermissionListsAvailableRolesWithPermissions() throws Exception {
         mockMvc.perform(get("/api/v1/roles")
                         .header("Authorization", "Bearer " + tokenFor("admin@facturation-demo.fr")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(3))
-                .andExpect(jsonPath("$[0].code").value("ADMIN"))
-                .andExpect(jsonPath("$[0].label").value("Administrateur"))
-                .andExpect(jsonPath("$[1].code").value("OPERATEUR_COMPTABLE"))
-                .andExpect(jsonPath("$[1].label").value("Operateur comptable"))
-                .andExpect(jsonPath("$[2].code").value("RESPONSABLE_COMPTABLE"))
-                .andExpect(jsonPath("$[2].label").value("Responsable comptable"))
+                .andExpect(jsonPath("$.length()").value(6))
+                .andExpect(jsonPath("$[0].code").value("OWNER"))
+                .andExpect(jsonPath("$[0].label").value("Owner"))
+                .andExpect(jsonPath("$[0].permissions[?(@ == 'member.owner.manage')]").isNotEmpty())
+                .andExpect(jsonPath("$[1].code").value("ADMIN"))
+                .andExpect(jsonPath("$[1].label").value("Administrator"))
+                .andExpect(jsonPath("$[2].code").value("ACCOUNTING_MANAGER"))
+                .andExpect(jsonPath("$[2].label").value("Accounting Manager"))
                 .andExpect(jsonPath("$[0].id").doesNotExist())
                 .andExpect(jsonPath("$[0].description").doesNotExist());
     }
 
     @Test
-    void nonAdminCannotListRoles() throws Exception {
+    void userWithoutRoleReadPermissionCannotListRoles() throws Exception {
         mockMvc.perform(get("/api/v1/roles")
                         .header("Authorization", "Bearer " + tokenFor("role-operator@example.com")))
                 .andExpect(status().isForbidden());

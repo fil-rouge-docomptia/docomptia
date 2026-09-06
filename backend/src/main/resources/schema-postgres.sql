@@ -1,3 +1,49 @@
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS organization_id BIGINT REFERENCES organizations(organization_id);
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_system BOOLEAN DEFAULT TRUE;
+UPDATE roles SET is_system = TRUE WHERE is_system IS NULL;
+ALTER TABLE roles ALTER COLUMN is_system SET NOT NULL;
+
+ALTER TABLE roles DROP CONSTRAINT IF EXISTS roles_code_key;
+ALTER TABLE roles DROP CONSTRAINT IF EXISTS ukch1113horj4qr56f91omojv8;
+ALTER TABLE roles DROP CONSTRAINT IF EXISTS uk_ch1113horj4qr56f91omojv8;
+ALTER TABLE roles DROP CONSTRAINT IF EXISTS ukn2qtohcsqhwbdejun0ggvgfbl;
+ALTER TABLE roles DROP CONSTRAINT IF EXISTS uk_n2qtohcsqhwbdejun0ggvgfbl;
+DROP INDEX IF EXISTS roles_code_key;
+DROP INDEX IF EXISTS ukch1113horj4qr56f91omojv8;
+DROP INDEX IF EXISTS uk_ch1113horj4qr56f91omojv8;
+DROP INDEX IF EXISTS ukn2qtohcsqhwbdejun0ggvgfbl;
+DROP INDEX IF EXISTS uk_n2qtohcsqhwbdejun0ggvgfbl;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_roles_system_code
+    ON roles (code)
+    WHERE is_system = TRUE;
+CREATE UNIQUE INDEX IF NOT EXISTS uk_roles_organization_code
+    ON roles (organization_id, code)
+    WHERE organization_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS permissions (
+    permission_id BIGSERIAL PRIMARY KEY,
+    code VARCHAR(255) NOT NULL UNIQUE,
+    label VARCHAR(255) NOT NULL,
+    description VARCHAR(255)
+);
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+    role_id BIGINT NOT NULL REFERENCES roles(role_id),
+    permission_id BIGINT NOT NULL REFERENCES permissions(permission_id),
+    PRIMARY KEY (role_id, permission_id)
+);
+
+CREATE TABLE IF NOT EXISTS user_roles (
+    user_id BIGINT NOT NULL REFERENCES users(user_id),
+    role_id BIGINT NOT NULL REFERENCES roles(role_id),
+    PRIMARY KEY (user_id, role_id)
+);
+
+INSERT INTO user_roles (user_id, role_id)
+SELECT user_id, role_id FROM users WHERE role_id IS NOT NULL
+ON CONFLICT DO NOTHING;
+
 ALTER TABLE invoices ALTER COLUMN supplier_id DROP NOT NULL;
 ALTER TABLE invoices ALTER COLUMN invoice_number DROP NOT NULL;
 ALTER TABLE invoices ALTER COLUMN invoice_date DROP NOT NULL;

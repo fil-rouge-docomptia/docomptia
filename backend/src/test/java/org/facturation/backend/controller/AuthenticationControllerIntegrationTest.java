@@ -59,7 +59,9 @@ class AuthenticationControllerIntegrationTest {
                 .andExpect(jsonPath("$.email").value("admin@facturation-demo.fr"))
                 .andExpect(jsonPath("$.firstName").value("Admin"))
                 .andExpect(jsonPath("$.lastName").value("Demo"))
-                .andExpect(jsonPath("$.role").value("ADMIN"))
+                .andExpect(jsonPath("$.role").value("OWNER"))
+                .andExpect(jsonPath("$.roles[0].code").value("OWNER"))
+                .andExpect(jsonPath("$.permissions[?(@ == 'invoice.read')]").isNotEmpty())
                 .andExpect(jsonPath("$.organizationId").value(1))
                 .andExpect(result -> assertValidUserToken(
                         objectMapper.readTree(result.getResponse().getContentAsString()).get("token").asText()

@@ -16,5 +16,7 @@ public interface RoleService {
 
     Role findByCode(String code);
 
+    Role findAssignableRole(String code, Long organizationId);
+
     Role save(Role role);
 }

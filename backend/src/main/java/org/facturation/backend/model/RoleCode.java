@@ -1,9 +1,12 @@
 package org.facturation.backend.model;
 
 public enum RoleCode {
+    OWNER("OWNER"),
     ADMIN("ADMIN"),
-    OPERATEUR_COMPTABLE("OPERATEUR_COMPTABLE"),
-    RESPONSABLE_COMPTABLE("RESPONSABLE_COMPTABLE");
+    ACCOUNTING_MANAGER("ACCOUNTING_MANAGER"),
+    ACCOUNTANT("ACCOUNTANT"),
+    APPROVER("APPROVER"),
+    VIEWER("VIEWER");
 
     private final String code;
 

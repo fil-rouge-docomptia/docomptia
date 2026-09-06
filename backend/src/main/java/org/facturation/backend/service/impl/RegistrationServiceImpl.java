@@ -1,6 +1,7 @@
 package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.request.RegistrationRequest;
+import org.facturation.backend.dto.response.CurrentUserRoleResponse;
 import org.facturation.backend.dto.response.RegistrationResponse;
 import org.facturation.backend.exception.InvalidRegistrationException;
 import org.facturation.backend.exception.OrganizationLegalIdentifierConflictException;
@@ -11,6 +12,7 @@ import org.facturation.backend.model.RoleCode;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.OrganizationRepository;
 import org.facturation.backend.repository.UserRepository;
+import org.facturation.backend.security.PermissionAuthority;
 import org.facturation.backend.service.FrenchLegalIdentifierValidator;
 import org.facturation.backend.service.RegistrationService;
 import org.facturation.backend.service.RoleService;
@@ -20,6 +22,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
@@ -72,12 +76,12 @@ public class RegistrationServiceImpl implements RegistrationService {
             throw new OrganizationLegalIdentifierConflictException();
         }
 
-        Role adminRole = roleService.findByCode(RoleCode.ADMIN);
+        Role ownerRole = roleService.findByCode(RoleCode.OWNER);
         LocalDateTime now = LocalDateTime.now();
         Organization organization = createOrganization(organizationName, legalName, siret, email, now);
-        User administrator = createAdministrator(
+        User owner = createOwner(
                 organization,
-                adminRole,
+                ownerRole,
                 firstName,
                 lastName,
                 email,
@@ -92,16 +96,18 @@ public class RegistrationServiceImpl implements RegistrationService {
         }
 
         try {
-            userRepository.saveAndFlush(administrator);
+            userRepository.saveAndFlush(owner);
         } catch (DataIntegrityViolationException exception) {
             throw new UserEmailConflictException();
         }
 
         return new RegistrationResponse(
                 organization.getOrganizationId(),
-                administrator.getUserId(),
-                administrator.getEmail(),
-                adminRole.getCode()
+                owner.getUserId(),
+                owner.getEmail(),
+                ownerRole.getCode(),
+                List.of(new CurrentUserRoleResponse(ownerRole.getRoleId(), ownerRole.getCode(), ownerRole.getLabel())),
+                PermissionAuthority.permissionCodes(owner)
         );
     }
 
@@ -122,7 +128,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         return organization;
     }
 
-    private User createAdministrator(
+    private User createOwner(
             Organization organization,
             Role role,
             String firstName,
@@ -131,17 +137,18 @@ public class RegistrationServiceImpl implements RegistrationService {
             String password,
             LocalDateTime now
     ) {
-        User administrator = new User();
-        administrator.setOrganization(organization);
-        administrator.setRole(role);
-        administrator.setFirstName(firstName);
-        administrator.setLastName(lastName);
-        administrator.setEmail(email);
-        administrator.setPasswordHash(passwordEncoder.encode(password));
-        administrator.setActive(true);
-        administrator.setCreatedAt(now);
-        administrator.setUpdatedAt(now);
-        return administrator;
+        User owner = new User();
+        owner.setOrganization(organization);
+        owner.setRole(role);
+        owner.setRoles(new LinkedHashSet<>(List.of(role)));
+        owner.setFirstName(firstName);
+        owner.setLastName(lastName);
+        owner.setEmail(email);
+        owner.setPasswordHash(passwordEncoder.encode(password));
+        owner.setActive(true);
+        owner.setCreatedAt(now);
+        owner.setUpdatedAt(now);
+        return owner;
     }
 
     private String normalizeEmail(String requestedEmail) {

@@ -27,7 +27,7 @@ public interface UserService {
 
     Page<UserListItemResponse> findPageForOrganization(Long organizationId, Pageable pageable);
 
-    UserListItemResponse invite(UserCreateRequest request, Organization organization);
+    UserListItemResponse invite(UserCreateRequest request, Organization organization, User administrator);
 
     UserListItemResponse updateStatus(Long id, UserStatusUpdateRequest request, User administrator);
 

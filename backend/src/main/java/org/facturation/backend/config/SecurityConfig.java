@@ -4,7 +4,7 @@ import org.facturation.backend.security.ApiAccessDeniedHandler;
 import org.facturation.backend.security.ApiAuthenticationEntryPoint;
 import org.facturation.backend.security.BusinessPermission;
 import org.facturation.backend.security.JwtAuthenticationFilter;
-import org.facturation.backend.model.RoleCode;
+import org.facturation.backend.security.PermissionAuthority;
 import org.facturation.backend.repository.UserRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,7 +41,7 @@ public class SecurityConfig {
         return email -> userRepository.findByEmailIgnoreCase(email)
                 .map(user -> User.withUsername(user.getEmail())
                         .password(user.getPasswordHash())
-                        .roles(RoleCode.fromCode(user.getRole().getCode()).getCode())
+                        .authorities(PermissionAuthority.authorities(user))
                         .disabled(!user.isActive())
                         .build())
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
@@ -64,82 +64,83 @@ public class SecurityConfig {
                                 "/api/v1/auth/login",
                                 "/api/v1/auth/register",
                                 "/v3/api-docs/**",
-                        "/swagger-ui.html",
-                        "/swagger-ui/**"
+                                "/swagger-ui.html",
+                                "/swagger-ui/**"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/users/me")
-                        .hasAnyRole(BusinessPermission.VIEW_OWN_PROFILE.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.USER_PROFILE_READ))
                         .requestMatchers(HttpMethod.GET, "/api/v1/reference-data")
-                        .hasAnyRole(BusinessPermission.VIEW_REFERENCE_DATA.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.REFERENCE_DATA_READ))
                         .requestMatchers(HttpMethod.GET, "/api/v1/organizations/current")
-                        .hasAnyRole(BusinessPermission.VIEW_ORGANIZATION.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.ORGANIZATION_READ))
                         .requestMatchers(HttpMethod.GET, "/api/v1/organizations/current/onboarding")
-                        .hasAnyRole(BusinessPermission.MANAGE_ORGANIZATION.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.ORGANIZATION_MANAGE))
                         .requestMatchers(HttpMethod.GET, "/api/v1/organizations/current/validation-preferences")
-                        .hasAnyRole(BusinessPermission.VIEW_ORGANIZATION.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.ORGANIZATION_READ))
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/organizations/current/validation-preferences")
-                        .hasAnyRole(BusinessPermission.MANAGE_ORGANIZATION.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.ORGANIZATION_MANAGE))
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/organizations/current")
-                        .hasAnyRole(BusinessPermission.MANAGE_ORGANIZATION.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.ORGANIZATION_MANAGE))
                         .requestMatchers(HttpMethod.GET, "/api/v1/dashboard/summary")
-                        .hasAnyRole(BusinessPermission.VIEW_DASHBOARD.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.DASHBOARD_READ))
                         .requestMatchers(HttpMethod.GET, "/api/v1/invoices/pending-validation")
-                        .hasAnyRole(BusinessPermission.VALIDATE_INVOICES.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.INVOICE_APPROVE))
                         .requestMatchers(HttpMethod.GET, "/api/v1/invoices", "/api/v1/invoices/**")
-                        .hasAnyRole(BusinessPermission.VIEW_INVOICES.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.INVOICE_READ))
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/invoices/*/validate",
                                 "/api/v1/invoices/*/request-correction",
                                 "/api/v1/invoices/*/reject"
                         )
-                        .hasAnyRole(BusinessPermission.VALIDATE_INVOICES.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.INVOICE_APPROVE))
                         .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/accounting-entry")
-                        .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.INVOICE_ACCOUNTING_GENERATE))
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/accounting-entries/**")
-                        .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())
-                        .requestMatchers(HttpMethod.POST,
-                                "/api/v1/invoices/upload",
-                                "/api/v1/invoices/*/ocr/retry",
-                                "/api/v1/invoices/*/submit-for-validation",
-                                "/api/v1/invoices/*/duplicate-alerts/*/decision"
-                        )
-                        .hasAnyRole(BusinessPermission.PROCESS_INVOICES.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.ACCOUNTING_ENTRY_UPDATE))
+                        .requestMatchers(HttpMethod.POST, "/api/v1/invoices/upload")
+                        .hasAuthority(authority(BusinessPermission.INVOICE_UPLOAD))
+                        .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/ocr/retry")
+                        .hasAuthority(authority(BusinessPermission.INVOICE_RETRY_OCR))
+                        .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/submit-for-validation")
+                        .hasAuthority(authority(BusinessPermission.INVOICE_SUBMIT_FOR_VALIDATION))
+                        .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/duplicate-alerts/*/decision")
+                        .hasAuthority(authority(BusinessPermission.INVOICE_REVIEW_DUPLICATE))
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/invoices/*")
-                        .hasAnyRole(BusinessPermission.PROCESS_INVOICES.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.INVOICE_CORRECT))
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/invoices/*/classification")
-                        .hasAnyRole(BusinessPermission.PROCESS_INVOICES.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.INVOICE_CLASSIFY))
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/invoices/*/assignee")
-                        .hasAnyRole(BusinessPermission.PROCESS_INVOICES.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.INVOICE_ASSIGN))
                         .requestMatchers(HttpMethod.GET, "/api/v1/suppliers", "/api/v1/suppliers/**")
-                        .hasAnyRole(BusinessPermission.VIEW_SUPPLIERS.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.SUPPLIER_READ))
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/suppliers/*")
-                        .hasAnyRole(BusinessPermission.MANAGE_SUPPLIERS.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.SUPPLIER_MANAGE))
                         .requestMatchers(HttpMethod.GET, "/api/v1/chart-of-accounts", "/api/v1/chart-of-accounts/**")
-                        .hasAnyRole(BusinessPermission.VIEW_ACCOUNTING_CONFIGURATION.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.ACCOUNTING_CONFIGURATION_READ))
                         .requestMatchers(HttpMethod.GET, "/api/v1/accounting-rules", "/api/v1/accounting-rules/**")
-                        .hasAnyRole(BusinessPermission.VIEW_ACCOUNTING_CONFIGURATION.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.ACCOUNTING_CONFIGURATION_READ))
                         .requestMatchers(HttpMethod.POST, "/api/v1/chart-of-accounts", "/api/v1/chart-of-accounts/*/deactivate")
-                        .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_CONFIGURATION.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.ACCOUNTING_CONFIGURATION_MANAGE))
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/chart-of-accounts/**", "/api/v1/accounting-rules/**")
-                        .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_CONFIGURATION.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.ACCOUNTING_CONFIGURATION_MANAGE))
                         .requestMatchers(HttpMethod.GET, "/api/v1/classifications", "/api/v1/classifications/**")
-                        .hasAnyRole(BusinessPermission.VIEW_CLASSIFICATIONS.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.CLASSIFICATION_READ))
                         .requestMatchers(HttpMethod.POST, "/api/v1/classifications", "/api/v1/classifications/*/deactivate")
-                        .hasAnyRole(BusinessPermission.MANAGE_CLASSIFICATIONS.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.CLASSIFICATION_MANAGE))
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/classifications/*")
-                        .hasAnyRole(BusinessPermission.MANAGE_CLASSIFICATIONS.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.CLASSIFICATION_MANAGE))
                         .requestMatchers(HttpMethod.GET, "/api/v1/users")
-                        .hasAnyRole(BusinessPermission.MANAGE_USERS.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.MEMBER_READ))
                         .requestMatchers(HttpMethod.GET, "/api/v1/roles")
-                        .hasAnyRole(BusinessPermission.MANAGE_USERS.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.ROLE_READ))
                         .requestMatchers(HttpMethod.POST, "/api/v1/users")
-                        .hasAnyRole(BusinessPermission.MANAGE_USERS.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.MEMBER_INVITE))
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/users/*")
-                        .hasAnyRole(BusinessPermission.MANAGE_USERS.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.MEMBER_UPDATE))
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/users/*/status")
-                        .hasAnyRole(BusinessPermission.MANAGE_USERS.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.MEMBER_STATUS_UPDATE))
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/users/*/role")
-                        .hasAnyRole(BusinessPermission.MANAGE_USERS.roleCodes())
+                        .hasAuthority(authority(BusinessPermission.MEMBER_ROLE_UPDATE))
                         .anyRequest().denyAll()
                 )
                 .httpBasic(AbstractHttpConfigurer::disable)
@@ -149,5 +150,9 @@ public class SecurityConfig {
                         .accessDeniedHandler(accessDeniedHandler)
                 )
                 .build();
+    }
+
+    private static String authority(BusinessPermission permission) {
+        return permission.authority();
     }
 }

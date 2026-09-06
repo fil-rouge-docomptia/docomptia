@@ -31,9 +31,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
-@Sql(statements = "INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, "
-        + "password_hash, is_active, created_at, updated_at) VALUES (9680, 1, 3, 'Test', 'Validator', "
-        + "'kan-144-validator@example.com', 'not-used', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)")
+@Sql(statements = {
+        "INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, "
+                + "password_hash, is_active, created_at, updated_at) VALUES (9680, 1, 3, 'Test', 'Validator', "
+                + "'kan-144-validator@example.com', 'not-used', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        "INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, "
+                + "password_hash, is_active, created_at, updated_at) VALUES (9681, 1, 2, 'Test', 'Accountant', "
+                + "'kan-144-accountant@example.com', 'not-used', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+})
 class PendingValidationInvoiceControllerIntegrationTest {
 
     @Autowired
@@ -85,10 +90,10 @@ class PendingValidationInvoiceControllerIntegrationTest {
 
     @Test
     void requiresTheInvoiceValidationPermission() throws Exception {
-        User admin = userRepository.findByEmailIgnoreCase("admin@facturation-demo.fr").orElseThrow();
+        User accountant = userRepository.findByEmailIgnoreCase("kan-144-accountant@example.com").orElseThrow();
 
         mockMvc.perform(get("/api/v1/invoices/pending-validation")
-                        .header("Authorization", "Bearer " + tokenFor(admin)))
+                        .header("Authorization", "Bearer " + tokenFor(accountant)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
 
@@ -125,7 +130,7 @@ class PendingValidationInvoiceControllerIntegrationTest {
 
         User user = new User();
         user.setOrganization(organization);
-        user.setRole(roleRepository.findByCode("RESPONSABLE_COMPTABLE").orElseThrow());
+        user.setRole(roleRepository.findByCode("ACCOUNTING_MANAGER").orElseThrow());
         user.setFirstName("Other");
         user.setLastName("Validator");
         user.setEmail("kan-144-other-validator@example.com");

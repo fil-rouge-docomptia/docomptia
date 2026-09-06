@@ -32,7 +32,9 @@ class CurrentUserControllerIntegrationTest {
                 .andExpect(jsonPath("$.firstName").value("Admin"))
                 .andExpect(jsonPath("$.lastName").value("Demo"))
                 .andExpect(jsonPath("$.email").value("admin@facturation-demo.fr"))
-                .andExpect(jsonPath("$.role.code").value("ADMIN"))
+                .andExpect(jsonPath("$.role.code").value("OWNER"))
+                .andExpect(jsonPath("$.roles[0].code").value("OWNER"))
+                .andExpect(jsonPath("$.permissions[?(@ == 'invoice.approve')]").isNotEmpty())
                 .andExpect(jsonPath("$.organization.id").value(1))
                 .andExpect(jsonPath("$.organization.name").value("Facturation Demo"))
                 .andExpect(jsonPath("$.passwordHash").doesNotExist());

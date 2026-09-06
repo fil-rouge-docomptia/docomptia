@@ -29,7 +29,7 @@ class RegistrationTransactionIntegrationTest {
     private UserRepository userRepository;
 
     @Test
-    void rollsBackOrganizationWhenAdministratorPersistenceFails() {
+    void rollsBackOrganizationWhenOwnerPersistenceFails() {
         long organizationCount = organizationRepository.count();
         when(userRepository.existsByEmailIgnoreCase("rollback@example.com")).thenReturn(false);
         when(userRepository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("email conflict"));

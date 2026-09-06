@@ -9,6 +9,7 @@ import org.facturation.backend.mapper.OcrErrorMapper;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -41,10 +42,11 @@ public class ApiExceptionHandler {
     private static final String ACCOUNTING_ENTRY_NOT_MODIFIABLE_CODE = "ACCOUNTING_ENTRY_NOT_MODIFIABLE";
     private static final String ACCOUNTING_ENTRY_UNBALANCED_CODE = "ACCOUNTING_ENTRY_UNBALANCED";
     private static final String INVALID_CREDENTIALS_CODE = "INVALID_CREDENTIALS";
+    private static final String FORBIDDEN_CODE = "FORBIDDEN";
     private static final String USER_VALIDATION_ERROR_CODE = "USER_VALIDATION_ERROR";
     private static final String USER_EMAIL_CONFLICT_CODE = "USER_EMAIL_CONFLICT";
     private static final String USER_NOT_FOUND_CODE = "USER_NOT_FOUND";
-    private static final String LAST_ACTIVE_ADMINISTRATOR_CODE = "LAST_ACTIVE_ADMINISTRATOR";
+    private static final String LAST_ACTIVE_OWNER_CODE = "LAST_ACTIVE_OWNER";
     private static final String REGISTRATION_VALIDATION_ERROR_CODE = "REGISTRATION_VALIDATION_ERROR";
     private static final String ORGANIZATION_LEGAL_IDENTIFIER_CONFLICT_CODE =
             "ORGANIZATION_LEGAL_IDENTIFIER_CONFLICT";
@@ -85,6 +87,11 @@ public class ApiExceptionHandler {
         return errorResponse(HttpStatus.UNAUTHORIZED, INVALID_CREDENTIALS_CODE, exception.getMessage());
     }
 
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccessDenied(AccessDeniedException exception) {
+        return errorResponse(HttpStatus.FORBIDDEN, FORBIDDEN_CODE, "Access is denied");
+    }
+
     @ExceptionHandler(InvalidUserException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidUser(InvalidUserException exception) {
         return errorResponse(HttpStatus.BAD_REQUEST, USER_VALIDATION_ERROR_CODE, exception.getMessage());
@@ -100,11 +107,11 @@ public class ApiExceptionHandler {
         return errorResponse(HttpStatus.NOT_FOUND, USER_NOT_FOUND_CODE, exception.getMessage());
     }
 
-    @ExceptionHandler(LastActiveAdministratorException.class)
-    public ResponseEntity<ApiErrorResponse> handleLastActiveAdministrator(
-            LastActiveAdministratorException exception
+    @ExceptionHandler(LastActiveOwnerException.class)
+    public ResponseEntity<ApiErrorResponse> handleLastActiveOwner(
+            LastActiveOwnerException exception
     ) {
-        return errorResponse(HttpStatus.CONFLICT, LAST_ACTIVE_ADMINISTRATOR_CODE, exception.getMessage());
+        return errorResponse(HttpStatus.CONFLICT, LAST_ACTIVE_OWNER_CODE, exception.getMessage());
     }
 
     @ExceptionHandler(InvalidRegistrationException.class)

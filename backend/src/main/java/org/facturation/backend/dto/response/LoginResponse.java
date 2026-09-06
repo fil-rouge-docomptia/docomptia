@@ -1,5 +1,8 @@
 package org.facturation.backend.dto.response;
 
+import java.util.List;
+import java.util.Set;
+
 public class LoginResponse {
 
     private final Long userId;
@@ -7,6 +10,8 @@ public class LoginResponse {
     private final String firstName;
     private final String lastName;
     private final String role;
+    private final List<CurrentUserRoleResponse> roles;
+    private final Set<String> permissions;
     private final Long organizationId;
     private final String token;
 
@@ -16,6 +21,8 @@ public class LoginResponse {
             String firstName,
             String lastName,
             String role,
+            List<CurrentUserRoleResponse> roles,
+            Set<String> permissions,
             Long organizationId,
             String token
     ) {
@@ -24,6 +31,8 @@ public class LoginResponse {
         this.firstName = firstName;
         this.lastName = lastName;
         this.role = role;
+        this.roles = roles;
+        this.permissions = permissions;
         this.organizationId = organizationId;
         this.token = token;
     }
@@ -46,6 +55,14 @@ public class LoginResponse {
 
     public String getRole() {
         return role;
+    }
+
+    public List<CurrentUserRoleResponse> getRoles() {
+        return roles;
+    }
+
+    public Set<String> getPermissions() {
+        return permissions;
     }
 
     public Long getOrganizationId() {

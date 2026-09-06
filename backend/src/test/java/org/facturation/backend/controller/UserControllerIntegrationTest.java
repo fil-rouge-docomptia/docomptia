@@ -66,13 +66,13 @@ class UserControllerIntegrationTest {
                         .param("size", "1")
                         .param("sortBy", "firstName")
                         .param("direction", "DESC")
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(1))
                 .andExpect(jsonPath("$.content[0].firstName").value("Zoe"))
                 .andExpect(jsonPath("$.content[0].lastName").value("Accountant"))
                 .andExpect(jsonPath("$.content[0].email").value("zoe-accountant@example.com"))
-                .andExpect(jsonPath("$.content[0].role.code").value("OPERATEUR_COMPTABLE"))
+                .andExpect(jsonPath("$.content[0].role.code").value("ACCOUNTANT"))
                 .andExpect(jsonPath("$.content[0].active").value(false))
                 .andExpect(jsonPath("$.content[0].passwordHash").doesNotExist())
                 .andExpect(jsonPath("$.content[0].organization").doesNotExist())
@@ -83,13 +83,13 @@ class UserControllerIntegrationTest {
 
         mockMvc.perform(get("/api/v1/users")
                         .param("size", "100")
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[*].email", not(hasItem("hidden-user@example.com"))));
     }
 
     @Test
-    void adminInvitesInactiveUserInCurrentOrganization() throws Exception {
+    void authorizedUserInvitesInactiveUserInCurrentOrganization() throws Exception {
         mockMvc.perform(post("/api/v1/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -97,15 +97,16 @@ class UserControllerIntegrationTest {
                                   "firstName": " Marie ",
                                   "lastName": " Martin ",
                                   "email": " MARIE.MARTIN@Example.com ",
-                                  "roleCode": "OPERATEUR_COMPTABLE"
+                                  "roleCode": "ACCOUNTANT"
                                 }
                                 """)
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.firstName").value("Marie"))
                 .andExpect(jsonPath("$.lastName").value("Martin"))
                 .andExpect(jsonPath("$.email").value("marie.martin@example.com"))
-                .andExpect(jsonPath("$.role.code").value("OPERATEUR_COMPTABLE"))
+                .andExpect(jsonPath("$.role.code").value("ACCOUNTANT"))
+                .andExpect(jsonPath("$.roles[0].code").value("ACCOUNTANT"))
                 .andExpect(jsonPath("$.active").value(false))
                 .andExpect(jsonPath("$.passwordHash").doesNotExist())
                 .andExpect(jsonPath("$.organization").doesNotExist());
@@ -127,13 +128,13 @@ class UserControllerIntegrationTest {
                                   "roleCode": "ADMIN"
                                 }
                                 """)
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("USER_EMAIL_CONFLICT"));
     }
 
     @Test
-    void rejectsRoleOutsideMvpRoles() throws Exception {
+    void rejectsRoleOutsideAssignableRoles() throws Exception {
         mockMvc.perform(post("/api/v1/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -144,14 +145,14 @@ class UserControllerIntegrationTest {
                                   "roleCode": "SUPER_ADMIN"
                                 }
                                 """)
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("USER_VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.message").value("roleCode is not allowed"));
     }
 
     @Test
-    void adminUpdatesUserIdentityInCurrentOrganization() throws Exception {
+    void authorizedUserUpdatesUserIdentityInCurrentOrganization() throws Exception {
         mockMvc.perform(patch("/api/v1/users/{id}", 9631)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -161,13 +162,13 @@ class UserControllerIntegrationTest {
                                   "email": " ALICE.DURAND@Example.com "
                                 }
                                 """)
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(9631))
                 .andExpect(jsonPath("$.firstName").value("Alice"))
                 .andExpect(jsonPath("$.lastName").value("Durand"))
                 .andExpect(jsonPath("$.email").value("alice.durand@example.com"))
-                .andExpect(jsonPath("$.role.code").value("OPERATEUR_COMPTABLE"))
+                .andExpect(jsonPath("$.role.code").value("ACCOUNTANT"))
                 .andExpect(jsonPath("$.active").value(false));
 
         var updatedUser = userRepository.findById(9631L).orElseThrow();
@@ -181,7 +182,7 @@ class UserControllerIntegrationTest {
         mockMvc.perform(patch("/api/v1/users/{id}", 9631)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"invalid-email\"}")
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("USER_VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.message").value("email must be valid"));
@@ -189,7 +190,7 @@ class UserControllerIntegrationTest {
         mockMvc.perform(patch("/api/v1/users/{id}", 9631)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"ADMIN@FACTURATION-DEMO.FR\"}")
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("USER_EMAIL_CONFLICT"));
     }
@@ -199,7 +200,7 @@ class UserControllerIntegrationTest {
         mockMvc.perform(patch("/api/v1/users/{id}", 9632)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"firstName\":\"Visible\"}")
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("USER_NOT_FOUND"))
                 .andExpect(jsonPath("$.message").value("User 9632 not found"));
@@ -210,18 +211,18 @@ class UserControllerIntegrationTest {
         mockMvc.perform(patch("/api/v1/users/{id}", 9631)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}")
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("USER_VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.message").value("At least one changed field is required"));
     }
 
     @Test
-    void adminActivatesUserInCurrentOrganizationAndAuditsChange() throws Exception {
+    void authorizedUserActivatesUserInCurrentOrganizationAndAuditsChange() throws Exception {
         mockMvc.perform(patch("/api/v1/users/9631/status")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"active\":true}")
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(9631))
                 .andExpect(jsonPath("$.active").value(true));
@@ -241,21 +242,21 @@ class UserControllerIntegrationTest {
     }
 
     @Test
-    void adminCannotChangeUserFromAnotherOrganization() throws Exception {
+    void authorizedUserCannotChangeUserFromAnotherOrganization() throws Exception {
         mockMvc.perform(patch("/api/v1/users/9632/status")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"active\":false}")
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("USER_NOT_FOUND"));
     }
 
     @Test
-    void adminDeactivatesUserInCurrentOrganization() throws Exception {
+    void authorizedUserDeactivatesUserInCurrentOrganization() throws Exception {
         mockMvc.perform(patch("/api/v1/users/9633/status")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"active\":false}")
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.active").value(false));
 
@@ -275,105 +276,122 @@ class UserControllerIntegrationTest {
     }
 
     @Test
-    void rejectsDeactivationOfLastActiveAdministrator() throws Exception {
+    void rejectsDeactivationOfLastActiveOwner() throws Exception {
         mockMvc.perform(patch("/api/v1/users/1/status")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"active\":false}")
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("LAST_ACTIVE_ADMINISTRATOR"))
+                .andExpect(jsonPath("$.code").value("LAST_ACTIVE_OWNER"))
                 .andExpect(jsonPath("$.message").value(
-                        "The last active administrator cannot be deactivated or assigned another role"));
+                        "The last active owner cannot be deactivated or lose the Owner role"));
 
         assertThat(userRepository.findById(1L).orElseThrow().isActive()).isTrue();
     }
 
     @Test
-    void adminReplacesUserRoleInCurrentOrganizationAndAuditsChange() throws Exception {
+    void authorizedUserReplacesUserRolesInCurrentOrganizationAndAuditsChange() throws Exception {
         mockMvc.perform(patch("/api/v1/users/9631/role")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"roleCode\":\"responsable_comptable\"}")
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .content("{\"roleCodes\":[\"accounting_manager\"]}")
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(9631))
-                .andExpect(jsonPath("$.role.code").value("RESPONSABLE_COMPTABLE"));
+                .andExpect(jsonPath("$.role.code").value("ACCOUNTING_MANAGER"))
+                .andExpect(jsonPath("$.roles[0].code").value("ACCOUNTING_MANAGER"));
 
         assertThat(userRepository.findById(9631L).orElseThrow().getRole().getCode())
-                .isEqualTo("RESPONSABLE_COMPTABLE");
+                .isEqualTo("ACCOUNTING_MANAGER");
         var auditLog = auditLogRepository
                 .findByOrganizationOrganizationIdAndEntityNameAndEntityIdAndActionOrderByCreatedAtAscAuditLogIdAsc(
                         1L,
                         "User",
                         9631L,
-                        "ROLE_CHANGED"
+                        "ROLES_CHANGED"
                 )
                 .getFirst();
         assertThat(auditLog.getUser().getUserId()).isEqualTo(1L);
-        assertThat(auditLog.getOldValue()).isEqualTo("role=OPERATEUR_COMPTABLE");
-        assertThat(auditLog.getNewValue()).isEqualTo("role=RESPONSABLE_COMPTABLE");
+        assertThat(auditLog.getOldValue()).isEqualTo("roles=ACCOUNTANT");
+        assertThat(auditLog.getNewValue()).isEqualTo("roles=ACCOUNTING_MANAGER");
         assertThat(auditLog.getCreatedAt()).isNotNull();
     }
 
     @Test
-    void rejectsRoleChangeOfLastActiveAdministrator() throws Exception {
+    void rejectsRoleChangeOfLastActiveOwner() throws Exception {
         mockMvc.perform(patch("/api/v1/users/1/role")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"roleCode\":\"OPERATEUR_COMPTABLE\"}")
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .content("{\"roleCode\":\"ACCOUNTANT\"}")
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("LAST_ACTIVE_ADMINISTRATOR"));
+                .andExpect(jsonPath("$.code").value("LAST_ACTIVE_OWNER"));
 
-        assertThat(userRepository.findById(1L).orElseThrow().getRole().getCode()).isEqualTo("ADMIN");
+        assertThat(userRepository.findById(1L).orElseThrow().getRole().getCode()).isEqualTo("OWNER");
     }
 
     @Test
-    void allowsDeactivationWhenAnotherActiveAdministratorExists() throws Exception {
+    void allowsDeactivationWhenAnotherActiveOwnerExists() throws Exception {
         mockMvc.perform(patch("/api/v1/users/9633/role")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"roleCode\":\"ADMIN\"}")
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .content("{\"roleCode\":\"OWNER\"}")
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isOk());
 
         mockMvc.perform(patch("/api/v1/users/1/status")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"active\":false}")
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.active").value(false));
     }
 
     @Test
-    void allowsRoleChangeWhenAnotherActiveAdministratorExists() throws Exception {
+    void allowsRoleChangeWhenAnotherActiveOwnerExists() throws Exception {
         mockMvc.perform(patch("/api/v1/users/9633/role")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"roleCode\":\"ADMIN\"}")
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .content("{\"roleCode\":\"OWNER\"}")
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isOk());
 
         mockMvc.perform(patch("/api/v1/users/1/role")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"roleCode\":\"RESPONSABLE_COMPTABLE\"}")
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .content("{\"roleCode\":\"ACCOUNTING_MANAGER\"}")
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.role.code").value("RESPONSABLE_COMPTABLE"));
+                .andExpect(jsonPath("$.role.code").value("ACCOUNTING_MANAGER"));
     }
 
     @Test
-    void adminCannotChangeRoleForUserFromAnotherOrganization() throws Exception {
+    void ownerRoleChangesRequireOwnerManagementPermission() throws Exception {
+        mockMvc.perform(patch("/api/v1/users/9633/role")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roleCode\":\"ADMIN\"}")
+                        .header("Authorization", "Bearer " + ownerToken()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patch("/api/v1/users/9631/role")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roleCode\":\"OWNER\"}")
+                        .header("Authorization", "Bearer " + tokenFor("active-user@example.com")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void authorizedUserCannotChangeRoleForUserFromAnotherOrganization() throws Exception {
         mockMvc.perform(patch("/api/v1/users/9632/role")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"roleCode\":\"OPERATEUR_COMPTABLE\"}")
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .content("{\"roleCode\":\"ACCOUNTANT\"}")
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("USER_NOT_FOUND"));
     }
 
     @Test
-    void rejectsRoleOutsideMvpRolesDuringRoleChange() throws Exception {
+    void rejectsRoleOutsideAssignableRolesDuringRoleChange() throws Exception {
         mockMvc.perform(patch("/api/v1/users/9631/role")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"roleCode\":\"SUPER_ADMIN\"}")
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("USER_VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.message").value("roleCode is not allowed"));
@@ -390,7 +408,7 @@ class UserControllerIntegrationTest {
         mockMvc.perform(patch("/api/v1/users/9633/role")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"roleCode\":\"ADMIN\"}")
-                        .header("Authorization", "Bearer " + adminToken()))
+                        .header("Authorization", "Bearer " + ownerToken()))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/v1/roles")
@@ -398,7 +416,7 @@ class UserControllerIntegrationTest {
                 .andExpect(status().isOk());
     }
 
-    private String adminToken() {
+    private String ownerToken() {
         return tokenFor("admin@facturation-demo.fr");
     }
 

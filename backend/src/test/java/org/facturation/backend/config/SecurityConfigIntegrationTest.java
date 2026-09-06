@@ -28,13 +28,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Sql(executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS, statements = {
         "INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, password_hash, "
-                + "is_active, created_at, updated_at) VALUES (900, 1, 2, 'Operator', 'Security', "
+                + "is_active, created_at, updated_at) VALUES (900, 1, 2, 'Accountant', 'Security', "
                 + "'operator-security@facturation-demo.fr', "
                 + "'$2y$10$KUfJnN7ROhgbS3HTUJbNQeyesH5EFAlgvhkyw3Kf9UdX.DdsROjd6', true, "
                 + "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
         "INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, password_hash, "
                 + "is_active, created_at, updated_at) VALUES (901, 1, 3, 'Manager', 'Security', "
                 + "'manager-security@facturation-demo.fr', "
+                + "'$2y$10$KUfJnN7ROhgbS3HTUJbNQeyesH5EFAlgvhkyw3Kf9UdX.DdsROjd6', true, "
+                + "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        "INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, password_hash, "
+                + "is_active, created_at, updated_at) VALUES (902, 1, 6, 'Viewer', 'Security', "
+                + "'viewer-security@facturation-demo.fr', "
                 + "'$2y$10$KUfJnN7ROhgbS3HTUJbNQeyesH5EFAlgvhkyw3Kf9UdX.DdsROjd6', true, "
                 + "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
 })
@@ -150,7 +155,7 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void authenticatedUserWithoutAdminRoleReceivesCommonForbiddenError() throws Exception {
+    void authenticatedUserWithoutRequiredPermissionReceivesCommonForbiddenError() throws Exception {
         String token = tokenFor("operator-security@facturation-demo.fr");
 
         mockMvc.perform(patch("/api/v1/accounting-rules/1")
@@ -164,7 +169,7 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void onboardingStatusIsRestrictedToAdministrators() throws Exception {
+    void onboardingStatusRequiresOrganizationManagePermission() throws Exception {
         String token = tokenFor("operator-security@facturation-demo.fr");
 
         mockMvc.perform(get("/api/v1/organizations/current/onboarding")
@@ -174,7 +179,7 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void validationPreferencesCanBeReadByOperatorsButOnlyUpdatedByAdministrators() throws Exception {
+    void validationPreferencesRequireManagePermissionForUpdates() throws Exception {
         String token = tokenFor("operator-security@facturation-demo.fr");
 
         mockMvc.perform(get("/api/v1/organizations/current/validation-preferences")
@@ -190,7 +195,7 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void operatorCanProcessInvoicesButCannotValidateThem() throws Exception {
+    void accountantCanProcessInvoicesButCannotValidateThem() throws Exception {
         String token = tokenFor("operator-security@facturation-demo.fr");
 
         mockMvc.perform(patch("/api/v1/invoices/999999")
@@ -226,21 +231,21 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void administratorCannotMakeInvoiceValidationDecisions() throws Exception {
-        String token = loginAndGetToken();
+    void viewerCannotMakeInvoiceValidationDecisions() throws Exception {
+        String token = tokenFor("viewer-security@facturation-demo.fr");
 
         assertInvoiceValidationRoutesAreForbidden(token);
     }
 
     @Test
-    void accountingManagerCannotUpdateSuppliers() throws Exception {
+    void supplierUpdateRequiresSupplierManagePermission() throws Exception {
         assertForbidden(patch("/api/v1/suppliers/1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"), tokenFor("manager-security@facturation-demo.fr"));
     }
 
     @Test
-    void classificationsCanBeViewedByAllRolesButManagedOnlyByAdministrators() throws Exception {
+    void classificationsSeparateReadAndManagePermissions() throws Exception {
         String operatorToken = tokenFor("operator-security@facturation-demo.fr");
 
         mockMvc.perform(get("/api/v1/classifications").header("Authorization", "Bearer " + operatorToken))
@@ -257,7 +262,7 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void operatorCanAssignInvoiceResourcesButAccountingManagerCannot() throws Exception {
+    void invoiceResourceAssignmentRequiresAssignmentPermissions() throws Exception {
         mockMvc.perform(patch("/api/v1/invoices/999999/classification")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"classificationId\":1}")
@@ -288,7 +293,7 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void userListRequiresAdminRole() throws Exception {
+    void userListRequiresMemberReadPermission() throws Exception {
         mockMvc.perform(get("/api/v1/users")
                         .header("Authorization", "Bearer " + tokenFor(
                                 "operator-security@facturation-demo.fr"
@@ -298,7 +303,7 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void userInvitationRequiresAdminRole() throws Exception {
+    void userInvitationRequiresMemberInvitePermission() throws Exception {
         mockMvc.perform(post("/api/v1/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -306,7 +311,7 @@ class SecurityConfigIntegrationTest {
                                   "firstName": "Blocked",
                                   "lastName": "Invitation",
                                   "email": "blocked-invitation@example.com",
-                                  "roleCode": "OPERATEUR_COMPTABLE"
+                                  "roleCode": "ACCOUNTANT"
                                 }
                                 """)
                         .header("Authorization", "Bearer " + tokenFor(
@@ -317,7 +322,7 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void userUpdateRequiresAdminRole() throws Exception {
+    void userUpdateRequiresMemberUpdatePermission() throws Exception {
         mockMvc.perform(patch("/api/v1/users/1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"firstName\":\"Blocked\"}")
@@ -329,12 +334,12 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void administrationRoutesAreForbiddenToAccountingOperators() throws Exception {
+    void administrationRoutesAreForbiddenWithoutDedicatedPermissions() throws Exception {
         assertAdministrationRoutesAreForbiddenTo("operator-security@facturation-demo.fr");
     }
 
     @Test
-    void administrationRoutesAreForbiddenToAccountingManagers() throws Exception {
+    void memberAdministrationRoutesAreForbiddenWithoutDedicatedPermissions() throws Exception {
         assertAdministrationRoutesAreForbiddenTo("manager-security@facturation-demo.fr");
     }
 

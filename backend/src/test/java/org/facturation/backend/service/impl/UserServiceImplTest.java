@@ -18,6 +18,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -82,29 +83,32 @@ class UserServiceImplTest {
     @Test
     void invitesInactiveUserInAdministratorsOrganizationWithAllowedRole() {
         Organization organization = new Organization();
+        organization.setOrganizationId(1L);
         Role role = new Role();
         role.setRoleId(2L);
-        role.setCode(RoleCode.OPERATEUR_COMPTABLE.getCode());
-        role.setLabel("Operateur comptable");
-        UserCreateRequest request = request(" NEW.USER@Example.com ", "OPERATEUR_COMPTABLE");
+        role.setCode(RoleCode.ACCOUNTANT.getCode());
+        role.setLabel("Accountant");
+        User administrator = administrator(organization);
+        UserCreateRequest request = request(" NEW.USER@Example.com ", "ACCOUNTANT");
 
         when(userRepository.existsByEmailIgnoreCase("new.user@example.com")).thenReturn(false);
-        when(roleService.findByCode(RoleCode.OPERATEUR_COMPTABLE)).thenReturn(role);
+        when(roleService.findAssignableRole("ACCOUNTANT", 1L)).thenReturn(role);
         when(userRepository.saveAndFlush(any(User.class))).thenAnswer(invocation -> {
             User savedUser = invocation.getArgument(0);
             savedUser.setUserId(10L);
             return savedUser;
         });
 
-        var response = userService.invite(request, organization);
+        var response = userService.invite(request, organization, administrator);
 
         assertEquals(10L, response.id());
         assertEquals("new.user@example.com", response.email());
-        assertEquals("OPERATEUR_COMPTABLE", response.role().code());
+        assertEquals("ACCOUNTANT", response.role().code());
         assertFalse(response.active());
         verify(userRepository).saveAndFlush(argThat(user ->
                 user.getOrganization() == organization
                         && user.getRole() == role
+                        && user.getEffectiveRoles().equals(Set.of(role))
                         && !user.isActive()
                         && user.getPasswordHash().startsWith("$2")
         ));
@@ -113,10 +117,12 @@ class UserServiceImplTest {
     @Test
     void rejectsEmailAlreadyUsedWithDifferentCase() {
         Organization organization = new Organization();
+        organization.setOrganizationId(1L);
+        User administrator = administrator(organization);
         UserCreateRequest request = request("ADMIN@facturation-demo.fr", "ADMIN");
         when(userRepository.existsByEmailIgnoreCase("admin@facturation-demo.fr")).thenReturn(true);
 
-        assertThrows(UserEmailConflictException.class, () -> userService.invite(request, organization));
+        assertThrows(UserEmailConflictException.class, () -> userService.invite(request, organization, administrator));
     }
 
     @Test
@@ -125,8 +131,8 @@ class UserServiceImplTest {
         organization.setOrganizationId(1L);
         Role role = new Role();
         role.setRoleId(2L);
-        role.setCode(RoleCode.OPERATEUR_COMPTABLE.getCode());
-        role.setLabel("Operateur comptable");
+        role.setCode(RoleCode.ACCOUNTANT.getCode());
+        role.setLabel("Accountant");
         User user = new User();
         user.setUserId(10L);
         user.setOrganization(organization);
@@ -167,5 +173,12 @@ class UserServiceImplTest {
         request.setEmail(email);
         request.setRoleCode(roleCode);
         return request;
+    }
+
+    private User administrator(Organization organization) {
+        User administrator = new User();
+        administrator.setUserId(1L);
+        administrator.setOrganization(organization);
+        return administrator;
     }
 }

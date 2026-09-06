@@ -15,29 +15,30 @@ import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
-    @EntityGraph(attributePaths = {"role", "organization"})
+    @EntityGraph(attributePaths = {"role", "role.permissions", "roles", "roles.permissions", "organization"})
     Optional<User> findByEmailIgnoreCase(String email);
 
     boolean existsByEmailIgnoreCase(String email);
 
     boolean existsByEmailIgnoreCaseAndUserIdNot(String email, Long userId);
 
-    @EntityGraph(attributePaths = "role")
+    @EntityGraph(attributePaths = {"role", "roles"})
     Page<User> findByOrganizationOrganizationId(Long organizationId, Pageable pageable);
 
-    @EntityGraph(attributePaths = {"role", "organization"})
+    @EntityGraph(attributePaths = {"role", "role.permissions", "roles", "roles.permissions", "organization"})
     Optional<User> findByUserIdAndOrganizationOrganizationId(Long userId, Long organizationId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
-            select user from User user
+            select distinct user from User user
+            left join user.roles role
             where user.organization.organizationId = :organizationId
               and user.isActive = true
-              and user.role.code = 'ADMIN'
+              and (user.role.code = 'OWNER' or role.code = 'OWNER')
             """)
-    List<User> findActiveAdministratorsForUpdate(@Param("organizationId") Long organizationId);
+    List<User> findActiveOwnersForUpdate(@Param("organizationId") Long organizationId);
 
     @Override
-    @EntityGraph(attributePaths = {"role", "organization"})
+    @EntityGraph(attributePaths = {"role", "role.permissions", "roles", "roles.permissions", "organization"})
     Optional<User> findById(Long userId);
 }

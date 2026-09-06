@@ -83,7 +83,7 @@ public class UserController {
     public ResponseEntity<UserListItemResponse> inviteUser(@RequestBody UserCreateRequest request) {
         User currentUser = currentUserService.getCurrentUser();
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(userService.invite(request, currentUser.getOrganization()));
+                .body(userService.invite(request, currentUser.getOrganization(), currentUser));
     }
 
     @PatchMapping("/{id}/status")
@@ -101,9 +101,9 @@ public class UserController {
     }
 
     @PatchMapping("/{id}/role")
-    @Operation(summary = "Remplacer le role d'un utilisateur")
+    @Operation(summary = "Remplacer les roles d'un utilisateur")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Role de l'utilisateur modifie"),
+            @ApiResponse(responseCode = "200", description = "Roles de l'utilisateur modifies"),
             @ApiResponse(responseCode = "400", description = "Role manquant, non autorise ou deja attribue"),
             @ApiResponse(responseCode = "404", description = "Utilisateur introuvable dans l'organisation")
     })
