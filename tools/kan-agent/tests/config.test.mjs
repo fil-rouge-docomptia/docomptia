@@ -47,6 +47,7 @@ test('loadConfig reads local environment without overriding exported variables',
     assert.equal(config.jira.baseUrl, 'https://example.atlassian.net')
     assert.equal(config.jira.email, 'user@example.com')
     assert.equal(config.jira.apiToken, 'exported-token')
+    assert.equal(config.git.baseBranch, 'staging')
   } finally {
     Object.entries(previousEnvironment).forEach(([key, value]) => {
       if (value === undefined) delete process.env[key]

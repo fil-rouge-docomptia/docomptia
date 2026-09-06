@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { access, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { access, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import {
@@ -69,6 +69,11 @@ test('GitService creates the ticket branch in the shared repository', async () =
     await runCommand('git', ['commit', '-m', 'Initial commit'], { cwd: seed })
     await runCommand('git', ['remote', 'add', 'origin', remote], { cwd: seed })
     await runCommand('git', ['push', '-u', 'origin', 'main'], { cwd: seed })
+    await runCommand('git', ['switch', '-c', 'staging'], { cwd: seed })
+    await writeFile(resolve(seed, 'staging.txt'), 'staging baseline\n', 'utf8')
+    await runCommand('git', ['add', 'staging.txt'], { cwd: seed })
+    await runCommand('git', ['commit', '-m', 'Prepare staging'], { cwd: seed })
+    await runCommand('git', ['push', '-u', 'origin', 'staging'], { cwd: seed })
 
     const service = new GitService({
       git: {
@@ -77,7 +82,7 @@ test('GitService creates the ticket branch in the shared repository', async () =
         baseRepositoryPath: seed,
         worktreesDirectory: worktrees,
         remote: 'origin',
-        mainBranch: 'main',
+        baseBranch: 'staging',
         forbiddenFiles: ['**/certs/**', 'out/**'],
         ignoredWorkingTreeFiles: [
           'backend/Dockerfile.dev',
@@ -120,6 +125,10 @@ test('GitService creates the ticket branch in the shared repository', async () =
     assert.match(commits[0], /KAN-123: Implement local test/)
     assert.match(commits[1], /KAN-123: Document Implement local test/)
     assert.equal(prepared.branch, 'KAN-123_implement_local_integration_test')
+    assert.equal(
+      await readFile(resolve(prepared.worktree, 'staging.txt'), 'utf8'),
+      'staging baseline\n',
+    )
     assert.match(localBranch.stdout, /KAN-123_implement_local_integration_test/)
     assert.equal(validation.valid, true)
     assert.deepEqual(validation.review.files.sort(), ['docs/feature.md', 'feature.txt'])

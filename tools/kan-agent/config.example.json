@@ -17,7 +17,7 @@
     "baseRepositoryPath": "../..",
     "worktreesDirectory": "~/.kan-agent/workspaces/facturation/source-worktrees",
     "remote": "origin",
-    "mainBranch": "main",
+    "baseBranch": "staging",
     "forbiddenFiles": [
       "**/certs/**",
       "**/*netskope*",

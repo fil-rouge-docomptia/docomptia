@@ -19,6 +19,7 @@ import org.facturation.backend.dto.response.InvoiceHistoryItemResponse;
 import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
+import org.facturation.backend.exception.InvoiceFileNotFoundException;
 import org.facturation.backend.exception.InvoiceNotFoundException;
 import org.facturation.backend.service.InvoiceHistoryService;
 import org.facturation.backend.service.InvoiceService;
@@ -228,10 +229,11 @@ public class InvoiceController {
     @Operation(summary = "Telecharger le fichier original d'une facture")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Fichier original retourne"),
-            @ApiResponse(responseCode = "404", description = "Facture introuvable dans l'organisation de l'utilisateur")
+            @ApiResponse(responseCode = "404", description = "Fichier original absent ou inaccessible")
     })
     public ResponseEntity<byte[]> downloadInvoiceFile(@PathVariable Long id) throws IOException {
-        MultipartFile file = requireInvoiceResponse(invoiceService.downloadFile(id), id);
+        MultipartFile file = invoiceService.downloadFile(id)
+                .orElseThrow(() -> new InvoiceFileNotFoundException(id));
         return invoiceFileResponse(file, ContentDisposition.attachment());
     }
 
