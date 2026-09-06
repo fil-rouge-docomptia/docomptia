@@ -117,20 +117,9 @@ Une facture `ARCHIVEE` reste consultable, previsualisable et telechargeable. Tou
 qui modifierait la facture, son statut, son classement, son affectation, ses doublons ou son
 ecriture retourne `409` avec le code metier `ARCHIVED_INVOICE_NOT_MODIFIABLE`.
 
-## Modele RBAC
-
-Les permissions utilisent un code stable en minuscules sous la forme `domaine.action`, par
-exemple `invoice.read` et `invoice.approve`. Un role regroupe des permissions et un utilisateur
-peut cumuler plusieurs roles; ses droits sont l'union des permissions de ces roles. Les roles
-systeme sont `OWNER`, `ADMIN`, `ACCOUNTING_MANAGER`, `ACCOUNTANT`, `APPROVER` et `VIEWER`.
-
-Les roles historiques `OPERATEUR_COMPTABLE` et `RESPONSABLE_COMPTABLE` restent disponibles pour
-preserver les contrats MVP existants pendant la transition.
-
 ## Matrice Des Permissions MVP
 
-Le backend centralise les codes d'autorisation dans `BusinessPermission`; la matrice roles-permissions
-est stockee en base. Toute nouvelle route
+Le backend centralise les autorisations dans `BusinessPermission`. Toute nouvelle route
 metier doit etre rattachee explicitement a une permission; une route non declaree est refusee
 par defaut.
 

@@ -1,18 +1,19 @@
-name: Create PR from staging to main
+name: Create staging promotion PR
 
 on:
   workflow_dispatch:
 
 permissions:
   contents: read
+  pull-requests: write
 
 concurrency:
-  group: create-pr-from-staging-to-main
+  group: create-staging-promotion-pr
   cancel-in-progress: false
 
 jobs:
-  prepare-pr:
-    name: Prepare PR from staging to main
+  create-pr:
+    name: Open staging to main pull request
     runs-on: ubuntu-latest
 
     steps:
@@ -21,30 +22,37 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Prepare pull request link from staging to main
+      - name: Create promotion pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git fetch origin main staging
 
-          commits_to_send="$(git rev-list --count origin/main..origin/staging)"
-          if [ "$commits_to_send" -eq 0 ]; then
-            echo "No staging commits to send to main."
-            {
-              echo "## Create PR from staging to main"
-              echo
-              echo "No staging commits to send to main."
-            } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$(git rev-list --count origin/main..origin/staging)" -eq 0 ]; then
+            echo "No staging commits to promote to main."
             exit 0
           fi
 
-          pr_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/main...staging?quick_pull=1"
+          existing_pr_url="$(gh pr list \
+            --base main \
+            --head staging \
+            --state open \
+            --json url \
+            --jq '.[0].url // empty')"
 
-          echo "Open this link to create the PR: $pr_url"
-          {
-            echo "## Create PR from staging to main"
-            echo
-            echo "$commits_to_send staging commit(s) can be sent to main."
-            echo
-            echo "[Open the PR from staging to main]($pr_url)"
-            echo
-            echo "The workflow does not create or merge the PR automatically."
-          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$existing_pr_url" ]; then
+            echo "A staging promotion PR already exists: $existing_pr_url"
+            exit 0
+          fi
+
+          gh pr create \
+            --base main \
+            --head staging \
+            --title "Promote staging to main" \
+            --body "## Resume
+          - Promeut les changements valides sur staging vers main.
+          - La PR reste a relire et merger manuellement.
+
+          ## Verification
+          - Verifier que le deploiement staging est OK avant merge.
+          - Verifier que la CI de cette PR est OK."
