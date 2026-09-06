@@ -106,6 +106,9 @@ CREATE TABLE IF NOT EXISTS classifications (
 );
 ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS classification_id BIGINT REFERENCES classifications(classification_id);
 ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS assigned_user_id BIGINT REFERENCES users(user_id);
+ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS payment_date DATE;
+ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(255);
+ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS paid_by_user_id BIGINT REFERENCES users(user_id);
 
 ALTER TABLE IF EXISTS invoice_duplicate_alerts ALTER COLUMN invoice_date DROP NOT NULL;
 ALTER TABLE IF EXISTS invoice_duplicate_alerts ALTER COLUMN total_ttc DROP NOT NULL;

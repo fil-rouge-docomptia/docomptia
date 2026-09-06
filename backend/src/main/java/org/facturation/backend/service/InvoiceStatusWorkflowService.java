@@ -45,6 +45,8 @@ public interface InvoiceStatusWorkflowService {
 
     void markAccountingEntryToCorrect(Invoice invoice, User user);
 
+    void markPaid(Invoice invoice, User user);
+
     void ensureCanTransition(Invoice invoice, InvoiceStatusCode targetCode);
 
     void transitionTo(Invoice invoice, InvoiceStatusCode targetCode, User user, String comment);

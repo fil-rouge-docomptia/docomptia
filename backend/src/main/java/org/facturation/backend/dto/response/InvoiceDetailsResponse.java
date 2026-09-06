@@ -9,6 +9,9 @@ public class InvoiceDetailsResponse {
     private String commandReference;
     private String invoiceDate;
     private String dueDate;
+    private String paymentDate;
+    private String paymentReference;
+    private Long paidByUserId;
     private String status;
     private String supplierName;
     private InvoiceSupplierResponse supplier;
@@ -63,6 +66,30 @@ public class InvoiceDetailsResponse {
 
     public void setDueDate(String dueDate) {
         this.dueDate = dueDate;
+    }
+
+    public String getPaymentDate() {
+        return paymentDate;
+    }
+
+    public void setPaymentDate(String paymentDate) {
+        this.paymentDate = paymentDate;
+    }
+
+    public String getPaymentReference() {
+        return paymentReference;
+    }
+
+    public void setPaymentReference(String paymentReference) {
+        this.paymentReference = paymentReference;
+    }
+
+    public Long getPaidByUserId() {
+        return paidByUserId;
+    }
+
+    public void setPaidByUserId(Long paidByUserId) {
+        this.paidByUserId = paidByUserId;
     }
 
     public String getStatus() {

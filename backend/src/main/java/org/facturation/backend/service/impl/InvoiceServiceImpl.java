@@ -4,6 +4,7 @@ import org.facturation.backend.dto.request.DuplicateAlertDecisionRequest;
 import org.facturation.backend.dto.request.InvoiceAssigneeRequest;
 import org.facturation.backend.dto.request.InvoiceClassificationRequest;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
+import org.facturation.backend.dto.request.InvoicePaymentRequest;
 import org.facturation.backend.dto.response.AccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
@@ -511,6 +512,26 @@ public class InvoiceServiceImpl implements InvoiceService {
             duplicateAlertService.ensureNoPendingAlerts(id, "be rejected outside the duplicate decision workflow");
             invoiceStatusWorkflowService.rejectInvoice(invoice, user, reason);
             notificationService.notifyRejection(invoice, reason);
+            return invoiceResponseMapper.toStatusResponse(invoice);
+        });
+    }
+
+    @Override
+    @Transactional
+    public Optional<InvoiceStatusResponse> markInvoiceAsPaid(Long id, InvoicePaymentRequest request) {
+        if (request == null || request.getPaymentDate() == null) {
+            throw new IllegalArgumentException("paymentDate is required");
+        }
+        User user = currentUserService.getCurrentUser();
+        return findInvoiceForCurrentOrganization(id, user).map(invoice -> {
+            if (InvoiceStatusCode.PAYEE.getCode().equals(invoice.getInvoiceStatus().getCode())) {
+                return invoiceResponseMapper.toStatusResponse(invoice);
+            }
+            invoiceStatusWorkflowService.ensureCanTransition(invoice, InvoiceStatusCode.PAYEE);
+            invoice.setPaymentDate(request.getPaymentDate());
+            invoice.setPaymentReference(toNullableValue(request.getPaymentReference()));
+            invoice.setPaidByUser(user);
+            invoiceStatusWorkflowService.markPaid(invoice, user);
             return invoiceResponseMapper.toStatusResponse(invoice);
         });
     }

@@ -46,6 +46,10 @@ public class Invoice {
     @JoinColumn(name = "assigned_user_id")
     private User assignedUser;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "paid_by_user_id")
+    private User paidByUser;
+
     private String invoiceNumber;
 
     private String commandReference;
@@ -53,6 +57,10 @@ public class Invoice {
     private LocalDate invoiceDate;
 
     private LocalDate dueDate;
+
+    private LocalDate paymentDate;
+
+    private String paymentReference;
 
     @Column(nullable = false, length = 3)
     private String currencyCode;
@@ -129,6 +137,14 @@ public class Invoice {
         this.assignedUser = assignedUser;
     }
 
+    public User getPaidByUser() {
+        return paidByUser;
+    }
+
+    public void setPaidByUser(User paidByUser) {
+        this.paidByUser = paidByUser;
+    }
+
     public String getInvoiceNumber() {
         return invoiceNumber;
     }
@@ -159,6 +175,22 @@ public class Invoice {
 
     public void setDueDate(LocalDate dueDate) {
         this.dueDate = dueDate;
+    }
+
+    public LocalDate getPaymentDate() {
+        return paymentDate;
+    }
+
+    public void setPaymentDate(LocalDate paymentDate) {
+        this.paymentDate = paymentDate;
+    }
+
+    public String getPaymentReference() {
+        return paymentReference;
+    }
+
+    public void setPaymentReference(String paymentReference) {
+        this.paymentReference = paymentReference;
     }
 
     public String getCurrencyCode() {

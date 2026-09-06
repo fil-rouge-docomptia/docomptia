@@ -107,6 +107,11 @@ public class InvoiceResponseMapper {
         response.setCommandReference(invoice.getCommandReference());
         response.setInvoiceDate(invoice.getInvoiceDate() == null ? null : invoice.getInvoiceDate().toString());
         response.setDueDate(invoice.getDueDate() == null ? null : invoice.getDueDate().toString());
+        response.setPaymentDate(invoice.getPaymentDate() == null ? null : invoice.getPaymentDate().toString());
+        response.setPaymentReference(invoice.getPaymentReference());
+        if (invoice.getPaidByUser() != null) {
+            response.setPaidByUserId(invoice.getPaidByUser().getUserId());
+        }
         response.setStatus(invoice.getInvoiceStatus().getCode());
         response.setSupplierName(extractSupplierName(invoice));
         if (invoice.getSupplier() != null) {
