@@ -72,6 +72,7 @@ http://ocr:8000/ocr/analyze
 | --- | --- | --- |
 | `POST` | `/api/v1/invoices/upload` | Upload, OCR et sauvegarde de la facture |
 | `PATCH` | `/api/v1/invoices/{id}` | Corrige les donnees extraites, conserve les valeurs OCR brutes, marque les champs OCR corriges manuellement et journalise chaque valeur avant/apres. Une facture `REJETEE` redevient `EXTRAITE` et doit etre soumise explicitement. |
+| `PATCH` | `/api/v1/invoices/{id}/assignee` | Affecte la facture a un utilisateur actif de l'organisation courante et journalise l'ancien affectataire, le nouveau et l'auteur. |
 | `POST` | `/api/v1/invoices/{id}/submit-for-validation` | Controle la completude, soumet une facture `EXTRAITE` a validation et historise l'action |
 | `POST` | `/api/v1/invoices/{id}/validate` | Valide une facture `A_VERIFIER` et historise la decision, son auteur et sa date |
 | `POST` | `/api/v1/invoices/{id}/request-correction` | Demande une correction motivee sur une facture `A_VERIFIER`, la replace en `EXTRAITE` et historise la decision |
@@ -80,10 +81,10 @@ http://ocr:8000/ocr/analyze
 | `POST` | `/api/v1/invoices/{id}/accounting-entry` | Genere ou controle l'ecriture comptable apres validation. Une ecriture desequilibree retourne `409` avec les totaux et l'ecart, et la facture reste `VALIDEE`. |
 | `GET` | `/api/v1/invoices?status=EXTRAITE&status=VALIDEE&invoiceNumber=FAC-2026&supplier=Orange&client=Docomptia&dueDate=2026-08-31&startDate=2026-08-01&endDate=2026-08-31&minAmount=100.00&maxAmount=500.00&page=0&size=20&sortBy=invoiceDate&direction=DESC` | Recherche les factures de l'organisation courante, filtre par un ou plusieurs statuts connus (parametre repete ou codes separes par des virgules), le numero exact ou partiel, le fournisseur ou client par nom ou identifiant, la date de facture, la date d'echeance, une periode inclusive de dates de facture ou une plage inclusive de montants TTC, puis retourne une page triable par date, montant TTC ou statut. Un statut inconnu retourne `400`. Les bornes de periode et de montant peuvent etre omises individuellement; une borne minimum posterieure a la borne maximum correspondante retourne `400`. |
 | `GET` | `/api/v1/invoices/pending-validation?page=0&size=20&sortBy=invoiceDate&direction=DESC` | Retourne au responsable comptable une page triable des seules factures `A_VERIFIER` de son organisation. |
-| `GET` | `/api/v1/invoices/{id}` | Retourne la facture, l'OCR et l'ecriture si elle existe |
+| `GET` | `/api/v1/invoices/{id}` | Retourne la facture, l'OCR, l'ecriture si elle existe et l'historique chronologique des actions utiles a la fiche |
 | `GET` | `/api/v1/invoices/{id}/file` | Telecharge le fichier original si la facture appartient a l'organisation courante |
 | `GET` | `/api/v1/invoices/{id}/preview` | Retourne le PDF ou l'image originale avec une disposition `inline` et son type MIME si la facture appartient a l'organisation courante. Un format non previsualisable retourne `415`. |
-| `GET` | `/api/v1/invoices/{id}/history` | Retourne chronologiquement les changements de statut, corrections et decisions de doublon de l'organisation courante |
+| `GET` | `/api/v1/invoices/{id}/history` | Retourne chronologiquement les changements de statut, corrections, affectations et decisions de l'organisation courante |
 | `PATCH` | `/api/v1/accounting-entries/{entryId}/lines/{lineId}` | Corrige le compte, le libelle, le debit ou le credit d'une ligne non exportee et historise les valeurs avant/apres |
 
 Les reponses d'ecriture exposent `totalDebit`, `totalCredit`, `balanceDifference` et `balanced`.
@@ -97,6 +98,10 @@ retourne `404`.
 
 Dans les reponses OCR, `ocrAnalysis.fields[].corrected` vaut `true` lorsqu'une
 valeur normalisee provient d'une correction manuelle.
+
+Une facture `ARCHIVEE` reste consultable, previsualisable et telechargeable. Toute route
+qui modifierait la facture, son statut, son classement, son affectation, ses doublons ou son
+ecriture retourne `409` avec le code metier `ARCHIVED_INVOICE_NOT_MODIFIABLE`.
 
 ## Matrice Des Permissions MVP
 

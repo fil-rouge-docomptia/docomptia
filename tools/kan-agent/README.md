@@ -250,7 +250,7 @@ developpeur, chaque ticket est execute dans un worktree lie au meme depot:
 ```
 
 Il n'existe plus de second clone Git. A chaque nouveau ticket, l'agent execute
-`fetch origin` et cree la branche depuis `origin/main`, sans changer la branche
+`fetch origin` et cree la branche depuis `origin/staging`, sans changer la branche
 courante de `SourceCode`.
 
 Lorsque l'execution Codex se termine et que tous les changements sont commites,

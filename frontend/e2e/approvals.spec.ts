@@ -169,7 +169,7 @@ test('opens focus review and restores the approval queue context', async ({ page
   await page.goto('/approvals?page=2&sortBy=totalTtc&direction=DESC')
 
   await expect(page.getByRole('heading', { name: 'Approvals' })).toBeVisible()
-  await expect(page.getByText('Acme Supplies')).toBeVisible()
+  await expect(page.getByText('Acme Supplies', { exact: true })).toBeVisible()
   await expect(page.getByText('Waiting approval').first()).toBeVisible()
   await expect(page.getByText('9–10 of 10 invoices')).toBeVisible()
   await expect(page.getByText('€3,750.50')).toBeVisible()
@@ -197,7 +197,7 @@ test('opens focus review and restores the approval queue context', async ({ page
 
   await page.getByRole('link', { name: 'Back to approvals' }).click()
   await expect(page).toHaveURL('/approvals?page=2&sortBy=totalTtc&direction=DESC')
-  await expect(page.getByText('Acme Supplies')).toBeVisible()
+  await expect(page.getByText('Acme Supplies', { exact: true })).toBeVisible()
 })
 
 for (const role of nonValidatorRoles) {

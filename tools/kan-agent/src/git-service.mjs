@@ -106,13 +106,13 @@ export class GitService {
     await this.git(['clone', this.config.repositoryUrl, repository], { inherit: true })
   }
 
-  async syncMain() {
+  async syncBaseBranch() {
     await this.ensureBaseRepository()
     const repository = this.config.baseRepositoryPath
     await this.git(['fetch', this.config.remote], { cwd: repository, inherit: true })
 
     if (this.config.sharedRepository) {
-      return `${this.config.remote}/${this.config.mainBranch}`
+      return `${this.config.remote}/${this.config.baseBranch}`
     }
 
     const status = await this.git(['status', '--porcelain'], { cwd: repository })
@@ -120,16 +120,16 @@ export class GitService {
       throw new Error(`The agent base repository is not clean:\n${status.stdout}`)
     }
 
-    await this.git(['switch', this.config.mainBranch], { cwd: repository, inherit: true })
+    await this.git(['switch', this.config.baseBranch], { cwd: repository, inherit: true })
     await this.git(
-      ['pull', '--ff-only', this.config.remote, this.config.mainBranch],
+      ['pull', '--ff-only', this.config.remote, this.config.baseBranch],
       { cwd: repository, inherit: true },
     )
-    return this.config.mainBranch
+    return this.config.baseBranch
   }
 
   async prepareWorktree(issue) {
-    const baseRevision = await this.syncMain()
+    const baseRevision = await this.syncBaseBranch()
 
     const branch = `${issue.key}_${slugify(issue.summary)}`
     const worktree = resolve(this.config.worktreesDirectory, branch)
@@ -226,7 +226,7 @@ export class GitService {
     if (!revision) {
       throw new Error('The ticket branch has not been prepared yet')
     }
-    const branchComparison = `${this.config.remote}/${this.config.mainBranch}...${revision}`
+    const branchComparison = `${this.config.remote}/${this.config.baseBranch}...${revision}`
     const [status, log, diffStat, files] = await Promise.all([
       inspectStatus
         ? this.git(['status', '--short', '--untracked-files=all'], { cwd: repository })
@@ -235,7 +235,7 @@ export class GitService {
         [
           'log',
           '--format=%h %s',
-          `${this.config.remote}/${this.config.mainBranch}..${revision}`,
+          `${this.config.remote}/${this.config.baseBranch}..${revision}`,
         ],
         { cwd: repository },
       ),

@@ -13,6 +13,7 @@ public class InvoiceDetailsResponse {
     private String supplierName;
     private InvoiceSupplierResponse supplier;
     private ClassificationResponse classification;
+    private InvoiceAssigneeResponse assignee;
     private String currencyCode;
     private String totalHt;
     private String totalTva;
@@ -22,6 +23,7 @@ public class InvoiceDetailsResponse {
     private OcrErrorResponse ocrError;
     private AccountingEntryResponse accountingEntry;
     private List<InvoiceDuplicateAlertResponse> duplicateAlerts;
+    private List<InvoiceHistoryItemResponse> history;
 
     public Long getInvoiceId() {
         return invoiceId;
@@ -85,6 +87,14 @@ public class InvoiceDetailsResponse {
     public ClassificationResponse getClassification() { return classification; }
 
     public void setClassification(ClassificationResponse classification) { this.classification = classification; }
+
+    public InvoiceAssigneeResponse getAssignee() {
+        return assignee;
+    }
+
+    public void setAssignee(InvoiceAssigneeResponse assignee) {
+        this.assignee = assignee;
+    }
 
     public String getCurrencyCode() {
         return currencyCode;
@@ -156,5 +166,13 @@ public class InvoiceDetailsResponse {
 
     public void setDuplicateAlerts(List<InvoiceDuplicateAlertResponse> duplicateAlerts) {
         this.duplicateAlerts = duplicateAlerts;
+    }
+
+    public List<InvoiceHistoryItemResponse> getHistory() {
+        return history;
+    }
+
+    public void setHistory(List<InvoiceHistoryItemResponse> history) {
+        this.history = history;
     }
 }

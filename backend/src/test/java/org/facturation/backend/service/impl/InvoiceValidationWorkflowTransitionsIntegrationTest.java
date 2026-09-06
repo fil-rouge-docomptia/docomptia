@@ -3,6 +3,7 @@ package org.facturation.backend.service.impl;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.exception.InvoiceStatusTransitionException;
+import org.facturation.backend.exception.ArchivedInvoiceNotModifiableException;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.InvoiceStatusHistory;
@@ -157,7 +158,32 @@ class InvoiceValidationWorkflowTransitionsIntegrationTest {
         return Arrays.stream(ValidationAction.values())
                 .flatMap(action -> Arrays.stream(InvoiceStatusCode.values())
                         .filter(status -> status != action.allowedSourceStatus)
+                        .filter(status -> status != InvoiceStatusCode.ARCHIVEE)
                         .map(status -> Arguments.of(action, status)));
+    }
+
+    @ParameterizedTest(name = "{0} is forbidden for an archived invoice")
+    @MethodSource("validationActions")
+    void returnsArchivedReadOnlyErrorForEveryValidationAction(ValidationAction action) {
+        Long invoiceId = uploadCompleteInvoice();
+        Invoice invoice = invoiceRepository.findById(invoiceId).orElseThrow();
+        invoice.setInvoiceStatus(statusWorkflowService.findByCode(InvoiceStatusCode.ARCHIVEE));
+        invoiceRepository.saveAndFlush(invoice);
+        int historyCountBefore = statusHistory(invoiceId).size();
+        int decisionCountBefore = validationDecisions(invoiceId).size();
+
+        ArchivedInvoiceNotModifiableException exception = assertThrows(
+                ArchivedInvoiceNotModifiableException.class,
+                () -> action.execute(invoiceService, invoiceId)
+        );
+
+        assertEquals("Archived invoice " + invoiceId + " is read-only and cannot be modified", exception.getMessage());
+        assertEquals(historyCountBefore, statusHistory(invoiceId).size());
+        assertEquals(decisionCountBefore, validationDecisions(invoiceId).size());
+    }
+
+    private static Stream<ValidationAction> validationActions() {
+        return Arrays.stream(ValidationAction.values());
     }
 
     private Long uploadCompleteInvoice() {

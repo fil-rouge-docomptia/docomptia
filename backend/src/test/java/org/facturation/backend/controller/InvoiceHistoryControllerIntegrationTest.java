@@ -92,6 +92,26 @@ class InvoiceHistoryControllerIntegrationTest {
     }
 
     @Test
+    void includesHistoryInInvoiceDetails() throws Exception {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
+        correctionRequest.setTotalTtc("125.50");
+        invoiceService.correctInvoice(uploadResponse.getInvoiceId(), correctionRequest).orElseThrow();
+
+        mockMvc.perform(get("/api/v1/invoices/{id}", uploadResponse.getInvoiceId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.history.length()").value(4))
+                .andExpect(jsonPath("$.history[0].action").value("DEPOSEE"))
+                .andExpect(jsonPath("$.history[1].action").value("OCR_EN_COURS"))
+                .andExpect(jsonPath("$.history[2].action").value("EXTRAITE"))
+                .andExpect(jsonPath("$.history[3].type").value("CORRECTION"))
+                .andExpect(jsonPath("$.history[3].fieldName").value("totalTtc"))
+                .andExpect(jsonPath("$.history[*].date", everyItem(notNullValue())))
+                .andExpect(jsonPath("$.history[*].authorId", everyItem(notNullValue())))
+                .andExpect(jsonPath("$.history[*].author", everyItem(notNullValue())));
+    }
+
+    @Test
     void returnsValidationDecisionsWithAuthorDateAndReason() throws Exception {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
         InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();

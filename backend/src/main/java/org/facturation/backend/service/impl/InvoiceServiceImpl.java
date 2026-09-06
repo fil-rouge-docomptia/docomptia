@@ -1,8 +1,9 @@
 package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.request.DuplicateAlertDecisionRequest;
-import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
+import org.facturation.backend.dto.request.InvoiceAssigneeRequest;
 import org.facturation.backend.dto.request.InvoiceClassificationRequest;
+import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
 import org.facturation.backend.dto.response.AccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
@@ -12,7 +13,9 @@ import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
 import org.facturation.backend.exception.InvoiceFileNotPreviewableException;
 import org.facturation.backend.exception.InvoiceOcrFailureException;
+import org.facturation.backend.exception.InvalidUserException;
 import org.facturation.backend.exception.UnbalancedAccountingEntryException;
+import org.facturation.backend.exception.UserNotFoundException;
 import org.facturation.backend.mapper.InvoiceResponseMapper;
 import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.AuditLog;
@@ -28,6 +31,7 @@ import org.facturation.backend.model.Supplier;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.InvoiceFileRepository;
 import org.facturation.backend.repository.InvoiceRepository;
+import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.AccountingEntryService;
 import org.facturation.backend.service.AuditLogService;
 import org.facturation.backend.service.CurrentUserService;
@@ -69,6 +73,7 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     private static final BigDecimal MAX_PERSISTED_AMOUNT = new BigDecimal("9999999999.99");
     private static final int AMOUNT_SCALE = 2;
+    private static final String ASSIGNEE_CHANGED_ACTION = "ASSIGNEE_CHANGED";
     private static final Set<String> KNOWN_STATUS_CODES = Stream.of(InvoiceStatusCode.values())
             .map(InvoiceStatusCode::getCode)
             .collect(Collectors.toUnmodifiableSet());
@@ -92,6 +97,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final InvoiceFileStorageService invoiceFileStorageService;
     private final InvoiceDuplicateAlertService duplicateAlertService;
     private final ClassificationService classificationService;
+    private final UserRepository userRepository;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
@@ -107,7 +113,8 @@ public class InvoiceServiceImpl implements InvoiceService {
             InvoiceFileRepository invoiceFileRepository,
             InvoiceFileStorageService invoiceFileStorageService,
             InvoiceDuplicateAlertService duplicateAlertService,
-            ClassificationService classificationService
+            ClassificationService classificationService,
+            UserRepository userRepository
     ) {
         this.invoiceRepository = invoiceRepository;
         this.accountingEntryService = accountingEntryService;
@@ -123,6 +130,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.invoiceFileStorageService = invoiceFileStorageService;
         this.duplicateAlertService = duplicateAlertService;
         this.classificationService = classificationService;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -171,6 +179,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         Long organizationId = user.getOrganization().getOrganizationId();
         return invoiceRepository.findForOcrRetryByInvoiceIdAndOrganizationOrganizationId(invoiceId, organizationId)
                 .map(invoice -> {
+            invoiceStatusWorkflowService.ensureModifiable(invoice);
             invoiceStatusWorkflowService.ensureCanRetryOcr(invoice);
             InvoiceFile invoiceFile = invoiceFileRepository.findByInvoiceInvoiceId(invoiceId)
                     .orElseThrow(() -> new IllegalStateException("Stored invoice file not found"));
@@ -325,6 +334,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 id,
                 user.getOrganization().getOrganizationId()
         ).map(invoice -> {
+            invoiceStatusWorkflowService.ensureModifiable(invoice);
             boolean hasCorrections = hasRequestedCorrections(request);
             if (!hasCorrections) {
                 throw new IllegalArgumentException("At least one correction field is required");
@@ -351,6 +361,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
         User user = currentUserService.getCurrentUser();
         return findInvoiceForCurrentOrganization(id, user).map(invoice -> {
+            invoiceStatusWorkflowService.ensureModifiable(invoice);
             var classification = classificationService.findRequiredActiveForCurrentOrganization(
                     request.getClassificationId());
             if (invoice.getClassification() != null
@@ -361,6 +372,66 @@ public class InvoiceServiceImpl implements InvoiceService {
             invoice.setUpdatedAt(LocalDateTime.now());
             return invoiceResponseMapper.toDetailsResponse(invoiceRepository.save(invoice));
         });
+    }
+
+    @Override
+    @Transactional
+    public Optional<InvoiceDetailsResponse> assignUser(Long id, InvoiceAssigneeRequest request) {
+        if (request == null || request.getUserId() == null) {
+            throw new IllegalArgumentException("userId is required");
+        }
+
+        User author = currentUserService.getCurrentUser();
+        Long organizationId = author.getOrganization().getOrganizationId();
+        return findInvoiceForCurrentOrganization(id, author).map(invoice -> {
+            invoiceStatusWorkflowService.ensureModifiable(invoice);
+            User assignee = userRepository.findByUserIdAndOrganizationOrganizationId(
+                    request.getUserId(),
+                    organizationId
+            ).orElseThrow(() -> new UserNotFoundException(request.getUserId()));
+            if (!assignee.isActive()) {
+                throw new InvalidUserException("Assigned user must be active");
+            }
+            if (invoice.getAssignedUser() != null
+                    && Objects.equals(invoice.getAssignedUser().getUserId(), assignee.getUserId())) {
+                throw new IllegalArgumentException("Invoice is already assigned to this user");
+            }
+
+            Long previousAssigneeId = invoice.getAssignedUser() == null
+                    ? null
+                    : invoice.getAssignedUser().getUserId();
+            LocalDateTime assignedAt = LocalDateTime.now();
+            invoice.setAssignedUser(assignee);
+            invoice.setUpdatedAt(assignedAt);
+            Invoice savedInvoice = invoiceRepository.save(invoice);
+            auditLogService.save(createAssignmentAuditLog(
+                    savedInvoice,
+                    author,
+                    previousAssigneeId,
+                    assignee.getUserId(),
+                    assignedAt
+            ));
+            return invoiceResponseMapper.toDetailsResponse(savedInvoice);
+        });
+    }
+
+    private AuditLog createAssignmentAuditLog(
+            Invoice invoice,
+            User author,
+            Long previousAssigneeId,
+            Long assigneeId,
+            LocalDateTime assignedAt
+    ) {
+        AuditLog auditLog = new AuditLog();
+        auditLog.setOrganization(invoice.getOrganization());
+        auditLog.setUser(author);
+        auditLog.setEntityName(Invoice.class.getSimpleName());
+        auditLog.setEntityId(invoice.getInvoiceId());
+        auditLog.setAction(ASSIGNEE_CHANGED_ACTION);
+        auditLog.setOldValue("assigneeUserId=" + previousAssigneeId);
+        auditLog.setNewValue("assigneeUserId=" + assigneeId);
+        auditLog.setCreatedAt(assignedAt);
+        return auditLog;
     }
 
     @Override
@@ -414,14 +485,14 @@ public class InvoiceServiceImpl implements InvoiceService {
             DuplicateAlertDecisionRequest request
     ) {
         User user = currentUserService.getCurrentUser();
-        if (!invoiceRepository.existsByInvoiceIdAndOrganizationOrganizationId(
-                invoiceId,
-                user.getOrganization().getOrganizationId()
-        )) {
+        Optional<Invoice> invoiceForCurrentOrganization = findInvoiceForCurrentOrganization(invoiceId, user);
+        if (invoiceForCurrentOrganization.isEmpty()) {
             return Optional.empty();
         }
+        Invoice invoice = invoiceForCurrentOrganization.orElseThrow();
+        invoiceStatusWorkflowService.ensureModifiable(invoice);
         DuplicateAlertDecision decision = parseDuplicateAlertDecision(request);
-        Invoice invoice = duplicateAlertService.decide(
+        invoice = duplicateAlertService.decide(
                 invoiceId,
                 alertId,
                 decision,
@@ -449,6 +520,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         Long organizationId = user.getOrganization().getOrganizationId();
         return invoiceRepository.findForAccountingGenerationByInvoiceIdAndOrganizationOrganizationId(id, organizationId)
                 .map(invoice -> {
+            invoiceStatusWorkflowService.ensureModifiable(invoice);
             Optional<AccountingEntry> existingAccountingEntry = accountingEntryService.findByInvoiceId(id);
             AccountingEntry accountingEntry;
             if (existingAccountingEntry.isPresent()) {

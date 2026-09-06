@@ -5,6 +5,8 @@ import io.minio.GetObjectArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.errors.ErrorResponseException;
+import org.facturation.backend.exception.InvoiceFileNotFoundException;
 import org.facturation.backend.model.InvoiceFile;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -71,9 +73,21 @@ public class MinioInvoiceFileStorageService implements InvoiceFileStorageService
                     invoiceFile.getMimeType(),
                     inputStream.readAllBytes()
             );
+        } catch (ErrorResponseException exception) {
+            if (isMissingObject(exception)) {
+                throw new InvoiceFileNotFoundException(invoiceFile.getInvoice().getInvoiceId());
+            }
+            throw new IllegalStateException("Unable to read stored invoice file from MinIO", exception);
         } catch (Exception exception) {
             throw new IllegalStateException("Unable to read stored invoice file from MinIO", exception);
         }
+    }
+
+    private boolean isMissingObject(ErrorResponseException exception) {
+        String errorCode = exception.errorResponse().code();
+        return "NoSuchKey".equals(errorCode)
+                || "NoSuchObject".equals(errorCode)
+                || "NoSuchBucket".equals(errorCode);
     }
 
     private void ensureBucketExists() throws Exception {

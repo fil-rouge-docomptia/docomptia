@@ -107,6 +107,7 @@ export async function loadConfig() {
   raw.jira.apiToken = process.env.JIRA_API_TOKEN
   raw.git.baseRepositoryPath = expandPath(raw.git.baseRepositoryPath, toolDirectory)
   raw.git.worktreesDirectory = expandPath(raw.git.worktreesDirectory, toolDirectory)
+  raw.git.baseBranch = raw.git.baseBranch || raw.git.mainBranch || 'staging'
   raw.state.directory = expandPath(raw.state.directory, toolDirectory)
   raw.configPath = configPath
   raw.toolDirectory = toolDirectory
