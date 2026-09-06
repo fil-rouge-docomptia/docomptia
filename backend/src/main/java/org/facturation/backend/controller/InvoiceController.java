@@ -329,11 +329,11 @@ public class InvoiceController {
 
     @PatchMapping("/{id}/assignee")
     @Operation(
-            summary = "Affecter une facture a un utilisateur actif",
-            description = "Enregistre l'affectation courante et son auteur dans l'organisation authentifiee"
+            summary = "Modifier l'affectation d'une facture",
+            description = "Affecte la facture a un utilisateur actif ou retire son affectation avec un userId null, puis historise le changement et son auteur"
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Facture affectee"),
+            @ApiResponse(responseCode = "200", description = "Affectation modifiee"),
             @ApiResponse(responseCode = "400", description = "Utilisateur inactif ou affectation inchangee"),
             @ApiResponse(responseCode = "404", description = "Facture ou utilisateur introuvable dans l'organisation")
     })
