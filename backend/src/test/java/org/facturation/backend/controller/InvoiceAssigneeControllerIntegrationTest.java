@@ -71,7 +71,15 @@ class InvoiceAssigneeControllerIntegrationTest {
                 .andExpect(jsonPath("$.assignee.id").value(assignee.getUserId()))
                 .andExpect(jsonPath("$.assignee.firstName").value(assignee.getFirstName()))
                 .andExpect(jsonPath("$.assignee.lastName").value(assignee.getLastName()))
-                .andExpect(jsonPath("$.assignee.email").value(assignee.getEmail()));
+                .andExpect(jsonPath("$.assignee.email").value(assignee.getEmail()))
+                .andExpect(jsonPath("$.history.length()").value(1))
+                .andExpect(jsonPath("$.history[0].type").value("ASSIGNMENT"))
+                .andExpect(jsonPath("$.history[0].action").value(ASSIGNEE_CHANGED))
+                .andExpect(jsonPath("$.history[0].fieldName").value("assigneeUserId"))
+                .andExpect(jsonPath("$.history[0].newValue").value(assignee.getUserId().toString()))
+                .andExpect(jsonPath("$.history[0].date").isNotEmpty())
+                .andExpect(jsonPath("$.history[0].authorId").value(1))
+                .andExpect(jsonPath("$.history[0].author").value("Admin Demo"));
 
         Invoice persistedInvoice = invoiceRepository.findById(invoice.getInvoiceId()).orElseThrow();
         assertThat(persistedInvoice.getAssignedUser().getUserId()).isEqualTo(assignee.getUserId());

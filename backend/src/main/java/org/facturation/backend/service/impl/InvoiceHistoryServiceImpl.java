@@ -27,6 +27,8 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
 
     private static final String CORRECTION_ACTION = "FIELD_CORRECTION";
     private static final String CORRECTION_TYPE = "CORRECTION";
+    private static final String ASSIGNEE_CHANGED_ACTION = "ASSIGNEE_CHANGED";
+    private static final String ASSIGNMENT_TYPE = "ASSIGNMENT";
     private static final String DUPLICATE_DECISION_TYPE = "DUPLICATE_DECISION";
     private static final String STATUS_CHANGE_TYPE = "STATUS_CHANGE";
     private static final String VALIDATION_DECISION_TYPE = "VALIDATION_DECISION";
@@ -83,6 +85,16 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
                 .stream()
                 .map(this::toCorrectionHistoryItem)
                 .forEach(history::add);
+        auditLogRepository
+                .findByOrganizationOrganizationIdAndEntityNameAndEntityIdAndActionOrderByCreatedAtAscAuditLogIdAsc(
+                        organizationId,
+                        Invoice.class.getSimpleName(),
+                        invoiceId,
+                        ASSIGNEE_CHANGED_ACTION
+                )
+                .stream()
+                .map(this::toAssignmentHistoryItem)
+                .forEach(history::add);
         duplicateAlertRepository
                 .findByInvoiceInvoiceIdAndInvoiceOrganizationOrganizationIdAndDecidedAtIsNotNullOrderByDecidedAtAscDuplicateAlertIdAsc(
                         invoiceId,
@@ -118,8 +130,16 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
     }
 
     private InvoiceHistoryItemResponse toCorrectionHistoryItem(AuditLog auditLog) {
+        return toAuditHistoryItem(auditLog, CORRECTION_TYPE);
+    }
+
+    private InvoiceHistoryItemResponse toAssignmentHistoryItem(AuditLog auditLog) {
+        return toAuditHistoryItem(auditLog, ASSIGNMENT_TYPE);
+    }
+
+    private InvoiceHistoryItemResponse toAuditHistoryItem(AuditLog auditLog, String type) {
         InvoiceHistoryItemResponse response = new InvoiceHistoryItemResponse();
-        response.setType(CORRECTION_TYPE);
+        response.setType(type);
         response.setAction(auditLog.getAction());
         response.setDate(auditLog.getCreatedAt());
         applyAuthor(response, auditLog.getUser());

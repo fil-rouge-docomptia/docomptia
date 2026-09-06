@@ -23,6 +23,7 @@ public class InvoiceDetailsResponse {
     private OcrErrorResponse ocrError;
     private AccountingEntryResponse accountingEntry;
     private List<InvoiceDuplicateAlertResponse> duplicateAlerts;
+    private List<InvoiceHistoryItemResponse> history;
 
     public Long getInvoiceId() {
         return invoiceId;
@@ -165,5 +166,13 @@ public class InvoiceDetailsResponse {
 
     public void setDuplicateAlerts(List<InvoiceDuplicateAlertResponse> duplicateAlerts) {
         this.duplicateAlerts = duplicateAlerts;
+    }
+
+    public List<InvoiceHistoryItemResponse> getHistory() {
+        return history;
+    }
+
+    public void setHistory(List<InvoiceHistoryItemResponse> history) {
+        this.history = history;
     }
 }
