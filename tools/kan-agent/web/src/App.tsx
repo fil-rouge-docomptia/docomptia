@@ -94,7 +94,7 @@ export default function App() {
               <div className="hero-guardrails">
                 <div>
                   <GitPullRequestArrow size={19} />
-                  <span><strong>Branche isolée</strong><small>Main reste intacte</small></span>
+                  <span><strong>Branche isolée</strong><small>Staging reste intacte</small></span>
                 </div>
                 <div>
                   <ShieldCheck size={19} />
@@ -141,7 +141,7 @@ export default function App() {
                   onEpicChange={dashboard.loadTickets}
                   onStart={(issueKey, epicKey) => confirm({
                     title: `Lancer ${issueKey} ?`,
-                    message: 'L’agent va synchroniser main, créer une branche dédiée, analyser le ticket, modifier le code, tester puis committer. Aucun push ne sera effectué.',
+                    message: 'L’agent va synchroniser staging, créer une branche dédiée, analyser le ticket, modifier le code, tester puis committer. Aucun push ne sera effectué.',
                     confirmLabel: 'Lancer le ticket',
                     action: () => void dashboard.start(issueKey, epicKey),
                   })}

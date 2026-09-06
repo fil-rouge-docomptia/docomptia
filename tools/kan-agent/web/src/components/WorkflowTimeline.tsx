@@ -8,7 +8,7 @@ import { Card } from './ui/card'
 
 const steps = [
   ['SELECTED', 'Ticket validé'],
-  ['PREPARED', 'Main synchronisé et branche créée'],
+  ['PREPARED', 'Staging synchronisé et branche créée'],
   ['IN_PROGRESS', 'Implémentation et tests Codex'],
   ['REVIEW_REQUIRED', 'Review humaine'],
   ['APPROVED', 'Approbation explicite'],

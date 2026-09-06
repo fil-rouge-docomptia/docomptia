@@ -198,7 +198,7 @@ export class WebWorkflowService {
     try {
       state = await this.saveWithEvent(context, state, {
         type: 'STEP',
-        message: 'Fetching main and preparing the ticket branch',
+        message: 'Fetching staging and preparing the ticket branch',
       })
       const worktree = await context.git.prepareWorktree(state.issue)
       state = await this.saveWithEvent(context, {
