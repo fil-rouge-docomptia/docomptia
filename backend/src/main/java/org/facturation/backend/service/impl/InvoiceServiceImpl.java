@@ -473,6 +473,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         User user = currentUserService.getCurrentUser();
         return findInvoiceForCurrentOrganization(id, user).map(invoice -> {
             invoiceStatusWorkflowService.submitForValidation(invoice, user);
+            if (InvoiceStatusCode.A_VERIFIER.getCode().equals(invoice.getInvoiceStatus().getCode())) {
+                notificationService.notifyPendingValidation(invoice);
+            }
             return invoiceResponseMapper.toStatusResponse(invoice);
         });
     }
@@ -495,6 +498,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         return findInvoiceForCurrentOrganization(id, user).map(invoice -> {
             duplicateAlertService.ensureNoPendingAlerts(id, "receive a correction request");
             invoiceStatusWorkflowService.requestInvoiceCorrection(invoice, user, reason);
+            notificationService.notifyCorrectionRequest(invoice, reason);
             return invoiceResponseMapper.toStatusResponse(invoice);
         });
     }
@@ -506,6 +510,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         return findInvoiceForCurrentOrganization(id, user).map(invoice -> {
             duplicateAlertService.ensureNoPendingAlerts(id, "be rejected outside the duplicate decision workflow");
             invoiceStatusWorkflowService.rejectInvoice(invoice, user, reason);
+            notificationService.notifyRejection(invoice, reason);
             return invoiceResponseMapper.toStatusResponse(invoice);
         });
     }

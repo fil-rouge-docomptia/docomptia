@@ -1,58 +1,19 @@
-package org.facturation.backend.model;
-
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+package org.facturation.backend.dto.response;
 
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "notifications")
-public class Notification {
+public class NotificationResponse {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long notificationId;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "recipient_user_id", nullable = false)
-    private User recipient;
-
-    @Column(nullable = false, length = 50)
     private String type;
-
-    @Column(nullable = false, columnDefinition = "TEXT")
     private String message;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "invoice_id")
-    private Invoice invoice;
-
-    @Column(name = "is_read", nullable = false)
+    private Long invoiceId;
     private boolean read;
-
-    @Column(name = "read_at")
     private LocalDateTime readAt;
-
-    @Column(name = "email_required", nullable = false)
     private boolean emailRequired;
-
-    @Column(name = "email_recipient")
     private String emailRecipient;
-
-    @Column(name = "email_subject")
     private String emailSubject;
-
-    @Column(name = "email_body", columnDefinition = "TEXT")
     private String emailBody;
-
-    @Column(nullable = false)
     private LocalDateTime createdAt;
 
     public Long getNotificationId() {
@@ -61,14 +22,6 @@ public class Notification {
 
     public void setNotificationId(Long notificationId) {
         this.notificationId = notificationId;
-    }
-
-    public User getRecipient() {
-        return recipient;
-    }
-
-    public void setRecipient(User recipient) {
-        this.recipient = recipient;
     }
 
     public String getType() {
@@ -87,12 +40,12 @@ public class Notification {
         this.message = message;
     }
 
-    public Invoice getInvoice() {
-        return invoice;
+    public Long getInvoiceId() {
+        return invoiceId;
     }
 
-    public void setInvoice(Invoice invoice) {
-        this.invoice = invoice;
+    public void setInvoiceId(Long invoiceId) {
+        this.invoiceId = invoiceId;
     }
 
     public boolean isRead() {
