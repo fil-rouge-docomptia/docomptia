@@ -15,6 +15,10 @@ public class NotificationResponseMapper {
         response.setInvoiceId(notification.getInvoice() == null ? null : notification.getInvoice().getInvoiceId());
         response.setRead(notification.isRead());
         response.setReadAt(notification.getReadAt());
+        response.setEmailRequired(notification.isEmailRequired());
+        response.setEmailRecipient(notification.getEmailRecipient());
+        response.setEmailSubject(notification.getEmailSubject());
+        response.setEmailBody(notification.getEmailBody());
         response.setCreatedAt(notification.getCreatedAt());
         return response;
     }

@@ -66,6 +66,10 @@ class NotificationControllerIntegrationTest {
                 .andExpect(jsonPath("$.content.length()").value(2))
                 .andExpect(jsonPath("$.content[0].message").value("Newest unread"))
                 .andExpect(jsonPath("$.content[0].read").value(false))
+                .andExpect(jsonPath("$.content[0].emailRequired").value(true))
+                .andExpect(jsonPath("$.content[0].emailRecipient").value(currentUser.getEmail()))
+                .andExpect(jsonPath("$.content[0].emailSubject").value("Notification TEST_NOTIFICATION"))
+                .andExpect(jsonPath("$.content[0].emailBody").value("Newest unread"))
                 .andExpect(jsonPath("$.content[0].createdAt").isNotEmpty())
                 .andExpect(jsonPath("$.content[1].message").value("Middle read"))
                 .andExpect(jsonPath("$.content[1].read").value(true))
@@ -160,6 +164,10 @@ class NotificationControllerIntegrationTest {
         notification.setType("TEST_NOTIFICATION");
         notification.setMessage(message);
         notification.setRead(read);
+        notification.setEmailRequired(true);
+        notification.setEmailRecipient(recipient.getEmail());
+        notification.setEmailSubject("Notification TEST_NOTIFICATION");
+        notification.setEmailBody(message);
         notification.setCreatedAt(createdAt);
         return notificationRepository.save(notification);
     }
