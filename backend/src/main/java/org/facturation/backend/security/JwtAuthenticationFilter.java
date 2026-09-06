@@ -5,16 +5,14 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.facturation.backend.repository.UserRepository;
-import org.facturation.backend.model.RoleCode;
 import org.facturation.backend.service.JwtTokenService;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Arrays;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -44,9 +42,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             UsernamePasswordAuthenticationToken.authenticated(
                                     user.getEmail(),
                                     null,
-                                    List.of(new SimpleGrantedAuthority(
-                                            "ROLE_" + RoleCode.fromCode(user.getRole().getCode()).getCode()
-                                    ))
+                                    Arrays.asList(RbacAuthorities.from(user))
                             )
                     ));
         }

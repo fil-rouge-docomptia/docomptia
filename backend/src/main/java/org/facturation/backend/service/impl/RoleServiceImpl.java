@@ -33,7 +33,7 @@ public class RoleServiceImpl implements RoleService {
 
     @Override
     public Role findByCode(RoleCode code) {
-        return roleRepository.findByCode(code.getCode())
+        return roleRepository.findByCodeAndOrganizationIsNull(code.getCode())
                 .orElseThrow(() -> new IllegalStateException("Role " + code.getCode() + " not found"));
     }
 

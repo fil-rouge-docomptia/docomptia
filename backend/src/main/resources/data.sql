@@ -3,14 +3,58 @@ VALUES (1, 'Facturation Demo', 'Facturation Demo SARL', '55210055400013', 'conta
 
 ALTER TABLE organizations ALTER COLUMN organization_id RESTART WITH 2;
 
-INSERT INTO roles (role_id, code, label, description)
-VALUES (1, 'ADMIN', 'Administrateur', 'Administration generale de la plateforme');
+INSERT INTO roles (role_id, code, label, description, system_role, customizable, assignable, active)
+VALUES (1, 'ADMIN', 'Administrateur', 'Administration generale de la plateforme', true, false, true, true);
 
-INSERT INTO roles (role_id, code, label, description)
-VALUES (2, 'OPERATEUR_COMPTABLE', 'Operateur comptable', 'Traitement des factures et suivi operationnel');
+INSERT INTO roles (role_id, code, label, description, system_role, customizable, assignable, active)
+VALUES (2, 'OPERATEUR_COMPTABLE', 'Operateur comptable', 'Traitement des factures et suivi operationnel', true, false, true, true);
 
-INSERT INTO roles (role_id, code, label, description)
-VALUES (3, 'RESPONSABLE_COMPTABLE', 'Responsable comptable', 'Supervision comptable et validation');
+INSERT INTO roles (role_id, code, label, description, system_role, customizable, assignable, active)
+VALUES (3, 'RESPONSABLE_COMPTABLE', 'Responsable comptable', 'Supervision comptable et validation', true, false, true, true);
+
+INSERT INTO roles (role_id, code, label, description, system_role, customizable, assignable, active) VALUES
+(4, 'OWNER', 'Proprietaire', 'Proprietaire de l organisation', true, false, true, true),
+(5, 'ACCOUNTING_MANAGER', 'Responsable comptable', 'Supervision de la comptabilite', true, false, true, true),
+(6, 'ACCOUNTANT', 'Comptable', 'Traitement comptable', true, false, true, true),
+(7, 'APPROVER', 'Validateur', 'Validation des factures', true, false, true, true),
+(8, 'VIEWER', 'Lecteur', 'Consultation en lecture seule', true, false, true, true);
+
+INSERT INTO permissions (permission_id, code, domain, label, description) VALUES
+(1, 'profile.read', 'profile', 'Consulter son profil', 'Consulter son propre profil'),
+(2, 'reference.read', 'reference', 'Consulter les referentiels', 'Consulter les referentiels'),
+(3, 'organization.read', 'organization', 'Consulter l organisation', 'Consulter l organisation courante'),
+(4, 'organization.manage', 'organization', 'Gerer l organisation', 'Modifier l organisation courante'),
+(5, 'invoice.read', 'invoice', 'Consulter les factures', 'Consulter les factures'),
+(6, 'dashboard.read', 'dashboard', 'Consulter le dashboard', 'Consulter le dashboard'),
+(7, 'invoice.process', 'invoice', 'Traiter les factures', 'Deposer et corriger les factures'),
+(8, 'invoice.approve', 'invoice', 'Valider les factures', 'Valider ou refuser les factures'),
+(9, 'accounting-entry.manage', 'accounting-entry', 'Gerer les ecritures', 'Generer et corriger les ecritures'),
+(10, 'supplier.read', 'supplier', 'Consulter les fournisseurs', 'Consulter les fournisseurs'),
+(11, 'supplier.manage', 'supplier', 'Gerer les fournisseurs', 'Modifier les fournisseurs'),
+(12, 'accounting-configuration.read', 'accounting-configuration', 'Consulter la configuration comptable', 'Consulter les comptes et regles'),
+(13, 'accounting-configuration.manage', 'accounting-configuration', 'Gerer la configuration comptable', 'Modifier les comptes et regles'),
+(14, 'classification.read', 'classification', 'Consulter les classements', 'Consulter les classements'),
+(15, 'classification.manage', 'classification', 'Gerer les classements', 'Modifier les classements'),
+(16, 'user.manage', 'user', 'Gerer les utilisateurs', 'Inviter et modifier les utilisateurs');
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id FROM roles r CROSS JOIN permissions p
+WHERE r.code = 'OWNER';
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id FROM roles r CROSS JOIN permissions p
+WHERE r.code = 'ADMIN' AND p.code <> 'invoice.approve';
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id FROM roles r JOIN permissions p ON p.code IN ('profile.read','reference.read','organization.read','invoice.read','dashboard.read','invoice.process','accounting-entry.manage','supplier.read','supplier.manage','accounting-configuration.read','classification.read')
+WHERE r.code IN ('OPERATEUR_COMPTABLE','ACCOUNTANT');
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id FROM roles r JOIN permissions p ON p.code IN ('profile.read','reference.read','organization.read','invoice.read','dashboard.read','invoice.approve','accounting-entry.manage','supplier.read','accounting-configuration.read','classification.read')
+WHERE r.code IN ('RESPONSABLE_COMPTABLE','ACCOUNTING_MANAGER','APPROVER');
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id FROM roles r JOIN permissions p ON p.code IN ('profile.read','reference.read','organization.read','invoice.read','dashboard.read','supplier.read','accounting-configuration.read','classification.read')
+WHERE r.code = 'VIEWER';
+
+ALTER TABLE roles ALTER COLUMN role_id RESTART WITH 9;
+ALTER TABLE permissions ALTER COLUMN permission_id RESTART WITH 17;
 
 INSERT INTO invoice_statuses (invoice_status_id, code, label, description)
 VALUES (1, 'DEPOSEE', 'Deposee', 'Facture deposee dans la plateforme');
@@ -50,6 +94,8 @@ VALUES (12, 'PAYEE', 'Payee', 'Reglement de la facture confirme');
 
 INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, password_hash, is_active, created_at, updated_at)
 VALUES (1, 1, 1, 'Admin', 'Demo', 'admin@facturation-demo.fr', '$2y$10$KUfJnN7ROhgbS3HTUJbNQeyesH5EFAlgvhkyw3Kf9UdX.DdsROjd6', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+INSERT INTO user_roles (user_id, role_id) VALUES (1, 1);
 
 ALTER TABLE users ALTER COLUMN user_id RESTART WITH 2;
 

@@ -15,17 +15,17 @@ import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
-    @EntityGraph(attributePaths = {"role", "organization"})
+    @EntityGraph(attributePaths = {"role.permissions", "roles.permissions", "organization"})
     Optional<User> findByEmailIgnoreCase(String email);
 
     boolean existsByEmailIgnoreCase(String email);
 
     boolean existsByEmailIgnoreCaseAndUserIdNot(String email, Long userId);
 
-    @EntityGraph(attributePaths = "role")
+    @EntityGraph(attributePaths = {"role", "roles"})
     Page<User> findByOrganizationOrganizationId(Long organizationId, Pageable pageable);
 
-    @EntityGraph(attributePaths = {"role", "organization"})
+    @EntityGraph(attributePaths = {"role.permissions", "roles.permissions", "organization"})
     Optional<User> findByUserIdAndOrganizationOrganizationId(Long userId, Long organizationId);
 
     @EntityGraph(attributePaths = {"role", "organization"})
@@ -50,6 +50,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findActiveAdministratorsForUpdate(@Param("organizationId") Long organizationId);
 
     @Override
-    @EntityGraph(attributePaths = {"role", "organization"})
+    @EntityGraph(attributePaths = {"role.permissions", "roles.permissions", "organization"})
     Optional<User> findById(Long userId);
 }
