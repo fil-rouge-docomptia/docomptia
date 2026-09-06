@@ -1,5 +1,7 @@
 package org.facturation.backend.service.impl;
 
+import org.facturation.backend.dto.response.NotificationResponse;
+import org.facturation.backend.mapper.NotificationResponseMapper;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.Notification;
 import org.facturation.backend.model.OcrError;
@@ -7,7 +9,10 @@ import org.facturation.backend.model.RoleCode;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.NotificationRepository;
 import org.facturation.backend.repository.UserRepository;
+import org.facturation.backend.service.CurrentUserService;
 import org.facturation.backend.service.NotificationService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,10 +28,32 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final CurrentUserService currentUserService;
+    private final NotificationResponseMapper responseMapper;
 
-    public NotificationServiceImpl(NotificationRepository notificationRepository, UserRepository userRepository) {
+    public NotificationServiceImpl(
+            NotificationRepository notificationRepository,
+            UserRepository userRepository,
+            CurrentUserService currentUserService,
+            NotificationResponseMapper responseMapper
+    ) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
+        this.currentUserService = currentUserService;
+        this.responseMapper = responseMapper;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<NotificationResponse> getCurrentUserNotifications(boolean unreadOnly, Pageable pageable) {
+        Long userId = currentUserService.getCurrentUser().getUserId();
+        Page<Notification> notifications = unreadOnly
+                ? notificationRepository.findByRecipientUserIdAndReadFalseOrderByCreatedAtDescNotificationIdDesc(
+                        userId,
+                        pageable
+                )
+                : notificationRepository.findByRecipientUserIdOrderByCreatedAtDescNotificationIdDesc(userId, pageable);
+        return notifications.map(responseMapper::toResponse);
     }
 
     @Override
