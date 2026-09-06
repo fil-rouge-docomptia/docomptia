@@ -211,3 +211,11 @@ export type InvoiceStatusResponse = {
   invoiceId: number
   status: string
 }
+
+export type InvoiceRejectionRequest = {
+  reason: string
+}
+
+export type InvoiceCorrectionDemandRequest = {
+  reason: string
+}

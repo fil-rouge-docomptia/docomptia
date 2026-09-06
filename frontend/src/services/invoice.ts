@@ -2,6 +2,7 @@ import { apiBaseUrl } from '@/lib/env'
 import { clearAuthToken, getAuthToken } from '@/lib/auth-session'
 import { ApiError, authenticatedFetch } from '@/services/api'
 import type {
+  InvoiceCorrectionDemandRequest,
   InvoiceCorrectionRequest,
   InvoiceDetails,
   InvoiceDuplicateDecisionRequest,
@@ -10,6 +11,7 @@ import type {
   InvoicePageQuery,
   InvoiceOcrFailureResponse,
   InvoicePage,
+  InvoiceRejectionRequest,
   InvoiceStatusResponse,
   InvoiceUploadResponse,
 } from '@/types/invoice'
@@ -265,6 +267,49 @@ export async function submitInvoiceForValidation(
   const response = await authenticatedFetch(
     `${apiBaseUrl}/v1/invoices/${invoiceId}/submit-for-validation`,
     { method: 'POST' },
+  )
+
+  return response.json() as Promise<InvoiceStatusResponse>
+}
+
+export async function approveInvoice(
+  invoiceId: number,
+): Promise<InvoiceStatusResponse> {
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/v1/invoices/${invoiceId}/validate`,
+    { method: 'POST' },
+  )
+
+  return response.json() as Promise<InvoiceStatusResponse>
+}
+
+export async function rejectInvoice(
+  invoiceId: number,
+  request: InvoiceRejectionRequest,
+): Promise<InvoiceStatusResponse> {
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/v1/invoices/${invoiceId}/reject`,
+    {
+      body: JSON.stringify(request),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+    },
+  )
+
+  return response.json() as Promise<InvoiceStatusResponse>
+}
+
+export async function requestInvoiceCorrection(
+  invoiceId: number,
+  request: InvoiceCorrectionDemandRequest,
+): Promise<InvoiceStatusResponse> {
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/v1/invoices/${invoiceId}/request-correction`,
+    {
+      body: JSON.stringify(request),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+    },
   )
 
   return response.json() as Promise<InvoiceStatusResponse>

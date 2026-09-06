@@ -191,6 +191,98 @@ const reassignedInvoiceDetails = {
   supplierName: 'Vinci Energies',
 }
 
+const invoiceHistory = [
+  {
+    action: 'EXTRAITE',
+    author: 'Alex Martin',
+    authorId: 1,
+    comment: 'OCR analysis completed',
+    date: '2026-08-13T10:30:00',
+    duplicateAlertId: null,
+    fieldName: null,
+    newValue: null,
+    oldValue: null,
+    type: 'STATUS_CHANGE',
+  },
+]
+
+const approvalHistory = [
+  {
+    action: 'DEPOSEE',
+    author: 'Alex Martin',
+    authorId: 1,
+    comment: 'Invoice uploaded',
+    date: '2026-08-12T14:28:00',
+    duplicateAlertId: null,
+    fieldName: null,
+    newValue: null,
+    oldValue: null,
+    type: 'STATUS_CHANGE',
+  },
+  {
+    action: 'EXTRAITE',
+    author: 'Alex Martin',
+    authorId: 1,
+    comment: 'OCR analysis completed',
+    date: '2026-08-12T16:18:00',
+    duplicateAlertId: null,
+    fieldName: null,
+    newValue: null,
+    oldValue: null,
+    type: 'STATUS_CHANGE',
+  },
+  {
+    action: 'A_VERIFIER',
+    author: 'Alex Martin',
+    authorId: 1,
+    comment: 'Invoice submitted for validation',
+    date: '2026-08-13T09:15:00',
+    duplicateAlertId: null,
+    fieldName: null,
+    newValue: null,
+    oldValue: null,
+    type: 'STATUS_CHANGE',
+  },
+]
+
+const waitingApprovalDetails = {
+  ...invoiceDetails,
+  status: 'A_VERIFIER',
+}
+
+const rejectedInvoiceDetails = {
+  ...invoiceDetails,
+  status: 'REJETEE',
+}
+
+const rejectionHistory = [
+  ...approvalHistory,
+  {
+    action: 'REJETEE',
+    author: 'Marie Laurent',
+    authorId: 8,
+    comment: 'Incorrect amount: VAT total does not match the document.',
+    date: '2026-08-13T11:42:00',
+    duplicateAlertId: null,
+    fieldName: null,
+    newValue: null,
+    oldValue: null,
+    type: 'STATUS_CHANGE',
+  },
+  {
+    action: 'REJECTION',
+    author: 'Marie Laurent',
+    authorId: 8,
+    comment: 'Incorrect amount: VAT total does not match the document.',
+    date: '2026-08-13T11:42:00',
+    duplicateAlertId: null,
+    fieldName: null,
+    newValue: null,
+    oldValue: null,
+    type: 'VALIDATION_DECISION',
+  },
+]
+
 const pendingDuplicateAlert = {
   alertId: 71,
   confidenceLevel: 'PROBABLE',
@@ -429,6 +521,84 @@ test('renders the invoice review sections from the detail endpoint', async ({ pa
   await expect(page.getByText('OCR analysis completed')).toBeVisible()
 })
 
+test('shows the available submission context while an invoice waits for approval', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, waitingApprovalDetails)
+  ))
+  await mockApiRoute(page, '/v1/invoices/42/history', (route) => (
+    fulfillJson(route, 200, approvalHistory)
+  ))
+
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Approval' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Approval', exact: true })).toBeVisible()
+  await expect(page.getByText('Waiting for approval', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Approval timeline' })).toBeVisible()
+  await expect(page.getByText('Approval requested', { exact: true })).toBeVisible()
+  await expect(page.getByText('Alex Martin · requested 13 Aug 2026')).toBeVisible()
+  await expect(page.getByText('Submitted by')).toBeVisible()
+  await expect(page.getByText('13 Aug 2026', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Approve' })).toHaveCount(0)
+  await expect(page.getByLabel('Original invoice document')).not.toBeVisible()
+})
+
+test('offers approval decisions only to the accounting manager', async ({ page }) => {
+  let validationCount = 0
+  await mockApiRoute(page, '/v1/users/me', (route) => fulfillJson(route, 200, {
+    ...currentUser,
+    role: { ...currentUser.role, code: 'RESPONSABLE_COMPTABLE' },
+  }))
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, waitingApprovalDetails)
+  ))
+  await mockApiRoute(page, '/v1/invoices/42/history', (route) => (
+    fulfillJson(route, 200, approvalHistory)
+  ))
+  await mockApiRoute(page, '/v1/invoices/42/validate', async (route) => {
+    validationCount += 1
+    await fulfillJson(route, 200, { invoiceId: 42, status: 'VALIDEE' })
+  })
+
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Approval' }).click()
+
+  await expect(page.getByRole('button', { name: 'Request changes' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Reject' })).toBeVisible()
+  await page.getByRole('button', { name: 'Approve' }).click()
+
+  await expect(page.getByText('Approved').first()).toBeVisible()
+  expect(validationCount).toBe(1)
+})
+
+test('exposes the rejection reason and history with the permitted correction action', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, rejectedInvoiceDetails)
+  ))
+  await mockApiRoute(page, '/v1/invoices/42/history', (route) => (
+    fulfillJson(route, 200, rejectionHistory)
+  ))
+
+  await page.goto('/invoices/42')
+
+  await expect(page.getByText('Invoice rejected', { exact: true })).toBeVisible()
+  await expect(page.getByLabel('Invoice number')).toBeEnabled()
+  await page.getByRole('tab', { name: 'Approval' }).click()
+
+  await expect(page.getByText('Rejection reason')).toBeVisible()
+  await expect(page.getByText(
+    'Incorrect amount: VAT total does not match the document.',
+  )).toBeVisible()
+  await expect(page.getByText('Rejected by')).toBeVisible()
+  await expect(page.getByText('Marie Laurent', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Approve' })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Edit invoice' }).click()
+
+  await expect(page.getByRole('tab', { name: 'Details' })).toHaveAttribute('data-state', 'active')
+  await expect(page.getByLabel('Original invoice document')).toBeVisible()
+})
+
 test('shows the suspected duplicate and compares the backend detection criteria', async ({ page }) => {
   await mockApiRoute(page, '/v1/invoices/42', (route) =>
     fulfillJson(route, 200, duplicateInvoiceDetails),
@@ -516,7 +686,7 @@ test('confirms a duplicate from the comparison and updates the invoice immediate
   await page.getByRole('button', { name: 'Review duplicate' }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Confirm duplicate' }).click()
 
-  await expect(page.getByText('Rejected')).toBeVisible()
+  await expect(page.getByText('Rejected', { exact: true })).toBeVisible()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   expect(decisionPayload).toEqual({ decision: 'CONFIRM' })
 })
@@ -547,7 +717,7 @@ test('requires and submits a reason when rejecting the suspected invoice', async
   await dialog.getByLabel('Rejection reason').fill('Document sent by mistake')
   await dialog.getByRole('button', { name: 'Reject invoice', exact: true }).click()
 
-  await expect(page.getByText('Rejected')).toBeVisible()
+  await expect(page.getByText('Rejected', { exact: true })).toBeVisible()
   expect(decisionPayload).toEqual({
     decision: 'REJECT',
     reason: 'Document sent by mistake',
