@@ -27,6 +27,8 @@ public interface InvoiceStatusWorkflowService {
 
     void ensureModifiable(Invoice invoice);
 
+    void ensureDirectlyModifiable(Invoice invoice);
+
     void reintegrateAfterCorrectionIfNeeded(Invoice invoice, User user, boolean hasCorrections);
 
     void submitForValidation(Invoice invoice, User user);

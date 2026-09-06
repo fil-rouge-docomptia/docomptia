@@ -67,7 +67,7 @@ public class InvoiceCommentServiceImpl implements InvoiceCommentService {
         Invoice invoice = invoiceRepository
                 .findByInvoiceIdAndOrganizationOrganizationId(invoiceId, organizationId)
                 .orElseThrow(() -> new InvoiceNotFoundException(invoiceId));
-        invoiceStatusWorkflowService.ensureModifiable(invoice);
+        invoiceStatusWorkflowService.ensureDirectlyModifiable(invoice);
 
         InvoiceComment comment = new InvoiceComment();
         comment.setInvoice(invoice);

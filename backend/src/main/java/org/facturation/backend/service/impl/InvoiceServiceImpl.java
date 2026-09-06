@@ -184,7 +184,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         Long organizationId = user.getOrganization().getOrganizationId();
         return invoiceRepository.findForOcrRetryByInvoiceIdAndOrganizationOrganizationId(invoiceId, organizationId)
                 .map(invoice -> {
-            invoiceStatusWorkflowService.ensureModifiable(invoice);
+            invoiceStatusWorkflowService.ensureDirectlyModifiable(invoice);
             invoiceStatusWorkflowService.ensureCanRetryOcr(invoice);
             InvoiceFile invoiceFile = invoiceFileRepository.findByInvoiceInvoiceId(invoiceId)
                     .orElseThrow(() -> new IllegalStateException("Stored invoice file not found"));
@@ -364,7 +364,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 id,
                 user.getOrganization().getOrganizationId()
         ).map(invoice -> {
-            invoiceStatusWorkflowService.ensureModifiable(invoice);
+            invoiceStatusWorkflowService.ensureDirectlyModifiable(invoice);
             boolean hasCorrections = hasRequestedCorrections(request);
             if (!hasCorrections) {
                 throw new IllegalArgumentException("At least one correction field is required");
@@ -391,7 +391,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
         User user = currentUserService.getCurrentUser();
         return findInvoiceForCurrentOrganization(id, user).map(invoice -> {
-            invoiceStatusWorkflowService.ensureModifiable(invoice);
+            invoiceStatusWorkflowService.ensureDirectlyModifiable(invoice);
             var classification = classificationService.findRequiredActiveForCurrentOrganization(
                     request.getClassificationId());
             if (invoice.getClassification() != null
@@ -414,7 +414,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         User author = currentUserService.getCurrentUser();
         Long organizationId = author.getOrganization().getOrganizationId();
         return findInvoiceForCurrentOrganization(id, author).map(invoice -> {
-            invoiceStatusWorkflowService.ensureModifiable(invoice);
+            invoiceStatusWorkflowService.ensureDirectlyModifiable(invoice);
             User assignee = null;
             if (request.getUserId() != null) {
                 assignee = userRepository.findByUserIdAndOrganizationOrganizationId(
@@ -561,7 +561,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             return Optional.empty();
         }
         Invoice invoice = invoiceForCurrentOrganization.orElseThrow();
-        invoiceStatusWorkflowService.ensureModifiable(invoice);
+        invoiceStatusWorkflowService.ensureDirectlyModifiable(invoice);
         DuplicateAlertDecision decision = parseDuplicateAlertDecision(request);
         invoice = duplicateAlertService.decide(
                 invoiceId,
