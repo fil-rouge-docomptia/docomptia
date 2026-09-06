@@ -461,7 +461,6 @@ test('shows the suspected duplicate and compares the backend detection criteria'
 
 test('ignores a suspected duplicate and refreshes its status and activity', async ({ page }) => {
   let decisionPayload: unknown
-  const updatedInvoice = duplicateDecisionDetails('IGNORE', 'A_VERIFIER', 'Two distinct purchases')
   const duplicateHistory = [{
     action: 'IGNORE',
     author: 'Alex Martin',
@@ -474,6 +473,10 @@ test('ignores a suspected duplicate and refreshes its status and activity', asyn
     oldValue: null,
     type: 'DUPLICATE_DECISION',
   }]
+  const updatedInvoice = {
+    ...duplicateDecisionDetails('IGNORE', 'A_VERIFIER', 'Two distinct purchases'),
+    history: duplicateHistory,
+  }
 
   await mockApiRoute(page, '/v1/invoices/42', (route) =>
     fulfillJson(route, 200, duplicateInvoiceDetails),
@@ -482,10 +485,6 @@ test('ignores a suspected duplicate and refreshes its status and activity', asyn
     decisionPayload = route.request().postDataJSON()
     await fulfillJson(route, 200, updatedInvoice)
   })
-  await mockApiRoute(page, '/v1/invoices/42/history', (route) =>
-    fulfillJson(route, 200, duplicateHistory),
-  )
-
   await page.goto('/invoices/42')
   await page.getByRole('button', { name: 'Not a duplicate' }).first().click()
 
