@@ -17,6 +17,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
@@ -115,6 +116,88 @@ class InvoiceAssigneeControllerIntegrationTest {
 
         assertThat(invoiceRepository.findById(invoice.getInvoiceId()).orElseThrow().getAssignedUser()).isNull();
         assertThat(findAssignmentLogs(invoice)).isEmpty();
+    }
+
+    @Test
+    void reassignsInvoiceAndKeepsPreviousAssignmentInHistory() throws Exception {
+        Organization organization = organizationRepository.findById(1L).orElseThrow();
+        User previousAssignee = createUser(organization, true);
+        User newAssignee = createUser(organization, true);
+        Invoice invoice = createInvoice(organization);
+
+        assign(invoice, previousAssignee.getUserId())
+                .andExpect(status().isOk());
+
+        assign(invoice, newAssignee.getUserId())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.assignee.id").value(newAssignee.getUserId()))
+                .andExpect(jsonPath("$.history.length()").value(2))
+                .andExpect(jsonPath("$.history[1].oldValue").value(previousAssignee.getUserId().toString()))
+                .andExpect(jsonPath("$.history[1].newValue").value(newAssignee.getUserId().toString()));
+
+        Invoice persistedInvoice = invoiceRepository.findById(invoice.getInvoiceId()).orElseThrow();
+        assertThat(persistedInvoice.getAssignedUser().getUserId()).isEqualTo(newAssignee.getUserId());
+
+        List<AuditLog> auditLogs = findAssignmentLogs(invoice);
+        assertThat(auditLogs).hasSize(2);
+        assertThat(auditLogs.get(1).getOldValue()).isEqualTo("assigneeUserId=" + previousAssignee.getUserId());
+        assertThat(auditLogs.get(1).getNewValue()).isEqualTo("assigneeUserId=" + newAssignee.getUserId());
+    }
+
+    @Test
+    void removesAssignmentWhenUserIdIsExplicitlyNullAndKeepsItInHistory() throws Exception {
+        Organization organization = organizationRepository.findById(1L).orElseThrow();
+        User previousAssignee = createUser(organization, true);
+        Invoice invoice = createInvoice(organization);
+
+        assign(invoice, previousAssignee.getUserId())
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patch("/api/v1/invoices/{id}/assignee", invoice.getInvoiceId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":null}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.assignee").doesNotExist())
+                .andExpect(jsonPath("$.history.length()").value(2))
+                .andExpect(jsonPath("$.history[1].oldValue").value(previousAssignee.getUserId().toString()))
+                .andExpect(jsonPath("$.history[1].newValue").doesNotExist());
+
+        assertThat(invoiceRepository.findById(invoice.getInvoiceId()).orElseThrow().getAssignedUser()).isNull();
+
+        List<AuditLog> auditLogs = findAssignmentLogs(invoice);
+        assertThat(auditLogs).hasSize(2);
+        assertThat(auditLogs.get(1).getOldValue()).isEqualTo("assigneeUserId=" + previousAssignee.getUserId());
+        assertThat(auditLogs.get(1).getNewValue()).isEqualTo("assigneeUserId=null");
+    }
+
+    @Test
+    void rejectsMissingUserIdAndUnchangedEmptyAssignment() throws Exception {
+        Organization organization = organizationRepository.findById(1L).orElseThrow();
+        Invoice invoice = createInvoice(organization);
+
+        mockMvc.perform(patch("/api/v1/invoices/{id}/assignee", invoice.getInvoiceId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("userId is required"));
+
+        mockMvc.perform(patch("/api/v1/invoices/{id}/assignee", invoice.getInvoiceId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":null}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Invoice assignment is unchanged"));
+
+        assertThat(findAssignmentLogs(invoice)).isEmpty();
+    }
+
+    private ResultActions assign(Invoice invoice, Long userId) throws Exception {
+        return mockMvc.perform(patch("/api/v1/invoices/{id}/assignee", invoice.getInvoiceId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"userId\":" + userId + "}")
+                .header("Authorization", "Bearer " + adminToken()));
     }
 
     private Invoice createInvoice(Organization organization) {

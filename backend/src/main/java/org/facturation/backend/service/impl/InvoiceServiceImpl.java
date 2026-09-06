@@ -377,7 +377,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional
     public Optional<InvoiceDetailsResponse> assignUser(Long id, InvoiceAssigneeRequest request) {
-        if (request == null || request.getUserId() == null) {
+        if (request == null || !request.wasUserIdProvided()) {
             throw new IllegalArgumentException("userId is required");
         }
 
@@ -385,21 +385,25 @@ public class InvoiceServiceImpl implements InvoiceService {
         Long organizationId = author.getOrganization().getOrganizationId();
         return findInvoiceForCurrentOrganization(id, author).map(invoice -> {
             invoiceStatusWorkflowService.ensureModifiable(invoice);
-            User assignee = userRepository.findByUserIdAndOrganizationOrganizationId(
-                    request.getUserId(),
-                    organizationId
-            ).orElseThrow(() -> new UserNotFoundException(request.getUserId()));
-            if (!assignee.isActive()) {
-                throw new InvalidUserException("Assigned user must be active");
-            }
-            if (invoice.getAssignedUser() != null
-                    && Objects.equals(invoice.getAssignedUser().getUserId(), assignee.getUserId())) {
-                throw new IllegalArgumentException("Invoice is already assigned to this user");
+            User assignee = null;
+            if (request.getUserId() != null) {
+                assignee = userRepository.findByUserIdAndOrganizationOrganizationId(
+                        request.getUserId(),
+                        organizationId
+                ).orElseThrow(() -> new UserNotFoundException(request.getUserId()));
+                if (!assignee.isActive()) {
+                    throw new InvalidUserException("Assigned user must be active");
+                }
             }
 
             Long previousAssigneeId = invoice.getAssignedUser() == null
                     ? null
                     : invoice.getAssignedUser().getUserId();
+            Long newAssigneeId = assignee == null ? null : assignee.getUserId();
+            if (Objects.equals(previousAssigneeId, newAssigneeId)) {
+                throw new IllegalArgumentException("Invoice assignment is unchanged");
+            }
+
             LocalDateTime assignedAt = LocalDateTime.now();
             invoice.setAssignedUser(assignee);
             invoice.setUpdatedAt(assignedAt);
@@ -408,7 +412,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                     savedInvoice,
                     author,
                     previousAssigneeId,
-                    assignee.getUserId(),
+                    newAssigneeId,
                     assignedAt
             ));
             return invoiceResponseMapper.toDetailsResponse(savedInvoice);
