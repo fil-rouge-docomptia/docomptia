@@ -50,7 +50,8 @@ public class InvoiceCommentController {
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Commentaire enregistre"),
             @ApiResponse(responseCode = "400", description = "Commentaire vide"),
-            @ApiResponse(responseCode = "404", description = "Facture introuvable dans l'organisation")
+            @ApiResponse(responseCode = "404", description = "Facture introuvable dans l'organisation"),
+            @ApiResponse(responseCode = "409", description = "Facture archivee non modifiable")
     })
     public ResponseEntity<InvoiceCommentResponse> addComment(
             @PathVariable Long invoiceId,
