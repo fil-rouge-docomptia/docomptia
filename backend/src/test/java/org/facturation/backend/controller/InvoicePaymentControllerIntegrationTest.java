@@ -10,6 +10,8 @@ import org.facturation.backend.repository.InvoiceStatusRepository;
 import org.facturation.backend.repository.OrganizationRepository;
 import org.facturation.backend.repository.UserRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
@@ -125,23 +127,30 @@ class InvoicePaymentControllerIntegrationTest {
         assertNull(unpaidInvoice.getPaidByUser());
     }
 
-    @Test
-    void refusesPaymentConfirmationForInvoiceThatIsNotExported() throws Exception {
-        Invoice invoice = createInvoice(InvoiceStatusCode.EXPORTABLE);
+    @ParameterizedTest
+    @EnumSource(
+            value = InvoiceStatusCode.class,
+            names = {"EXPORTEE", "PAYEE"},
+            mode = EnumSource.Mode.EXCLUDE
+    )
+    void refusesPaymentConfirmationForEveryIncompatibleStatus(InvoiceStatusCode statusCode) throws Exception {
+        Invoice invoice = createInvoice(statusCode);
 
         mockMvc.perform(post("/api/v1/invoices/{id}/mark-paid", invoice.getInvoiceId())
                         .contentType(APPLICATION_JSON)
-                        .content("{\"paymentDate\":\"2026-09-05\"}"))
+                        .content("{\"paymentDate\":\"2026-09-05\",\"paymentReference\":\"VIR-2026-0042\"}"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("INVOICE_ACTION_NOT_ALLOWED"))
-                .andExpect(jsonPath("$.message").value(
-                        "Invoice " + invoice.getInvoiceId() + " cannot transition from EXPORTABLE to PAYEE"
+                .andExpect(jsonPath("$.code").value(
+                        statusCode == InvoiceStatusCode.ARCHIVEE
+                                ? "ARCHIVED_INVOICE_NOT_MODIFIABLE"
+                                : "INVOICE_ACTION_NOT_ALLOWED"
                 ));
 
-        assertEquals("EXPORTABLE", currentStatus(invoice));
+        assertEquals(statusCode.getCode(), currentStatus(invoice));
         assertEquals(0, paymentHistory(invoice).size());
         Invoice unpaidInvoice = invoiceRepository.findById(invoice.getInvoiceId()).orElseThrow();
         assertNull(unpaidInvoice.getPaymentDate());
+        assertNull(unpaidInvoice.getPaymentReference());
         assertNull(unpaidInvoice.getPaidByUser());
     }
 
