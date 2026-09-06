@@ -50,6 +50,20 @@ class RbacRepositoryIntegrationTest {
     }
 
     @Test
+    void replacingPrimaryRoleRemovesItsPreviousAssignmentAndKeepsAdditionalRoles() {
+        User user = userRepository.findById(1L).orElseThrow();
+        Role admin = roleRepository.findByCodeAndOrganizationIsNull("ADMIN").orElseThrow();
+        Role viewer = roleRepository.findByCodeAndOrganizationIsNull("VIEWER").orElseThrow();
+        Role approver = roleRepository.findByCodeAndOrganizationIsNull("APPROVER").orElseThrow();
+        user.setRoles(Set.of(admin, viewer));
+
+        user.setRole(approver);
+        userRepository.flush();
+
+        assertThat(user.getRoles()).containsExactlyInAnyOrder(viewer, approver).doesNotContain(admin);
+    }
+
+    @Test
     void permissionCodesAreUnique() {
         Permission permission = new Permission();
         permission.setCode("invoice.read");

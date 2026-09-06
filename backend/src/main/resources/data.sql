@@ -35,7 +35,10 @@ INSERT INTO permissions (permission_id, code, domain, label, description) VALUES
 (13, 'accounting-configuration.manage', 'accounting-configuration', 'Gerer la configuration comptable', 'Modifier les comptes et regles'),
 (14, 'classification.read', 'classification', 'Consulter les classements', 'Consulter les classements'),
 (15, 'classification.manage', 'classification', 'Gerer les classements', 'Modifier les classements'),
-(16, 'user.manage', 'user', 'Gerer les utilisateurs', 'Inviter et modifier les utilisateurs');
+(16, 'user.manage', 'user', 'Gerer les utilisateurs', 'Inviter et modifier les utilisateurs'),
+(17, 'invoice.comment', 'invoice', 'Commenter les factures', 'Ajouter un commentaire sur une facture'),
+(18, 'notification.read', 'notification', 'Consulter les notifications', 'Consulter ses propres notifications'),
+(19, 'payment.confirm', 'payment', 'Confirmer les paiements', 'Confirmer le reglement d une facture exportee');
 
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.role_id, p.permission_id FROM roles r CROSS JOIN permissions p
@@ -44,17 +47,20 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.role_id, p.permission_id FROM roles r CROSS JOIN permissions p
 WHERE r.code = 'ADMIN' AND p.code <> 'invoice.approve';
 INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.role_id, p.permission_id FROM roles r JOIN permissions p ON p.code IN ('profile.read','reference.read','organization.read','invoice.read','dashboard.read','invoice.process','accounting-entry.manage','supplier.read','supplier.manage','accounting-configuration.read','classification.read')
+SELECT r.role_id, p.permission_id FROM roles r JOIN permissions p ON p.code IN ('profile.read','reference.read','organization.read','invoice.read','invoice.comment','dashboard.read','notification.read','invoice.process','accounting-entry.manage','payment.confirm','supplier.read','supplier.manage','accounting-configuration.read','classification.read')
 WHERE r.code IN ('OPERATEUR_COMPTABLE','ACCOUNTANT');
 INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.role_id, p.permission_id FROM roles r JOIN permissions p ON p.code IN ('profile.read','reference.read','organization.read','invoice.read','dashboard.read','invoice.approve','accounting-entry.manage','supplier.read','accounting-configuration.read','classification.read')
-WHERE r.code IN ('RESPONSABLE_COMPTABLE','ACCOUNTING_MANAGER','APPROVER');
+SELECT r.role_id, p.permission_id FROM roles r JOIN permissions p ON p.code IN ('profile.read','reference.read','organization.read','invoice.read','invoice.comment','dashboard.read','notification.read','invoice.approve','accounting-entry.manage','payment.confirm','supplier.read','accounting-configuration.read','classification.read')
+WHERE r.code IN ('RESPONSABLE_COMPTABLE','ACCOUNTING_MANAGER');
 INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.role_id, p.permission_id FROM roles r JOIN permissions p ON p.code IN ('profile.read','reference.read','organization.read','invoice.read','dashboard.read','supplier.read','accounting-configuration.read','classification.read')
+SELECT r.role_id, p.permission_id FROM roles r JOIN permissions p ON p.code IN ('profile.read','reference.read','organization.read','invoice.read','invoice.comment','dashboard.read','notification.read','invoice.approve','accounting-entry.manage','supplier.read','accounting-configuration.read','classification.read')
+WHERE r.code = 'APPROVER';
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id FROM roles r JOIN permissions p ON p.code IN ('profile.read','reference.read','organization.read','invoice.read','dashboard.read','notification.read','supplier.read','accounting-configuration.read','classification.read')
 WHERE r.code = 'VIEWER';
 
 ALTER TABLE roles ALTER COLUMN role_id RESTART WITH 9;
-ALTER TABLE permissions ALTER COLUMN permission_id RESTART WITH 17;
+ALTER TABLE permissions ALTER COLUMN permission_id RESTART WITH 20;
 
 INSERT INTO invoice_statuses (invoice_status_id, code, label, description)
 VALUES (1, 'DEPOSEE', 'Deposee', 'Facture deposee dans la plateforme');

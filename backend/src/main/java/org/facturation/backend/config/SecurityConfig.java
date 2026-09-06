@@ -85,14 +85,22 @@ public class SecurityConfig {
                         .hasAnyAuthority(BusinessPermission.VIEW_DASHBOARD.authorities())
                         .requestMatchers(HttpMethod.GET, "/api/v1/invoices/pending-validation")
                         .hasAnyAuthority(BusinessPermission.VALIDATE_INVOICES.authorities())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/notifications")
+                        .hasAnyAuthority(BusinessPermission.VIEW_NOTIFICATIONS.authorities())
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/notifications/*/read")
+                        .hasAnyAuthority(BusinessPermission.VIEW_NOTIFICATIONS.authorities())
                         .requestMatchers(HttpMethod.GET, "/api/v1/invoices", "/api/v1/invoices/**")
                         .hasAnyAuthority(BusinessPermission.VIEW_INVOICES.authorities())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/comments")
+                        .hasAnyAuthority(BusinessPermission.COMMENT_INVOICES.authorities())
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/invoices/*/validate",
                                 "/api/v1/invoices/*/request-correction",
                                 "/api/v1/invoices/*/reject"
                         )
                         .hasAnyAuthority(BusinessPermission.VALIDATE_INVOICES.authorities())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/mark-paid")
+                        .hasAnyAuthority(BusinessPermission.CONFIRM_INVOICE_PAYMENTS.authorities())
                         .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/accounting-entry")
                         .hasAnyAuthority(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.authorities())
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/accounting-entries/**")

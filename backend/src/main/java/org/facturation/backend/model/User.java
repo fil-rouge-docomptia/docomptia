@@ -80,6 +80,9 @@ public class User {
     }
 
     public void setRole(Role role) {
+        if (this.role != null) {
+            roles.remove(this.role);
+        }
         this.role = role;
         if (role != null) {
             roles.add(role);
