@@ -50,6 +50,10 @@ public class Invoice {
     @JoinColumn(name = "paid_by_user_id")
     private User paidByUser;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "export_batch_id")
+    private ExportBatch exportBatch;
+
     private String invoiceNumber;
 
     private String commandReference;
@@ -145,6 +149,14 @@ public class Invoice {
 
     public void setPaidByUser(User paidByUser) {
         this.paidByUser = paidByUser;
+    }
+
+    public ExportBatch getExportBatch() {
+        return exportBatch;
+    }
+
+    public void setExportBatch(ExportBatch exportBatch) {
+        this.exportBatch = exportBatch;
     }
 
     public String getInvoiceNumber() {

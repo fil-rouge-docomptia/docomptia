@@ -141,6 +141,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_accounting_entries_reversed_entry
     ON accounting_entries (reversed_accounting_entry_id)
     WHERE reversed_accounting_entry_id IS NOT NULL;
 
+CREATE TABLE IF NOT EXISTS export_batches (
+    export_batch_id BIGSERIAL PRIMARY KEY,
+    organization_id BIGINT NOT NULL REFERENCES organizations(organization_id),
+    created_by_user_id BIGINT NOT NULL REFERENCES users(user_id),
+    period_start_date DATE,
+    period_end_date DATE,
+    format VARCHAR(255) NOT NULL,
+    status VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP,
+    generated_at TIMESTAMP
+);
+ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS export_batch_id BIGINT REFERENCES export_batches(export_batch_id);
+
 ALTER TABLE IF EXISTS invoice_duplicate_alerts ALTER COLUMN invoice_date DROP NOT NULL;
 ALTER TABLE IF EXISTS invoice_duplicate_alerts ALTER COLUMN total_ttc DROP NOT NULL;
 ALTER TABLE IF EXISTS invoice_duplicate_alerts
