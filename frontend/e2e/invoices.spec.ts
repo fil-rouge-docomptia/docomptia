@@ -7,6 +7,7 @@ import {
   fulfillJson,
   mockApiRoute,
   mockCurrentUser,
+  readOnlyPermissions,
   seedAuthSession,
 } from './support/api'
 
@@ -501,13 +502,21 @@ test('renders the invoice review sections from the detail endpoint', async ({ pa
   await expect(page.getByRole('heading', { name: 'No accounting entry yet' })).toBeVisible()
 
   await page.getByRole('tab', { name: 'Approval' }).click()
-  await expect(page.getByText('Review the extracted fields, then request approval')).toBeVisible()
+  await expect(page.getByText(
+    'The accounting team must complete its review before this invoice reaches you.',
+  )).toBeVisible()
 
   await page.getByRole('tab', { name: 'Activity' }).click()
   await expect(page.getByText('OCR analysis completed')).toBeVisible()
 })
 
 test('shows the available submission context while an invoice waits for approval', async ({ page }) => {
+  await mockCurrentUser(page, {
+    ...currentUser,
+    role: { ...currentUser.role, code: 'VIEWER', label: 'Viewer' },
+    roles: [{ ...currentUser.role, code: 'VIEWER', label: 'Viewer' }],
+    permissions: readOnlyPermissions,
+  })
   await mockApiRoute(page, '/v1/invoices/42', (route) => (
     fulfillJson(route, 200, waitingApprovalDetails)
   ))
@@ -529,11 +538,13 @@ test('shows the available submission context while an invoice waits for approval
   await expect(page.getByLabel('Original invoice document')).not.toBeVisible()
 })
 
-test('offers approval decisions only to the accounting manager', async ({ page }) => {
+test('offers approval decisions with the approval permission', async ({ page }) => {
   let validationCount = 0
   await mockApiRoute(page, '/v1/users/me', (route) => fulfillJson(route, 200, {
     ...currentUser,
-    role: { ...currentUser.role, code: 'RESPONSABLE_COMPTABLE' },
+    role: { ...currentUser.role, code: 'APPROVER', label: 'Approver' },
+    roles: [{ ...currentUser.role, code: 'APPROVER', label: 'Approver' }],
+    permissions: approvalPermissions,
   }))
   await mockApiRoute(page, '/v1/invoices/42', (route) => (
     fulfillJson(route, 200, waitingApprovalDetails)

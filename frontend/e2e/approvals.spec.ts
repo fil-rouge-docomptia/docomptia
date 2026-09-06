@@ -7,6 +7,7 @@ import {
   fulfillJson,
   mockApiRoute,
   mockCurrentUser,
+  readOnlyPermissions,
   seedAuthSession,
 } from './support/api'
 
@@ -25,9 +26,9 @@ const validator = {
   permissions: approvalPermissions,
 }
 
-const nonValidatorRoles = [
-  { code: 'ADMIN', id: 1, label: 'Administrator' },
-  { code: 'OPERATEUR_COMPTABLE', id: 2, label: 'Accounting operator' },
+const permissionSetsWithoutApproval = [
+  { label: 'read-only permissions', permissions: readOnlyPermissions },
+  { label: 'an empty permission set', permissions: [] },
 ] as const
 
 const approvalBreakpoints = [
@@ -207,11 +208,11 @@ test('opens focus review and restores the approval queue context', async ({ page
   await expect(page.getByText('Acme Supplies', { exact: true })).toBeVisible()
 })
 
-for (const role of nonValidatorRoles) {
-  test(`keeps approval decisions inactive for ${role.code}`, async ({ page }) => {
+for (const scenario of permissionSetsWithoutApproval) {
+  test(`keeps approval decisions inactive with ${scenario.label}`, async ({ page }) => {
     let decisionRequestCount = 0
 
-    await mockCurrentUser(page, { ...currentUser, role })
+    await mockCurrentUser(page, { ...currentUser, permissions: scenario.permissions })
     await mockApiRoute(page, '/v1/invoices/42', (route) => (
       fulfillJson(route, 200, approvalDetails)
     ))
@@ -224,7 +225,7 @@ for (const role of nonValidatorRoles) {
 
     await page.goto('/approvals/42')
 
-    await expect(page.getByRole('alert')).toContainText('An accounting manager role is required.')
+    await expect(page.getByRole('alert')).toContainText('The invoice approval permission is required.')
     await expect(page.getByRole('button', { name: 'Approve invoice' })).toBeDisabled()
     await expect(page.getByRole('button', { name: 'Reject invoice' })).toBeDisabled()
     await expect(page.getByRole('button', { name: 'Request changes' })).toBeDisabled()
