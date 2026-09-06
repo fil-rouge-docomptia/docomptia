@@ -54,7 +54,6 @@ public final class SystemRolePermissionMatrix {
         permissions.add(BusinessPermission.INVOICE_APPROVE);
         permissions.add(BusinessPermission.INVOICE_ACCOUNTING_GENERATE);
         permissions.add(BusinessPermission.ACCOUNTING_ENTRY_UPDATE);
-        permissions.add(BusinessPermission.ROLE_READ);
         return permissions;
     }
 
