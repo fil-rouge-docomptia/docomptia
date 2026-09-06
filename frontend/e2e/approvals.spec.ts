@@ -175,7 +175,7 @@ test('blocks decisions when required invoice data is missing', async ({ page }) 
   await expect(page.getByRole('alert')).toContainText('The invoice number is missing.')
   await expect(page.getByRole('alert')).toContainText('The invoice amounts are incomplete.')
   await expect(page.getByRole('button', { name: 'Approve invoice' })).toBeDisabled()
-  await expect(page.getByRole('button', { name: 'Request correction' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Request changes' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Reject invoice' })).toBeDisabled()
 })
 
@@ -278,6 +278,87 @@ test('loads the recorded rejection reason for an already rejected invoice', asyn
   await expect(page.getByText('Invoice rejected')).toBeVisible()
   await expect(page.getByText('Rejected', { exact: true })).toBeVisible()
   await expect(page.getByText('Incorrect amount: The VAT amount is incorrect.')).toBeVisible()
+})
+
+test('requests invoice changes after backend confirmation and leaves the approval queue', async ({ page }) => {
+  let releaseCorrectionRequest: () => void = () => undefined
+  const correctionRequestPending = new Promise<void>((resolve) => {
+    releaseCorrectionRequest = resolve
+  })
+  let correctionRequest: { method: string; payload: unknown } | null = null
+
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, approvalDetails)
+  ))
+  await mockApiRoute(page, '/v1/invoices/42/file', fulfillOriginalInvoiceImage)
+  await mockApiRoute(page, '/v1/invoices/42/request-correction', async (route) => {
+    correctionRequest = {
+      method: route.request().method(),
+      payload: route.request().postDataJSON(),
+    }
+    await correctionRequestPending
+    await fulfillJson(route, 200, { invoiceId: 42, status: 'EXTRAITE' })
+  })
+  await mockApiRoute(page, '/v1/invoices/pending-validation*', (route) => (
+    fulfillJson(route, 200, emptyApprovalPage)
+  ))
+
+  await page.goto('/approvals/42')
+  await expect(page.getByText('Ready for decision')).toBeVisible()
+  await page.keyboard.press('c')
+
+  const dialog = page.getByRole('dialog', { name: 'Request changes' })
+  const submitButton = dialog.getByRole('button', { name: 'Send request' })
+  await expect(dialog).toBeVisible()
+  await expect(submitButton).toBeDisabled()
+
+  await dialog.getByLabel('Correction instructions').fill(
+    '  Check the VAT amount and attach the missing purchase order.  ',
+  )
+  await submitButton.click()
+
+  await expect(dialog.getByRole('button', { name: 'Sending…' })).toBeDisabled()
+  await expect(page.getByText('Changes requested')).toHaveCount(0)
+
+  releaseCorrectionRequest()
+
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByText('Changes requested')).toBeVisible()
+  await expect(page.getByText('Needs review', { exact: true })).toBeVisible()
+  await expect(page.getByText(
+    'Check the VAT amount and attach the missing purchase order.',
+  )).toBeVisible()
+  expect(correctionRequest).toEqual({
+    method: 'POST',
+    payload: { reason: 'Check the VAT amount and attach the missing purchase order.' },
+  })
+
+  await page.getByRole('link', { name: 'Back to approvals' }).click()
+  await expect(page.getByRole('heading', { name: 'No approvals waiting' })).toBeVisible()
+})
+
+test('keeps correction instructions when the backend rejects the request', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, approvalDetails)
+  ))
+  await mockApiRoute(page, '/v1/invoices/42/file', fulfillOriginalInvoiceImage)
+  await mockApiRoute(page, '/v1/invoices/42/request-correction', (route) => (
+    fulfillJson(route, 500, { code: 'INTERNAL_ERROR', message: 'Unavailable' })
+  ))
+
+  await page.goto('/approvals/42')
+  await page.getByRole('button', { name: 'Request changes' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Request changes' })
+  const instructions = 'Confirm the due date with the supplier.'
+  await dialog.getByLabel('Correction instructions').fill(instructions)
+  await dialog.getByRole('button', { name: 'Send request' }).click()
+
+  await expect(dialog.getByRole('alert')).toContainText(
+    'Unable to request changes. Your instructions have been kept.',
+  )
+  await expect(dialog.getByLabel('Correction instructions')).toHaveValue(instructions)
+  await expect(page.getByText('Waiting approval')).toBeVisible()
 })
 
 test('keeps approval sorting and pagination in the URL', async ({ page }) => {

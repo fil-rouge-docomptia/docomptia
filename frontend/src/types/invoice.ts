@@ -214,3 +214,7 @@ export type InvoiceStatusResponse = {
 export type InvoiceRejectionRequest = {
   reason: string
 }
+
+export type InvoiceCorrectionDemandRequest = {
+  reason: string
+}

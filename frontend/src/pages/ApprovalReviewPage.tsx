@@ -72,7 +72,7 @@ export default function ApprovalReviewPage() {
     ? `Invoice ${position} of ${total}`
     : 'Approval queue invoice'
 
-  const handleRejected = (status: string) => {
+  const handleStatusChanged = (status: string) => {
     setRequestState((currentState) => {
       if (currentState.requestKey !== requestKey || !currentState.invoice) {
         return currentState
@@ -164,7 +164,7 @@ export default function ApprovalReviewPage() {
         <div className="min-w-0 border-t border-border xl:h-[49rem] xl:overflow-y-auto xl:border-l xl:border-t-0">
           <ApprovalDecisionPanel
             invoice={invoice}
-            onRejected={handleRejected}
+            onStatusChanged={handleStatusChanged}
             role={user?.role.code}
           />
         </div>
