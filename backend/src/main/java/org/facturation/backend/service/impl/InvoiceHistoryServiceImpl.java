@@ -5,11 +5,13 @@ import org.facturation.backend.dto.response.InvoiceHistoryItemResponse;
 import org.facturation.backend.exception.InvoiceNotFoundException;
 import org.facturation.backend.model.AuditLog;
 import org.facturation.backend.model.Invoice;
+import org.facturation.backend.model.InvoiceComment;
 import org.facturation.backend.model.InvoiceDuplicateAlert;
 import org.facturation.backend.model.InvoiceStatusHistory;
 import org.facturation.backend.model.InvoiceValidationDecision;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.AuditLogRepository;
+import org.facturation.backend.repository.InvoiceCommentRepository;
 import org.facturation.backend.repository.InvoiceDuplicateAlertRepository;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.InvoiceStatusHistoryRepository;
@@ -27,6 +29,8 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
 
     private static final String CORRECTION_ACTION = "FIELD_CORRECTION";
     private static final String CORRECTION_TYPE = "CORRECTION";
+    private static final String COMMENT_ACTION = "COMMENT_ADDED";
+    private static final String COMMENT_TYPE = "COMMENT";
     private static final String ASSIGNEE_CHANGED_ACTION = "ASSIGNEE_CHANGED";
     private static final String ASSIGNMENT_TYPE = "ASSIGNMENT";
     private static final String DUPLICATE_DECISION_TYPE = "DUPLICATE_DECISION";
@@ -35,6 +39,7 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
 
     private final AuditLogRepository auditLogRepository;
     private final InvoiceDuplicateAlertRepository duplicateAlertRepository;
+    private final InvoiceCommentRepository commentRepository;
     private final InvoiceRepository invoiceRepository;
     private final InvoiceStatusHistoryRepository invoiceStatusHistoryRepository;
     private final InvoiceValidationDecisionRepository validationDecisionRepository;
@@ -43,6 +48,7 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
     public InvoiceHistoryServiceImpl(
             AuditLogRepository auditLogRepository,
             InvoiceDuplicateAlertRepository duplicateAlertRepository,
+            InvoiceCommentRepository commentRepository,
             InvoiceRepository invoiceRepository,
             InvoiceStatusHistoryRepository invoiceStatusHistoryRepository,
             InvoiceValidationDecisionRepository validationDecisionRepository,
@@ -50,6 +56,7 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
     ) {
         this.auditLogRepository = auditLogRepository;
         this.duplicateAlertRepository = duplicateAlertRepository;
+        this.commentRepository = commentRepository;
         this.invoiceRepository = invoiceRepository;
         this.invoiceStatusHistoryRepository = invoiceStatusHistoryRepository;
         this.validationDecisionRepository = validationDecisionRepository;
@@ -111,6 +118,14 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
                 .stream()
                 .map(this::toValidationDecisionHistoryItem)
                 .forEach(history::add);
+        commentRepository
+                .findByInvoiceInvoiceIdAndInvoiceOrganizationOrganizationIdOrderByCreatedAtAscInvoiceCommentIdAsc(
+                        invoiceId,
+                        organizationId
+                )
+                .stream()
+                .map(this::toCommentHistoryItem)
+                .forEach(history::add);
 
         history.sort(Comparator.comparing(
                 InvoiceHistoryItemResponse::getDate,
@@ -167,6 +182,16 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
         response.setDate(decision.getDecidedAt());
         applyAuthor(response, decision.getDecidedByUser());
         response.setComment(decision.getReason());
+        return response;
+    }
+
+    private InvoiceHistoryItemResponse toCommentHistoryItem(InvoiceComment comment) {
+        InvoiceHistoryItemResponse response = new InvoiceHistoryItemResponse();
+        response.setType(COMMENT_TYPE);
+        response.setAction(COMMENT_ACTION);
+        response.setDate(comment.getCreatedAt());
+        applyAuthor(response, comment.getAuthor());
+        response.setComment(comment.getContent());
         return response;
     }
 

@@ -87,6 +87,8 @@ public class SecurityConfig {
                         .hasAnyRole(BusinessPermission.VALIDATE_INVOICES.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/invoices", "/api/v1/invoices/**")
                         .hasAnyRole(BusinessPermission.VIEW_INVOICES.roleCodes())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/comments")
+                        .hasAnyRole(BusinessPermission.COMMENT_INVOICES.roleCodes())
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/invoices/*/validate",
                                 "/api/v1/invoices/*/request-correction",
