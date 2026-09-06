@@ -83,7 +83,12 @@ export function InvoiceWorkflowPanel({
           <InvoiceAccountingTab invoice={invoice} />
         </TabsContent>
         <TabsContent className="m-0 focus-visible:ring-inset" value="approval">
-          <InvoiceApprovalTab invoice={invoice} role={role} />
+          <InvoiceApprovalTab
+            invoice={invoice}
+            onEditInvoice={() => onActiveTabChange('details')}
+            onStatusChanged={(status) => onInvoiceUpdated({ ...invoice, status })}
+            role={role}
+          />
         </TabsContent>
         <TabsContent className="m-0 focus-visible:ring-inset" value="activity">
           <InvoiceActivityTab history={invoice.history} />

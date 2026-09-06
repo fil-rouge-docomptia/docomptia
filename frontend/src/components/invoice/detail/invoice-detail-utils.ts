@@ -24,6 +24,10 @@ export function canProcessInvoice(role?: RoleCode) {
   return Boolean(role && correctionRoles.includes(role))
 }
 
+export function canValidateInvoice(role?: RoleCode) {
+  return role === 'RESPONSABLE_COMPTABLE'
+}
+
 export function isRetryableOcrError(error: InvoiceOcrError | null) {
   return !error || !nonRetryableOcrErrorCodes.has(error.code)
 }
