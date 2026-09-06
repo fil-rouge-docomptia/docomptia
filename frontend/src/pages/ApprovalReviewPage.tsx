@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertCircle, ArrowLeft, BadgeCheck } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -10,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/hooks/use-auth'
+import { ApiError } from '@/services/api'
 import {
   approveInvoice,
   getInvoiceDetails,
@@ -62,6 +63,19 @@ function getReturnSearchParams(returnTo: string) {
   return new URLSearchParams(queryIndex >= 0 ? returnTo.slice(queryIndex + 1) : '')
 }
 
+function getApprovalErrorMessage(error: unknown) {
+  if (error instanceof ApiError) {
+    if (error.status === 403) {
+      return 'You no longer have permission to approve this invoice.'
+    }
+    if (error.status === 409) {
+      return 'This invoice can no longer be approved. Refresh the review and try again.'
+    }
+  }
+
+  return 'The backend did not confirm the approval. Please try again.'
+}
+
 function ApprovalReviewSkeleton() {
   return (
     <div aria-label="Loading approval review" className="space-y-5">
@@ -95,6 +109,7 @@ export default function ApprovalReviewPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const approvalPendingRef = useRef(false)
   const [retryCount, setRetryCount] = useState(0)
   const [action, setAction] = useState<ApprovalAction>('idle')
   const [actionError, setActionError] = useState<string | null>(null)
@@ -137,6 +152,10 @@ export default function ApprovalReviewPage() {
       }
     })
   }
+
+  useEffect(() => {
+    approvalPendingRef.current = false
+  }, [invoiceId])
 
   useEffect(() => {
     if (!validInvoiceId) {
@@ -211,18 +230,20 @@ export default function ApprovalReviewPage() {
   }, [navigate, position, queueSize, searchParams])
 
   const handleApprove = useCallback(async () => {
-    if (!invoice || action !== 'idle') {
+    if (!invoice || action !== 'idle' || approvalPendingRef.current) {
       return
     }
 
+    approvalPendingRef.current = true
     setActionError(null)
     setAction('approving')
 
     try {
       await approveInvoice(invoice.invoiceId)
-    } catch {
+    } catch (error: unknown) {
+      approvalPendingRef.current = false
       setAction('idle')
-      setActionError('The backend did not confirm the approval. Please try again.')
+      setActionError(getApprovalErrorMessage(error))
       return
     }
 

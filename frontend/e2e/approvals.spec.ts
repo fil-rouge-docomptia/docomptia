@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import type { Route } from '@playwright/test'
+import type { Page, Route } from '@playwright/test'
 
 import {
   currentUser,
@@ -17,6 +17,18 @@ const validator = {
     label: 'Accounting manager',
   },
 }
+
+const nonValidatorRoles = [
+  { code: 'ADMIN', id: 1, label: 'Administrator' },
+  { code: 'OPERATEUR_COMPTABLE', id: 2, label: 'Accounting operator' },
+] as const
+
+const approvalBreakpoints = [
+  { name: 'desktop', width: 1440 },
+  { name: 'compact desktop', width: 1024 },
+  { name: 'tablet', width: 768 },
+  { name: 'mobile', width: 390 },
+] as const
 
 const approvalPage = {
   content: [
@@ -124,6 +136,18 @@ async function fulfillOriginalInvoiceImage(route: Route) {
   })
 }
 
+async function expectNoHorizontalOverflow(page: Page, surface: string) {
+  const { clientWidth, scrollWidth } = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }))
+
+  expect(
+    scrollWidth,
+    `${surface} overflows by ${scrollWidth - clientWidth}px`,
+  ).toBeLessThanOrEqual(clientWidth)
+}
+
 test.beforeEach(async ({ page }) => {
   await seedAuthSession(page)
   await mockCurrentUser(page, validator)
@@ -175,6 +199,37 @@ test('opens focus review and restores the approval queue context', async ({ page
   await expect(page).toHaveURL('/approvals?page=2&sortBy=totalTtc&direction=DESC')
   await expect(page.getByText('Acme Supplies')).toBeVisible()
 })
+
+for (const role of nonValidatorRoles) {
+  test(`keeps approval decisions inactive for ${role.code}`, async ({ page }) => {
+    let decisionRequestCount = 0
+
+    await mockCurrentUser(page, { ...currentUser, role })
+    await mockApiRoute(page, '/v1/invoices/42', (route) => (
+      fulfillJson(route, 200, approvalDetails)
+    ))
+    await mockApiRoute(page, '/v1/invoices/42/file', fulfillOriginalInvoiceImage)
+    page.on('request', (request) => {
+      if (/\/v1\/invoices\/42\/(validate|reject|request-correction)$/.test(request.url())) {
+        decisionRequestCount += 1
+      }
+    })
+
+    await page.goto('/approvals/42')
+
+    await expect(page.getByRole('alert')).toContainText('An accounting manager role is required.')
+    await expect(page.getByRole('button', { name: 'Approve invoice' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Reject invoice' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Request changes' })).toBeDisabled()
+
+    await page.keyboard.press('a')
+    await page.keyboard.press('r')
+    await page.keyboard.press('c')
+
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    expect(decisionRequestCount).toBe(0)
+  })
+}
 
 test('waits for approval confirmation before showing success and advances', async ({ page }) => {
   await page.setViewportSize({ height: 1000, width: 1440 })
@@ -231,6 +286,42 @@ test('waits for approval confirmation before showing success and advances', asyn
   expect(pendingRequestCount).toBe(2)
 })
 
+test('submits an approval only once when confirmation is triggered twice', async ({ page }) => {
+  let validationRequestCount = 0
+  let releaseValidation: () => void = () => undefined
+  const validationPending = new Promise<void>((resolve) => {
+    releaseValidation = resolve
+  })
+
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, approvalDetails)
+  ))
+  await mockApiRoute(page, '/v1/invoices/42/file', fulfillOriginalInvoiceImage)
+  await mockApiRoute(page, '/v1/invoices/42/validate', async (route) => {
+    validationRequestCount += 1
+    await validationPending
+    await fulfillJson(route, 200, { invoiceId: 42, status: 'VALIDEE' })
+  })
+  await mockApiRoute(page, '/v1/invoices/pending-validation*', (route) => (
+    fulfillJson(route, 200, emptyApprovalPage)
+  ))
+
+  await page.goto('/approvals/42?position=1&total=1')
+  const approveButton = page.getByRole('button', { name: 'Approve invoice' })
+
+  await approveButton.evaluate((button) => {
+    button.click()
+    button.click()
+  })
+
+  await expect.poll(() => validationRequestCount).toBe(1)
+  await expect(approveButton).toBeDisabled()
+
+  releaseValidation()
+  await expect(page.getByRole('heading', { name: 'Approval queue complete' })).toBeVisible()
+  expect(validationRequestCount).toBe(1)
+})
+
 test('shows the end-of-queue state after approving the final invoice', async ({ page }) => {
   await mockApiRoute(page, '/v1/invoices/42', (route) => (
     fulfillJson(route, 200, approvalDetails)
@@ -268,9 +359,34 @@ test('keeps the invoice open when approval is not confirmed', async ({ page }) =
   await page.goto('/approvals/42?position=1&total=2')
   await page.getByRole('button', { name: 'Approve invoice' }).click()
 
-  await expect(page.getByRole('alert')).toContainText('The backend did not confirm the approval.')
+  await expect(page.getByRole('alert')).toContainText(
+    'This invoice can no longer be approved. Refresh the review and try again.',
+  )
   await expect(page.getByText('Invoice approved', { exact: true })).toHaveCount(0)
   await expect(page).toHaveURL(/\/approvals\/42/)
+  await expect(page.getByRole('button', { name: 'Approve invoice' })).toBeEnabled()
+})
+
+test('keeps the invoice unchanged when approval permission is refused', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, approvalDetails)
+  ))
+  await mockApiRoute(page, '/v1/invoices/42/file', fulfillOriginalInvoiceImage)
+  await mockApiRoute(page, '/v1/invoices/42/validate', (route) => (
+    fulfillJson(route, 403, {
+      code: 'FORBIDDEN',
+      message: 'Forbidden',
+    })
+  ))
+
+  await page.goto('/approvals/42')
+  await page.getByRole('button', { name: 'Approve invoice' }).click()
+
+  await expect(page.getByRole('alert')).toContainText(
+    'You no longer have permission to approve this invoice.',
+  )
+  await expect(page.getByText('Waiting approval')).toBeVisible()
+  await expect(page.getByText('Invoice approved', { exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Approve invoice' })).toBeEnabled()
 })
 
@@ -368,6 +484,65 @@ test('keeps the rejection form values when the backend rejects the request', asy
     'The document belongs to another organization.',
   )
   await expect(page.getByText('Waiting approval')).toBeVisible()
+})
+
+test('keeps the rejection pending and reports a permission refusal', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, approvalDetails)
+  ))
+  await mockApiRoute(page, '/v1/invoices/42/file', fulfillOriginalInvoiceImage)
+  await mockApiRoute(page, '/v1/invoices/42/reject', (route) => (
+    fulfillJson(route, 403, { code: 'FORBIDDEN', message: 'Forbidden' })
+  ))
+
+  await page.goto('/approvals/42')
+  await page.getByRole('button', { name: 'Reject invoice' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Reject invoice' })
+  await dialog.getByRole('radio', { name: 'Wrong supplier' }).check()
+  await dialog.getByLabel('Comment').fill('Supplier identity does not match.')
+  await dialog.getByRole('button', { name: 'Reject invoice', exact: true }).click()
+
+  await expect(dialog.getByRole('alert')).toContainText(
+    'You no longer have permission to reject this invoice.',
+  )
+  await expect(dialog.getByRole('radio', { name: 'Wrong supplier' })).toBeChecked()
+  await expect(dialog.getByLabel('Comment')).toHaveValue('Supplier identity does not match.')
+  await expect(page.getByText('Waiting approval')).toBeVisible()
+})
+
+test('submits a rejection only once when the form is submitted twice', async ({ page }) => {
+  let rejectionRequestCount = 0
+  let releaseRejection: () => void = () => undefined
+  const rejectionPending = new Promise<void>((resolve) => {
+    releaseRejection = resolve
+  })
+
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, approvalDetails)
+  ))
+  await mockApiRoute(page, '/v1/invoices/42/file', fulfillOriginalInvoiceImage)
+  await mockApiRoute(page, '/v1/invoices/42/reject', async (route) => {
+    rejectionRequestCount += 1
+    await rejectionPending
+    await fulfillJson(route, 200, { invoiceId: 42, status: 'REJETEE' })
+  })
+
+  await page.goto('/approvals/42')
+  await page.getByRole('button', { name: 'Reject invoice' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Reject invoice' })
+  await dialog.locator('form').evaluate((form) => {
+    form.requestSubmit()
+    form.requestSubmit()
+  })
+
+  await expect.poll(() => rejectionRequestCount).toBe(1)
+  await expect(dialog.getByRole('button', { name: 'Rejecting…' })).toBeDisabled()
+
+  releaseRejection()
+  await expect(page.getByText('Invoice rejected')).toBeVisible()
+  expect(rejectionRequestCount).toBe(1)
 })
 
 test('loads the recorded rejection reason for an already rejected invoice', async ({ page }) => {
@@ -479,6 +654,65 @@ test('keeps correction instructions when the backend rejects the request', async
   await expect(page.getByText('Waiting approval')).toBeVisible()
 })
 
+test('keeps correction instructions and reports a permission refusal', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, approvalDetails)
+  ))
+  await mockApiRoute(page, '/v1/invoices/42/file', fulfillOriginalInvoiceImage)
+  await mockApiRoute(page, '/v1/invoices/42/request-correction', (route) => (
+    fulfillJson(route, 403, { code: 'FORBIDDEN', message: 'Forbidden' })
+  ))
+
+  await page.goto('/approvals/42')
+  await page.getByRole('button', { name: 'Request changes' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Request changes' })
+  const instructions = 'Confirm the due date with the supplier.'
+  await dialog.getByLabel('Correction instructions').fill(instructions)
+  await dialog.getByRole('button', { name: 'Send request' }).click()
+
+  await expect(dialog.getByRole('alert')).toContainText(
+    'You no longer have permission to request changes to this invoice.',
+  )
+  await expect(dialog.getByLabel('Correction instructions')).toHaveValue(instructions)
+  await expect(page.getByText('Waiting approval')).toBeVisible()
+})
+
+test('submits a correction request only once when the form is submitted twice', async ({ page }) => {
+  let correctionRequestCount = 0
+  let releaseCorrection: () => void = () => undefined
+  const correctionPending = new Promise<void>((resolve) => {
+    releaseCorrection = resolve
+  })
+
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, approvalDetails)
+  ))
+  await mockApiRoute(page, '/v1/invoices/42/file', fulfillOriginalInvoiceImage)
+  await mockApiRoute(page, '/v1/invoices/42/request-correction', async (route) => {
+    correctionRequestCount += 1
+    await correctionPending
+    await fulfillJson(route, 200, { invoiceId: 42, status: 'EXTRAITE' })
+  })
+
+  await page.goto('/approvals/42')
+  await page.getByRole('button', { name: 'Request changes' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Request changes' })
+  await dialog.getByLabel('Correction instructions').fill('Confirm the due date.')
+  await dialog.locator('form').evaluate((form) => {
+    form.requestSubmit()
+    form.requestSubmit()
+  })
+
+  await expect.poll(() => correctionRequestCount).toBe(1)
+  await expect(dialog.getByRole('button', { name: 'Sending…' })).toBeDisabled()
+
+  releaseCorrection()
+  await expect(page.getByText('Changes requested')).toBeVisible()
+  expect(correctionRequestCount).toBe(1)
+})
+
 test('keeps approval sorting and pagination in the URL', async ({ page }) => {
   const requestedUrls: URL[] = []
 
@@ -530,3 +764,34 @@ test('lets the validator retry after an approval queue error', async ({ page }) 
   await expect(page.getByText('Acme Supplies')).toBeVisible()
   expect(requestCount).toBe(2)
 })
+
+for (const breakpoint of approvalBreakpoints) {
+  test(`keeps approval screens usable at ${breakpoint.width}px (${breakpoint.name})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ height: 900, width: breakpoint.width })
+    await mockApiRoute(page, '/v1/invoices/pending-validation*', (route) => (
+      fulfillJson(route, 200, approvalPage)
+    ))
+    await mockApiRoute(page, '/v1/invoices/42', (route) => (
+      fulfillJson(route, 200, approvalDetails)
+    ))
+    await mockApiRoute(page, '/v1/invoices/42/file', fulfillOriginalInvoiceImage)
+
+    await page.goto('/approvals')
+
+    await expect(page.getByRole('heading', { name: 'Approvals' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Approval queue' })).toBeVisible()
+    await expectNoHorizontalOverflow(page, `Approval queue at ${breakpoint.width}px`)
+
+    await page.getByRole('link', { name: 'Open invoice INV-2026-0042' }).click()
+
+    await expect(page.getByRole('heading', { name: 'Approval review' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Original invoice document' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Decision' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Approve invoice' })).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'Reject invoice' })).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'Request changes' })).toBeEnabled()
+    await expectNoHorizontalOverflow(page, `Approval focus at ${breakpoint.width}px`)
+  })
+}
