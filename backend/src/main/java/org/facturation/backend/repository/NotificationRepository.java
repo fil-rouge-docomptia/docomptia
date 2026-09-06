@@ -7,6 +7,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Optional;
+
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
     Page<Notification> findByRecipientUserIdOrderByCreatedAtDescNotificationIdDesc(
@@ -18,6 +20,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             Long recipientUserId,
             Pageable pageable
     );
+
+    Optional<Notification> findByNotificationIdAndRecipientUserId(Long notificationId, Long recipientUserId);
 
     boolean existsByRecipientAndTypeAndMessageAndInvoice(
             User recipient,

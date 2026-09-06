@@ -85,6 +85,8 @@ public class SecurityConfig {
                         .hasAnyRole(BusinessPermission.VIEW_DASHBOARD.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/notifications")
                         .hasAnyRole(BusinessPermission.VIEW_NOTIFICATIONS.roleCodes())
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/notifications/*/read")
+                        .hasAnyRole(BusinessPermission.VIEW_NOTIFICATIONS.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/invoices/pending-validation")
                         .hasAnyRole(BusinessPermission.VALIDATE_INVOICES.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/invoices", "/api/v1/invoices/**")

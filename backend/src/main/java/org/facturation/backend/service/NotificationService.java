@@ -12,6 +12,8 @@ public interface NotificationService {
 
     Page<NotificationResponse> getCurrentUserNotifications(boolean unreadOnly, Pageable pageable);
 
+    NotificationResponse markAsRead(Long notificationId);
+
     Notification create(User recipient, String type, String message, Invoice invoice);
 
     void notifyOcrFailure(Invoice invoice, OcrError error);

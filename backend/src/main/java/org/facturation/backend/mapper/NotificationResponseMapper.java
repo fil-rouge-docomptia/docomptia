@@ -14,6 +14,7 @@ public class NotificationResponseMapper {
         response.setMessage(notification.getMessage());
         response.setInvoiceId(notification.getInvoice() == null ? null : notification.getInvoice().getInvoiceId());
         response.setRead(notification.isRead());
+        response.setReadAt(notification.getReadAt());
         response.setCreatedAt(notification.getCreatedAt());
         return response;
     }

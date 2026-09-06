@@ -20,6 +20,7 @@ public class ApiExceptionHandler {
     private static final String INVOICE_FILE_NOT_PREVIEWABLE_CODE = "INVOICE_FILE_NOT_PREVIEWABLE";
     private static final String INVOICE_VALIDATION_ERROR_CODE = "INVOICE_VALIDATION_ERROR";
     private static final String INVOICE_NOT_FOUND_CODE = "INVOICE_NOT_FOUND";
+    private static final String NOTIFICATION_NOT_FOUND_CODE = "NOTIFICATION_NOT_FOUND";
     private static final String SUPPLIER_NOT_FOUND_CODE = "SUPPLIER_NOT_FOUND";
     private static final String SUPPLIER_VALIDATION_ERROR_CODE = "SUPPLIER_VALIDATION_ERROR";
     private static final String SUPPLIER_LEGAL_IDENTIFIER_CONFLICT_CODE = "SUPPLIER_LEGAL_IDENTIFIER_CONFLICT";
@@ -151,6 +152,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(InvoiceNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleInvoiceNotFound(InvoiceNotFoundException exception) {
         return errorResponse(HttpStatus.NOT_FOUND, INVOICE_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(NotificationNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleNotificationNotFound(NotificationNotFoundException exception) {
+        return errorResponse(HttpStatus.NOT_FOUND, NOTIFICATION_NOT_FOUND_CODE, exception.getMessage());
     }
 
     @ExceptionHandler(SupplierNotFoundException.class)
