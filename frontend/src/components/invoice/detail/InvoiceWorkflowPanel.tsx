@@ -86,7 +86,7 @@ export function InvoiceWorkflowPanel({
           <InvoiceApprovalTab invoice={invoice} role={role} />
         </TabsContent>
         <TabsContent className="m-0 focus-visible:ring-inset" value="activity">
-          <InvoiceActivityTab invoiceId={invoice.invoiceId} />
+          <InvoiceActivityTab history={invoice.history} />
         </TabsContent>
       </div>
     </Tabs>

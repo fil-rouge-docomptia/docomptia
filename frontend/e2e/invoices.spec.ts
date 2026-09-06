@@ -46,6 +46,21 @@ const emptyPage = {
   totalPages: 0,
 }
 
+const invoiceHistory = [
+  {
+    action: 'EXTRAITE',
+    author: 'Alex Martin',
+    authorId: 1,
+    comment: 'OCR analysis completed',
+    date: '2026-08-13T10:30:00',
+    duplicateAlertId: null,
+    fieldName: null,
+    newValue: null,
+    oldValue: null,
+    type: 'STATUS_CHANGE',
+  },
+]
+
 const invoiceDetails = {
   accountingEntry: null,
   classification: {
@@ -62,6 +77,7 @@ const invoiceDetails = {
   dueDate: '2026-09-12',
   duplicateAlerts: [],
   filePath: '/invoices/Leroy Construction — INV-2026-0421.pdf',
+  history: invoiceHistory,
   invoiceDate: '2026-08-13',
   invoiceId: 42,
   invoiceNumber: 'INV-2026-0421',
@@ -174,21 +190,6 @@ const reassignedInvoiceDetails = {
   },
   supplierName: 'Vinci Energies',
 }
-
-const invoiceHistory = [
-  {
-    action: 'EXTRAITE',
-    author: 'Alex Martin',
-    authorId: 1,
-    comment: 'OCR analysis completed',
-    date: '2026-08-13T10:30:00',
-    duplicateAlertId: null,
-    fieldName: null,
-    newValue: null,
-    oldValue: null,
-    type: 'STATUS_CHANGE',
-  },
-]
 
 const pendingDuplicateAlert = {
   alertId: 71,
@@ -405,7 +406,6 @@ test('combines supported invoice filters and exposes active filters', async ({ p
 
 test('renders the invoice review sections from the detail endpoint', async ({ page }) => {
   await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, invoiceDetails))
-  await mockApiRoute(page, '/v1/invoices/42/history', (route) => fulfillJson(route, 200, invoiceHistory))
 
   await page.goto('/invoices/42')
 
@@ -461,7 +461,6 @@ test('shows the suspected duplicate and compares the backend detection criteria'
 
 test('ignores a suspected duplicate and refreshes its status and activity', async ({ page }) => {
   let decisionPayload: unknown
-  const updatedInvoice = duplicateDecisionDetails('IGNORE', 'A_VERIFIER', 'Two distinct purchases')
   const duplicateHistory = [{
     action: 'IGNORE',
     author: 'Alex Martin',
@@ -474,6 +473,10 @@ test('ignores a suspected duplicate and refreshes its status and activity', asyn
     oldValue: null,
     type: 'DUPLICATE_DECISION',
   }]
+  const updatedInvoice = {
+    ...duplicateDecisionDetails('IGNORE', 'A_VERIFIER', 'Two distinct purchases'),
+    history: duplicateHistory,
+  }
 
   await mockApiRoute(page, '/v1/invoices/42', (route) =>
     fulfillJson(route, 200, duplicateInvoiceDetails),
@@ -482,10 +485,6 @@ test('ignores a suspected duplicate and refreshes its status and activity', asyn
     decisionPayload = route.request().postDataJSON()
     await fulfillJson(route, 200, updatedInvoice)
   })
-  await mockApiRoute(page, '/v1/invoices/42/history', (route) =>
-    fulfillJson(route, 200, duplicateHistory),
-  )
-
   await page.goto('/invoices/42')
   await page.getByRole('button', { name: 'Not a duplicate' }).first().click()
 
@@ -778,25 +777,18 @@ test('keeps a document error isolated from the invoice data', async ({ page }) =
   )
 })
 
-test('keeps an activity error isolated and allows retry', async ({ page }) => {
+test('renders activity included in invoice details without another request', async ({ page }) => {
   let historyRequestCount = 0
   await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, invoiceDetails))
   await mockApiRoute(page, '/v1/invoices/42/history', async (route) => {
     historyRequestCount += 1
-    await fulfillJson(
-      route,
-      historyRequestCount === 1 ? 503 : 200,
-      historyRequestCount === 1 ? { message: 'Unavailable' } : invoiceHistory,
-    )
+    await fulfillJson(route, 200, invoiceHistory)
   })
 
   await page.goto('/invoices/42')
   await page.getByRole('tab', { name: 'Activity' }).click()
-  await expect(page.getByRole('alert')).toContainText('Unable to load activity')
-  await expect(page.getByRole('heading', { level: 1, name: 'Leroy Construction' })).toBeVisible()
-
-  await page.getByRole('button', { name: 'Try again' }).click()
   await expect(page.getByText('OCR analysis completed')).toBeVisible()
+  expect(historyRequestCount).toBe(0)
 })
 
 test('submits an extracted invoice for approval and refreshes the available action', async ({ page }) => {
