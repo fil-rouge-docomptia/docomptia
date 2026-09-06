@@ -137,3 +137,13 @@ CREATE TABLE IF NOT EXISTS invoice_comments (
     content TEXT NOT NULL,
     created_at TIMESTAMP NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS notifications (
+    notification_id BIGSERIAL PRIMARY KEY,
+    recipient_user_id BIGINT NOT NULL REFERENCES users(user_id),
+    type VARCHAR(50) NOT NULL,
+    message TEXT NOT NULL,
+    invoice_id BIGINT REFERENCES invoices(invoice_id),
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL
+);
