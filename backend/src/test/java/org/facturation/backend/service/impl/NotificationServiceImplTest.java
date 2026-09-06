@@ -122,6 +122,44 @@ class NotificationServiceImplTest {
         verify(notificationRepository, never()).save(org.mockito.ArgumentMatchers.any(Notification.class));
     }
 
+    @Test
+    void notifiesTheInvoiceDepositorAboutACorrectionRequest() {
+        User depositor = new User();
+        Invoice invoice = invoice(42L, depositor);
+        when(notificationRepository.save(org.mockito.ArgumentMatchers.any(Notification.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        notificationService.notifyCorrectionRequest(invoice, "  The total amount must be checked  ");
+
+        ArgumentCaptor<Notification> notificationCaptor = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(notificationCaptor.capture());
+        Notification notification = notificationCaptor.getValue();
+        assertThat(notification.getRecipient()).isSameAs(depositor);
+        assertThat(notification.getInvoice()).isSameAs(invoice);
+        assertThat(notification.getType()).isEqualTo("CORRECTION_REQUEST");
+        assertThat(notification.getMessage())
+                .isEqualTo("Correction requested for invoice 42: The total amount must be checked");
+    }
+
+    @Test
+    void notifiesTheInvoiceDepositorAboutARejection() {
+        User depositor = new User();
+        Invoice invoice = invoice(42L, depositor);
+        when(notificationRepository.save(org.mockito.ArgumentMatchers.any(Notification.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        notificationService.notifyRejection(invoice, "  The invoice is not compliant  ");
+
+        ArgumentCaptor<Notification> notificationCaptor = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(notificationCaptor.capture());
+        Notification notification = notificationCaptor.getValue();
+        assertThat(notification.getRecipient()).isSameAs(depositor);
+        assertThat(notification.getInvoice()).isSameAs(invoice);
+        assertThat(notification.getType()).isEqualTo("REJECTION");
+        assertThat(notification.getMessage())
+                .isEqualTo("Invoice 42 rejected: The invoice is not compliant");
+    }
+
     private Invoice invoice(Long invoiceId, User depositor) {
         Invoice invoice = new Invoice();
         invoice.setInvoiceId(invoiceId);

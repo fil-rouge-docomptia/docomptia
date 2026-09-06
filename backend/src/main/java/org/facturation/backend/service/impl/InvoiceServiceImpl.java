@@ -495,6 +495,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         return findInvoiceForCurrentOrganization(id, user).map(invoice -> {
             duplicateAlertService.ensureNoPendingAlerts(id, "receive a correction request");
             invoiceStatusWorkflowService.requestInvoiceCorrection(invoice, user, reason);
+            notificationService.notifyCorrectionRequest(invoice, reason);
             return invoiceResponseMapper.toStatusResponse(invoice);
         });
     }
@@ -506,6 +507,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         return findInvoiceForCurrentOrganization(id, user).map(invoice -> {
             duplicateAlertService.ensureNoPendingAlerts(id, "be rejected outside the duplicate decision workflow");
             invoiceStatusWorkflowService.rejectInvoice(invoice, user, reason);
+            notificationService.notifyRejection(invoice, reason);
             return invoiceResponseMapper.toStatusResponse(invoice);
         });
     }
