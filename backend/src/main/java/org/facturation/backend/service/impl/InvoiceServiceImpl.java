@@ -473,6 +473,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         User user = currentUserService.getCurrentUser();
         return findInvoiceForCurrentOrganization(id, user).map(invoice -> {
             invoiceStatusWorkflowService.submitForValidation(invoice, user);
+            if (InvoiceStatusCode.A_VERIFIER.getCode().equals(invoice.getInvoiceStatus().getCode())) {
+                notificationService.notifyPendingValidation(invoice);
+            }
             return invoiceResponseMapper.toStatusResponse(invoice);
         });
     }

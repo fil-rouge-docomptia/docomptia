@@ -3,13 +3,16 @@ package org.facturation.backend.service.impl;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.Notification;
 import org.facturation.backend.model.OcrError;
+import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.NotificationRepository;
+import org.facturation.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -21,12 +24,14 @@ import static org.mockito.Mockito.when;
 class NotificationServiceImplTest {
 
     private NotificationRepository notificationRepository;
+    private UserRepository userRepository;
     private NotificationServiceImpl notificationService;
 
     @BeforeEach
     void setUp() {
         notificationRepository = mock(NotificationRepository.class);
-        notificationService = new NotificationServiceImpl(notificationRepository);
+        userRepository = mock(UserRepository.class);
+        notificationService = new NotificationServiceImpl(notificationRepository, userRepository);
     }
 
     @Test
@@ -158,6 +163,53 @@ class NotificationServiceImplTest {
         assertThat(notification.getType()).isEqualTo("REJECTION");
         assertThat(notification.getMessage())
                 .isEqualTo("Invoice 42 rejected: The invoice is not compliant");
+    }
+
+    @Test
+    void notifiesActiveAccountingManagersAboutPendingValidation() {
+        User firstValidator = new User();
+        User secondValidator = new User();
+        Invoice invoice = invoice(42L, new User());
+        Organization organization = new Organization();
+        organization.setOrganizationId(7L);
+        invoice.setOrganization(organization);
+        when(userRepository.findActiveUsersByOrganizationAndRole(7L, "RESPONSABLE_COMPTABLE"))
+                .thenReturn(List.of(firstValidator, secondValidator));
+        when(notificationRepository.save(org.mockito.ArgumentMatchers.any(Notification.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        notificationService.notifyPendingValidation(invoice);
+
+        ArgumentCaptor<Notification> notificationCaptor = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository, org.mockito.Mockito.times(2)).save(notificationCaptor.capture());
+        assertThat(notificationCaptor.getAllValues())
+                .extracting(Notification::getRecipient)
+                .containsExactly(firstValidator, secondValidator);
+        assertThat(notificationCaptor.getAllValues())
+                .allSatisfy(notification -> {
+                    assertThat(notification.getInvoice()).isSameAs(invoice);
+                    assertThat(notification.getType()).isEqualTo("PENDING_VALIDATION");
+                    assertThat(notification.getMessage()).isEqualTo("Invoice 42 is awaiting validation");
+                });
+    }
+
+    @Test
+    void doesNotDuplicatePendingValidationNotification() {
+        User validator = new User();
+        Invoice invoice = invoice(42L, new User());
+        Organization organization = new Organization();
+        organization.setOrganizationId(7L);
+        invoice.setOrganization(organization);
+        String message = "Invoice 42 is awaiting validation";
+        when(userRepository.findActiveUsersByOrganizationAndRole(7L, "RESPONSABLE_COMPTABLE"))
+                .thenReturn(List.of(validator));
+        when(notificationRepository.existsByRecipientAndTypeAndMessageAndInvoice(
+                validator, "PENDING_VALIDATION", message, invoice
+        )).thenReturn(true);
+
+        notificationService.notifyPendingValidation(invoice);
+
+        verify(notificationRepository, never()).save(org.mockito.ArgumentMatchers.any(Notification.class));
     }
 
     private Invoice invoice(Long invoiceId, User depositor) {

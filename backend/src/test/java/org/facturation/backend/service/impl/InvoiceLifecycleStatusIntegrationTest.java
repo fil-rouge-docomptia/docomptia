@@ -23,6 +23,7 @@ import org.facturation.backend.model.InvoiceStatusHistory;
 import org.facturation.backend.model.Notification;
 import org.facturation.backend.model.OcrExtraction;
 import org.facturation.backend.model.OcrExtractionField;
+import org.facturation.backend.model.Role;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.AccountingEntryLineRepository;
 import org.facturation.backend.repository.AccountingEntryRepository;
@@ -33,6 +34,7 @@ import org.facturation.backend.repository.InvoiceStatusHistoryRepository;
 import org.facturation.backend.repository.NotificationRepository;
 import org.facturation.backend.repository.OcrExtractionFieldRepository;
 import org.facturation.backend.repository.OcrExtractionRepository;
+import org.facturation.backend.repository.RoleRepository;
 import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.InvoiceService;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
@@ -73,6 +75,7 @@ class InvoiceLifecycleStatusIntegrationTest {
     private final OcrExtractionRepository ocrExtractionRepository;
     private final OcrExtractionFieldRepository ocrExtractionFieldRepository;
     private final InvoiceStatusWorkflowService invoiceStatusWorkflowService;
+    private final RoleRepository roleRepository;
     private final UserRepository userRepository;
     private final ApiExceptionHandler apiExceptionHandler;
 
@@ -89,6 +92,7 @@ class InvoiceLifecycleStatusIntegrationTest {
             OcrExtractionRepository ocrExtractionRepository,
             OcrExtractionFieldRepository ocrExtractionFieldRepository,
             InvoiceStatusWorkflowService invoiceStatusWorkflowService,
+            RoleRepository roleRepository,
             UserRepository userRepository,
             ApiExceptionHandler apiExceptionHandler
     ) {
@@ -103,6 +107,7 @@ class InvoiceLifecycleStatusIntegrationTest {
         this.ocrExtractionRepository = ocrExtractionRepository;
         this.ocrExtractionFieldRepository = ocrExtractionFieldRepository;
         this.invoiceStatusWorkflowService = invoiceStatusWorkflowService;
+        this.roleRepository = roleRepository;
         this.userRepository = userRepository;
         this.apiExceptionHandler = apiExceptionHandler;
     }
@@ -221,6 +226,43 @@ class InvoiceLifecycleStatusIntegrationTest {
         assertEquals("Invoice submitted for validation", latestHistory.getComment());
         assertEquals(1L, latestHistory.getChangedByUser().getUserId());
         assertNotNull(latestHistory.getChangedAt());
+    }
+
+    @Test
+    void notifiesActiveAccountingManagersOnceWhenInvoiceAwaitsValidation() {
+        User administrator = userRepository.findById(1L).orElseThrow();
+        Role validatorRole = roleRepository.findByCode("RESPONSABLE_COMPTABLE").orElseThrow();
+        User firstValidator = saveUser("validator-one@facturation-demo.fr", true, administrator, validatorRole);
+        User secondValidator = saveUser("validator-two@facturation-demo.fr", true, administrator, validatorRole);
+        User inactiveValidator = saveUser("inactive-validator@facturation-demo.fr", false, administrator, validatorRole);
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
+        correctionRequest.setInvoiceDate("2026-08-07");
+        invoiceService.correctInvoice(uploadResponse.getInvoiceId(), correctionRequest).orElseThrow();
+
+        invoiceService.submitForValidation(uploadResponse.getInvoiceId()).orElseThrow();
+
+        List<Notification> notifications = pendingValidationNotifications(uploadResponse.getInvoiceId());
+        assertEquals(2, notifications.size());
+        assertTrue(notifications.stream().allMatch(notification ->
+                ("Invoice " + uploadResponse.getInvoiceId() + " is awaiting validation")
+                        .equals(notification.getMessage())
+        ));
+        assertTrue(notifications.stream().anyMatch(notification ->
+                firstValidator.getUserId().equals(notification.getRecipient().getUserId())
+        ));
+        assertTrue(notifications.stream().anyMatch(notification ->
+                secondValidator.getUserId().equals(notification.getRecipient().getUserId())
+        ));
+        assertFalse(notifications.stream().anyMatch(notification ->
+                inactiveValidator.getUserId().equals(notification.getRecipient().getUserId())
+        ));
+
+        assertThrows(
+                InvoiceStatusTransitionException.class,
+                () -> invoiceService.submitForValidation(uploadResponse.getInvoiceId())
+        );
+        assertEquals(2, pendingValidationNotifications(uploadResponse.getInvoiceId()).size());
     }
 
     @Test
@@ -881,6 +923,25 @@ class InvoiceLifecycleStatusIntegrationTest {
                 "image/png",
                 new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
         ), null);
+    }
+
+    private User saveUser(String email, boolean active, User administrator, Role role) {
+        User user = new User();
+        user.setOrganization(administrator.getOrganization());
+        user.setRole(role);
+        user.setFirstName("Validation");
+        user.setLastName("Manager");
+        user.setEmail(email);
+        user.setPasswordHash("unused-test-password");
+        user.setActive(active);
+        return userRepository.save(user);
+    }
+
+    private List<Notification> pendingValidationNotifications(Long invoiceId) {
+        return notificationRepository.findAll().stream()
+                .filter(notification -> "PENDING_VALIDATION".equals(notification.getType()))
+                .filter(notification -> invoiceId.equals(notification.getInvoice().getInvoiceId()))
+                .toList();
     }
 
     private InvoiceStatusHistory findLatestHistory(Long invoiceId) {
