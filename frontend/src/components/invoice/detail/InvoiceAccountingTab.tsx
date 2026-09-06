@@ -1,9 +1,116 @@
-import { CheckCircle2, FileSpreadsheet, Scale } from 'lucide-react'
+import { CheckCircle2, FileSpreadsheet, TriangleAlert } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import type { InvoiceDetails } from '@/types/invoice'
+import type { AccountingEntry, InvoiceDetails } from '@/types/invoice'
 
 import { formatInvoiceDate, formatInvoiceMoney } from './invoice-detail-utils'
+
+type AccountingBalanceSummaryProps = {
+  currencyCode: string | null
+  entry: AccountingEntry
+}
+
+function AccountingBalanceSummary({
+  currencyCode,
+  entry,
+}: AccountingBalanceSummaryProps) {
+  return (
+    <section
+      aria-label="Accounting balance summary"
+      className="w-full max-w-md rounded-lg border border-border bg-card p-4"
+    >
+      <div className="flex items-center gap-1.5">
+        {entry.balanced ? (
+          <CheckCircle2 aria-hidden="true" className="size-3.5 text-success" />
+        ) : (
+          <TriangleAlert aria-hidden="true" className="size-3.5 text-destructive" />
+        )}
+        <Badge
+          className={entry.balanced
+            ? 'border-success/20 bg-success-muted text-success'
+            : undefined}
+          variant={entry.balanced ? 'outline' : 'destructive'}
+        >
+          {entry.balanced ? 'Balanced' : 'Needs attention'}
+        </Badge>
+      </div>
+
+      <dl className="mt-3 grid grid-cols-1 gap-3 min-[420px]:grid-cols-3">
+        <div>
+          <dt className="text-xs text-muted-foreground">Debit</dt>
+          <dd className="mt-1 text-sm font-medium text-foreground">
+            {formatInvoiceMoney(entry.totalDebit, currencyCode)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">Credit</dt>
+          <dd className="mt-1 text-sm font-medium text-foreground">
+            {formatInvoiceMoney(entry.totalCredit, currencyCode)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">Difference</dt>
+          <dd className="mt-1 text-sm font-medium text-foreground">
+            {formatInvoiceMoney(entry.balanceDifference, currencyCode)}
+          </dd>
+        </div>
+      </dl>
+    </section>
+  )
+}
+
+function AccountingEntryLines({ invoice }: { invoice: InvoiceDetails }) {
+  const entry = invoice.accountingEntry
+
+  if (!entry) {
+    return null
+  }
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-border bg-card">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[42rem] text-left text-sm">
+          <thead className="bg-muted text-xs text-muted-foreground">
+            <tr>
+              <th className="px-3 py-3 font-medium">Account</th>
+              <th className="px-3 py-3 font-medium">Label</th>
+              <th className="px-3 py-3 text-right font-medium">Debit</th>
+              <th className="px-3 py-3 text-right font-medium">Credit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entry.lines.map((line) => (
+              <tr className="border-t border-border" key={line.accountingEntryLineId}>
+                <td className="px-3 py-3 font-medium text-foreground">
+                  {line.accountNumber}
+                </td>
+                <td className="px-3 py-3 text-muted-foreground">
+                  {line.lineLabel || line.accountLabel}
+                </td>
+                <td className="px-3 py-3 text-right text-foreground">
+                  {formatInvoiceMoney(line.debitAmount, invoice.currencyCode)}
+                </td>
+                <td className="px-3 py-3 text-right text-foreground">
+                  {formatInvoiceMoney(line.creditAmount, invoice.currencyCode)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {entry.lines.length === 0 ? (
+        <p className="border-t border-border px-4 py-6 text-center text-sm text-muted-foreground">
+          No entry lines are available.
+        </p>
+      ) : null}
+
+      <div className="border-t border-border p-4">
+        <AccountingBalanceSummary currencyCode={invoice.currencyCode} entry={entry} />
+      </div>
+    </section>
+  )
+}
 
 export function InvoiceAccountingTab({ invoice }: { invoice: InvoiceDetails }) {
   const entry = invoice.accountingEntry
@@ -23,79 +130,27 @@ export function InvoiceAccountingTab({ invoice }: { invoice: InvoiceDetails }) {
   }
 
   return (
-    <div className="space-y-6 p-4">
-      <section className="rounded-lg border border-border bg-background p-4 shadow-elevation-1">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs text-muted-foreground">Accounting entry</p>
-            <h2 className="mt-1 text-base font-semibold text-foreground">{entry.entryNumber}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{entry.label}</p>
-          </div>
-          <Badge
-            className={
-              entry.balanced
-                ? 'gap-1 border-success/20 bg-success-muted text-success'
-                : 'gap-1 border-warning/20 bg-warning-muted text-warning-muted-foreground'
-            }
-            variant="outline"
-          >
-            {entry.balanced ? <CheckCircle2 aria-hidden="true" className="size-3" /> : <Scale aria-hidden="true" className="size-3" />}
-            {entry.balanced ? 'Balanced' : 'Unbalanced'}
-          </Badge>
+    <div className="space-y-4 p-4 sm:p-6">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">
+            Accounting entry
+          </h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {entry.balanced
+              ? 'The journal entry is balanced and ready for review.'
+              : 'Review the entry lines before continuing.'}
+          </p>
         </div>
-        <dl className="mt-4 grid grid-cols-2 gap-4 border-t border-border pt-4 text-sm">
-          <div>
-            <dt className="text-xs text-muted-foreground">Entry date</dt>
-            <dd className="mt-1 font-medium text-foreground">{formatInvoiceDate(entry.entryDate)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Status</dt>
-            <dd className="mt-1 font-medium text-foreground">{entry.status}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Total debit</dt>
-            <dd className="mt-1 font-medium text-foreground">
-              {formatInvoiceMoney(entry.totalDebit, invoice.currencyCode)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Total credit</dt>
-            <dd className="mt-1 font-medium text-foreground">
-              {formatInvoiceMoney(entry.totalCredit, invoice.currencyCode)}
-            </dd>
-          </div>
-        </dl>
-      </section>
+        <div className="text-right">
+          <p className="text-sm font-medium text-foreground">{entry.entryNumber}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {formatInvoiceDate(entry.entryDate)}
+          </p>
+        </div>
+      </header>
 
-      <section>
-        <h2 className="mb-3 text-sm font-semibold text-foreground">Entry lines</h2>
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full min-w-[32rem] text-left text-sm">
-            <thead className="bg-muted text-xs text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2.5 font-medium">Account</th>
-                <th className="px-3 py-2.5 font-medium">Label</th>
-                <th className="px-3 py-2.5 text-right font-medium">Debit</th>
-                <th className="px-3 py-2.5 text-right font-medium">Credit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entry.lines.map((line) => (
-                <tr className="border-t border-border" key={line.accountingEntryLineId}>
-                  <td className="px-3 py-3 font-medium text-foreground">{line.accountNumber}</td>
-                  <td className="px-3 py-3 text-muted-foreground">{line.lineLabel || line.accountLabel}</td>
-                  <td className="px-3 py-3 text-right text-foreground">
-                    {formatInvoiceMoney(line.debitAmount, invoice.currencyCode)}
-                  </td>
-                  <td className="px-3 py-3 text-right text-foreground">
-                    {formatInvoiceMoney(line.creditAmount, invoice.currencyCode)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <AccountingEntryLines invoice={invoice} />
     </div>
   )
 }

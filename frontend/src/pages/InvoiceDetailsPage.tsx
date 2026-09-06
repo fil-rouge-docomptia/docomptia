@@ -213,7 +213,7 @@ export default function InvoiceDetailsPage() {
     return <InvoiceDetailsSkeleton />
   }
 
-  const approvalTabActive = activeTab === 'approval'
+  const expandedWorkflowTabActive = activeTab === 'accounting' || activeTab === 'approval'
 
   return (
     <div className="space-y-5">
@@ -231,15 +231,15 @@ export default function InvoiceDetailsPage() {
       />
 
       <div
-        className={approvalTabActive
+        className={expandedWorkflowTabActive
           ? 'min-w-0 overflow-hidden rounded-lg border border-border bg-card shadow-elevation-1'
           : 'grid min-w-0 overflow-hidden rounded-lg border border-border bg-card shadow-elevation-1 xl:h-[49rem] xl:grid-cols-[minmax(0,608fr)_8px_minmax(0,488fr)]'}
       >
-        <div className={approvalTabActive ? 'hidden' : 'contents'}>
+        <div className={expandedWorkflowTabActive ? 'hidden' : 'contents'}>
           <InvoiceDocumentPanel invoice={invoice} />
         </div>
         <div
-          className={approvalTabActive
+          className={expandedWorkflowTabActive
             ? 'hidden'
             : 'flex h-2 bg-muted xl:h-auto xl:justify-center'}
         >
