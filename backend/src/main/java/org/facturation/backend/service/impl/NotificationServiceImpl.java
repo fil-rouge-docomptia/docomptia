@@ -1,6 +1,7 @@
 package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.response.NotificationResponse;
+import org.facturation.backend.exception.NotificationNotFoundException;
 import org.facturation.backend.mapper.NotificationResponseMapper;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.Notification;
@@ -54,6 +55,20 @@ public class NotificationServiceImpl implements NotificationService {
                 )
                 : notificationRepository.findByRecipientUserIdOrderByCreatedAtDescNotificationIdDesc(userId, pageable);
         return notifications.map(responseMapper::toResponse);
+    }
+
+    @Override
+    @Transactional
+    public NotificationResponse markAsRead(Long notificationId) {
+        Long userId = currentUserService.getCurrentUser().getUserId();
+        Notification notification = notificationRepository
+                .findByNotificationIdAndRecipientUserId(notificationId, userId)
+                .orElseThrow(() -> new NotificationNotFoundException(notificationId));
+        if (!notification.isRead()) {
+            notification.setRead(true);
+            notification.setReadAt(LocalDateTime.now());
+        }
+        return responseMapper.toResponse(notification);
     }
 
     @Override

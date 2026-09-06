@@ -1,5 +1,7 @@
 package org.facturation.backend.controller;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.facturation.backend.model.Notification;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.NotificationRepository;
@@ -17,7 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -37,6 +41,9 @@ class NotificationControllerIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Value("${app.jwt.secret}")
     private String jwtSecret;
@@ -85,6 +92,53 @@ class NotificationControllerIntegrationTest {
                 .andExpect(jsonPath("$.totalElements").value(1));
     }
 
+    @Test
+    void marksOwnNotificationAsReadOnlyOnce() throws Exception {
+        User currentUser = userRepository.findByEmailIgnoreCase("admin@facturation-demo.fr").orElseThrow();
+        Notification notification = createNotification(currentUser, "Unread", false, LocalDateTime.now());
+
+        mockMvc.perform(patch("/api/v1/notifications/{id}/read", notification.getNotificationId())
+                        .header("Authorization", "Bearer " + tokenFor(currentUser)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notificationId").value(notification.getNotificationId()))
+                .andExpect(jsonPath("$.read").value(true))
+                .andExpect(jsonPath("$.readAt").isNotEmpty());
+
+        entityManager.flush();
+        entityManager.clear();
+        LocalDateTime firstReadAt = notificationRepository.findById(notification.getNotificationId())
+                .orElseThrow()
+                .getReadAt();
+
+        mockMvc.perform(patch("/api/v1/notifications/{id}/read", notification.getNotificationId())
+                        .header("Authorization", "Bearer " + tokenFor(currentUser)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.read").value(true))
+                .andExpect(jsonPath("$.readAt").isNotEmpty());
+
+        entityManager.flush();
+        entityManager.clear();
+        Notification readAgain = notificationRepository.findById(notification.getNotificationId()).orElseThrow();
+        assertThat(firstReadAt).isNotNull();
+        assertThat(readAgain.getReadAt()).isEqualTo(firstReadAt);
+    }
+
+    @Test
+    void cannotMarkAnotherUsersNotificationAsRead() throws Exception {
+        User currentUser = userRepository.findByEmailIgnoreCase("admin@facturation-demo.fr").orElseThrow();
+        User otherUser = createOtherUser(currentUser);
+        Notification notification = createNotification(otherUser, "Other user's unread", false, LocalDateTime.now());
+
+        mockMvc.perform(patch("/api/v1/notifications/{id}/read", notification.getNotificationId())
+                        .header("Authorization", "Bearer " + tokenFor(currentUser)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOTIFICATION_NOT_FOUND"));
+
+        Notification unchanged = notificationRepository.findById(notification.getNotificationId()).orElseThrow();
+        assertThat(unchanged.isRead()).isFalse();
+        assertThat(unchanged.getReadAt()).isNull();
+    }
+
     private User createOtherUser(User currentUser) {
         LocalDateTime now = LocalDateTime.now();
         User user = new User();
@@ -100,14 +154,14 @@ class NotificationControllerIntegrationTest {
         return userRepository.save(user);
     }
 
-    private void createNotification(User recipient, String message, boolean read, LocalDateTime createdAt) {
+    private Notification createNotification(User recipient, String message, boolean read, LocalDateTime createdAt) {
         Notification notification = new Notification();
         notification.setRecipient(recipient);
         notification.setType("TEST_NOTIFICATION");
         notification.setMessage(message);
         notification.setRead(read);
         notification.setCreatedAt(createdAt);
-        notificationRepository.save(notification);
+        return notificationRepository.save(notification);
     }
 
     private String tokenFor(User user) {

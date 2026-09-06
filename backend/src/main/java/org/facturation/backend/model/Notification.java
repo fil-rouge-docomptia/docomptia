@@ -37,6 +37,9 @@ public class Notification {
     @Column(name = "is_read", nullable = false)
     private boolean read;
 
+    @Column(name = "read_at")
+    private LocalDateTime readAt;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
@@ -86,6 +89,14 @@ public class Notification {
 
     public void setRead(boolean read) {
         this.read = read;
+    }
+
+    public LocalDateTime getReadAt() {
+        return readAt;
+    }
+
+    public void setReadAt(LocalDateTime readAt) {
+        this.readAt = readAt;
     }
 
     public LocalDateTime getCreatedAt() {

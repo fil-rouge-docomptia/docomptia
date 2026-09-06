@@ -9,6 +9,7 @@ public class NotificationResponse {
     private String message;
     private Long invoiceId;
     private boolean read;
+    private LocalDateTime readAt;
     private LocalDateTime createdAt;
 
     public Long getNotificationId() {
@@ -49,6 +50,14 @@ public class NotificationResponse {
 
     public void setRead(boolean read) {
         this.read = read;
+    }
+
+    public LocalDateTime getReadAt() {
+        return readAt;
+    }
+
+    public void setReadAt(LocalDateTime readAt) {
+        this.readAt = readAt;
     }
 
     public LocalDateTime getCreatedAt() {
