@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom'
 import { InvoiceStatusBadge } from '@/components/invoice/InvoiceStatusBadge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import type { RoleCode } from '@/types/auth'
+import { hasPermission } from '@/lib/permissions'
 import type { InvoiceDetails, InvoiceDuplicateAlert } from '@/types/invoice'
 
 import {
@@ -28,7 +28,7 @@ type InvoiceDetailHeaderProps = {
   onRequestApproval: () => Promise<void>
   onReviewDuplicate: () => void
   onRetryOcr: () => Promise<void>
-  role?: RoleCode
+  permissions?: readonly string[]
   showCorrectionAction: boolean
 }
 
@@ -41,21 +41,23 @@ export function InvoiceDetailHeader({
   onRequestApproval,
   onReviewDuplicate,
   onRetryOcr,
-  role,
+  permissions,
   showCorrectionAction,
 }: InvoiceDetailHeaderProps) {
   const [actionError, setActionError] = useState<'approval' | 'duplicate' | 'ocr' | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [retryingOcr, setRetryingOcr] = useState(false)
-  const canProcess = canProcessInvoice(role)
+  const canProcess = canProcessInvoice(permissions)
   const hasPendingDuplicate = Boolean(duplicateAlert)
   const canRequestApproval =
-    invoice.status === 'EXTRAITE' && canProcess && !hasPendingDuplicate
+    invoice.status === 'EXTRAITE'
+    && hasPermission(permissions, 'invoice.submit-for-validation')
+    && !hasPendingDuplicate
   const canRetryOcr = invoice.status === 'ERREUR_OCR'
-    && canProcess
+    && hasPermission(permissions, 'invoice.retry-ocr')
     && isRetryableOcrError(invoice.ocrError)
   const canSaveCorrections = showCorrectionAction
-    && canCorrectInvoice(invoice.status, role)
+    && canCorrectInvoice(invoice.status, permissions)
     && !canRetryOcr
 
   const handleRequestApproval = async () => {

@@ -104,5 +104,5 @@ export async function getOrganizationUsers(): Promise<OrganizationUser[]> {
 }
 
 export function isRoleCode(code: string): code is RoleCode {
-  return ['ADMIN', 'OPERATEUR_COMPTABLE', 'RESPONSABLE_COMPTABLE'].includes(code)
+  return code.trim().length > 0
 }

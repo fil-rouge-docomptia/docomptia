@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import type { Route } from '@playwright/test'
 
 import {
+  approvalPermissions,
   currentUser,
   fulfillJson,
   mockApiRoute,
@@ -963,10 +964,12 @@ test('submits an extracted invoice for approval and refreshes the available acti
   expect(submissionCount).toBe(1)
 })
 
-test('hides processing actions from the accounting manager role', async ({ page }) => {
+test('hides processing actions without invoice processing permissions', async ({ page }) => {
   await mockApiRoute(page, '/v1/users/me', (route) => fulfillJson(route, 200, {
     ...currentUser,
-    role: { ...currentUser.role, code: 'RESPONSABLE_COMPTABLE' },
+    role: { ...currentUser.role, code: 'APPROVER', label: 'Approver' },
+    roles: [{ ...currentUser.role, code: 'APPROVER', label: 'Approver' }],
+    permissions: approvalPermissions,
   }))
   await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, invoiceDetails))
 

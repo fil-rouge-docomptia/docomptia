@@ -1,10 +1,8 @@
-import type { RoleCode } from '@/types/auth'
+import { hasPermission } from '@/lib/permissions'
 import type { SupplierDetails, SupplierLegalIdentifier } from '@/types/supplier'
 
-const supplierManagementRoles: RoleCode[] = ['ADMIN', 'OPERATEUR_COMPTABLE']
-
-export function canManageSupplier(role?: RoleCode) {
-  return Boolean(role && supplierManagementRoles.includes(role))
+export function canManageSupplier(permissions?: readonly string[]) {
+  return hasPermission(permissions, 'supplier.manage')
 }
 
 export function getCurrentLegalIdentifier(

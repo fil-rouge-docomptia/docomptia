@@ -8,6 +8,7 @@ import {
   setAuthToken,
   subscribeToAuthSession,
 } from '@/lib/auth-session'
+import { userHasPermission } from '@/lib/permissions'
 import { getCurrentUser, login } from '@/services/auth'
 import { getOrganizationOnboardingStatus } from '@/services/organization'
 import type { CurrentUser, LoginCredentials } from '@/types/auth'
@@ -59,7 +60,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       const currentUser = await getCurrentUser()
       let needsCompanyInformation = false
 
-      if (currentUser.role.code === 'ADMIN') {
+      if (userHasPermission(currentUser, 'organization.manage')) {
         try {
           const onboarding = await getOrganizationOnboardingStatus()
           needsCompanyInformation = onboarding.remainingActions.some(

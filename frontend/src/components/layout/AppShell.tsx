@@ -118,7 +118,7 @@ export function AppShell() {
         } as CSSProperties
       }
     >
-      <AppSidebar identity={identity} onSignOut={signOut} role={user?.role.code} />
+      <AppSidebar identity={identity} onSignOut={signOut} permissions={user?.permissions} />
       <SidebarInset className="min-w-0">
         <GlobalHeader />
         <main className="min-w-0 flex-1 bg-background p-4 md:p-6 xl:p-8">

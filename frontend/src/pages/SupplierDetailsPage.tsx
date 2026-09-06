@@ -117,7 +117,7 @@ export default function SupplierDetailsPage() {
   return (
     <div className="space-y-6">
       <SupplierDetailHeader
-        canEdit={canManageSupplier(user?.role.code)}
+        canEdit={canManageSupplier(user?.permissions)}
         onEdit={() => setEditOpen(true)}
         supplier={supplier}
       />

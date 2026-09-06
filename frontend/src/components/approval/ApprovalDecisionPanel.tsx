@@ -12,15 +12,15 @@ import { InvoiceRejectionDialog } from '@/components/approval/InvoiceRejectionDi
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { hasPermission } from '@/lib/permissions'
 import { getInvoiceHistory, rejectInvoice, requestInvoiceCorrection } from '@/services/invoice'
-import type { RoleCode } from '@/types/auth'
 import type { InvoiceDetails } from '@/types/invoice'
 
-function getBlockingReasons(invoice: InvoiceDetails, role?: RoleCode) {
+function getBlockingReasons(invoice: InvoiceDetails, permissions?: readonly string[]) {
   const reasons: string[] = []
 
-  if (role !== 'RESPONSABLE_COMPTABLE') {
-    reasons.push('An accounting manager role is required.')
+  if (!hasPermission(permissions, 'invoice.approve')) {
+    reasons.push('The invoice approval permission is required.')
   }
   if (invoice.status !== 'A_VERIFIER') {
     reasons.push('The invoice is not waiting for approval.')
@@ -75,7 +75,7 @@ type ApprovalDecisionPanelProps = {
   onApprove: () => void
   onNextInvoice: () => void
   onStatusChanged: (status: string) => void
-  role?: RoleCode
+  permissions?: readonly string[]
 }
 
 export function ApprovalDecisionPanel({
@@ -88,7 +88,7 @@ export function ApprovalDecisionPanel({
   onApprove,
   onNextInvoice,
   onStatusChanged,
-  role,
+  permissions,
 }: ApprovalDecisionPanelProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [correctionDialogOpen, setCorrectionDialogOpen] = useState(false)
@@ -96,7 +96,7 @@ export function ApprovalDecisionPanel({
   const [rejectionReason, setRejectionReason] = useState<string | null>(null)
   const [historyError, setHistoryError] = useState(false)
   const [historyRetryCount, setHistoryRetryCount] = useState(0)
-  const blockingReasons = getBlockingReasons(invoice, role)
+  const blockingReasons = getBlockingReasons(invoice, permissions)
   const ready = blockingReasons.length === 0
   const busy = approvalConfirmed || isApproving || isLoadingNext
   const decisionHelpId = `approval-decision-help-${invoice.invoiceId}`

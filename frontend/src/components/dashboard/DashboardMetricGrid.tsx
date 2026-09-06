@@ -4,32 +4,29 @@ import { DashboardBlockError } from '@/components/dashboard/DashboardBlockError'
 import { getDashboardInvoiceListHref } from '@/components/dashboard/dashboard-navigation'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { RoleCode } from '@/types/auth'
+import { hasPermission } from '@/lib/permissions'
+import type { PermissionCode } from '@/types/auth'
 import type { DashboardPeriodQuery, DashboardSummary } from '@/types/dashboard'
 
 type DashboardMetricGridProps = {
   error: boolean
   onRetry: () => void
   period: DashboardPeriodQuery
-  role?: RoleCode
+  permissions?: readonly string[]
   summary: DashboardSummary | null
 }
 
 type Metric = {
-  allowedRoles: RoleCode[]
   href: string
   label: string
+  permission: PermissionCode
   value: number
 }
 
-const allRoles: RoleCode[] = ['ADMIN', 'OPERATEUR_COMPTABLE', 'RESPONSABLE_COMPTABLE']
-const processingRoles: RoleCode[] = ['ADMIN', 'OPERATEUR_COMPTABLE']
-const validationRoles: RoleCode[] = ['RESPONSABLE_COMPTABLE']
-
-function MetricCard({ metric, role }: { metric: Metric; role?: RoleCode }) {
+function MetricCard({ metric, permissions }: { metric: Metric; permissions?: readonly string[] }) {
   const actionClassName =
     'mt-auto flex h-10 w-fit items-center rounded-md px-2 text-sm font-medium text-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
-  const showAction = Boolean(role && metric.allowedRoles.includes(role))
+  const showAction = hasPermission(permissions, metric.permission)
 
   return (
     <Card className="h-[124px] shadow-elevation-1">
@@ -75,33 +72,33 @@ export function DashboardMetricGrid({
   error,
   onRetry,
   period,
-  role,
+  permissions,
   summary,
 }: DashboardMetricGridProps) {
   const metrics: Metric[] = summary
     ? [
         {
-          allowedRoles: processingRoles,
           href: getDashboardInvoiceListHref('DEPOSEE', period),
           label: 'To process',
+          permission: 'invoice.correct',
           value: summary.workQueues.toProcess,
         },
         {
-          allowedRoles: validationRoles,
           href: getDashboardInvoiceListHref('A_VERIFIER', period),
           label: 'Waiting for approval',
+          permission: 'invoice.approve',
           value: summary.workQueues.awaitingValidation,
         },
         {
-          allowedRoles: allRoles,
           href: getDashboardInvoiceListHref('EXPORTABLE', period),
           label: 'Ready to export',
+          permission: 'invoice.read',
           value: summary.workQueues.exportable,
         },
         {
-          allowedRoles: allRoles,
           href: '#processing-issues',
           label: 'Processing issues',
+          permission: 'invoice.read',
           value:
             summary.alerts.ocrErrors +
             summary.alerts.pendingDuplicates +
@@ -128,7 +125,7 @@ export function DashboardMetricGrid({
     >
       {summary
         ? metrics.map((metric) => (
-            <MetricCard key={metric.label} metric={metric} role={role} />
+            <MetricCard key={metric.label} metric={metric} permissions={permissions} />
           ))
         : Array.from({ length: 4 }, (_, index) => <MetricSkeleton key={index} />)}
     </section>

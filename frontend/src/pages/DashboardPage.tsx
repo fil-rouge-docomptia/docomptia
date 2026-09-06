@@ -183,7 +183,7 @@ export default function DashboardPage() {
         error={summaryError}
         onRetry={retrySummary}
         period={period}
-        role={user?.role.code}
+        permissions={user?.permissions}
         summary={summary}
       />
 

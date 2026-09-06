@@ -276,7 +276,7 @@ export function InvoiceDuplicateReviewDialog({
         {!canDecide ? (
           <Alert>
             <AlertDescription>
-              You can review this match, but your role cannot decide how to process it.
+              You can review this match, but the duplicate review permission is required to decide how to process it.
             </AlertDescription>
           </Alert>
         ) : decisionBlocked ? (

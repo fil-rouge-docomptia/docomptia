@@ -115,7 +115,7 @@ function getApiErrors(error: unknown): OrganizationErrors {
   }
 
   if (error.status === 403) {
-    return { form: 'Only an organization administrator can update this information.' }
+    return { form: 'The organization management permission is required to update this information.' }
   }
 
   return { form: error.message }

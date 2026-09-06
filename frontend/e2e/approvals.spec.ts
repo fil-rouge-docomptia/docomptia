@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import type { Page, Route } from '@playwright/test'
 
 import {
+  approvalPermissions,
   currentUser,
   fulfillJson,
   mockApiRoute,
@@ -12,10 +13,16 @@ import {
 const validator = {
   ...currentUser,
   role: {
-    code: 'RESPONSABLE_COMPTABLE',
+    code: 'APPROVER',
     id: 3,
-    label: 'Accounting manager',
+    label: 'Approver',
   },
+  roles: [{
+    code: 'APPROVER',
+    id: 3,
+    label: 'Approver',
+  }],
+  permissions: approvalPermissions,
 }
 
 const nonValidatorRoles = [

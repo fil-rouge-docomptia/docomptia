@@ -5,6 +5,7 @@ import {
   fulfillJson,
   mockApiRoute,
   mockCurrentUser,
+  readOnlyPermissions,
   seedAuthSession,
 } from './support/api'
 
@@ -165,10 +166,12 @@ test('lets an administrator create and edit construction sites with the supporte
   })
 })
 
-test('keeps project management actions hidden from a view-only role', async ({ page }) => {
+test('keeps project management actions hidden without management permission', async ({ page }) => {
   await mockApiRoute(page, '/v1/users/me', (route) => fulfillJson(route, 200, {
     ...currentUser,
-    role: { ...currentUser.role, code: 'RESPONSABLE_COMPTABLE' },
+    role: { ...currentUser.role, code: 'VIEWER', label: 'Viewer' },
+    roles: [{ ...currentUser.role, code: 'VIEWER', label: 'Viewer' }],
+    permissions: readOnlyPermissions,
   }))
   await mockApiRoute(page, '/v1/classifications*', (route) => (
     fulfillJson(route, 200, projectSitePage)

@@ -1,7 +1,7 @@
-import type { RoleCode } from '@/types/auth'
+import { hasPermission } from '@/lib/permissions'
 
-export function canManageProjectSites(role?: RoleCode) {
-  return role === 'ADMIN'
+export function canManageProjectSites(permissions?: readonly string[]) {
+  return hasPermission(permissions, 'classification.manage')
 }
 
 export function formatProjectSiteDate(value: string) {

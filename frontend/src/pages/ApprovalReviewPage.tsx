@@ -378,7 +378,7 @@ export default function ApprovalReviewPage() {
             onApprove={handleApprove}
             onNextInvoice={handleNextInvoice}
             onStatusChanged={handleStatusChanged}
-            role={user?.role.code}
+            permissions={user?.permissions}
           />
         </div>
       </div>

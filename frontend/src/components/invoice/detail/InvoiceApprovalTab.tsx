@@ -16,13 +16,13 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { hasPermission } from '@/lib/permissions'
 import {
   approveInvoice,
   getInvoiceHistory,
   rejectInvoice,
   requestInvoiceCorrection,
 } from '@/services/invoice'
-import type { RoleCode } from '@/types/auth'
 import type { InvoiceDetails, InvoiceHistoryItem } from '@/types/invoice'
 
 import {
@@ -35,12 +35,20 @@ type InvoiceApprovalTabProps = {
   invoice: InvoiceDetails
   onEditInvoice: () => void
   onStatusChanged: (status: string) => void
-  role?: RoleCode
+  permissions?: readonly string[]
 }
 
-function approvalMessage(invoice: InvoiceDetails, role?: RoleCode) {
+function approvalMessage(invoice: InvoiceDetails, permissions?: readonly string[]) {
+  const canApprove = hasPermission(permissions, 'invoice.approve')
+
+  if (invoice.status === 'A_VERIFIER') {
+    return canApprove
+      ? 'This invoice is ready for your accounting decision.'
+      : 'This invoice is waiting for a user with approval permission.'
+  }
+
   if (invoice.status === 'EXTRAITE') {
-    return canValidateInvoice(role)
+    return canApprove
       ? 'The accounting team must complete its review before this invoice reaches you.'
       : 'Review the extracted fields, then request approval from the invoice header.'
   }
@@ -141,10 +149,10 @@ function SubmissionSummary({
 
 function BasicApprovalState({
   invoice,
-  role,
+  permissions,
 }: {
   invoice: InvoiceDetails
-  role?: RoleCode
+  permissions?: readonly string[]
 }) {
   const completed = ['VALIDEE', 'COMPTABILISEE', 'EXPORTABLE', 'EXPORTEE', 'ARCHIVEE'].includes(
     invoice.status,
@@ -177,7 +185,7 @@ function BasicApprovalState({
               <InvoiceStatusBadge status={invoice.status} />
             </div>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              {approvalMessage(invoice, role)}
+              {approvalMessage(invoice, permissions)}
             </p>
           </div>
         </div>
@@ -190,7 +198,7 @@ export function InvoiceApprovalTab({
   invoice,
   onEditInvoice,
   onStatusChanged,
-  role,
+  permissions,
 }: InvoiceApprovalTabProps) {
   const [requestState, setRequestState] = useState<{
     error: boolean
@@ -207,8 +215,8 @@ export function InvoiceApprovalTab({
   const currentRequest = requestState.requestKey === requestKey
   const history = currentRequest ? requestState.history : null
   const historyError = currentRequest && requestState.error
-  const canValidate = invoice.status === 'A_VERIFIER' && canValidateInvoice(role)
-  const canEdit = invoice.status === 'REJETEE' && canCorrectInvoice(invoice.status, role)
+  const canValidate = invoice.status === 'A_VERIFIER' && canValidateInvoice(permissions)
+  const canEdit = invoice.status === 'REJETEE' && canCorrectInvoice(invoice.status, permissions)
 
   useEffect(() => {
     if (!trackedState) {
@@ -231,7 +239,7 @@ export function InvoiceApprovalTab({
   }, [invoice.invoiceId, requestKey, trackedState])
 
   if (!trackedState) {
-    return <BasicApprovalState invoice={invoice} role={role} />
+    return <BasicApprovalState invoice={invoice} permissions={permissions} />
   }
 
   const handleApprove = async () => {

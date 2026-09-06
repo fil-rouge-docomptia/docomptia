@@ -226,7 +226,7 @@ export default function InvoiceDetailsPage() {
         onRequestApproval={handleRequestApproval}
         onReviewDuplicate={handleReviewDuplicate}
         onRetryOcr={handleRetryOcr}
-        role={user?.role.code}
+        permissions={user?.permissions}
         showCorrectionAction={activeTab === 'details'}
       />
 
@@ -257,13 +257,13 @@ export default function InvoiceDetailsPage() {
           onIgnoreDuplicate={() => handleDuplicateDecision('IGNORE')}
           onInvoiceUpdated={handleInvoiceUpdated}
           onReviewDuplicate={handleReviewDuplicate}
-          role={user?.role.code}
+          permissions={user?.permissions}
         />
       </div>
 
       <InvoiceDuplicateReviewDialog
         alert={pendingDuplicateAlert}
-        canDecide={canProcessInvoice(user?.role.code)}
+        canDecide={canProcessInvoice(user?.permissions)}
         decisionBlocked={correctionState.dirty}
         decisionError={duplicateDecisionState.error}
         decisionPending={duplicateDecisionState.pending}

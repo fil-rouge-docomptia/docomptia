@@ -1,4 +1,4 @@
-import type { RoleCode } from '@/types/auth'
+import { hasPermission } from '@/lib/permissions'
 import type {
   InvoiceDetails,
   InvoiceOcrError,
@@ -6,26 +6,24 @@ import type {
 } from '@/types/invoice'
 
 const correctionStatuses = ['A_VERIFIER', 'ERREUR_OCR', 'EXTRAITE', 'REJETEE']
-const correctionRoles: RoleCode[] = ['ADMIN', 'OPERATEUR_COMPTABLE']
 const nonRetryableOcrErrorCodes = new Set([
   'OCR_FILE_READ_FAILED',
   'OCR_SERVICE_REJECTED',
 ])
 
-export function canCorrectInvoice(status: string, role?: RoleCode) {
+export function canCorrectInvoice(status: string, permissions?: readonly string[]) {
   return Boolean(
-    role
-    && correctionRoles.includes(role)
+    hasPermission(permissions, 'invoice.correct')
     && correctionStatuses.includes(status),
   )
 }
 
-export function canProcessInvoice(role?: RoleCode) {
-  return Boolean(role && correctionRoles.includes(role))
+export function canProcessInvoice(permissions?: readonly string[]) {
+  return hasPermission(permissions, 'invoice.review-duplicate')
 }
 
-export function canValidateInvoice(role?: RoleCode) {
-  return role === 'RESPONSABLE_COMPTABLE'
+export function canValidateInvoice(permissions?: readonly string[]) {
+  return hasPermission(permissions, 'invoice.approve')
 }
 
 export function isRetryableOcrError(error: InvoiceOcrError | null) {

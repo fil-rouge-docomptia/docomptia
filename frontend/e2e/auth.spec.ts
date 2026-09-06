@@ -25,6 +25,8 @@ test.describe('authentication journeys', () => {
         firstName: currentUser.firstName,
         lastName: currentUser.lastName,
         role: currentUser.role.code,
+        roles: currentUser.roles,
+        permissions: currentUser.permissions,
         organizationId: currentUser.organization.id,
         token: 'e2e-token',
       }),

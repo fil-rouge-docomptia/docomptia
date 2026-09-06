@@ -124,7 +124,7 @@ export default function ProjectDetailsPage() {
   return (
     <div className="space-y-6">
       <ProjectSiteDetailHeader
-        canEdit={canManageProjectSites(user?.role.code)}
+        canEdit={canManageProjectSites(user?.permissions)}
         onEdit={() => setEditOpen(true)}
         projectSite={projectSite}
       />

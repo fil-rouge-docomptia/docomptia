@@ -55,7 +55,7 @@ function getErrorMessage(error: unknown) {
   }
 
   if (error.status === 403) {
-    return 'Only an organization administrator can update the approval workflow.'
+    return 'The organization management permission is required to update the approval workflow.'
   }
 
   return error.message

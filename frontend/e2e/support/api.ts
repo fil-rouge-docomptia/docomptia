@@ -3,6 +3,61 @@ import type { Page, Route } from '@playwright/test'
 export const AUTH_TOKEN_STORAGE_KEY = 'docomptia.authToken'
 export const PENDING_REGISTRATION_EMAIL_KEY = 'docomptia.pending-registration-email'
 
+export const allPermissions = [
+  'user.profile.read',
+  'reference-data.read',
+  'organization.read',
+  'organization.manage',
+  'dashboard.read',
+  'invoice.read',
+  'invoice.upload',
+  'invoice.correct',
+  'invoice.submit-for-validation',
+  'invoice.retry-ocr',
+  'invoice.review-duplicate',
+  'invoice.assign',
+  'invoice.classify',
+  'invoice.approve',
+  'invoice.accounting.generate',
+  'accounting-entry.update',
+  'supplier.read',
+  'supplier.manage',
+  'accounting-configuration.read',
+  'accounting-configuration.manage',
+  'classification.read',
+  'classification.manage',
+  'member.read',
+  'member.invite',
+  'member.update',
+  'member.status.update',
+  'member.role.update',
+  'member.owner.manage',
+  'role.read',
+]
+
+export const approvalPermissions = [
+  'user.profile.read',
+  'reference-data.read',
+  'organization.read',
+  'dashboard.read',
+  'invoice.read',
+  'invoice.approve',
+  'supplier.read',
+  'accounting-configuration.read',
+  'classification.read',
+]
+
+export const readOnlyPermissions = [
+  'user.profile.read',
+  'reference-data.read',
+  'organization.read',
+  'dashboard.read',
+  'invoice.read',
+  'supplier.read',
+  'accounting-configuration.read',
+  'classification.read',
+]
+
 export const currentUser = {
   id: 1,
   firstName: 'Alex',
@@ -10,9 +65,15 @@ export const currentUser = {
   email: 'alex.martin@example.com',
   role: {
     id: 1,
-    code: 'ADMIN',
-    label: 'Administrator',
+    code: 'OWNER',
+    label: 'Owner',
   },
+  roles: [{
+    id: 1,
+    code: 'OWNER',
+    label: 'Owner',
+  }],
+  permissions: allPermissions,
   organization: {
     id: 1,
     name: 'Acme',

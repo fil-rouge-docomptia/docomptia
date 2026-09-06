@@ -49,7 +49,7 @@ function getErrorMessage(error: unknown) {
   }
 
   if (error.status === 403) {
-    return 'Only an organization administrator can update the accounting setup.'
+    return 'The accounting configuration permission is required to update the accounting setup.'
   }
 
   return error.message

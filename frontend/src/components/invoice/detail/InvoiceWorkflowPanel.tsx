@@ -3,7 +3,6 @@ import { InvoiceActivityTab } from '@/components/invoice/detail/InvoiceActivityT
 import { InvoiceApprovalTab } from '@/components/invoice/detail/InvoiceApprovalTab'
 import { InvoiceDetailsTab } from '@/components/invoice/detail/InvoiceDetailsTab'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import type { RoleCode } from '@/types/auth'
 import type {
   InvoiceDetails,
   InvoiceDuplicateAlert,
@@ -30,7 +29,7 @@ type InvoiceWorkflowPanelProps = {
   onIgnoreDuplicate: () => Promise<void>
   onInvoiceUpdated: (invoice: InvoiceDetails) => void
   onReviewDuplicate: () => void
-  role?: RoleCode
+  permissions?: readonly string[]
 }
 
 const tabClassName =
@@ -47,7 +46,7 @@ export function InvoiceWorkflowPanel({
   onIgnoreDuplicate,
   onInvoiceUpdated,
   onReviewDuplicate,
-  role,
+  permissions,
 }: InvoiceWorkflowPanelProps) {
   return (
     <Tabs
@@ -67,8 +66,8 @@ export function InvoiceWorkflowPanel({
       <div className="min-h-0 flex-1 overflow-y-auto">
         <TabsContent className="m-0 focus-visible:ring-inset" value="details">
           <InvoiceDetailsTab
-            canEdit={canCorrectInvoice(invoice.status, role)}
-            canProcessDuplicate={canProcessInvoice(role)}
+            canEdit={canCorrectInvoice(invoice.status, permissions)}
+            canProcessDuplicate={canProcessInvoice(permissions)}
             duplicateAlert={duplicateAlert}
             duplicateDecisionError={duplicateDecisionError}
             duplicateDecisionPending={Boolean(duplicateDecisionPending)}
@@ -87,7 +86,7 @@ export function InvoiceWorkflowPanel({
             invoice={invoice}
             onEditInvoice={() => onActiveTabChange('details')}
             onStatusChanged={(status) => onInvoiceUpdated({ ...invoice, status })}
-            role={role}
+            permissions={permissions}
           />
         </TabsContent>
         <TabsContent className="m-0 focus-visible:ring-inset" value="activity">

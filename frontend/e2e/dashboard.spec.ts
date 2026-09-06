@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import {
+  approvalPermissions,
   fulfillJson,
   mockApiRoute,
   mockCurrentUser,
@@ -203,15 +204,17 @@ test('opens the invoice list with the selected dashboard status', async ({ page 
   await expect(page.getByText('Invoice period: 4 Aug 2026 – 2 Sept 2026')).toBeVisible()
 })
 
-test('only offers dashboard queue actions allowed for the current role', async ({ page }) => {
+test('only offers dashboard queue actions allowed by current permissions', async ({ page }) => {
   await page.unroute('**/api/v1/users/me')
   await mockCurrentUser(page, {
     ...currentUser,
     role: {
       ...currentUser.role,
-      code: 'RESPONSABLE_COMPTABLE',
-      label: 'Accounting manager',
+      code: 'APPROVER',
+      label: 'Approver',
     },
+    roles: [{ ...currentUser.role, code: 'APPROVER', label: 'Approver' }],
+    permissions: approvalPermissions,
   })
   await page.clock.setFixedTime(new Date(2026, 8, 2, 12))
   await mockDashboardRequests(page)

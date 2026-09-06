@@ -95,7 +95,7 @@ export default function ProjectsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        actions={canManageProjectSites(user?.role.code) ? (
+        actions={canManageProjectSites(user?.permissions) ? (
           <Button onClick={() => setCreateOpen(true)} type="button">
             <Plus aria-hidden="true" />
             Create project

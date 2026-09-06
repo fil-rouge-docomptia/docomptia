@@ -38,10 +38,10 @@ type InvitationValues = {
 }
 
 function getInitialRole(roles: ReferenceItem[]): RoleCode {
-  const preferredRole = roles.find((role) => role.code === 'OPERATEUR_COMPTABLE')
+  const preferredRole = roles.find((role) => role.code === 'ACCOUNTANT')
   const fallbackRole = preferredRole ?? roles.find((role) => isRoleCode(role.code))
 
-  return fallbackRole && isRoleCode(fallbackRole.code) ? fallbackRole.code : 'OPERATEUR_COMPTABLE'
+  return fallbackRole && isRoleCode(fallbackRole.code) ? fallbackRole.code : 'ACCOUNTANT'
 }
 
 function getApiErrors(error: unknown): InvitationErrors {
@@ -64,7 +64,7 @@ function getApiErrors(error: unknown): InvitationErrors {
   }
 
   if (error.status === 403) {
-    return { form: 'Only an organization administrator can invite teammates.' }
+    return { form: 'The member invitation permission is required to invite teammates.' }
   }
 
   return { form: error.message }

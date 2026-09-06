@@ -5,6 +5,7 @@ import {
   fulfillJson,
   mockApiRoute,
   mockCurrentUser,
+  readOnlyPermissions,
   seedAuthSession,
 } from './support/api'
 
@@ -213,10 +214,12 @@ test('keeps the supplier data visible when a SIRET replacement is rejected', asy
   })
 })
 
-test('keeps supplier editing unavailable to a view-only role', async ({ page }) => {
+test('keeps supplier editing unavailable without supplier management permission', async ({ page }) => {
   await mockApiRoute(page, '/v1/users/me', (route) => fulfillJson(route, 200, {
     ...currentUser,
-    role: { ...currentUser.role, code: 'RESPONSABLE_COMPTABLE' },
+    role: { ...currentUser.role, code: 'VIEWER', label: 'Viewer' },
+    roles: [{ ...currentUser.role, code: 'VIEWER', label: 'Viewer' }],
+    permissions: readOnlyPermissions,
   }))
   await mockApiRoute(page, '/v1/invoices*', (route) => fulfillJson(route, 200, invoicePage))
 

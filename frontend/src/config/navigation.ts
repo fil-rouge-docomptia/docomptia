@@ -14,15 +14,11 @@ import {
   Truck,
   Users,
 } from 'lucide-react'
-import type { RoleCode } from '@/types/auth'
-
-const allRoles: RoleCode[] = ['ADMIN', 'OPERATEUR_COMPTABLE', 'RESPONSABLE_COMPTABLE']
-const processingRoles: RoleCode[] = ['ADMIN', 'OPERATEUR_COMPTABLE']
-const validationRoles: RoleCode[] = ['ADMIN', 'RESPONSABLE_COMPTABLE']
-const administrationRoles: RoleCode[] = ['ADMIN']
+import { hasPermission } from '@/lib/permissions'
+import type { PermissionCode } from '@/types/auth'
 
 export type NavigationItem = {
-  allowedRoles: RoleCode[]
+  permission: PermissionCode
   icon: LucideIcon
   label: string
   path: string
@@ -38,49 +34,49 @@ export const navigationGroups: NavigationGroup[] = [
     label: 'Workspace',
     items: [
       {
-        allowedRoles: allRoles,
+        permission: 'dashboard.read',
         icon: LayoutDashboard,
         label: 'Dashboard',
         path: '/dashboard',
       },
-      { allowedRoles: processingRoles, icon: Inbox, label: 'Inbox', path: '/inbox' },
-      { allowedRoles: allRoles, icon: ReceiptText, label: 'Invoices', path: '/invoices' },
+      { permission: 'invoice.upload', icon: Inbox, label: 'Inbox', path: '/inbox' },
+      { permission: 'invoice.read', icon: ReceiptText, label: 'Invoices', path: '/invoices' },
       {
-        allowedRoles: validationRoles,
+        permission: 'invoice.approve',
         icon: BadgeCheck,
         label: 'Approvals',
         path: '/approvals',
       },
-      { allowedRoles: allRoles, icon: Calculator, label: 'Accounting', path: '/accounting' },
-      { allowedRoles: allRoles, icon: FileOutput, label: 'Exports', path: '/exports' },
-      { allowedRoles: allRoles, icon: Files, label: 'Documents', path: '/documents' },
+      { permission: 'accounting-configuration.read', icon: Calculator, label: 'Accounting', path: '/accounting' },
+      { permission: 'invoice.read', icon: FileOutput, label: 'Exports', path: '/exports' },
+      { permission: 'invoice.read', icon: Files, label: 'Documents', path: '/documents' },
     ],
   },
   {
     label: 'Directory',
     items: [
-      { allowedRoles: allRoles, icon: Truck, label: 'Suppliers', path: '/suppliers' },
-      { allowedRoles: allRoles, icon: Users, label: 'Clients', path: '/clients' },
-      { allowedRoles: allRoles, icon: MapPin, label: 'Projects / Sites', path: '/projects' },
+      { permission: 'supplier.read', icon: Truck, label: 'Suppliers', path: '/suppliers' },
+      { permission: 'organization.read', icon: Users, label: 'Clients', path: '/clients' },
+      { permission: 'classification.read', icon: MapPin, label: 'Projects / Sites', path: '/projects' },
     ],
   },
   {
     label: 'Analytics',
     items: [
-      { allowedRoles: allRoles, icon: ChartNoAxesColumn, label: 'Reports', path: '/reports' },
+      { permission: 'dashboard.read', icon: ChartNoAxesColumn, label: 'Reports', path: '/reports' },
     ],
   },
   {
     label: 'Administration',
     items: [
       {
-        allowedRoles: administrationRoles,
+        permission: 'organization.manage',
         icon: Plug,
         label: 'Integrations',
         path: '/integrations',
       },
       {
-        allowedRoles: administrationRoles,
+        permission: 'organization.manage',
         icon: Settings,
         label: 'Settings',
         path: '/settings',
@@ -89,11 +85,11 @@ export const navigationGroups: NavigationGroup[] = [
   },
 ]
 
-export function getNavigationGroups(role: RoleCode) {
+export function getNavigationGroups(permissions: readonly string[]) {
   return navigationGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => item.allowedRoles.includes(role)),
+      items: group.items.filter((item) => hasPermission(permissions, item.permission)),
     }))
     .filter((group) => group.items.length > 0)
 }
