@@ -13,6 +13,7 @@ import org.facturation.backend.exception.AccountingEntryPrerequisitesException;
 import org.facturation.backend.exception.ApiExceptionHandler;
 import org.facturation.backend.exception.InvoiceMissingRequiredFieldsException;
 import org.facturation.backend.exception.InvoiceStatusTransitionException;
+import org.facturation.backend.exception.ArchivedInvoiceNotModifiableException;
 import org.facturation.backend.exception.UnbalancedAccountingEntryException;
 import org.facturation.backend.model.AccountingEntryLine;
 import org.facturation.backend.model.AuditLog;
@@ -802,6 +803,25 @@ class InvoiceLifecycleStatusIntegrationTest {
         assertEquals(uploadResponse.getInvoiceId(), latestHistory.getInvoice().getInvoiceId());
         assertEquals(1L, latestHistory.getChangedByUser().getUserId());
         assertEquals(1L, latestHistory.getInvoice().getOrganization().getOrganizationId());
+        assertTrue(invoiceService.findDetailsById(uploadResponse.getInvoiceId()).isPresent());
+        assertTrue(invoiceService.downloadFile(uploadResponse.getInvoiceId()).isPresent());
+
+        InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
+        correctionRequest.setInvoiceNumber("ARCHIVE-MODIFICATION");
+        ArchivedInvoiceNotModifiableException archivedException = assertThrows(
+                ArchivedInvoiceNotModifiableException.class,
+                () -> invoiceService.correctInvoice(uploadResponse.getInvoiceId(), correctionRequest)
+        );
+        ResponseEntity<ApiErrorResponse> archivedErrorResponse =
+                apiExceptionHandler.handleArchivedInvoiceNotModifiable(archivedException);
+
+        assertEquals(HttpStatus.CONFLICT, archivedErrorResponse.getStatusCode());
+        assertEquals("ARCHIVED_INVOICE_NOT_MODIFIABLE", archivedErrorResponse.getBody().getCode());
+        assertEquals(archivedException.getMessage(), archivedErrorResponse.getBody().getMessage());
+        assertEquals(
+                InvoiceStatusCode.ARCHIVEE.getCode(),
+                invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow().getInvoiceStatus().getCode()
+        );
     }
 
     private void submitCompleteInvoiceForValidation(Long invoiceId) {

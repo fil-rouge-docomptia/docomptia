@@ -99,6 +99,10 @@ retourne `404`.
 Dans les reponses OCR, `ocrAnalysis.fields[].corrected` vaut `true` lorsqu'une
 valeur normalisee provient d'une correction manuelle.
 
+Une facture `ARCHIVEE` reste consultable, previsualisable et telechargeable. Toute route
+qui modifierait la facture, son statut, son classement, son affectation, ses doublons ou son
+ecriture retourne `409` avec le code metier `ARCHIVED_INVOICE_NOT_MODIFIABLE`.
+
 ## Matrice Des Permissions MVP
 
 Le backend centralise les autorisations dans `BusinessPermission`. Toute nouvelle route

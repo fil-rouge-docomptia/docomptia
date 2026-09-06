@@ -78,6 +78,7 @@ public class AccountingEntryCorrectionServiceImpl implements AccountingEntryCorr
                         accountingEntryLineId
                 ));
         AccountingEntry accountingEntry = line.getAccountingEntry();
+        invoiceStatusWorkflowService.ensureModifiable(accountingEntry.getInvoice());
         ensureModifiable(accountingEntry);
 
         List<AppliedCorrection> corrections = applyCorrections(line, request, organizationId);
