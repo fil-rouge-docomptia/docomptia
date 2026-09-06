@@ -65,6 +65,10 @@ class NotificationServiceImplTest {
         assertThat(notification.getMessage()).isEqualTo("An invoice requires your attention.");
         assertThat(notification.getInvoice()).isSameAs(invoice);
         assertThat(notification.isRead()).isFalse();
+        assertThat(notification.isEmailRequired()).isFalse();
+        assertThat(notification.getEmailRecipient()).isNull();
+        assertThat(notification.getEmailSubject()).isNull();
+        assertThat(notification.getEmailBody()).isNull();
         assertThat(notification.getCreatedAt()).isBetween(beforeCreation, LocalDateTime.now());
     }
 
@@ -104,6 +108,7 @@ class NotificationServiceImplTest {
     @Test
     void notifiesTheInvoiceDepositorAboutAnOcrFailure() {
         User depositor = new User();
+        depositor.setEmail("depositor@example.com");
         Invoice invoice = invoice(42L, depositor);
         OcrError error = ocrError("OCR_SERVICE_UNAVAILABLE", "OCR service is unavailable");
         when(notificationRepository.save(org.mockito.ArgumentMatchers.any(Notification.class)))
@@ -119,6 +124,30 @@ class NotificationServiceImplTest {
         assertThat(notification.getType()).isEqualTo("OCR_ERROR");
         assertThat(notification.getMessage())
                 .isEqualTo("Invoice 42 could not be analyzed: OCR_SERVICE_UNAVAILABLE - OCR service is unavailable");
+        assertThat(notification.isEmailRequired()).isTrue();
+        assertThat(notification.getEmailRecipient()).isEqualTo("depositor@example.com");
+        assertThat(notification.getEmailSubject()).isEqualTo("Invoice analysis failed");
+        assertThat(notification.getEmailBody()).isEqualTo(notification.getMessage());
+    }
+
+    @Test
+    void keepsInternalNotificationWhenRecipientHasNoEmail() {
+        User depositor = new User();
+        Invoice invoice = invoice(42L, depositor);
+        OcrError error = ocrError("OCR_SERVICE_UNAVAILABLE", "OCR service is unavailable");
+        when(notificationRepository.save(org.mockito.ArgumentMatchers.any(Notification.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        notificationService.notifyOcrFailure(invoice, error);
+
+        ArgumentCaptor<Notification> notificationCaptor = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(notificationCaptor.capture());
+        Notification notification = notificationCaptor.getValue();
+        assertThat(notification.getRecipient()).isSameAs(depositor);
+        assertThat(notification.isEmailRequired()).isFalse();
+        assertThat(notification.getEmailRecipient()).isNull();
+        assertThat(notification.getEmailSubject()).isNull();
+        assertThat(notification.getEmailBody()).isNull();
     }
 
     @Test
@@ -177,7 +206,9 @@ class NotificationServiceImplTest {
     @Test
     void notifiesActiveAccountingManagersAboutPendingValidation() {
         User firstValidator = new User();
+        firstValidator.setEmail("first-validator@example.com");
         User secondValidator = new User();
+        secondValidator.setEmail("second-validator@example.com");
         Invoice invoice = invoice(42L, new User());
         Organization organization = new Organization();
         organization.setOrganizationId(7L);
@@ -199,6 +230,9 @@ class NotificationServiceImplTest {
                     assertThat(notification.getInvoice()).isSameAs(invoice);
                     assertThat(notification.getType()).isEqualTo("PENDING_VALIDATION");
                     assertThat(notification.getMessage()).isEqualTo("Invoice 42 is awaiting validation");
+                    assertThat(notification.isEmailRequired()).isTrue();
+                    assertThat(notification.getEmailSubject()).isEqualTo("Invoice awaiting validation");
+                    assertThat(notification.getEmailBody()).isEqualTo(notification.getMessage());
                 });
     }
 

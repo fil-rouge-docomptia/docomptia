@@ -146,5 +146,9 @@ CREATE TABLE IF NOT EXISTS notifications (
     invoice_id BIGINT REFERENCES invoices(invoice_id),
     is_read BOOLEAN NOT NULL DEFAULT FALSE,
     read_at TIMESTAMP,
+    email_required BOOLEAN NOT NULL DEFAULT FALSE,
+    email_recipient VARCHAR(255),
+    email_subject VARCHAR(255),
+    email_body TEXT,
     created_at TIMESTAMP NOT NULL
 );

@@ -26,6 +26,10 @@ public class NotificationServiceImpl implements NotificationService {
     private static final String CORRECTION_REQUEST_TYPE = "CORRECTION_REQUEST";
     private static final String REJECTION_TYPE = "REJECTION";
     private static final String PENDING_VALIDATION_TYPE = "PENDING_VALIDATION";
+    private static final String OCR_ERROR_SUBJECT = "Invoice analysis failed";
+    private static final String CORRECTION_REQUEST_SUBJECT = "Invoice correction requested";
+    private static final String REJECTION_SUBJECT = "Invoice rejected";
+    private static final String PENDING_VALIDATION_SUBJECT = "Invoice awaiting validation";
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
@@ -74,6 +78,10 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional
     public Notification create(User recipient, String type, String message, Invoice invoice) {
+        return notificationRepository.save(createInternalNotification(recipient, type, message, invoice));
+    }
+
+    private Notification createInternalNotification(User recipient, String type, String message, Invoice invoice) {
         if (recipient == null) {
             throw new IllegalArgumentException("Notification recipient is required");
         }
@@ -84,8 +92,9 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setMessage(requireValue(message, "message"));
         notification.setInvoice(invoice);
         notification.setRead(false);
+        notification.setEmailRequired(false);
         notification.setCreatedAt(LocalDateTime.now());
-        return notificationRepository.save(notification);
+        return notification;
     }
 
     @Override
@@ -99,7 +108,7 @@ public class NotificationServiceImpl implements NotificationService {
         )) {
             return;
         }
-        create(recipient, OCR_ERROR_TYPE, message, invoice);
+        createWithEmail(recipient, OCR_ERROR_TYPE, message, invoice, OCR_ERROR_SUBJECT);
     }
 
     @Override
@@ -130,14 +139,47 @@ public class NotificationServiceImpl implements NotificationService {
             if (!notificationRepository.existsByRecipientAndTypeAndMessageAndInvoice(
                     recipient, PENDING_VALIDATION_TYPE, message, invoice
             )) {
-                create(recipient, PENDING_VALIDATION_TYPE, message, invoice);
+                createWithEmail(
+                        recipient,
+                        PENDING_VALIDATION_TYPE,
+                        message,
+                        invoice,
+                        PENDING_VALIDATION_SUBJECT
+                );
             }
         });
     }
 
     private void notifyDepositor(Invoice invoice, String type, String messagePrefix, String reason) {
         String message = messagePrefix + requireValue(reason, "decision reason");
-        create(invoice.getCreatedByUser(), type, message, invoice);
+        createWithEmail(invoice.getCreatedByUser(), type, message, invoice, emailSubject(type));
+    }
+
+    private Notification createWithEmail(
+            User recipient,
+            String type,
+            String message,
+            Invoice invoice,
+            String emailSubject
+    ) {
+        Notification notification = createInternalNotification(recipient, type, message, invoice);
+        if (recipient.getEmail() == null || recipient.getEmail().isBlank()) {
+            return notificationRepository.save(notification);
+        }
+        notification.setEmailRequired(true);
+        notification.setEmailRecipient(recipient.getEmail().trim());
+        notification.setEmailSubject(emailSubject);
+        notification.setEmailBody(notification.getMessage());
+        return notificationRepository.save(notification);
+    }
+
+    private String emailSubject(String type) {
+        return switch (type) {
+            case CORRECTION_REQUEST_TYPE -> CORRECTION_REQUEST_SUBJECT;
+            case REJECTION_TYPE -> REJECTION_SUBJECT;
+            case PENDING_VALIDATION_TYPE -> PENDING_VALIDATION_SUBJECT;
+            default -> throw new IllegalArgumentException("Unsupported email notification type: " + type);
+        };
     }
 
     private String requireValue(String value, String fieldName) {
