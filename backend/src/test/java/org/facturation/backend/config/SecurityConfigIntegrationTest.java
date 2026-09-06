@@ -233,6 +233,19 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
+    void allBusinessRolesCanConfirmInvoicePayments() throws Exception {
+        for (String email : new String[]{
+                "admin@facturation-demo.fr",
+                "operator-security@facturation-demo.fr",
+                "manager-security@facturation-demo.fr"
+        }) {
+            mockMvc.perform(post("/api/v1/invoices/999999/mark-paid")
+                            .header("Authorization", "Bearer " + tokenFor(email)))
+                    .andExpect(status().isNotFound());
+        }
+    }
+
+    @Test
     void accountingManagerCannotUpdateSuppliers() throws Exception {
         assertForbidden(patch("/api/v1/suppliers/1")
                 .contentType(MediaType.APPLICATION_JSON)

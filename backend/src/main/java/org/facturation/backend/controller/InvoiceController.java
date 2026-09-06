@@ -450,6 +450,23 @@ public class InvoiceController {
         return ResponseEntity.ok(requireInvoiceResponse(invoiceService.rejectInvoice(id, request.getReason()), id));
     }
 
+    @PostMapping("/{id}/mark-paid")
+    @Operation(
+            summary = "Marquer une facture comme payee",
+            description = "Passe une facture exportee au statut PAYEE et historise la confirmation du reglement"
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Facture marquee comme payee"),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Facture introuvable dans l'organisation de l'utilisateur"
+            ),
+            @ApiResponse(responseCode = "409", description = "Facture incompatible avec la confirmation du paiement")
+    })
+    public ResponseEntity<InvoiceStatusResponse> markInvoiceAsPaid(@PathVariable Long id) {
+        return ResponseEntity.ok(requireInvoiceResponse(invoiceService.markInvoiceAsPaid(id), id));
+    }
+
     @PostMapping("/{invoiceId}/duplicate-alerts/{alertId}/decision")
     @Operation(summary = "Decider du traitement d'une alerte de doublon")
     @ApiResponses({
