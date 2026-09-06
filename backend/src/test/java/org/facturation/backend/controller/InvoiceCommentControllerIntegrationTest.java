@@ -2,6 +2,7 @@ package org.facturation.backend.controller;
 
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceComment;
+import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.InvoiceCommentRepository;
@@ -129,6 +130,32 @@ class InvoiceCommentControllerIntegrationTest {
                 .andExpect(jsonPath("$.content.length()").value(1))
                 .andExpect(jsonPath("$.content[0].content").value("Third comment"))
                 .andExpect(jsonPath("$.number").value(1));
+    }
+
+    @Test
+    void keepsArchivedInvoiceCommentsReadableButRefusesNewComments() throws Exception {
+        User author = userRepository.findByEmailIgnoreCase("admin@facturation-demo.fr").orElseThrow();
+        Invoice invoice = createInvoice(author);
+        saveComment(invoice, author, "Comment recorded before archival", LocalDateTime.now());
+        invoice.setInvoiceStatus(invoiceStatusRepository.findByCode(InvoiceStatusCode.ARCHIVEE.getCode()).orElseThrow());
+        invoice.setArchivedAt(LocalDateTime.now());
+        invoiceRepository.saveAndFlush(invoice);
+        long commentCount = commentRepository.count();
+
+        mockMvc.perform(get("/api/v1/invoices/{id}/comments", invoice.getInvoiceId())
+                        .header("Authorization", "Bearer " + tokenFor(author)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].content").value("Comment recorded before archival"));
+
+        mockMvc.perform(post("/api/v1/invoices/{id}/comments", invoice.getInvoiceId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"Must not be added\"}")
+                        .header("Authorization", "Bearer " + tokenFor(author)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ARCHIVED_INVOICE_NOT_MODIFIABLE"));
+
+        assertThat(commentRepository.count()).isEqualTo(commentCount);
     }
 
     @Test
