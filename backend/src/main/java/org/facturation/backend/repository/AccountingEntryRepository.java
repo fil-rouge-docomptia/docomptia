@@ -11,7 +11,14 @@ import java.util.Optional;
 
 public interface AccountingEntryRepository extends JpaRepository<AccountingEntry, Long> {
 
-    Optional<AccountingEntry> findByInvoiceInvoiceId(Long invoiceId);
+    Optional<AccountingEntry> findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(Long invoiceId);
+
+    Optional<AccountingEntry> findByAccountingEntryIdAndInvoiceOrganizationOrganizationId(
+            Long accountingEntryId,
+            Long organizationId
+    );
+
+    Optional<AccountingEntry> findByReversedAccountingEntryAccountingEntryId(Long accountingEntryId);
 
     @Query("""
             select distinct entry
