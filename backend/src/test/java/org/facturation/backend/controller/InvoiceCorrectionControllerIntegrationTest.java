@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -183,6 +184,40 @@ class InvoiceCorrectionControllerIntegrationTest {
     }
 
     @Test
+    void returnsExplicitNotFoundWhenInvoiceHasNoFileMetadata() throws Exception {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        InvoiceFile invoiceFile = invoiceFileRepository
+                .findByInvoiceInvoiceId(uploadResponse.getInvoiceId())
+                .orElseThrow();
+        invoiceFileRepository.delete(invoiceFile);
+        invoiceFileRepository.flush();
+
+        mockMvc.perform(get("/api/v1/invoices/{id}/file", uploadResponse.getInvoiceId()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("INVOICE_FILE_NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value(
+                        "Original file for invoice " + uploadResponse.getInvoiceId() + " not found"
+                ));
+    }
+
+    @Test
+    void returnsExplicitNotFoundWhenStoredInvoiceFileIsMissing() throws Exception {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        InvoiceFile invoiceFile = invoiceFileRepository
+                .findByInvoiceInvoiceId(uploadResponse.getInvoiceId())
+                .orElseThrow();
+        invoiceFile.setFilePath(System.getProperty("java.io.tmpdir") + "/" + UUID.randomUUID());
+        invoiceFileRepository.saveAndFlush(invoiceFile);
+
+        mockMvc.perform(get("/api/v1/invoices/{id}/file", uploadResponse.getInvoiceId()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("INVOICE_FILE_NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value(
+                        "Original file for invoice " + uploadResponse.getInvoiceId() + " not found"
+                ));
+    }
+
+    @Test
     void previewsInvoiceFileInlineWithItsMimeType() throws Exception {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
 
@@ -224,9 +259,9 @@ class InvoiceCorrectionControllerIntegrationTest {
 
         mockMvc.perform(get("/api/v1/invoices/{id}/file", inaccessibleInvoice.getInvoiceId()))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("INVOICE_NOT_FOUND"))
+                .andExpect(jsonPath("$.code").value("INVOICE_FILE_NOT_FOUND"))
                 .andExpect(jsonPath("$.message").value(
-                        "Invoice " + inaccessibleInvoice.getInvoiceId() + " not found"
+                        "Original file for invoice " + inaccessibleInvoice.getInvoiceId() + " not found"
                 ));
     }
 

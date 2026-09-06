@@ -1,5 +1,6 @@
 package org.facturation.backend.service.storage;
 
+import org.facturation.backend.exception.InvoiceFileNotFoundException;
 import org.facturation.backend.model.InvoiceFile;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -8,6 +9,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.UUID;
@@ -53,6 +55,8 @@ public class LocalInvoiceFileStorageService implements InvoiceFileStorageService
                     invoiceFile.getMimeType(),
                     content
             );
+        } catch (NoSuchFileException exception) {
+            throw new InvoiceFileNotFoundException(invoiceFile.getInvoice().getInvoiceId());
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read stored invoice file", exception);
         }

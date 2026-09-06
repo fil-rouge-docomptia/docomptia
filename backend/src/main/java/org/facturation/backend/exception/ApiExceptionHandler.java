@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class ApiExceptionHandler {
 
     private static final String INVALID_INVOICE_FILE_CODE = "INVALID_INVOICE_FILE";
+    private static final String INVOICE_FILE_NOT_FOUND_CODE = "INVOICE_FILE_NOT_FOUND";
     private static final String INVOICE_FILE_NOT_PREVIEWABLE_CODE = "INVOICE_FILE_NOT_PREVIEWABLE";
     private static final String INVOICE_VALIDATION_ERROR_CODE = "INVOICE_VALIDATION_ERROR";
     private static final String INVOICE_NOT_FOUND_CODE = "INVOICE_NOT_FOUND";
@@ -61,6 +62,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(InvalidInvoiceFileException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidInvoiceFile(InvalidInvoiceFileException exception) {
         return errorResponse(HttpStatus.BAD_REQUEST, INVALID_INVOICE_FILE_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvoiceFileNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvoiceFileNotFound(InvoiceFileNotFoundException exception) {
+        return errorResponse(HttpStatus.NOT_FOUND, INVOICE_FILE_NOT_FOUND_CODE, exception.getMessage());
     }
 
     @ExceptionHandler(InvoiceFileNotPreviewableException.class)
