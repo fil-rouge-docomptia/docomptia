@@ -50,6 +50,7 @@ class InvoiceStatusWorkflowServiceIntegrationTest {
         assertNotNull(invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.A_VERIFIER));
         assertNotNull(invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.EXPORTABLE));
         assertNotNull(invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.EXPORTEE));
+        assertNotNull(invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.PAYEE));
         assertNotNull(invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.ARCHIVEE));
         assertNotNull(invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.VALIDEE));
         assertNotNull(invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.REJETEE));
@@ -63,6 +64,26 @@ class InvoiceStatusWorkflowServiceIntegrationTest {
         );
 
         assertEquals("Invoice status INCONNU not found", exception.getMessage());
+    }
+
+    @Test
+    void controlsPaidStatusTransitionsThroughTheInvoiceWorkflow() {
+        Invoice exportedInvoice = invoiceWithStatus(InvoiceStatusCode.EXPORTEE);
+        Invoice exportableInvoice = invoiceWithStatus(InvoiceStatusCode.EXPORTABLE);
+        Invoice paidInvoice = invoiceWithStatus(InvoiceStatusCode.PAYEE);
+
+        assertDoesNotThrow(() -> invoiceStatusWorkflowService.ensureCanTransition(
+                exportedInvoice,
+                InvoiceStatusCode.PAYEE
+        ));
+        assertThrows(
+                InvoiceStatusTransitionException.class,
+                () -> invoiceStatusWorkflowService.ensureCanTransition(exportableInvoice, InvoiceStatusCode.PAYEE)
+        );
+        assertDoesNotThrow(() -> invoiceStatusWorkflowService.ensureCanTransition(
+                paidInvoice,
+                InvoiceStatusCode.ARCHIVEE
+        ));
     }
 
     @Test

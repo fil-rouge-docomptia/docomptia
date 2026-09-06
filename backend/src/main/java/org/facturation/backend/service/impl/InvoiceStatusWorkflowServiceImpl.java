@@ -373,7 +373,11 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
                 EnumSet.of(InvoiceStatusCode.VALIDEE, InvoiceStatusCode.COMPTABILISEE)
         );
         allowedPreviousStatuses.put(InvoiceStatusCode.EXPORTEE, EnumSet.of(InvoiceStatusCode.EXPORTABLE));
-        allowedPreviousStatuses.put(InvoiceStatusCode.ARCHIVEE, EnumSet.of(InvoiceStatusCode.EXPORTEE));
+        allowedPreviousStatuses.put(InvoiceStatusCode.PAYEE, EnumSet.of(InvoiceStatusCode.EXPORTEE));
+        allowedPreviousStatuses.put(
+                InvoiceStatusCode.ARCHIVEE,
+                EnumSet.of(InvoiceStatusCode.EXPORTEE, InvoiceStatusCode.PAYEE)
+        );
         return allowedPreviousStatuses;
     }
 }

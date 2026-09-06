@@ -45,6 +45,9 @@ VALUES (10, 'EXPORTEE', 'Exportee', 'Facture exportee avec succes');
 INSERT INTO invoice_statuses (invoice_status_id, code, label, description)
 VALUES (11, 'ARCHIVEE', 'Archivee', 'Facture archivee en lecture seule');
 
+INSERT INTO invoice_statuses (invoice_status_id, code, label, description)
+VALUES (12, 'PAYEE', 'Payee', 'Reglement de la facture confirme');
+
 INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, password_hash, is_active, created_at, updated_at)
 VALUES (1, 1, 1, 'Admin', 'Demo', 'admin@facturation-demo.fr', '$2y$10$KUfJnN7ROhgbS3HTUJbNQeyesH5EFAlgvhkyw3Kf9UdX.DdsROjd6', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
