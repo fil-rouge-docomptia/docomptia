@@ -217,6 +217,11 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     }
 
     @Override
+    public void markPaid(Invoice invoice, User user) {
+        transitionTo(invoice, InvoiceStatusCode.PAYEE, user, "Invoice payment confirmed");
+    }
+
+    @Override
     public void ensureCanTransition(Invoice invoice, InvoiceStatusCode targetCode) {
         ensureModifiable(invoice);
         InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);

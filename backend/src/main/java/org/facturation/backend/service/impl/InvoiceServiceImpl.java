@@ -517,6 +517,16 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional
+    public Optional<InvoiceStatusResponse> markInvoiceAsPaid(Long id) {
+        User user = currentUserService.getCurrentUser();
+        return findInvoiceForCurrentOrganization(id, user).map(invoice -> {
+            invoiceStatusWorkflowService.markPaid(invoice, user);
+            return invoiceResponseMapper.toStatusResponse(invoice);
+        });
+    }
+
+    @Override
+    @Transactional
     public Optional<InvoiceDetailsResponse> decideDuplicateAlert(
             Long invoiceId,
             Long alertId,

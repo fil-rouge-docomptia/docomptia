@@ -67,6 +67,8 @@ public interface InvoiceService {
 
     Optional<InvoiceStatusResponse> rejectInvoice(Long id, String reason);
 
+    Optional<InvoiceStatusResponse> markInvoiceAsPaid(Long id);
+
     Optional<InvoiceDetailsResponse> decideDuplicateAlert(
             Long invoiceId,
             Long alertId,
