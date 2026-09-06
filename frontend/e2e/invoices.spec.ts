@@ -113,6 +113,70 @@ const invoiceDetails = {
   totalTva: '250.10',
 }
 
+const balancedAccountingEntry = {
+  accountingEntryId: 15,
+  balanceDifference: '0.00',
+  balanced: true,
+  entryDate: '2026-08-13',
+  entryNumber: 'ACC-2026-0421',
+  label: 'Leroy Construction — INV-2026-0421',
+  lines: [
+    {
+      accountLabel: 'Supplies',
+      accountNumber: '606300',
+      accountingEntryLineId: 151,
+      creditAmount: '0.00',
+      debitAmount: '1000.00',
+      lineLabel: 'Supplies',
+      lineNumber: 1,
+    },
+    {
+      accountLabel: 'Deductible VAT',
+      accountNumber: '445660',
+      accountingEntryLineId: 152,
+      creditAmount: '0.00',
+      debitAmount: '260.00',
+      lineLabel: 'Deductible VAT',
+      lineNumber: 2,
+    },
+    {
+      accountLabel: 'Supplier',
+      accountNumber: '401000',
+      accountingEntryLineId: 153,
+      creditAmount: '1260.00',
+      debitAmount: '0.00',
+      lineLabel: 'Supplier',
+      lineNumber: 3,
+    },
+  ],
+  status: 'GENERATED',
+  totalCredit: '1260.00',
+  totalDebit: '1260.00',
+}
+
+const balancedInvoiceDetails = {
+  ...invoiceDetails,
+  accountingEntry: balancedAccountingEntry,
+  status: 'VALIDEE',
+}
+
+const unbalancedInvoiceDetails = {
+  ...invoiceDetails,
+  accountingEntry: {
+    ...balancedAccountingEntry,
+    balanceDifference: '60.00',
+    balanced: false,
+    lines: balancedAccountingEntry.lines.map((line) => (
+      line.accountNumber === '401000'
+        ? { ...line, creditAmount: '1200.00' }
+        : line
+    )),
+    status: 'NEEDS_ATTENTION',
+    totalCredit: '1200.00',
+  },
+  status: 'VALIDEE',
+}
+
 const supplierOptionsPage = {
   content: [
     {
@@ -504,6 +568,67 @@ test('renders the invoice review sections from the detail endpoint', async ({ pa
 
   await page.getByRole('tab', { name: 'Activity' }).click()
   await expect(page.getByText('OCR analysis completed')).toBeVisible()
+})
+
+test('renders an unbalanced accounting entry with API totals and lines to review', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, unbalancedInvoiceDetails)
+  ))
+
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Accounting' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Accounting entry' })).toBeVisible()
+  await expect(page.getByText('Review the entry lines before continuing.')).toBeVisible()
+
+  const summary = page.getByLabel('Accounting balance summary')
+  await expect(summary.getByText('Needs attention')).toBeVisible()
+  await expect(summary).toContainText('€1,260.00')
+  await expect(summary).toContainText('€1,200.00')
+  await expect(summary).toContainText('€60.00')
+
+  await expect(page.getByRole('row', { name: /445660 Deductible VAT/ })).toContainText('€260.00')
+  await expect(page.getByRole('row', { name: /401000 Supplier/ })).toContainText('€1,200.00')
+  await expect(page.getByText('Ready to export', { exact: true })).toHaveCount(0)
+})
+
+test('shows a balanced entry without claiming export eligibility before backend confirmation', async ({ page }) => {
+  let currentInvoice = balancedInvoiceDetails
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, currentInvoice)
+  ))
+
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Accounting' }).click()
+
+  const summary = page.getByLabel('Accounting balance summary')
+  await expect(summary.getByText('Balanced', { exact: true })).toBeVisible()
+  await expect(summary).toContainText('€0.00')
+  await expect(page.getByText('Ready to export', { exact: true })).toHaveCount(0)
+
+  currentInvoice = { ...balancedInvoiceDetails, status: 'EXPORTABLE' }
+  await page.reload()
+
+  await expect(page.getByText('Ready to export', { exact: true })).toBeVisible()
+})
+
+test('keeps the accounting balance readable on a narrow viewport', async ({ page }) => {
+  await page.setViewportSize({ height: 844, width: 390 })
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, unbalancedInvoiceDetails)
+  ))
+
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Accounting' }).click()
+
+  const summary = page.getByLabel('Accounting balance summary')
+  await expect(summary.getByText('Needs attention')).toBeVisible()
+  await expect(summary).toContainText('€60.00')
+  await expect(page.getByRole('row', { name: /445660 Deductible VAT/ })).toBeVisible()
+
+  const bodyWidth = await page.evaluate(() => document.body.scrollWidth)
+  const viewportWidth = await page.evaluate(() => window.innerWidth)
+  expect(bodyWidth).toBeLessThanOrEqual(viewportWidth)
 })
 
 test('shows the available submission context while an invoice waits for approval', async ({ page }) => {
