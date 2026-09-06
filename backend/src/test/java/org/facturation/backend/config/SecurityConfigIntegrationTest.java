@@ -240,6 +240,8 @@ class SecurityConfigIntegrationTest {
                 "manager-security@facturation-demo.fr"
         }) {
             mockMvc.perform(post("/api/v1/invoices/999999/mark-paid")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"paymentDate\":\"2026-09-05\"}")
                             .header("Authorization", "Bearer " + tokenFor(email)))
                     .andExpect(status().isNotFound());
         }

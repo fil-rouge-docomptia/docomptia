@@ -16,10 +16,14 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -60,36 +64,74 @@ class InvoicePaymentControllerIntegrationTest {
     void marksExportedInvoiceAsPaidAndRecordsTheAuthenticatedUser() throws Exception {
         Invoice invoice = createInvoice(InvoiceStatusCode.EXPORTEE);
 
-        mockMvc.perform(post("/api/v1/invoices/{id}/mark-paid", invoice.getInvoiceId()))
+        mockMvc.perform(post("/api/v1/invoices/{id}/mark-paid", invoice.getInvoiceId())
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"paymentDate\":\"2026-09-05\",\"paymentReference\":\"VIR-2026-0042\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.invoiceId").value(invoice.getInvoiceId()))
                 .andExpect(jsonPath("$.status").value("PAYEE"));
 
         assertEquals("PAYEE", currentStatus(invoice));
+        Invoice paidInvoice = invoiceRepository.findById(invoice.getInvoiceId()).orElseThrow();
+        assertEquals(LocalDate.of(2026, 9, 5), paidInvoice.getPaymentDate());
+        assertEquals("VIR-2026-0042", paidInvoice.getPaymentReference());
+        assertEquals(1L, paidInvoice.getPaidByUser().getUserId());
         var history = paymentHistory(invoice);
         assertEquals(1, history.size());
         assertEquals(1L, history.getFirst().getChangedByUser().getUserId());
         assertEquals("Invoice payment confirmed", history.getFirst().getComment());
+
+        mockMvc.perform(get("/api/v1/invoices/{id}", invoice.getInvoiceId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paymentDate").value("2026-09-05"))
+                .andExpect(jsonPath("$.paymentReference").value("VIR-2026-0042"))
+                .andExpect(jsonPath("$.paidByUserId").value(1));
     }
 
     @Test
     void repeatedPaymentConfirmationDoesNotDuplicateHistory() throws Exception {
         Invoice invoice = createInvoice(InvoiceStatusCode.EXPORTEE);
 
-        mockMvc.perform(post("/api/v1/invoices/{id}/mark-paid", invoice.getInvoiceId()))
+        mockMvc.perform(post("/api/v1/invoices/{id}/mark-paid", invoice.getInvoiceId())
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"paymentDate\":\"2026-09-05\",\"paymentReference\":\"FIRST\"}"))
                 .andExpect(status().isOk());
-        mockMvc.perform(post("/api/v1/invoices/{id}/mark-paid", invoice.getInvoiceId()))
+        mockMvc.perform(post("/api/v1/invoices/{id}/mark-paid", invoice.getInvoiceId())
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"paymentDate\":\"2026-09-06\",\"paymentReference\":\"SECOND\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PAYEE"));
 
         assertEquals(1, paymentHistory(invoice).size());
+        Invoice paidInvoice = invoiceRepository.findById(invoice.getInvoiceId()).orElseThrow();
+        assertEquals(LocalDate.of(2026, 9, 5), paidInvoice.getPaymentDate());
+        assertEquals("FIRST", paidInvoice.getPaymentReference());
+    }
+
+    @Test
+    void requiresPaymentDate() throws Exception {
+        Invoice invoice = createInvoice(InvoiceStatusCode.EXPORTEE);
+
+        mockMvc.perform(post("/api/v1/invoices/{id}/mark-paid", invoice.getInvoiceId())
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"paymentReference\":\"VIR-2026-0042\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVOICE_VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("paymentDate is required"));
+
+        Invoice unpaidInvoice = invoiceRepository.findById(invoice.getInvoiceId()).orElseThrow();
+        assertEquals("EXPORTEE", unpaidInvoice.getInvoiceStatus().getCode());
+        assertNull(unpaidInvoice.getPaymentReference());
+        assertNull(unpaidInvoice.getPaidByUser());
     }
 
     @Test
     void refusesPaymentConfirmationForInvoiceThatIsNotExported() throws Exception {
         Invoice invoice = createInvoice(InvoiceStatusCode.EXPORTABLE);
 
-        mockMvc.perform(post("/api/v1/invoices/{id}/mark-paid", invoice.getInvoiceId()))
+        mockMvc.perform(post("/api/v1/invoices/{id}/mark-paid", invoice.getInvoiceId())
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"paymentDate\":\"2026-09-05\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("INVOICE_ACTION_NOT_ALLOWED"))
                 .andExpect(jsonPath("$.message").value(
@@ -98,6 +140,9 @@ class InvoicePaymentControllerIntegrationTest {
 
         assertEquals("EXPORTABLE", currentStatus(invoice));
         assertEquals(0, paymentHistory(invoice).size());
+        Invoice unpaidInvoice = invoiceRepository.findById(invoice.getInvoiceId()).orElseThrow();
+        assertNull(unpaidInvoice.getPaymentDate());
+        assertNull(unpaidInvoice.getPaidByUser());
     }
 
     private Invoice createInvoice(InvoiceStatusCode statusCode) {

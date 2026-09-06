@@ -12,6 +12,7 @@ import org.facturation.backend.dto.request.InvoiceAssigneeRequest;
 import org.facturation.backend.dto.request.InvoiceClassificationRequest;
 import org.facturation.backend.dto.request.InvoiceCorrectionDemandRequest;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
+import org.facturation.backend.dto.request.InvoicePaymentRequest;
 import org.facturation.backend.dto.request.InvoiceRejectionRequest;
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
@@ -453,18 +454,22 @@ public class InvoiceController {
     @PostMapping("/{id}/mark-paid")
     @Operation(
             summary = "Marquer une facture comme payee",
-            description = "Passe une facture exportee au statut PAYEE et historise la confirmation du reglement"
+            description = "Enregistre la date, la reference facultative et l'utilisateur du reglement, puis passe une facture exportee au statut PAYEE"
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Facture marquee comme payee"),
+            @ApiResponse(responseCode = "400", description = "Date de paiement manquante"),
             @ApiResponse(
                     responseCode = "404",
                     description = "Facture introuvable dans l'organisation de l'utilisateur"
             ),
             @ApiResponse(responseCode = "409", description = "Facture incompatible avec la confirmation du paiement")
     })
-    public ResponseEntity<InvoiceStatusResponse> markInvoiceAsPaid(@PathVariable Long id) {
-        return ResponseEntity.ok(requireInvoiceResponse(invoiceService.markInvoiceAsPaid(id), id));
+    public ResponseEntity<InvoiceStatusResponse> markInvoiceAsPaid(
+            @PathVariable Long id,
+            @RequestBody InvoicePaymentRequest request
+    ) {
+        return ResponseEntity.ok(requireInvoiceResponse(invoiceService.markInvoiceAsPaid(id, request), id));
     }
 
     @PostMapping("/{invoiceId}/duplicate-alerts/{alertId}/decision")
