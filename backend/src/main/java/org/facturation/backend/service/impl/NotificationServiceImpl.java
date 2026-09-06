@@ -15,6 +15,8 @@ import java.time.LocalDateTime;
 public class NotificationServiceImpl implements NotificationService {
 
     private static final String OCR_ERROR_TYPE = "OCR_ERROR";
+    private static final String CORRECTION_REQUEST_TYPE = "CORRECTION_REQUEST";
+    private static final String REJECTION_TYPE = "REJECTION";
 
     private final NotificationRepository notificationRepository;
 
@@ -51,6 +53,28 @@ public class NotificationServiceImpl implements NotificationService {
             return;
         }
         create(recipient, OCR_ERROR_TYPE, message, invoice);
+    }
+
+    @Override
+    @Transactional
+    public void notifyCorrectionRequest(Invoice invoice, String reason) {
+        notifyDepositor(
+                invoice,
+                CORRECTION_REQUEST_TYPE,
+                "Correction requested for invoice " + invoice.getInvoiceId() + ": ",
+                reason
+        );
+    }
+
+    @Override
+    @Transactional
+    public void notifyRejection(Invoice invoice, String reason) {
+        notifyDepositor(invoice, REJECTION_TYPE, "Invoice " + invoice.getInvoiceId() + " rejected: ", reason);
+    }
+
+    private void notifyDepositor(Invoice invoice, String type, String messagePrefix, String reason) {
+        String message = messagePrefix + requireValue(reason, "decision reason");
+        create(invoice.getCreatedByUser(), type, message, invoice);
     }
 
     private String requireValue(String value, String fieldName) {

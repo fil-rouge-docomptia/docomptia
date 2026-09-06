@@ -20,6 +20,7 @@ import org.facturation.backend.model.AuditLog;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.InvoiceStatusHistory;
+import org.facturation.backend.model.Notification;
 import org.facturation.backend.model.OcrExtraction;
 import org.facturation.backend.model.OcrExtractionField;
 import org.facturation.backend.model.User;
@@ -29,6 +30,7 @@ import org.facturation.backend.repository.AccountingRuleRepository;
 import org.facturation.backend.repository.AuditLogRepository;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.InvoiceStatusHistoryRepository;
+import org.facturation.backend.repository.NotificationRepository;
 import org.facturation.backend.repository.OcrExtractionFieldRepository;
 import org.facturation.backend.repository.OcrExtractionRepository;
 import org.facturation.backend.repository.UserRepository;
@@ -67,6 +69,7 @@ class InvoiceLifecycleStatusIntegrationTest {
     private final AuditLogRepository auditLogRepository;
     private final InvoiceRepository invoiceRepository;
     private final InvoiceStatusHistoryRepository invoiceStatusHistoryRepository;
+    private final NotificationRepository notificationRepository;
     private final OcrExtractionRepository ocrExtractionRepository;
     private final OcrExtractionFieldRepository ocrExtractionFieldRepository;
     private final InvoiceStatusWorkflowService invoiceStatusWorkflowService;
@@ -82,6 +85,7 @@ class InvoiceLifecycleStatusIntegrationTest {
             AuditLogRepository auditLogRepository,
             InvoiceRepository invoiceRepository,
             InvoiceStatusHistoryRepository invoiceStatusHistoryRepository,
+            NotificationRepository notificationRepository,
             OcrExtractionRepository ocrExtractionRepository,
             OcrExtractionFieldRepository ocrExtractionFieldRepository,
             InvoiceStatusWorkflowService invoiceStatusWorkflowService,
@@ -95,11 +99,50 @@ class InvoiceLifecycleStatusIntegrationTest {
         this.auditLogRepository = auditLogRepository;
         this.invoiceRepository = invoiceRepository;
         this.invoiceStatusHistoryRepository = invoiceStatusHistoryRepository;
+        this.notificationRepository = notificationRepository;
         this.ocrExtractionRepository = ocrExtractionRepository;
         this.ocrExtractionFieldRepository = ocrExtractionFieldRepository;
         this.invoiceStatusWorkflowService = invoiceStatusWorkflowService;
         this.userRepository = userRepository;
         this.apiExceptionHandler = apiExceptionHandler;
+    }
+
+    @Test
+    void notifiesTheDepositorAboutCorrectionRequestsAndRejections() {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
+
+        invoiceService.requestInvoiceCorrection(
+                uploadResponse.getInvoiceId(),
+                "  The total amount must be checked  "
+        ).orElseThrow();
+        invoiceService.submitForValidation(uploadResponse.getInvoiceId()).orElseThrow();
+        invoiceService.rejectInvoice(uploadResponse.getInvoiceId(), REJECTION_REASON).orElseThrow();
+
+        Invoice invoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+        List<Notification> notifications = notificationRepository.findAll().stream()
+                .filter(notification -> invoice.getInvoiceId().equals(notification.getInvoice().getInvoiceId()))
+                .toList();
+        Notification correctionRequest = notifications.stream()
+                .filter(notification -> "CORRECTION_REQUEST".equals(notification.getType()))
+                .findFirst()
+                .orElseThrow();
+        Notification rejection = notifications.stream()
+                .filter(notification -> "REJECTION".equals(notification.getType()))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals(2, notifications.size());
+        assertEquals(invoice.getCreatedByUser().getUserId(), correctionRequest.getRecipient().getUserId());
+        assertEquals(
+                "Correction requested for invoice " + invoice.getInvoiceId() + ": The total amount must be checked",
+                correctionRequest.getMessage()
+        );
+        assertEquals(invoice.getCreatedByUser().getUserId(), rejection.getRecipient().getUserId());
+        assertEquals(
+                "Invoice " + invoice.getInvoiceId() + " rejected: " + REJECTION_REASON,
+                rejection.getMessage()
+        );
     }
 
     @Test

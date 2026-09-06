@@ -10,4 +10,8 @@ public interface NotificationService {
     Notification create(User recipient, String type, String message, Invoice invoice);
 
     void notifyOcrFailure(Invoice invoice, OcrError error);
+
+    void notifyCorrectionRequest(Invoice invoice, String reason);
+
+    void notifyRejection(Invoice invoice, String reason);
 }
