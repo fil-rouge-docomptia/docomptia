@@ -14,4 +14,6 @@ public interface NotificationService {
     void notifyCorrectionRequest(Invoice invoice, String reason);
 
     void notifyRejection(Invoice invoice, String reason);
+
+    void notifyPendingValidation(Invoice invoice);
 }

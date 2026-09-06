@@ -28,6 +28,18 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @EntityGraph(attributePaths = {"role", "organization"})
     Optional<User> findByUserIdAndOrganizationOrganizationId(Long userId, Long organizationId);
 
+    @EntityGraph(attributePaths = {"role", "organization"})
+    @Query("""
+            select user from User user
+            where user.organization.organizationId = :organizationId
+              and user.isActive = true
+              and user.role.code = :roleCode
+            """)
+    List<User> findActiveUsersByOrganizationAndRole(
+            @Param("organizationId") Long organizationId,
+            @Param("roleCode") String roleCode
+    );
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select user from User user

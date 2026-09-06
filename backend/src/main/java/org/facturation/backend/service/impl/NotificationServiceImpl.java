@@ -3,8 +3,10 @@ package org.facturation.backend.service.impl;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.Notification;
 import org.facturation.backend.model.OcrError;
+import org.facturation.backend.model.RoleCode;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.NotificationRepository;
+import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.NotificationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,11 +19,14 @@ public class NotificationServiceImpl implements NotificationService {
     private static final String OCR_ERROR_TYPE = "OCR_ERROR";
     private static final String CORRECTION_REQUEST_TYPE = "CORRECTION_REQUEST";
     private static final String REJECTION_TYPE = "REJECTION";
+    private static final String PENDING_VALIDATION_TYPE = "PENDING_VALIDATION";
 
     private final NotificationRepository notificationRepository;
+    private final UserRepository userRepository;
 
-    public NotificationServiceImpl(NotificationRepository notificationRepository) {
+    public NotificationServiceImpl(NotificationRepository notificationRepository, UserRepository userRepository) {
         this.notificationRepository = notificationRepository;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -70,6 +75,22 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     public void notifyRejection(Invoice invoice, String reason) {
         notifyDepositor(invoice, REJECTION_TYPE, "Invoice " + invoice.getInvoiceId() + " rejected: ", reason);
+    }
+
+    @Override
+    @Transactional
+    public void notifyPendingValidation(Invoice invoice) {
+        String message = "Invoice " + invoice.getInvoiceId() + " is awaiting validation";
+        userRepository.findActiveUsersByOrganizationAndRole(
+                invoice.getOrganization().getOrganizationId(),
+                RoleCode.RESPONSABLE_COMPTABLE.getCode()
+        ).forEach(recipient -> {
+            if (!notificationRepository.existsByRecipientAndTypeAndMessageAndInvoice(
+                    recipient, PENDING_VALIDATION_TYPE, message, invoice
+            )) {
+                create(recipient, PENDING_VALIDATION_TYPE, message, invoice);
+            }
+        });
     }
 
     private void notifyDepositor(Invoice invoice, String type, String messagePrefix, String reason) {
