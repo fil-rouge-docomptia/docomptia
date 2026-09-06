@@ -115,8 +115,9 @@ La fiche d'une facture expose `paymentDate`, `paymentReference` et `paidByUserId
 lorsqu'un reglement a ete confirme, ainsi que `archivedAt` lorsqu'elle a ete archivee.
 
 Une facture `ARCHIVEE` reste consultable, previsualisable et telechargeable. Toute route
-qui modifierait la facture, son statut, son classement, son affectation, ses doublons ou son
-ecriture retourne `409` avec le code metier `ARCHIVED_INVOICE_NOT_MODIFIABLE`.
+qui modifierait la facture, son statut, son classement, son affectation, ses doublons, ses
+commentaires ou son ecriture retourne `409` avec le code metier
+`ARCHIVED_INVOICE_NOT_MODIFIABLE`. Les commentaires deja presents restent consultables.
 
 ## Matrice Des Permissions MVP
 
