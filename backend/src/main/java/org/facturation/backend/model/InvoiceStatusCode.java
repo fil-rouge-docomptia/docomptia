@@ -11,6 +11,7 @@ public enum InvoiceStatusCode {
     REJETEE("REJETEE"),
     EXPORTABLE("EXPORTABLE"),
     EXPORTEE("EXPORTEE"),
+    PAYEE("PAYEE"),
     ARCHIVEE("ARCHIVEE");
 
     private final String code;

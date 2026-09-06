@@ -1,5 +1,6 @@
 package org.facturation.backend.controller;
 
+import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.JwtTokenService;
 import org.junit.jupiter.api.Test;
@@ -37,11 +38,12 @@ class ReferenceDataControllerIntegrationTest {
     @Test
     void authenticatedUserListsBackendReferenceDataWithCodesAndLabelsOnly() throws Exception {
         mockMvc.perform(get("/api/v1/reference-data")
-                        .header("Authorization", "Bearer " + tokenFor("reference-operator@example.com")))
+                .header("Authorization", "Bearer " + tokenFor("reference-operator@example.com")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.invoiceStatuses.length()").value(11))
+                .andExpect(jsonPath("$.invoiceStatuses.length()").value(InvoiceStatusCode.values().length))
                 .andExpect(jsonPath("$.invoiceStatuses[0].code").value("DEPOSEE"))
                 .andExpect(jsonPath("$.invoiceStatuses[0].label").value("Deposee"))
+                .andExpect(jsonPath("$.invoiceStatuses[?(@.code == 'PAYEE')].label").value("Payee"))
                 .andExpect(jsonPath("$.invoiceStatuses[0].id").doesNotExist())
                 .andExpect(jsonPath("$.invoiceStatuses[0].description").doesNotExist())
                 .andExpect(jsonPath("$.roles.length()").value(3))
