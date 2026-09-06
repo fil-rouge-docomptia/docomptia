@@ -80,7 +80,10 @@ export function InvoiceWorkflowPanel({
           />
         </TabsContent>
         <TabsContent className="m-0 focus-visible:ring-inset" value="accounting">
-          <InvoiceAccountingTab invoice={invoice} />
+          <InvoiceAccountingTab
+            invoice={invoice}
+            onInvoiceUpdated={onInvoiceUpdated}
+          />
         </TabsContent>
         <TabsContent className="m-0 focus-visible:ring-inset" value="approval">
           <InvoiceApprovalTab

@@ -127,6 +127,13 @@ export type AccountingEntry = {
   lines: AccountingEntryLine[]
 }
 
+export type AccountingEntryLineCorrectionRequest = {
+  accountId?: number
+  creditAmount?: string
+  debitAmount?: string
+  lineLabel?: string
+}
+
 export type InvoiceDuplicateAlert = {
   alertId: number
   type: string
