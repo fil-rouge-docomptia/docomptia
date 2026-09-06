@@ -1,4 +1,4 @@
-name: Update staging from main
+name: Sync main to staging
 
 on:
   workflow_dispatch:
@@ -7,12 +7,12 @@ permissions:
   contents: write
 
 concurrency:
-  group: update-staging-from-main
+  group: sync-main-to-staging
   cancel-in-progress: false
 
 jobs:
   sync:
-    name: Update staging from main
+    name: Fast-forward staging from main
     runs-on: ubuntu-latest
 
     steps:
@@ -21,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fast-forward staging from main
+      - name: Fast-forward staging
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
