@@ -47,6 +47,8 @@ public interface InvoiceStatusWorkflowService {
 
     void markPaid(Invoice invoice, User user);
 
+    void markArchived(Invoice invoice, User user);
+
     void ensureCanTransition(Invoice invoice, InvoiceStatusCode targetCode);
 
     void transitionTo(Invoice invoice, InvoiceStatusCode targetCode, User user, String comment);

@@ -222,6 +222,11 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     }
 
     @Override
+    public void markArchived(Invoice invoice, User user) {
+        transitionTo(invoice, InvoiceStatusCode.ARCHIVEE, user, "Invoice archived");
+    }
+
+    @Override
     public void ensureCanTransition(Invoice invoice, InvoiceStatusCode targetCode) {
         ensureModifiable(invoice);
         InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);
@@ -381,7 +386,7 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
         allowedPreviousStatuses.put(InvoiceStatusCode.PAYEE, EnumSet.of(InvoiceStatusCode.EXPORTEE));
         allowedPreviousStatuses.put(
                 InvoiceStatusCode.ARCHIVEE,
-                EnumSet.of(InvoiceStatusCode.EXPORTEE, InvoiceStatusCode.PAYEE)
+                EnumSet.of(InvoiceStatusCode.EXPORTEE)
         );
         return allowedPreviousStatuses;
     }

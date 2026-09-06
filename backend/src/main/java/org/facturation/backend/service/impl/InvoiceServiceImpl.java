@@ -538,6 +538,18 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional
+    public Optional<InvoiceStatusResponse> archiveInvoice(Long id) {
+        User user = currentUserService.getCurrentUser();
+        return findInvoiceForCurrentOrganization(id, user).map(invoice -> {
+            invoiceStatusWorkflowService.ensureCanTransition(invoice, InvoiceStatusCode.ARCHIVEE);
+            invoice.setArchivedAt(LocalDateTime.now());
+            invoiceStatusWorkflowService.markArchived(invoice, user);
+            return invoiceResponseMapper.toStatusResponse(invoice);
+        });
+    }
+
+    @Override
+    @Transactional
     public Optional<InvoiceDetailsResponse> decideDuplicateAlert(
             Long invoiceId,
             Long alertId,

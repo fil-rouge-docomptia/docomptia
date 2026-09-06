@@ -70,6 +70,8 @@ public interface InvoiceService {
 
     Optional<InvoiceStatusResponse> markInvoiceAsPaid(Long id, InvoicePaymentRequest request);
 
+    Optional<InvoiceStatusResponse> archiveInvoice(Long id);
+
     Optional<InvoiceDetailsResponse> decideDuplicateAlert(
             Long invoiceId,
             Long alertId,
