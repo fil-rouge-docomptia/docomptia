@@ -113,30 +113,9 @@ ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP;
 
 ALTER TABLE IF EXISTS accounting_entries
     ADD COLUMN IF NOT EXISTS reversed_accounting_entry_id BIGINT REFERENCES accounting_entries(accounting_entry_id);
-DO $$
-DECLARE
-    invoice_unique_constraint RECORD;
-BEGIN
-    FOR invoice_unique_constraint IN
-        SELECT constraint_name
-        FROM information_schema.constraint_column_usage
-        WHERE table_schema = current_schema()
-          AND table_name = 'accounting_entries'
-          AND column_name = 'invoice_id'
-          AND constraint_name IN (
-              SELECT constraint_name
-              FROM information_schema.table_constraints
-              WHERE table_schema = current_schema()
-                AND table_name = 'accounting_entries'
-                AND constraint_type = 'UNIQUE'
-          )
-    LOOP
-        EXECUTE format(
-                'ALTER TABLE accounting_entries DROP CONSTRAINT IF EXISTS %I',
-                invoice_unique_constraint.constraint_name
-        );
-    END LOOP;
-END $$;
+ALTER TABLE accounting_entries DROP CONSTRAINT IF EXISTS accounting_entries_invoice_id_key;
+ALTER TABLE accounting_entries DROP CONSTRAINT IF EXISTS uk_accounting_entries_invoice_id;
+ALTER TABLE accounting_entries DROP CONSTRAINT IF EXISTS uk7b1slv0ctibyct165fnb3a958;
 CREATE UNIQUE INDEX IF NOT EXISTS uk_accounting_entries_reversed_entry
     ON accounting_entries (reversed_accounting_entry_id)
     WHERE reversed_accounting_entry_id IS NOT NULL;
