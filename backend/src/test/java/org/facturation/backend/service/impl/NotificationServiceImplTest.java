@@ -1,5 +1,6 @@
 package org.facturation.backend.service.impl;
 
+import org.facturation.backend.mapper.NotificationResponseMapper;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.Notification;
 import org.facturation.backend.model.OcrError;
@@ -7,6 +8,7 @@ import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.NotificationRepository;
 import org.facturation.backend.repository.UserRepository;
+import org.facturation.backend.service.CurrentUserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -25,13 +27,20 @@ class NotificationServiceImplTest {
 
     private NotificationRepository notificationRepository;
     private UserRepository userRepository;
+    private CurrentUserService currentUserService;
     private NotificationServiceImpl notificationService;
 
     @BeforeEach
     void setUp() {
         notificationRepository = mock(NotificationRepository.class);
         userRepository = mock(UserRepository.class);
-        notificationService = new NotificationServiceImpl(notificationRepository, userRepository);
+        currentUserService = mock(CurrentUserService.class);
+        notificationService = new NotificationServiceImpl(
+                notificationRepository,
+                userRepository,
+                currentUserService,
+                new NotificationResponseMapper()
+        );
     }
 
     @Test
