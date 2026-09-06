@@ -4,6 +4,7 @@ import org.facturation.backend.dto.request.DuplicateAlertDecisionRequest;
 import org.facturation.backend.dto.request.InvoiceAssigneeRequest;
 import org.facturation.backend.dto.request.InvoiceClassificationRequest;
 import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
+import org.facturation.backend.dto.request.InvoicePaymentRequest;
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceDetailsResponse;
 import org.facturation.backend.dto.response.InvoiceListItemResponse;
@@ -67,7 +68,7 @@ public interface InvoiceService {
 
     Optional<InvoiceStatusResponse> rejectInvoice(Long id, String reason);
 
-    Optional<InvoiceStatusResponse> markInvoiceAsPaid(Long id);
+    Optional<InvoiceStatusResponse> markInvoiceAsPaid(Long id, InvoicePaymentRequest request);
 
     Optional<InvoiceDetailsResponse> decideDuplicateAlert(
             Long invoiceId,
