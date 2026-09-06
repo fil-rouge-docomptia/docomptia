@@ -1,0 +1,214 @@
+package org.facturation.backend.controller;
+
+import org.facturation.backend.model.AccountingEntry;
+import org.facturation.backend.model.AccountingEntryLine;
+import org.facturation.backend.model.AuditLog;
+import org.facturation.backend.model.ChartOfAccount;
+import org.facturation.backend.model.Invoice;
+import org.facturation.backend.model.InvoiceStatusCode;
+import org.facturation.backend.model.User;
+import org.facturation.backend.repository.AccountingEntryLineRepository;
+import org.facturation.backend.repository.AccountingEntryRepository;
+import org.facturation.backend.repository.AuditLogRepository;
+import org.facturation.backend.repository.ChartOfAccountRepository;
+import org.facturation.backend.repository.InvoiceRepository;
+import org.facturation.backend.repository.InvoiceStatusRepository;
+import org.facturation.backend.repository.SupplierRepository;
+import org.facturation.backend.repository.UserRepository;
+import org.facturation.backend.service.JwtTokenService;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@Transactional
+@Sql(statements = {
+        "ALTER TABLE invoices ALTER COLUMN invoice_id RESTART WITH 1000",
+        "ALTER TABLE accounting_entries ALTER COLUMN accounting_entry_id RESTART WITH 1000",
+        "ALTER TABLE accounting_entry_lines ALTER COLUMN accounting_entry_line_id RESTART WITH 1000"
+})
+class AccountingExportControllerIntegrationTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private AccountingEntryLineRepository accountingEntryLineRepository;
+
+    @Autowired
+    private AccountingEntryRepository accountingEntryRepository;
+
+    @Autowired
+    private AuditLogRepository auditLogRepository;
+
+    @Autowired
+    private ChartOfAccountRepository chartOfAccountRepository;
+
+    @Autowired
+    private InvoiceRepository invoiceRepository;
+
+    @Autowired
+    private InvoiceStatusRepository invoiceStatusRepository;
+
+    @Autowired
+    private SupplierRepository supplierRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Value("${app.jwt.secret}")
+    private String jwtSecret;
+
+    @Test
+    void exportsOnlyCurrentOrganizationExportableInvoicesAndMarksThemExported() throws Exception {
+        User user = userRepository.findById(1L).orElseThrow();
+        Invoice exportedInvoice = createInvoice(user, InvoiceStatusCode.EXPORTABLE, "CSV-EXPORT", "EUR");
+        createBalancedEntry(exportedInvoice, user, "CSV-ENTRY-1");
+        Invoice nonExportableInvoice = createInvoice(user, InvoiceStatusCode.VALIDEE, "CSV-VALIDATED", "EUR");
+        createBalancedEntry(nonExportableInvoice, user, "CSV-ENTRY-2");
+
+        String csv = mockMvc.perform(post("/api/v1/accounting-exports/csv")
+                        .param("startDate", "2026-08-01")
+                        .param("endDate", "2026-08-31")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(new MediaType("text", "csv")))
+                .andExpect(header().string(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        org.hamcrest.Matchers.containsString("attachment; filename=\"accounting-export-2026-08-01_2026-08-31-")
+                ))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(csv).startsWith(
+                "entryNumber,entryDate,invoiceNumber,invoiceDate,supplierName,accountNumber,"
+                        + "accountLabel,lineLabel,debitAmount,creditAmount,currencyCode\n"
+        );
+        assertThat(csv).contains("\"CSV-ENTRY-1\",\"2026-08-15\",\"CSV-EXPORT\",\"2026-08-15\"");
+        assertThat(csv).contains("\"607000\",\"Achats de marchandises\",\"Achat CSV-EXPORT\",\"100.00\",\"0.00\"");
+        assertThat(csv).contains("\"445660\",\"TVA deductible sur autres biens et services\",\"TVA CSV-EXPORT\",\"20.00\",\"0.00\"");
+        assertThat(csv).contains("\"401000\",\"Fournisseurs\",\"Fournisseur CSV-EXPORT\",\"0.00\",\"120.00\"");
+        assertThat(csv).doesNotContain("CSV-VALIDATED");
+
+        assertThat(invoiceRepository.findById(exportedInvoice.getInvoiceId()).orElseThrow()
+                .getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.EXPORTEE.getCode());
+        assertThat(invoiceRepository.findById(nonExportableInvoice.getInvoiceId()).orElseThrow()
+                .getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.VALIDEE.getCode());
+
+        List<AuditLog> exportLogs = auditLogRepository.findAll().stream()
+                .filter(log -> "AccountingCsvExport".equals(log.getEntityName()))
+                .filter(log -> "CSV_EXPORT".equals(log.getAction()))
+                .toList();
+        assertThat(exportLogs).hasSize(1);
+        assertThat(exportLogs.getFirst().getOldValue()).contains(exportedInvoice.getInvoiceId().toString());
+        assertThat(exportLogs.getFirst().getNewValue()).contains("entryCount=1");
+    }
+
+    @Test
+    void rejectsInvalidPeriodWithoutChangingInvoices() throws Exception {
+        User user = userRepository.findById(1L).orElseThrow();
+        Invoice exportableInvoice = createInvoice(user, InvoiceStatusCode.EXPORTABLE, "CSV-INVALID-PERIOD", "EUR");
+        createBalancedEntry(exportableInvoice, user, "CSV-ENTRY-INVALID-PERIOD");
+
+        mockMvc.perform(post("/api/v1/accounting-exports/csv")
+                        .param("startDate", "2026-08-31")
+                        .param("endDate", "2026-08-01")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("startDate must be before or equal to endDate"));
+
+        assertThat(invoiceRepository.findById(exportableInvoice.getInvoiceId()).orElseThrow()
+                .getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.EXPORTABLE.getCode());
+    }
+
+    @Test
+    void rejectsExportWhenNoInvoiceIsExportable() throws Exception {
+        User user = userRepository.findById(1L).orElseThrow();
+
+        mockMvc.perform(post("/api/v1/accounting-exports/csv")
+                        .param("startDate", "2026-01-01")
+                        .param("endDate", "2026-01-31")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("No exportable invoices found for accounting CSV export"));
+    }
+
+    private Invoice createInvoice(User user, InvoiceStatusCode statusCode, String invoiceNumber, String currencyCode) {
+        Invoice invoice = new Invoice();
+        invoice.setOrganization(user.getOrganization());
+        invoice.setCreatedByUser(user);
+        invoice.setSupplier(supplierRepository.findById(1L).orElseThrow());
+        invoice.setInvoiceStatus(invoiceStatusRepository.findByCode(statusCode.getCode()).orElseThrow());
+        invoice.setInvoiceNumber(invoiceNumber);
+        invoice.setInvoiceDate(LocalDate.of(2026, 8, 15));
+        invoice.setCurrencyCode(currencyCode);
+        invoice.setTotalHt(new BigDecimal("100.00"));
+        invoice.setTotalTva(new BigDecimal("20.00"));
+        invoice.setTotalTtc(new BigDecimal("120.00"));
+        invoice.setCreatedAt(LocalDateTime.now());
+        invoice.setUpdatedAt(LocalDateTime.now());
+        return invoiceRepository.save(invoice);
+    }
+
+    private void createBalancedEntry(Invoice invoice, User user, String entryNumber) {
+        AccountingEntry entry = new AccountingEntry();
+        entry.setInvoice(invoice);
+        entry.setCreatedByUser(user);
+        entry.setEntryNumber(entryNumber);
+        entry.setEntryDate(invoice.getInvoiceDate());
+        entry.setLabel("Ecriture " + invoice.getInvoiceNumber());
+        entry.setStatus("GENERATED");
+        entry.setCreatedAt(LocalDateTime.now());
+        entry.setUpdatedAt(LocalDateTime.now());
+        accountingEntryRepository.save(entry);
+
+        createLine(entry, 1, 2L, "Achat " + invoice.getInvoiceNumber(), "100.00", "0.00");
+        createLine(entry, 2, 3L, "TVA " + invoice.getInvoiceNumber(), "20.00", "0.00");
+        createLine(entry, 3, 1L, "Fournisseur " + invoice.getInvoiceNumber(), "0.00", "120.00");
+    }
+
+    private void createLine(
+            AccountingEntry entry,
+            int lineNumber,
+            Long accountId,
+            String label,
+            String debitAmount,
+            String creditAmount
+    ) {
+        ChartOfAccount account = chartOfAccountRepository.findById(accountId).orElseThrow();
+        AccountingEntryLine line = new AccountingEntryLine();
+        line.setAccountingEntry(entry);
+        line.setAccount(account);
+        line.setLineNumber(lineNumber);
+        line.setLineLabel(label);
+        line.setDebitAmount(new BigDecimal(debitAmount));
+        line.setCreditAmount(new BigDecimal(creditAmount));
+        line.setCreatedAt(LocalDateTime.now());
+        accountingEntryLineRepository.save(line);
+    }
+
+    private String tokenFor(User user) {
+        return new JwtTokenService(jwtSecret, Duration.ofHours(1)).generate(user);
+    }
+}
