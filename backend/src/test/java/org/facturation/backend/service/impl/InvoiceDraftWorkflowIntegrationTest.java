@@ -6,11 +6,13 @@ import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.exception.OcrClientException;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceFile;
+import org.facturation.backend.model.Notification;
 import org.facturation.backend.model.OcrError;
 import org.facturation.backend.model.OcrErrorCode;
 import org.facturation.backend.repository.InvoiceFileRepository;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.InvoiceStatusHistoryRepository;
+import org.facturation.backend.repository.NotificationRepository;
 import org.facturation.backend.repository.OcrErrorRepository;
 import org.facturation.backend.service.InvoiceService;
 import org.facturation.backend.service.storage.InvoiceFileStorageService;
@@ -44,6 +46,7 @@ class InvoiceDraftWorkflowIntegrationTest {
     private final InvoiceFileRepository invoiceFileRepository;
     private final InvoiceStatusHistoryRepository invoiceStatusHistoryRepository;
     private final OcrErrorRepository ocrErrorRepository;
+    private final NotificationRepository notificationRepository;
 
     @Autowired
     InvoiceDraftWorkflowIntegrationTest(
@@ -51,13 +54,15 @@ class InvoiceDraftWorkflowIntegrationTest {
             InvoiceRepository invoiceRepository,
             InvoiceFileRepository invoiceFileRepository,
             InvoiceStatusHistoryRepository invoiceStatusHistoryRepository,
-            OcrErrorRepository ocrErrorRepository
+            OcrErrorRepository ocrErrorRepository,
+            NotificationRepository notificationRepository
     ) {
         this.invoiceService = invoiceService;
         this.invoiceRepository = invoiceRepository;
         this.invoiceFileRepository = invoiceFileRepository;
         this.invoiceStatusHistoryRepository = invoiceStatusHistoryRepository;
         this.ocrErrorRepository = ocrErrorRepository;
+        this.notificationRepository = notificationRepository;
     }
 
     @Test
@@ -66,6 +71,7 @@ class InvoiceDraftWorkflowIntegrationTest {
         long invoiceFileCountBeforeUpload = invoiceFileRepository.count();
         long historyCountBeforeUpload = invoiceStatusHistoryRepository.count();
         long errorCountBeforeUpload = ocrErrorRepository.count();
+        long notificationCountBeforeUpload = notificationRepository.count();
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "invoice.png",
@@ -79,6 +85,7 @@ class InvoiceDraftWorkflowIntegrationTest {
         assertEquals(invoiceFileCountBeforeUpload + 1, invoiceFileRepository.count());
         assertEquals(historyCountBeforeUpload + 3, invoiceStatusHistoryRepository.count());
         assertEquals(errorCountBeforeUpload + 1, ocrErrorRepository.count());
+        assertEquals(notificationCountBeforeUpload + 1, notificationRepository.count());
 
         Invoice draft = invoiceRepository.findAll().stream()
                 .max((first, second) -> first.getInvoiceId().compareTo(second.getInvoiceId()))
@@ -96,6 +103,18 @@ class InvoiceDraftWorkflowIntegrationTest {
         assertEquals(OcrErrorCode.SERVICE_UNAVAILABLE.getCode(), ocrError.getErrorCode());
         assertEquals("OCR service is unavailable", ocrError.getErrorMessage());
         assertNotNull(ocrError.getOccurredAt());
+
+        Notification notification = notificationRepository.findAll().stream()
+                .filter(candidate -> draft.getInvoiceId().equals(candidate.getInvoice().getInvoiceId()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(draft.getCreatedByUser().getUserId(), notification.getRecipient().getUserId());
+        assertEquals("OCR_ERROR", notification.getType());
+        assertEquals(
+                "Invoice " + draft.getInvoiceId()
+                        + " could not be analyzed: OCR_SERVICE_UNAVAILABLE - OCR service is unavailable",
+                notification.getMessage()
+        );
 
         List<InvoiceListItemResponse> searchResults = invoiceService
                 .searchInvoices(null, null, null, null, null, null, null, null, null, null, Pageable.unpaged())
