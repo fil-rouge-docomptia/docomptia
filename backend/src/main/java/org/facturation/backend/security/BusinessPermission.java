@@ -1,44 +1,20 @@
 package org.facturation.backend.security;
 
-import org.facturation.backend.model.RoleCode;
-
-import java.util.EnumSet;
-import java.util.Set;
-
 public enum BusinessPermission {
-    VIEW_OWN_PROFILE(RoleCode.ADMIN, RoleCode.OPERATEUR_COMPTABLE, RoleCode.RESPONSABLE_COMPTABLE),
-    VIEW_REFERENCE_DATA(RoleCode.ADMIN, RoleCode.OPERATEUR_COMPTABLE, RoleCode.RESPONSABLE_COMPTABLE),
-    VIEW_ORGANIZATION(RoleCode.ADMIN, RoleCode.OPERATEUR_COMPTABLE, RoleCode.RESPONSABLE_COMPTABLE),
-    MANAGE_ORGANIZATION(RoleCode.ADMIN),
-    VIEW_INVOICES(RoleCode.ADMIN, RoleCode.OPERATEUR_COMPTABLE, RoleCode.RESPONSABLE_COMPTABLE),
-    COMMENT_INVOICES(RoleCode.ADMIN, RoleCode.OPERATEUR_COMPTABLE, RoleCode.RESPONSABLE_COMPTABLE),
-    VIEW_DASHBOARD(RoleCode.ADMIN, RoleCode.OPERATEUR_COMPTABLE, RoleCode.RESPONSABLE_COMPTABLE),
-    VIEW_NOTIFICATIONS(RoleCode.ADMIN, RoleCode.OPERATEUR_COMPTABLE, RoleCode.RESPONSABLE_COMPTABLE),
-    PROCESS_INVOICES(RoleCode.ADMIN, RoleCode.OPERATEUR_COMPTABLE),
-    VALIDATE_INVOICES(RoleCode.RESPONSABLE_COMPTABLE),
-    MANAGE_ACCOUNTING_ENTRIES(RoleCode.ADMIN, RoleCode.OPERATEUR_COMPTABLE, RoleCode.RESPONSABLE_COMPTABLE),
-    CONFIRM_INVOICE_PAYMENTS(RoleCode.ADMIN, RoleCode.OPERATEUR_COMPTABLE, RoleCode.RESPONSABLE_COMPTABLE),
-    VIEW_SUPPLIERS(RoleCode.ADMIN, RoleCode.OPERATEUR_COMPTABLE, RoleCode.RESPONSABLE_COMPTABLE),
-    MANAGE_SUPPLIERS(RoleCode.ADMIN, RoleCode.OPERATEUR_COMPTABLE),
-    VIEW_ACCOUNTING_CONFIGURATION(RoleCode.ADMIN, RoleCode.OPERATEUR_COMPTABLE, RoleCode.RESPONSABLE_COMPTABLE),
-    MANAGE_ACCOUNTING_CONFIGURATION(RoleCode.ADMIN),
-    VIEW_CLASSIFICATIONS(RoleCode.ADMIN, RoleCode.OPERATEUR_COMPTABLE, RoleCode.RESPONSABLE_COMPTABLE),
-    MANAGE_CLASSIFICATIONS(RoleCode.ADMIN),
-    MANAGE_USERS(RoleCode.ADMIN);
+    VIEW_OWN_PROFILE("profile.read"), VIEW_REFERENCE_DATA("reference.read"),
+    VIEW_ORGANIZATION("organization.read"), MANAGE_ORGANIZATION("organization.manage"),
+    VIEW_INVOICES("invoice.read"), COMMENT_INVOICES("invoice.comment"),
+    VIEW_DASHBOARD("dashboard.read"), VIEW_NOTIFICATIONS("notification.read"),
+    PROCESS_INVOICES("invoice.process"), VALIDATE_INVOICES("invoice.approve"),
+    MANAGE_ACCOUNTING_ENTRIES("accounting-entry.manage"), CONFIRM_INVOICE_PAYMENTS("payment.confirm"),
+    VIEW_SUPPLIERS("supplier.read"),
+    MANAGE_SUPPLIERS("supplier.manage"), VIEW_ACCOUNTING_CONFIGURATION("accounting-configuration.read"),
+    MANAGE_ACCOUNTING_CONFIGURATION("accounting-configuration.manage"), VIEW_CLASSIFICATIONS("classification.read"),
+    MANAGE_CLASSIFICATIONS("classification.manage"), MANAGE_USERS("user.manage");
 
-    private final Set<RoleCode> roles;
-
-    BusinessPermission(RoleCode firstRole, RoleCode... otherRoles) {
-        this.roles = EnumSet.of(firstRole, otherRoles);
-    }
-
-    public Set<RoleCode> getRoles() {
-        return Set.copyOf(roles);
-    }
-
-    public String[] roleCodes() {
-        return roles.stream()
-                .map(RoleCode::getCode)
-                .toArray(String[]::new);
-    }
+    private final String code;
+    BusinessPermission(String code) { this.code = code; }
+    public String getCode() { return code; }
+    public String authority() { return "PERMISSION_" + code; }
+    public String[] authorities() { return new String[] { authority() }; }
 }
