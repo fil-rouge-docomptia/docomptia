@@ -19,9 +19,4 @@ public interface AccountingEntryRepository extends JpaRepository<AccountingEntry
 
     Optional<AccountingEntry> findByReversedAccountingEntryAccountingEntryId(Long accountingEntryId);
 
-    boolean existsByEntryNumberAndInvoiceOrganizationOrganizationIdAndAccountingEntryIdNot(
-            String entryNumber,
-            Long organizationId,
-            Long accountingEntryId
-    );
 }

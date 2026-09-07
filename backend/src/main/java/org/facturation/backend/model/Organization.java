@@ -47,6 +47,9 @@ public class Organization {
     @Column(precision = 12, scale = 2)
     private BigDecimal validationThreshold;
 
+    @Column(nullable = false, columnDefinition = "bigint default 1")
+    private Long nextAccountingPieceNumber = 1L;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
@@ -129,6 +132,14 @@ public class Organization {
 
     public void setValidationThreshold(BigDecimal validationThreshold) {
         this.validationThreshold = validationThreshold;
+    }
+
+    public Long getNextAccountingPieceNumber() {
+        return nextAccountingPieceNumber;
+    }
+
+    public void setNextAccountingPieceNumber(Long nextAccountingPieceNumber) {
+        this.nextAccountingPieceNumber = nextAccountingPieceNumber;
     }
 
     public LocalDateTime getCreatedAt() {

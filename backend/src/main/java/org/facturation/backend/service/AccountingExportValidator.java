@@ -57,7 +57,6 @@ public class AccountingExportValidator {
                         .findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(entry.getAccountingEntryId());
                 validateAccounts(invoice, lines, errors);
                 validateBalance(entry, lines, errors);
-                validatePieceNumber(entry, errors);
                 validatedEntries.add(new ValidatedEntry(entry, lines));
             }
 
@@ -132,22 +131,6 @@ public class AccountingExportValidator {
                     "The accounting entry is unbalanced: debit=" + response.getTotalDebit()
                             + ", credit=" + response.getTotalCredit()
                 );
-        }
-    }
-
-    private void validatePieceNumber(
-            AccountingEntry entry,
-            List<AccountingExportControlErrorResponse> errors
-    ) {
-        if (!hasText(entry.getEntryNumber())) {
-            addError(errors, "PIECE_NUMBER_MISSING", "The accounting piece number is missing");
-        } else if (accountingEntryRepository
-                .existsByEntryNumberAndInvoiceOrganizationOrganizationIdAndAccountingEntryIdNot(
-                        entry.getEntryNumber(),
-                        entry.getInvoice().getOrganization().getOrganizationId(),
-                        entry.getAccountingEntryId()
-                )) {
-            addError(errors, "PIECE_NUMBER_DUPLICATE", "The accounting piece number is already used");
         }
     }
 

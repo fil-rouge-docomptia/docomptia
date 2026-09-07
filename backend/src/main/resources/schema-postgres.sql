@@ -115,6 +115,20 @@ ALTER TABLE IF EXISTS invoice_files ADD COLUMN IF NOT EXISTS archived_at TIMESTA
 ALTER TABLE IF EXISTS invoice_files ADD COLUMN IF NOT EXISTS retention_duration_years INTEGER;
 ALTER TABLE IF EXISTS invoice_files ADD COLUMN IF NOT EXISTS integrity_status VARCHAR(255);
 
+ALTER TABLE organizations
+    ADD COLUMN IF NOT EXISTS next_accounting_piece_number BIGINT NOT NULL DEFAULT 1;
+UPDATE organizations organization
+SET next_accounting_piece_number = GREATEST(
+        organization.next_accounting_piece_number,
+        COALESCE((
+            SELECT MAX(accounting_entry.entry_number::BIGINT) + 1
+            FROM accounting_entries accounting_entry
+            JOIN invoices invoice ON invoice.invoice_id = accounting_entry.invoice_id
+            WHERE invoice.organization_id = organization.organization_id
+              AND accounting_entry.entry_number ~ '^[0-9]+$'
+        ), 1)
+    );
+
 ALTER TABLE IF EXISTS accounting_entries
     ADD COLUMN IF NOT EXISTS reversed_accounting_entry_id BIGINT REFERENCES accounting_entries(accounting_entry_id);
 ALTER TABLE accounting_entries DROP CONSTRAINT IF EXISTS accounting_entries_invoice_id_key;

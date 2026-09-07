@@ -10,6 +10,7 @@ import org.facturation.backend.model.ExportBatchFormat;
 import org.facturation.backend.model.ExportBatchStatusCode;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatusCode;
+import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.AuditLogRepository;
 import org.facturation.backend.repository.ExportBatchRepository;
@@ -17,6 +18,7 @@ import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.service.AccountingExportService;
 import org.facturation.backend.service.AccountingExportValidator;
 import org.facturation.backend.service.AccountingExportValidator.ValidatedEntry;
+import org.facturation.backend.service.AccountingPieceNumberService;
 import org.facturation.backend.service.CurrentUserService;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
 import org.facturation.backend.service.storage.AccountingExportFileStorageService;
@@ -41,6 +43,7 @@ public class AccountingExportServiceImpl implements AccountingExportService {
 
     private final InvoiceRepository invoiceRepository;
     private final AccountingExportValidator accountingExportValidator;
+    private final AccountingPieceNumberService accountingPieceNumberService;
     private final AuditLogRepository auditLogRepository;
     private final ExportBatchRepository exportBatchRepository;
     private final CurrentUserService currentUserService;
@@ -50,6 +53,7 @@ public class AccountingExportServiceImpl implements AccountingExportService {
     public AccountingExportServiceImpl(
             InvoiceRepository invoiceRepository,
             AccountingExportValidator accountingExportValidator,
+            AccountingPieceNumberService accountingPieceNumberService,
             AuditLogRepository auditLogRepository,
             ExportBatchRepository exportBatchRepository,
             CurrentUserService currentUserService,
@@ -58,6 +62,7 @@ public class AccountingExportServiceImpl implements AccountingExportService {
     ) {
         this.invoiceRepository = invoiceRepository;
         this.accountingExportValidator = accountingExportValidator;
+        this.accountingPieceNumberService = accountingPieceNumberService;
         this.auditLogRepository = auditLogRepository;
         this.exportBatchRepository = exportBatchRepository;
         this.currentUserService = currentUserService;
@@ -71,6 +76,7 @@ public class AccountingExportServiceImpl implements AccountingExportService {
         validatePeriod(startDate, endDate);
         User user = currentUserService.getCurrentUser();
         Long organizationId = user.getOrganization().getOrganizationId();
+        Organization organization = accountingPieceNumberService.lockSequence(organizationId);
         List<Invoice> invoices = invoiceRepository.findAccountingExportCandidates(
                 organizationId,
                 startDate != null,
@@ -82,6 +88,10 @@ public class AccountingExportServiceImpl implements AccountingExportService {
             throw new IllegalArgumentException("No exportable invoices found for accounting CSV export");
         }
         List<ValidatedEntry> exportedEntries = accountingExportValidator.validate(invoices);
+        accountingPieceNumberService.assign(
+                organization,
+                exportedEntries.stream().map(ValidatedEntry::entry).toList()
+        );
 
         String filename = buildFilename(startDate, endDate);
         byte[] content = buildCsv(exportedEntries).getBytes(StandardCharsets.UTF_8);
