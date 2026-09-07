@@ -387,7 +387,7 @@ export function InvoiceDetailsTab({
       onSubmit={handleSubmit}
       ref={formRef}
     >
-      {duplicateAlert ? null : <InvoiceLifecycleNotice invoice={invoice} />}
+      {duplicateAlert || invoice.status === 'ARCHIVEE' ? null : <InvoiceLifecycleNotice invoice={invoice} />}
 
       {invoice.status === 'ERREUR_OCR' ? (
         <InvoiceOcrFailureAlert
@@ -406,7 +406,7 @@ export function InvoiceDetailsTab({
           onIgnore={onIgnoreDuplicate}
           onReview={onReviewDuplicate}
         />
-      ) : reviewCount > 0 ? (
+      ) : reviewCount > 0 && invoice.status !== 'ARCHIVEE' ? (
         <Alert className="border-warning/30 bg-warning-muted">
           <AlertTitle className="text-sm">
             {reviewCount} {reviewCount === 1 ? 'field requires' : 'fields require'} review

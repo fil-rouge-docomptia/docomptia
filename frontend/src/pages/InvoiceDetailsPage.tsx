@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { AlertCircle, ArrowLeft } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 
+import { ArchivedDocumentNotice } from '@/components/document/ArchivedDocumentNotice'
 import { InvoiceDetailHeader } from '@/components/invoice/detail/InvoiceDetailHeader'
 import { InvoiceDocumentPanel } from '@/components/invoice/detail/InvoiceDocumentPanel'
 import { InvoiceDuplicateReviewDialog } from '@/components/invoice/detail/InvoiceDuplicateReviewDialog'
@@ -87,7 +88,8 @@ export default function InvoiceDetailsPage() {
   const currentRequest = requestState.requestKey === requestKey
   const error = !validInvoiceId || (currentRequest && requestState.error)
   const invoice = currentRequest ? requestState.invoice : null
-  const pendingDuplicateAlert = invoice?.duplicateAlerts.find(
+  const archived = invoice?.status === 'ARCHIVEE'
+  const pendingDuplicateAlert = archived ? null : invoice?.duplicateAlerts.find(
     (alert) => alert.decision === 'PENDING',
   ) ?? null
 
@@ -234,6 +236,8 @@ export default function InvoiceDetailsPage() {
         showCorrectionAction={activeTab === 'details'}
       />
 
+      {archived ? <ArchivedDocumentNotice archivedAt={invoice.archivedAt} /> : null}
+
       <div
         className={expandedWorkflowTabActive
           ? 'min-w-0 overflow-hidden rounded-lg border border-border bg-card shadow-elevation-1'
@@ -268,7 +272,7 @@ export default function InvoiceDetailsPage() {
 
       <InvoiceDuplicateReviewDialog
         alert={pendingDuplicateAlert}
-        canDecide={canProcessInvoice(user?.role.code)}
+        canDecide={!archived && canProcessInvoice(user?.role.code)}
         decisionBlocked={correctionState.dirty}
         decisionError={duplicateDecisionState.error}
         decisionPending={duplicateDecisionState.pending}
