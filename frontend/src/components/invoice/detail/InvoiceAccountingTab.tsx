@@ -1,13 +1,43 @@
-import { CheckCircle2, FileSpreadsheet, TriangleAlert } from 'lucide-react'
+import { useState } from 'react'
+import {
+  CheckCircle2,
+  FileSpreadsheet,
+  Pencil,
+  TriangleAlert,
+} from 'lucide-react'
 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import type { AccountingEntry, InvoiceDetails } from '@/types/invoice'
+import { Button } from '@/components/ui/button'
+import type {
+  AccountingEntry,
+  AccountingEntryLine,
+  InvoiceDetails,
+} from '@/types/invoice'
 
+import { AccountingEntryLineEditor } from './AccountingEntryLineEditor'
 import { formatInvoiceDate, formatInvoiceMoney } from './invoice-detail-utils'
 
 type AccountingBalanceSummaryProps = {
   currencyCode: string | null
   entry: AccountingEntry
+}
+
+const lockedInvoiceStatuses = new Set(['EXPORTEE', 'ARCHIVEE'])
+
+function getInvoiceStatusAfterCorrection(
+  currentStatus: string,
+  entry: AccountingEntry,
+) {
+  if (entry.balanced && currentStatus === 'VALIDEE') {
+    return 'EXPORTABLE'
+  }
+
+  if (!entry.balanced && currentStatus === 'EXPORTABLE') {
+    return 'VALIDEE'
+  }
+
+  return currentStatus
 }
 
 function AccountingBalanceSummary({
@@ -59,7 +89,23 @@ function AccountingBalanceSummary({
   )
 }
 
-function AccountingEntryLines({ invoice }: { invoice: InvoiceDetails }) {
+type AccountingEntryLinesProps = {
+  canEdit: boolean
+  editingLineId: number | null
+  invoice: InvoiceDetails
+  onCancelEdit: () => void
+  onEditLine: (line: AccountingEntryLine) => void
+  onEntryUpdated: (entry: AccountingEntry) => void
+}
+
+function AccountingEntryLines({
+  canEdit,
+  editingLineId,
+  invoice,
+  onCancelEdit,
+  onEditLine,
+  onEntryUpdated,
+}: AccountingEntryLinesProps) {
   const entry = invoice.accountingEntry
 
   if (!entry) {
@@ -67,8 +113,8 @@ function AccountingEntryLines({ invoice }: { invoice: InvoiceDetails }) {
   }
 
   return (
-    <section className="overflow-hidden rounded-lg border border-border bg-card">
-      <div className="overflow-x-auto">
+    <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border bg-card">
+      <div className="w-full min-w-0 max-w-full overflow-x-auto">
         <table className="w-full min-w-[42rem] text-left text-sm">
           <thead className="bg-muted text-xs text-muted-foreground">
             <tr>
@@ -76,25 +122,59 @@ function AccountingEntryLines({ invoice }: { invoice: InvoiceDetails }) {
               <th className="px-3 py-3 font-medium">Label</th>
               <th className="px-3 py-3 text-right font-medium">Debit</th>
               <th className="px-3 py-3 text-right font-medium">Credit</th>
+              {canEdit ? (
+                <th aria-label="Actions" className="px-3 py-3 text-right font-medium" />
+              ) : null}
             </tr>
           </thead>
           <tbody>
-            {entry.lines.map((line) => (
-              <tr className="border-t border-border" key={line.accountingEntryLineId}>
-                <td className="px-3 py-3 font-medium text-foreground">
-                  {line.accountNumber}
-                </td>
-                <td className="px-3 py-3 text-muted-foreground">
-                  {line.lineLabel || line.accountLabel}
-                </td>
-                <td className="px-3 py-3 text-right text-foreground">
-                  {formatInvoiceMoney(line.debitAmount, invoice.currencyCode)}
-                </td>
-                <td className="px-3 py-3 text-right text-foreground">
-                  {formatInvoiceMoney(line.creditAmount, invoice.currencyCode)}
-                </td>
-              </tr>
-            ))}
+            {entry.lines.map((line) => {
+              const editing = editingLineId === line.accountingEntryLineId
+
+              if (editing) {
+                return (
+                  <AccountingEntryLineEditor
+                    entryId={entry.accountingEntryId}
+                    key={line.accountingEntryLineId}
+                    line={line}
+                    onCancel={onCancelEdit}
+                    onEntryUpdated={onEntryUpdated}
+                  />
+                )
+              }
+
+              return (
+                <tr className="border-t border-border" key={line.accountingEntryLineId}>
+                  <td className="px-3 py-3 font-medium text-foreground">
+                    {line.accountNumber}
+                  </td>
+                  <td className="px-3 py-3 text-muted-foreground">
+                    {line.lineLabel || line.accountLabel}
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                    {formatInvoiceMoney(line.debitAmount, invoice.currencyCode)}
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                    {formatInvoiceMoney(line.creditAmount, invoice.currencyCode)}
+                  </td>
+                  {canEdit ? (
+                    <td className="px-3 py-3 text-right">
+                      <Button
+                        aria-label={`Edit accounting line ${line.lineNumber}`}
+                        disabled={editingLineId !== null}
+                        onClick={() => onEditLine(line)}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <Pencil aria-hidden="true" />
+                        Edit
+                      </Button>
+                    </td>
+                  ) : null}
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -112,8 +192,17 @@ function AccountingEntryLines({ invoice }: { invoice: InvoiceDetails }) {
   )
 }
 
-export function InvoiceAccountingTab({ invoice }: { invoice: InvoiceDetails }) {
+type InvoiceAccountingTabProps = {
+  invoice: InvoiceDetails
+  onInvoiceUpdated: (invoice: InvoiceDetails) => void
+}
+
+export function InvoiceAccountingTab({
+  invoice,
+  onInvoiceUpdated,
+}: InvoiceAccountingTabProps) {
   const entry = invoice.accountingEntry
+  const [editingLineId, setEditingLineId] = useState<number | null>(null)
 
   if (!entry) {
     return (
@@ -129,8 +218,15 @@ export function InvoiceAccountingTab({ invoice }: { invoice: InvoiceDetails }) {
     )
   }
 
+  const canEdit = entry.status === 'GENERATED'
+    && !lockedInvoiceStatuses.has(invoice.status)
+
+  const handleEditLine = (line: AccountingEntryLine) => {
+    setEditingLineId(line.accountingEntryLineId)
+  }
+
   return (
-    <div className="space-y-4 p-4 sm:p-6">
+    <div className="min-w-0 space-y-4 p-4 sm:p-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold tracking-tight text-foreground">
@@ -150,7 +246,30 @@ export function InvoiceAccountingTab({ invoice }: { invoice: InvoiceDetails }) {
         </div>
       </header>
 
-      <AccountingEntryLines invoice={invoice} />
+      {lockedInvoiceStatuses.has(invoice.status) ? (
+        <Alert>
+          <AlertTitle>Accounting entry is read-only</AlertTitle>
+          <AlertDescription>
+            Exported and archived invoices cannot be corrected directly.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      <AccountingEntryLines
+        canEdit={canEdit}
+        editingLineId={editingLineId}
+        invoice={invoice}
+        onCancelEdit={() => setEditingLineId(null)}
+        onEditLine={handleEditLine}
+        onEntryUpdated={(updatedEntry) => {
+          setEditingLineId(null)
+          onInvoiceUpdated({
+            ...invoice,
+            accountingEntry: updatedEntry,
+            status: getInvoiceStatusAfterCorrection(invoice.status, updatedEntry),
+          })
+        }}
+      />
     </div>
   )
 }

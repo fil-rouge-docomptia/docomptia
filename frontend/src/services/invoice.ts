@@ -2,6 +2,8 @@ import { apiBaseUrl } from '@/lib/env'
 import { clearAuthToken, getAuthToken } from '@/lib/auth-session'
 import { ApiError, authenticatedFetch } from '@/services/api'
 import type {
+  AccountingEntry,
+  AccountingEntryLineCorrectionRequest,
   InvoiceCorrectionDemandRequest,
   InvoiceCorrectionRequest,
   InvoiceDetails,
@@ -206,6 +208,23 @@ export async function correctInvoice(
   )
 
   return response.json() as Promise<InvoiceDetails>
+}
+
+export async function correctAccountingEntryLine(
+  entryId: number,
+  lineId: number,
+  correction: AccountingEntryLineCorrectionRequest,
+): Promise<AccountingEntry> {
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/v1/accounting-entries/${entryId}/lines/${lineId}`,
+    {
+      body: JSON.stringify(correction),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH',
+    },
+  )
+
+  return response.json() as Promise<AccountingEntry>
 }
 
 export async function decideInvoiceDuplicateAlert(
