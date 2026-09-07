@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.AccountingEntryLineCorrectionRequest;
 import org.facturation.backend.dto.response.AccountingEntryResponse;
+import org.facturation.backend.service.AccountingEntryCorrectiveService;
 import org.facturation.backend.service.AccountingEntryCorrectionService;
 import org.facturation.backend.service.AccountingEntryReversalService;
 import org.springframework.http.ResponseEntity;
@@ -23,13 +24,16 @@ public class AccountingEntryController {
 
     private final AccountingEntryCorrectionService accountingEntryCorrectionService;
     private final AccountingEntryReversalService accountingEntryReversalService;
+    private final AccountingEntryCorrectiveService accountingEntryCorrectiveService;
 
     public AccountingEntryController(
             AccountingEntryCorrectionService accountingEntryCorrectionService,
-            AccountingEntryReversalService accountingEntryReversalService
+            AccountingEntryReversalService accountingEntryReversalService,
+            AccountingEntryCorrectiveService accountingEntryCorrectiveService
     ) {
         this.accountingEntryCorrectionService = accountingEntryCorrectionService;
         this.accountingEntryReversalService = accountingEntryReversalService;
+        this.accountingEntryCorrectiveService = accountingEntryCorrectiveService;
     }
 
     @PatchMapping("/{entryId}/lines/{lineId}")
@@ -63,5 +67,19 @@ public class AccountingEntryController {
     })
     public ResponseEntity<AccountingEntryResponse> createReversal(@PathVariable Long entryId) {
         return ResponseEntity.status(201).body(accountingEntryReversalService.createReversal(entryId));
+    }
+
+    @PostMapping("/{entryId}/corrective-entry")
+    @Operation(
+            summary = "Generer l'ecriture corrective d'une ecriture exportee",
+            description = "Cree l'extourne si necessaire puis une ecriture corrective equilibree avec les montants d'origine"
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Ecriture corrective creee"),
+            @ApiResponse(responseCode = "404", description = "Ecriture introuvable dans l'organisation"),
+            @ApiResponse(responseCode = "409", description = "Ecriture non exportee ou non corrigeable")
+    })
+    public ResponseEntity<AccountingEntryResponse> createCorrectiveEntry(@PathVariable Long entryId) {
+        return ResponseEntity.status(201).body(accountingEntryCorrectiveService.createCorrectiveEntry(entryId));
     }
 }
