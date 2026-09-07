@@ -29,8 +29,8 @@ export async function getChartOfAccounts(): Promise<ChartOfAccount[]> {
   return page.content
 }
 
-export async function getAccountingRules(): Promise<AccountingRule[]> {
-  const response = await authenticatedFetch(`${apiBaseUrl}/v1/accounting-rules`)
+export async function getAccountingRules(signal?: AbortSignal): Promise<AccountingRule[]> {
+  const response = await authenticatedFetch(`${apiBaseUrl}/v1/accounting-rules`, { signal })
 
   return (await response.json()) as AccountingRule[]
 }
@@ -38,6 +38,7 @@ export async function getAccountingRules(): Promise<AccountingRule[]> {
 export async function updateAccountingRule(
   accountingRuleId: number,
   update: AccountingRuleUpdate,
+  signal?: AbortSignal,
 ): Promise<AccountingRule> {
   const response = await authenticatedFetch(
     `${apiBaseUrl}/v1/accounting-rules/${accountingRuleId}`,
@@ -47,6 +48,7 @@ export async function updateAccountingRule(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(update),
+      signal,
     },
   )
 
