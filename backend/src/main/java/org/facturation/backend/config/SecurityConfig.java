@@ -122,10 +122,13 @@ public class SecurityConfig {
                         .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/invoices/upload",
+                                "/api/v1/customer-invoices",
                                 "/api/v1/invoices/*/ocr/retry",
                                 "/api/v1/invoices/*/submit-for-validation",
                                 "/api/v1/invoices/*/duplicate-alerts/*/decision"
                         )
+                        .hasAnyRole(BusinessPermission.PROCESS_INVOICES.roleCodes())
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/customer-invoices/*")
                         .hasAnyRole(BusinessPermission.PROCESS_INVOICES.roleCodes())
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/invoices/*")
                         .hasAnyRole(BusinessPermission.PROCESS_INVOICES.roleCodes())
