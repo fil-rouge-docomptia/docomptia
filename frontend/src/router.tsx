@@ -8,6 +8,7 @@ import ApprovalReviewPage from '@/pages/ApprovalReviewPage'
 import ApprovalsPage from '@/pages/ApprovalsPage'
 import ClientDetailsPage from '@/pages/ClientDetailsPage'
 import ClientsPage from '@/pages/ClientsPage'
+import ChartOfAccountsPage from '@/pages/ChartOfAccountsPage'
 import DashboardPage from '@/pages/DashboardPage'
 import DocumentsPage from '@/pages/DocumentsPage'
 import InvoiceUploadPage from '@/pages/InvoiceUploadPage'
@@ -75,6 +76,10 @@ export const privateRoutes = [
   {
     path: '/accounting',
     element: <AccountingPage />,
+  },
+  {
+    path: '/accounting/accounts',
+    element: <ChartOfAccountsPage />,
   },
   {
     path: '/exports',

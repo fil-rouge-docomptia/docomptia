@@ -6,13 +6,13 @@ import { entryTypeLabels } from '@/components/accounting/accounting-utils'
 import { AccountingEntryDetails } from '@/components/accounting/AccountingEntryDetails'
 import { AccountingEntryTable } from '@/components/accounting/AccountingEntryTable'
 import { AccountingLoadError } from '@/components/accounting/AccountingLoadError'
+import { AccountingSectionTabs } from '@/components/accounting/AccountingSectionTabs'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { SupplierPagination } from '@/components/supplier/SupplierPagination'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/hooks/use-auth'
 import { listAccountingEntries } from '@/services/accounting'
 import type { AccountingEntryPage } from '@/types/accounting'
@@ -127,13 +127,7 @@ export default function AccountingPage() {
           </>
         )}
       />
-      <Tabs value="entries">
-        <TabsList aria-label="Accounting sections" className="h-10 max-w-full">
-          <TabsTrigger value="entries">Entries</TabsTrigger>
-          <TabsTrigger disabled value="rules">Rules</TabsTrigger>
-          <TabsTrigger disabled value="accounts">Chart of accounts</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <AccountingSectionTabs value="entries" />
       <section aria-label="Accounting entry list" className="min-w-0 space-y-4">
         <div aria-label="Balance views" className="flex flex-wrap gap-1 border-b border-border pb-2" role="group">
           {([['All', ''], ['Balanced', 'true'], ['Needs attention', 'false']] as const).map(([label, value]) => (

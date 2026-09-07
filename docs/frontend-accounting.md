@@ -63,8 +63,10 @@ ou sa correction a été exportée. Aucun journal `ACH`, compteur ou statut d'ex
 Les filtres de journal/date, vues d'export, sélection en lot et personnalisation de colonnes
 ne font pas partie de ce contrat minimal.
 
-Les boutons de création/export et les onglets Rules/Chart of accounts restent désactivés :
-ils appartiennent aux tickets suivants. Les écritures de la liste sont consultées en lecture
+Les boutons de création/export et l'onglet Rules restent désactivés :
+ils appartiennent aux tickets suivants. L'onglet Chart of accounts ouvre désormais
+[la consultation du plan comptable](frontend-chart-of-accounts.md) (KAN-288).
+Les écritures de la liste sont consultées en lecture
 seule ; les corrections existantes restent accessibles depuis la fiche facture.
 
 ## Validation

@@ -1,0 +1,17 @@
+import { useNavigate } from 'react-router-dom'
+
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
+export function AccountingSectionTabs({ value }: { value: 'entries' | 'accounts' }) {
+  const navigate = useNavigate()
+
+  return (
+    <Tabs onValueChange={(section) => navigate(section === 'accounts' ? '/accounting/accounts' : '/accounting')} value={value}>
+      <TabsList aria-label="Accounting sections" className="h-11 max-w-full sm:h-10">
+        <TabsTrigger value="entries">Entries</TabsTrigger>
+        <TabsTrigger disabled value="rules">Rules</TabsTrigger>
+        <TabsTrigger value="accounts">Chart of accounts</TabsTrigger>
+      </TabsList>
+    </Tabs>
+  )
+}
