@@ -85,7 +85,9 @@ public class AccountingExportServiceImpl implements AccountingExportService {
                 endDate
         );
         if (invoices.isEmpty()) {
-            throw new IllegalArgumentException("No exportable invoices found for accounting CSV export");
+            throw new IllegalArgumentException(
+                    "No exportable invoices found; invoices already exported cannot be exported again"
+            );
         }
         List<ValidatedEntry> exportedEntries = accountingExportValidator.validate(invoices);
         accountingPieceNumberService.assign(

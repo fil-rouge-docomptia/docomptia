@@ -55,6 +55,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
             from Invoice invoice
             where invoice.organization.organizationId = :organizationId
               and invoice.invoiceStatus.code = 'EXPORTABLE'
+              and invoice.exportBatch is null
               and (:hasStartDate = false or invoice.invoiceDate >= :startDate)
               and (:hasEndDate = false or invoice.invoiceDate <= :endDate)
             order by invoice.invoiceDate, invoice.invoiceId

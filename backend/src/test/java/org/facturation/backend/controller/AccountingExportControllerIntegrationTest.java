@@ -194,6 +194,26 @@ class AccountingExportControllerIntegrationTest {
         assertThat(exportLogs.getFirst().getOldValue()).contains(exportedInvoice.getInvoiceId().toString());
         assertThat(exportLogs.getFirst().getNewValue()).contains("batchId=1000");
         assertThat(exportLogs.getFirst().getNewValue()).contains("entryCount=1");
+
+        mockMvc.perform(post("/api/v1/accounting-exports/csv")
+                        .param("startDate", "2026-08-01")
+                        .param("endDate", "2026-08-31")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("No exportable invoices found; invoices already exported cannot be exported again"));
+
+        assertThat(exportBatchRepository.findAll()).hasSize(1);
+        assertThat(auditLogRepository.findAll().stream()
+                .filter(log -> "CSV_EXPORT".equals(log.getAction())))
+                .hasSize(1);
+        assertThat(invoiceStatusHistoryRepository
+                .findByInvoiceInvoiceIdAndInvoiceOrganizationOrganizationIdOrderByChangedAtAscInvoiceStatusHistoryIdAsc(
+                        exportedInvoice.getInvoiceId(),
+                        user.getOrganization().getOrganizationId()
+                ).stream()
+                .filter(history -> InvoiceStatusCode.EXPORTEE.getCode().equals(history.getInvoiceStatus().getCode())))
+                .hasSize(1);
     }
 
     @Test
@@ -369,6 +389,44 @@ class AccountingExportControllerIntegrationTest {
     }
 
     @Test
+    void excludesInvoiceAlreadyLinkedToAnExportBatchEvenIfItsStatusIsExportable() throws Exception {
+        User user = userRepository.findById(1L).orElseThrow();
+        Invoice alreadyLinkedInvoice = createInvoice(
+                user, InvoiceStatusCode.EXPORTABLE, "CSV-ALREADY-LINKED", "EUR"
+        );
+        createBalancedEntry(alreadyLinkedInvoice, user, "CSV-ENTRY-ALREADY-LINKED");
+
+        ExportBatch previousBatch = new ExportBatch();
+        previousBatch.setOrganization(user.getOrganization());
+        previousBatch.setCreatedByUser(user);
+        previousBatch.setPeriodStartDate(LocalDate.of(2026, 8, 1));
+        previousBatch.setPeriodEndDate(LocalDate.of(2026, 8, 31));
+        previousBatch.setFormat(ExportBatchFormat.CSV.getCode());
+        previousBatch.setStatus(ExportBatchStatusCode.GENERE.getCode());
+        previousBatch.setCreatedAt(LocalDateTime.now());
+        previousBatch.setGeneratedAt(LocalDateTime.now());
+        exportBatchRepository.save(previousBatch);
+        alreadyLinkedInvoice.setExportBatch(previousBatch);
+        invoiceRepository.save(alreadyLinkedInvoice);
+
+        Invoice newInvoice = createInvoice(user, InvoiceStatusCode.EXPORTABLE, "CSV-NEW", "EUR");
+        createBalancedEntry(newInvoice, user, "CSV-ENTRY-NEW");
+
+        String csv = mockMvc.perform(post("/api/v1/accounting-exports/csv")
+                        .param("startDate", "2026-08-01")
+                        .param("endDate", "2026-08-31")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(csv).contains("CSV-NEW").doesNotContain("CSV-ALREADY-LINKED");
+        assertThat(statusOf(alreadyLinkedInvoice)).isEqualTo(InvoiceStatusCode.EXPORTABLE.getCode());
+        assertThat(invoiceRepository.findById(alreadyLinkedInvoice.getInvoiceId()).orElseThrow()
+                .getExportBatch().getExportBatchId()).isEqualTo(previousBatch.getExportBatchId());
+        assertThat(exportBatchRepository.findAll()).hasSize(2);
+    }
+
+    @Test
     void continuesTheOrganizationPieceNumberSequenceAcrossExports() throws Exception {
         User user = userRepository.findById(1L).orElseThrow();
         Invoice firstInvoice = createInvoice(
@@ -417,7 +475,7 @@ class AccountingExportControllerIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message")
-                        .value("No exportable invoices found for accounting CSV export"));
+                        .value("No exportable invoices found; invoices already exported cannot be exported again"));
 
         assertThat(exportBatchRepository.findAll()).isEmpty();
     }
