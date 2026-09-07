@@ -254,6 +254,11 @@ Un numero de compte est unique dans une organisation. Un compte absent ou rattac
 organisation retourne `404`; un numero deja utilise retourne `409`. La desactivation conserve les
 regles et lignes comptables qui referencent le compte.
 
+L'[import CSV du plan comptable](account-import-api.md) propose trois POST multipart
+`/api/v1/chart-of-accounts/import/inspect`, `/preview` et `/confirm`, réservés à
+l'administrateur. L'inspection et la prévisualisation n'écrivent aucun compte ;
+la confirmation crée uniquement les nouveaux comptes valides sans écraser les existants.
+
 ## Endpoints Clients MVP
 
 | Methode | Endpoint | Role |
