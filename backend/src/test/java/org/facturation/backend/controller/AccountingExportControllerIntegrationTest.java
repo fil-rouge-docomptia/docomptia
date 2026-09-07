@@ -223,7 +223,7 @@ class AccountingExportControllerIntegrationTest {
     @Test
     void returnsAllBlockingControlsBeforeGeneratingTheExport() throws Exception {
         User user = userRepository.findById(1L).orElseThrow();
-        Invoice invalidInvoice = createInvoice(user, InvoiceStatusCode.VALIDEE, "CSV-INVALID", "EUR");
+        Invoice invalidInvoice = createInvoice(user, InvoiceStatusCode.EXPORTABLE, "CSV-INVALID", "EUR");
         invalidInvoice.setTotalTva(new BigDecimal("21.00"));
         invoiceRepository.save(invalidInvoice);
         createBalancedEntry(invalidInvoice, user, "CSV-ENTRY-INVALID");
@@ -252,7 +252,6 @@ class AccountingExportControllerIntegrationTest {
                 .andExpect(jsonPath("$.invoices[0].invoiceId").value(invalidInvoice.getInvoiceId()))
                 .andExpect(jsonPath("$.invoices[0].invoiceNumber").value("CSV-INVALID"))
                 .andExpect(jsonPath("$.invoices[0].errors[*].code", containsInAnyOrder(
-                        "INVOICE_NOT_EXPORTABLE",
                         "VAT_INCONSISTENT",
                         "ACCOUNT_INACTIVE",
                         "ACCOUNTING_ENTRY_UNBALANCED",
@@ -260,7 +259,7 @@ class AccountingExportControllerIntegrationTest {
                 )));
 
         assertThat(invoiceRepository.findById(invalidInvoice.getInvoiceId()).orElseThrow()
-                .getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.VALIDEE.getCode());
+                .getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.EXPORTABLE.getCode());
         assertThat(exportBatchRepository.findAll()).isEmpty();
         assertThat(auditLogRepository.findAll()).noneMatch(log -> "CSV_EXPORT".equals(log.getAction()));
     }

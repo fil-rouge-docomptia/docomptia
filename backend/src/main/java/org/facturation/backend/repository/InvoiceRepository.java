@@ -54,7 +54,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
             select invoice
             from Invoice invoice
             where invoice.organization.organizationId = :organizationId
-              and invoice.invoiceStatus.code not in ('EXPORTEE', 'PAYEE', 'ARCHIVEE')
+              and invoice.invoiceStatus.code = 'EXPORTABLE'
               and (:hasStartDate = false or invoice.invoiceDate >= :startDate)
               and (:hasEndDate = false or invoice.invoiceDate <= :endDate)
             order by invoice.invoiceDate, invoice.invoiceId
