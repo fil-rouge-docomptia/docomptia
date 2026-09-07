@@ -73,5 +73,5 @@ test('buildAutomaticTestFixInstruction summarizes the remaining failing tests', 
 })
 
 test('automatic test-fix retries are capped to avoid infinite loops', () => {
-  assert.equal(MAX_AUTOMATIC_TEST_FIX_ATTEMPTS, 3)
+  assert.equal(MAX_AUTOMATIC_TEST_FIX_ATTEMPTS, 1)
 })

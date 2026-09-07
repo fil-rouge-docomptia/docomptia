@@ -26,6 +26,7 @@ public class InvoiceDetailsResponse {
     private OcrAnalysisResponse ocrAnalysis;
     private OcrErrorResponse ocrError;
     private AccountingEntryResponse accountingEntry;
+    private List<AccountingEntryResponse> accountingEntries;
     private List<InvoiceDuplicateAlertResponse> duplicateAlerts;
     private List<InvoiceHistoryItemResponse> history;
 
@@ -194,6 +195,14 @@ public class InvoiceDetailsResponse {
 
     public void setAccountingEntry(AccountingEntryResponse accountingEntry) {
         this.accountingEntry = accountingEntry;
+    }
+
+    public List<AccountingEntryResponse> getAccountingEntries() {
+        return accountingEntries;
+    }
+
+    public void setAccountingEntries(List<AccountingEntryResponse> accountingEntries) {
+        this.accountingEntries = accountingEntries;
     }
 
     public List<InvoiceDuplicateAlertResponse> getDuplicateAlerts() {

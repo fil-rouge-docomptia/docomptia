@@ -13,7 +13,7 @@ concurrency:
 jobs:
   sync:
     name: Update staging from main
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
 
     steps:
       - name: Check out repository

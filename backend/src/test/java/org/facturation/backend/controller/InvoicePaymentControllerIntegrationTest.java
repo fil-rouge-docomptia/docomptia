@@ -88,6 +88,14 @@ class InvoicePaymentControllerIntegrationTest {
                 .andExpect(jsonPath("$.paymentDate").value("2026-09-05"))
                 .andExpect(jsonPath("$.paymentReference").value("VIR-2026-0042"))
                 .andExpect(jsonPath("$.paidByUserId").value(1));
+
+        mockMvc.perform(get("/api/v1/invoices/{id}/history", invoice.getInvoiceId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.action == 'PAYEE')].type").value("STATUS_CHANGE"))
+                .andExpect(jsonPath("$[?(@.action == 'PAYEE')].authorId").value(1))
+                .andExpect(jsonPath("$[?(@.action == 'PAYEE')].date").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.action == 'PAYEE')].comment")
+                        .value("Invoice payment confirmed"));
     }
 
     @Test

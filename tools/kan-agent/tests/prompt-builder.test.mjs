@@ -103,6 +103,10 @@ test('the implementation prompt requires fixing failing tests before finishing',
     template,
     /Keep `not_run` only if the retry is still blocked and report the exact environment\s+cause\./,
   )
+  assert.match(template, /Read additional documentation only\s+when it is relevant to the ticket/)
+  assert.match(template, /Do not read unrelated documentation solely because it exists/)
+  assert.match(template, /summary to five short lines or fewer/)
+  assert.match(template, /test detail to two short lines or fewer/)
 })
 
 test('buildPrompt supports agent-driven automatic revisions', async () => {

@@ -31,6 +31,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -42,6 +43,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AccountingEntryControllerIntegrationTest {
 
     private final MockMvc mockMvc;
+    private final MockMvc invoiceMockMvc;
     private final AccountingEntryLineRepository accountingEntryLineRepository;
     private final AccountingEntryRepository accountingEntryRepository;
     private final AuditLogRepository auditLogRepository;
@@ -54,6 +56,7 @@ class AccountingEntryControllerIntegrationTest {
     @Autowired
     AccountingEntryControllerIntegrationTest(
             AccountingEntryController accountingEntryController,
+            InvoiceController invoiceController,
             ApiExceptionHandler apiExceptionHandler,
             AccountingEntryLineRepository accountingEntryLineRepository,
             AccountingEntryRepository accountingEntryRepository,
@@ -65,6 +68,9 @@ class AccountingEntryControllerIntegrationTest {
             UserRepository userRepository
     ) {
         this.mockMvc = MockMvcBuilders.standaloneSetup(accountingEntryController)
+                .setControllerAdvice(apiExceptionHandler)
+                .build();
+        this.invoiceMockMvc = MockMvcBuilders.standaloneSetup(invoiceController)
                 .setControllerAdvice(apiExceptionHandler)
                 .build();
         this.accountingEntryLineRepository = accountingEntryLineRepository;
@@ -116,6 +122,34 @@ class AccountingEntryControllerIntegrationTest {
         assertEquals(originalNumber, persistedOriginal.getEntryNumber());
         assertEquals(originalDate, persistedOriginal.getEntryDate());
         assertEquals(originalAmounts, persistedOriginalAmounts);
+
+        AccountingEntry reversal = accountingEntryRepository
+                .findByReversedAccountingEntryAccountingEntryId(generatedLine.entryId())
+                .orElseThrow();
+        List<AuditLog> reversalLogs = auditLogRepository
+                .findByOrganizationOrganizationIdAndEntityNameAndEntityIdAndActionOrderByCreatedAtAscAuditLogIdAsc(
+                        1L,
+                        Invoice.class.getSimpleName(),
+                        generatedLine.invoiceId(),
+                        "ACCOUNTING_ENTRY_REVERSED"
+                );
+        assertEquals(1, reversalLogs.size());
+        assertEquals(1L, reversalLogs.getFirst().getUser().getUserId());
+        assertEquals("accountingEntryId=" + generatedLine.entryId(), reversalLogs.getFirst().getOldValue());
+        assertEquals("accountingEntryId=" + reversal.getAccountingEntryId(), reversalLogs.getFirst().getNewValue());
+        assertEquals(reversal.getCreatedAt(), reversalLogs.getFirst().getCreatedAt());
+
+        invoiceMockMvc.perform(get("/api/v1/invoices/{id}/history", generatedLine.invoiceId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.action == 'ACCOUNTING_ENTRY_REVERSED')].type")
+                        .value("ACCOUNTING_ACTION"))
+                .andExpect(jsonPath("$[?(@.action == 'ACCOUNTING_ENTRY_REVERSED')].authorId").value(1))
+                .andExpect(jsonPath("$[?(@.action == 'ACCOUNTING_ENTRY_REVERSED')].fieldName")
+                        .value("accountingEntryId"))
+                .andExpect(jsonPath("$[?(@.action == 'ACCOUNTING_ENTRY_REVERSED')].oldValue")
+                        .value(generatedLine.entryId().toString()))
+                .andExpect(jsonPath("$[?(@.action == 'ACCOUNTING_ENTRY_REVERSED')].newValue")
+                        .value(reversal.getAccountingEntryId().toString()));
     }
 
     @Test
@@ -141,6 +175,87 @@ class AccountingEntryControllerIntegrationTest {
         mockMvc.perform(post("/api/v1/accounting-entries/{entryId}/reversal", generatedLine.entryId()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("ACCOUNTING_ENTRY_REVERSAL_NOT_ALLOWED"));
+    }
+
+    @Test
+    void createsReversalThenBalancedCorrectiveEntryWithOriginalAmounts() throws Exception {
+        GeneratedLine generatedLine = generateAccountingEntry();
+        List<AccountingEntryLine> originalLines = accountingEntryLineRepository
+                .findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(generatedLine.entryId());
+        markAsExported(generatedLine.invoiceId());
+
+        String response = mockMvc.perform(post(
+                        "/api/v1/accounting-entries/{entryId}/corrective-entry",
+                        generatedLine.entryId()
+                ))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.accountingEntryId").isNumber())
+                .andExpect(jsonPath("$.entryDate").value(LocalDate.now().toString()))
+                .andExpect(jsonPath("$.status").value("CORRECTIVE"))
+                .andExpect(jsonPath("$.totalDebit").value("120.00"))
+                .andExpect(jsonPath("$.totalCredit").value("120.00"))
+                .andExpect(jsonPath("$.balanceDifference").value("0.00"))
+                .andExpect(jsonPath("$.balanced").value(true))
+                .andExpect(jsonPath("$.lines[0].debitAmount").value("100.00"))
+                .andExpect(jsonPath("$.lines[0].creditAmount").value("0.00"))
+                .andExpect(jsonPath("$.lines[2].debitAmount").value("0.00"))
+                .andExpect(jsonPath("$.lines[2].creditAmount").value("120.00"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        AccountingEntry reversal = accountingEntryRepository
+                .findByReversedAccountingEntryAccountingEntryId(generatedLine.entryId())
+                .orElseThrow();
+        AccountingEntry correctiveEntry = accountingEntryRepository
+                .findByReversedAccountingEntryAccountingEntryId(reversal.getAccountingEntryId())
+                .orElseThrow();
+        List<AccountingEntryLine> reversalLines = accountingEntryLineRepository
+                .findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(reversal.getAccountingEntryId());
+        List<AccountingEntryLine> correctiveLines = accountingEntryLineRepository
+                .findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(correctiveEntry.getAccountingEntryId());
+
+        assertEquals("REVERSAL", reversal.getStatus());
+        assertEquals("CORRECTIVE", correctiveEntry.getStatus());
+        assertTrue(response.contains("\"reversedAccountingEntryId\":" + reversal.getAccountingEntryId()));
+        assertEquals(originalLines.size(), reversalLines.size());
+        assertEquals(originalLines.size(), correctiveLines.size());
+        for (int index = 0; index < originalLines.size(); index++) {
+            assertEquals(originalLines.get(index).getDebitAmount(), reversalLines.get(index).getCreditAmount());
+            assertEquals(originalLines.get(index).getCreditAmount(), reversalLines.get(index).getDebitAmount());
+            assertEquals(originalLines.get(index).getDebitAmount(), correctiveLines.get(index).getDebitAmount());
+            assertEquals(originalLines.get(index).getCreditAmount(), correctiveLines.get(index).getCreditAmount());
+        }
+    }
+
+    @Test
+    void reusesExistingReversalAndDoesNotDuplicateCorrectiveEntry() throws Exception {
+        GeneratedLine generatedLine = generateAccountingEntry();
+        markAsExported(generatedLine.invoiceId());
+        mockMvc.perform(post("/api/v1/accounting-entries/{entryId}/reversal", generatedLine.entryId()))
+                .andExpect(status().isCreated());
+
+        String firstResponse = mockMvc.perform(post(
+                        "/api/v1/accounting-entries/{entryId}/corrective-entry",
+                        generatedLine.entryId()
+                ))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String secondResponse = mockMvc.perform(post(
+                        "/api/v1/accounting-entries/{entryId}/corrective-entry",
+                        generatedLine.entryId()
+                ))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertEquals(firstResponse, secondResponse);
+        assertEquals(3, accountingEntryRepository.findAll().stream()
+                .filter(entry -> entry.getInvoice().getInvoiceId().equals(generatedLine.invoiceId()))
+                .count());
     }
 
     @Test

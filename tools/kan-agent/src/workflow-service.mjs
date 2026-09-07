@@ -16,7 +16,7 @@ async function services() {
   }
 }
 
-export const MAX_AUTOMATIC_TEST_FIX_ATTEMPTS = 3
+export const MAX_AUTOMATIC_TEST_FIX_ATTEMPTS = 1
 
 export function latestTestsByCommand(tests = []) {
   const latestTests = new Map()

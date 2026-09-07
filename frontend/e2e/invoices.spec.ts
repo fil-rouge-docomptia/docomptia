@@ -129,6 +129,107 @@ const invoiceDetails = {
   totalTva: '250.10',
 }
 
+const balancedAccountingEntry = {
+  accountingEntryId: 15,
+  balanceDifference: '0.00',
+  balanced: true,
+  entryDate: '2026-08-13',
+  entryNumber: 'ACC-2026-0421',
+  label: 'Leroy Construction — INV-2026-0421',
+  lines: [
+    {
+      accountLabel: 'Supplies',
+      accountNumber: '606300',
+      accountingEntryLineId: 151,
+      creditAmount: '0.00',
+      debitAmount: '1000.00',
+      lineLabel: 'Supplies',
+      lineNumber: 1,
+    },
+    {
+      accountLabel: 'Deductible VAT',
+      accountNumber: '445660',
+      accountingEntryLineId: 152,
+      creditAmount: '0.00',
+      debitAmount: '260.00',
+      lineLabel: 'Deductible VAT',
+      lineNumber: 2,
+    },
+    {
+      accountLabel: 'Supplier',
+      accountNumber: '401000',
+      accountingEntryLineId: 153,
+      creditAmount: '1260.00',
+      debitAmount: '0.00',
+      lineLabel: 'Supplier',
+      lineNumber: 3,
+    },
+  ],
+  status: 'GENERATED',
+  totalCredit: '1260.00',
+  totalDebit: '1260.00',
+}
+
+const balancedInvoiceDetails = {
+  ...invoiceDetails,
+  accountingEntry: balancedAccountingEntry,
+  status: 'VALIDEE',
+}
+
+const unbalancedInvoiceDetails = {
+  ...invoiceDetails,
+  accountingEntry: {
+    ...balancedAccountingEntry,
+    balanceDifference: '60.00',
+    balanced: false,
+    lines: balancedAccountingEntry.lines.map((line) => (
+      line.accountNumber === '401000'
+        ? { ...line, creditAmount: '1200.00' }
+        : line
+    )),
+    status: 'GENERATED',
+    totalCredit: '1200.00',
+  },
+  status: 'VALIDEE',
+}
+
+const chartOfAccountsPage = {
+  content: [
+    {
+      accountId: 4,
+      accountLabel: 'Supplies',
+      accountNumber: '606300',
+      accountType: 'EXPENSE',
+      active: true,
+    },
+    {
+      accountId: 3,
+      accountLabel: 'Deductible VAT',
+      accountNumber: '445660',
+      accountType: 'VAT',
+      active: true,
+    },
+    {
+      accountId: 1,
+      accountLabel: 'Supplier',
+      accountNumber: '401000',
+      accountType: 'SUPPLIER',
+      active: true,
+    },
+    {
+      accountId: 2,
+      accountLabel: 'Purchases',
+      accountNumber: '607000',
+      accountType: 'EXPENSE',
+      active: true,
+    },
+  ],
+  number: 0,
+  size: 100,
+  totalElements: 4,
+  totalPages: 1,
+}
+
 const supplierOptionsPage = {
   content: [
     {
@@ -504,6 +605,209 @@ test('renders the invoice review sections from the detail endpoint', async ({ pa
 
   await page.getByRole('tab', { name: 'Activity' }).click()
   await expect(page.getByText('OCR analysis completed')).toBeVisible()
+})
+
+test('renders an unbalanced accounting entry with API totals and lines to review', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, unbalancedInvoiceDetails)
+  ))
+
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Accounting' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Accounting entry' })).toBeVisible()
+  await expect(page.getByText('Review the entry lines before continuing.')).toBeVisible()
+
+  const summary = page.getByLabel('Accounting balance summary')
+  await expect(summary.getByText('Needs attention')).toBeVisible()
+  await expect(summary).toContainText('€1,260.00')
+  await expect(summary).toContainText('€1,200.00')
+  await expect(summary).toContainText('€60.00')
+
+  await expect(page.getByRole('row', { name: /445660 Deductible VAT/ })).toContainText('€260.00')
+  await expect(page.getByRole('row', { name: /401000 Supplier/ })).toContainText('€1,200.00')
+  await expect(page.getByText('Ready to export', { exact: true })).toHaveCount(0)
+})
+
+test('corrects only the selected accounting line and refreshes its balance', async ({ page }) => {
+  let correctionPayload: unknown
+  let correctionUrl = ''
+
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, unbalancedInvoiceDetails)
+  ))
+  await mockApiRoute(page, '/v1/chart-of-accounts*', (route) => (
+    fulfillJson(route, 200, chartOfAccountsPage)
+  ))
+  await mockApiRoute(page, '/v1/accounting-entries/15/lines/153', async (route) => {
+    correctionPayload = route.request().postDataJSON()
+    correctionUrl = route.request().url()
+    await fulfillJson(route, 200, balancedAccountingEntry)
+  })
+
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Accounting' }).click()
+  await page.getByRole('button', { name: 'Edit accounting line 3' }).click()
+  await page.getByLabel('Credit amount').fill('1260.00')
+  await page.getByRole('button', { name: 'Save' }).click()
+
+  expect(correctionUrl).toContain('/api/v1/accounting-entries/15/lines/153')
+  expect(correctionPayload).toEqual({ creditAmount: '1260.00' })
+  await expect(page.getByText('Accounting line saved')).toBeVisible()
+  await expect(page.getByText(
+    'Line 3 was updated and the balance was recalculated.',
+  )).toBeVisible()
+  await expect(page.getByLabel('Accounting balance summary')).toContainText('Balanced')
+  await expect(page.getByLabel('Accounting balance summary')).toContainText('€0.00')
+  await expect(page.getByText('Ready to export', { exact: true })).toBeVisible()
+})
+
+test('corrects the account and label through the active chart of accounts', async ({ page }) => {
+  let correctionPayload: unknown
+  const correctedEntry = {
+    ...balancedAccountingEntry,
+    lines: balancedAccountingEntry.lines.map((line) => (
+      line.accountingEntryLineId === 151
+        ? {
+            ...line,
+            accountLabel: 'Purchases',
+            accountNumber: '607000',
+            lineLabel: 'Office purchases',
+          }
+        : line
+    )),
+  }
+
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, balancedInvoiceDetails)
+  ))
+  await mockApiRoute(page, '/v1/chart-of-accounts*', (route) => (
+    fulfillJson(route, 200, chartOfAccountsPage)
+  ))
+  await mockApiRoute(page, '/v1/accounting-entries/15/lines/151', async (route) => {
+    correctionPayload = route.request().postDataJSON()
+    await fulfillJson(route, 200, correctedEntry)
+  })
+
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Accounting' }).click()
+  await page.getByRole('button', { name: 'Edit accounting line 1' }).click()
+  await page.getByRole('combobox', { name: 'Account' }).click()
+  await page.getByRole('option', { name: /607000 — Purchases/ }).click()
+  await page.getByLabel('Line label').fill('Office purchases')
+  await page.getByRole('button', { name: 'Save' }).click()
+
+  expect(correctionPayload).toEqual({
+    accountId: 2,
+    lineLabel: 'Office purchases',
+  })
+  await expect(page.getByRole('row', { name: /607000 Office purchases/ })).toBeVisible()
+})
+
+test('keeps line changes visible for validation and status conflict errors', async ({ page }) => {
+  let attempt = 0
+
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, unbalancedInvoiceDetails)
+  ))
+  await mockApiRoute(page, '/v1/chart-of-accounts*', (route) => (
+    fulfillJson(route, 200, chartOfAccountsPage)
+  ))
+  await mockApiRoute(page, '/v1/accounting-entries/15/lines/153', async (route) => {
+    attempt += 1
+    await fulfillJson(
+      route,
+      attempt === 1 ? 400 : 409,
+      attempt === 1
+        ? {
+            code: 'ACCOUNTING_ENTRY_LINE_VALIDATION_ERROR',
+            message: 'creditAmount exceeds the supported amount',
+          }
+        : {
+            code: 'ACCOUNTING_ENTRY_NOT_MODIFIABLE',
+            message: 'Accounting entry 15 is not modifiable',
+          },
+    )
+  })
+
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Accounting' }).click()
+  await page.getByRole('button', { name: 'Edit accounting line 3' }).click()
+  await page.getByLabel('Credit amount').fill('1260.00')
+  await page.getByRole('button', { name: 'Save' }).click()
+
+  await expect(page.getByText('creditAmount exceeds the supported amount')).toBeVisible()
+  await expect(page.getByLabel('Credit amount')).toHaveValue('1260.00')
+
+  await page.getByLabel('Credit amount').fill('1250.00')
+  await page.getByRole('button', { name: 'Save' }).click()
+
+  await expect(page.getByText('Accounting entry 15 is not modifiable')).toBeVisible()
+  await expect(page.getByLabel('Credit amount')).toHaveValue('1250.00')
+})
+
+test('does not offer direct correction for exported or archived invoices', async ({ page }) => {
+  let currentInvoice = { ...balancedInvoiceDetails, status: 'EXPORTEE' }
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, currentInvoice)
+  ))
+
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Accounting' }).click()
+
+  await expect(page.getByText('Accounting entry is read-only')).toBeVisible()
+  await expect(page.getByRole('button', { name: /Edit accounting line/ })).toHaveCount(0)
+
+  currentInvoice = { ...balancedInvoiceDetails, status: 'ARCHIVEE' }
+  await page.reload()
+  await page.getByRole('tab', { name: 'Accounting' }).click()
+
+  await expect(page.getByText('Accounting entry is read-only')).toBeVisible()
+  await expect(page.getByRole('button', { name: /Edit accounting line/ })).toHaveCount(0)
+})
+
+test('shows a balanced entry without claiming export eligibility before backend confirmation', async ({ page }) => {
+  let currentInvoice = balancedInvoiceDetails
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, currentInvoice)
+  ))
+
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Accounting' }).click()
+
+  const summary = page.getByLabel('Accounting balance summary')
+  await expect(summary.getByText('Balanced', { exact: true })).toBeVisible()
+  await expect(summary).toContainText('€0.00')
+  await expect(page.getByText('Ready to export', { exact: true })).toHaveCount(0)
+
+  currentInvoice = { ...balancedInvoiceDetails, status: 'EXPORTABLE' }
+  await page.reload()
+
+  await expect(page.getByText('Ready to export', { exact: true })).toBeVisible()
+})
+
+test('keeps the accounting balance readable on a narrow viewport', async ({ page }) => {
+  await page.setViewportSize({ height: 844, width: 390 })
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, unbalancedInvoiceDetails)
+  ))
+  await mockApiRoute(page, '/v1/chart-of-accounts*', (route) => (
+    fulfillJson(route, 200, chartOfAccountsPage)
+  ))
+
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Accounting' }).click()
+
+  const summary = page.getByLabel('Accounting balance summary')
+  await expect(summary.getByText('Needs attention')).toBeVisible()
+  await expect(summary).toContainText('€60.00')
+  await expect(page.getByRole('row', { name: /445660 Deductible VAT/ })).toBeVisible()
+  await page.getByRole('button', { name: 'Edit accounting line 3' }).click()
+  await expect(page.getByLabel('Credit amount')).toBeVisible()
+
+  const bodyWidth = await page.evaluate(() => document.body.scrollWidth)
+  const viewportWidth = await page.evaluate(() => window.innerWidth)
+  expect(bodyWidth).toBeLessThanOrEqual(viewportWidth)
 })
 
 test('shows the available submission context while an invoice waits for approval', async ({ page }) => {

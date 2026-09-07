@@ -1,10 +1,19 @@
 You are implementing Jira ticket {{ISSUE_KEY}} in the Facturation Electronique repository.
 
-Before changing any file, read these project context files in order:
+Before changing any file, read these core project context files:
 {{CONTEXT_FILES}}
 
 Then inspect the relevant implementation and recent Git history. Do not assume that the
-ticket description accurately reflects the current code.
+ticket description accurately reflects the current code. Read additional documentation only
+when it is relevant to the ticket:
+
+- `docs/backend.md` and `docs/backend-business-workflows.md` for backend or business-workflow changes.
+- `docs/ocr.md` for OCR changes.
+- `docs/product-requirements.md` for ambiguous product requirements or user-flow changes.
+- `docs/context-sources.md` when external sources or integrations are involved.
+- `README.md` when project setup or available commands are relevant.
+
+Do not read unrelated documentation solely because it exists.
 
 Mandatory rules:
 
@@ -45,5 +54,7 @@ Acceptance criteria:
 
 {{REVISION_INSTRUCTION}}
 
-At the end, return only a JSON object matching the provided output schema. Include the real
-commands and results for every test. If no test was run, explain why in the tests array.
+At the end, return only a concise JSON object matching the provided output schema. Keep the
+summary to five short lines or fewer. Include the real commands and results for every test,
+but keep each test detail to two short lines or fewer and include only the relevant failure.
+If no test was run, explain why in the tests array.

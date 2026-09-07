@@ -85,14 +85,15 @@ http://ocr:8000/ocr/analyze
 | `GET` | `/api/v1/invoices?status=EXTRAITE&status=VALIDEE&invoiceNumber=FAC-2026&supplier=Orange&client=Docomptia&dueDate=2026-08-31&startDate=2026-08-01&endDate=2026-08-31&minAmount=100.00&maxAmount=500.00&page=0&size=20&sortBy=invoiceDate&direction=DESC` | Recherche les factures de l'organisation courante, filtre par un ou plusieurs statuts connus (parametre repete ou codes separes par des virgules), le numero exact ou partiel, le fournisseur ou client par nom ou identifiant, la date de facture, la date d'echeance, une periode inclusive de dates de facture ou une plage inclusive de montants TTC, puis retourne une page triable par date, montant TTC ou statut. Un statut inconnu retourne `400`. Les bornes de periode et de montant peuvent etre omises individuellement; une borne minimum posterieure a la borne maximum correspondante retourne `400`. |
 | `GET` | `/api/v1/invoices/pending-validation?page=0&size=20&sortBy=invoiceDate&direction=DESC` | Retourne au responsable comptable une page triable des seules factures `A_VERIFIER` de son organisation. |
 | `GET` | `/api/v1/invoices/assigned-to-me?status=EXTRAITE&status=A_VERIFIER&page=0&size=20&sortBy=invoiceDate&direction=DESC` | Retourne une page triable des factures affectees a l'utilisateur connecte dans son organisation, avec un filtre optionnel sur un ou plusieurs statuts connus. |
-| `GET` | `/api/v1/invoices/{id}` | Retourne la facture, l'OCR, l'ecriture si elle existe et l'historique chronologique des actions utiles a la fiche |
+| `GET` | `/api/v1/invoices/{id}` | Retourne la facture, l'OCR, l'ecriture d'origine si elle existe, toutes les ecritures liees dans l'ordre chronologique et l'historique des actions utiles a la fiche. Les identifiants `reversedAccountingEntryId` relient l'extourne a l'originale puis l'ecriture corrective a l'extourne. |
 | `GET` | `/api/v1/invoices/{id}/file` | Telecharge le fichier original si la facture appartient a l'organisation courante |
 | `GET` | `/api/v1/invoices/{id}/preview` | Retourne le PDF ou l'image originale avec une disposition `inline` et son type MIME si la facture appartient a l'organisation courante. Un format non previsualisable retourne `415`. |
 | `GET` | `/api/v1/invoices/{id}/history` | Retourne chronologiquement les changements de statut, corrections, affectations et decisions de l'organisation courante |
 | `POST` | `/api/v1/invoices/{id}/comments` | Ajoute un commentaire non vide a une facture de l'organisation courante avec l'utilisateur connecte comme auteur et l'integre a son historique |
 | `GET` | `/api/v1/invoices/{id}/comments?page=0&size=20` | Retourne une page de commentaires de l'organisation courante, du plus ancien au plus recent, avec leur auteur et leur date |
 | `PATCH` | `/api/v1/accounting-entries/{entryId}/lines/{lineId}` | Corrige le compte, le libelle, le debit ou le credit d'une ligne non exportee et historise les valeurs avant/apres |
-| `POST` | `/api/v1/accounting-entries/{entryId}/reversal` | Cree l'extourne d'une ecriture exportee sous la forme d'une nouvelle ecriture datee, liee a l'originale, dont les debits et credits sont inverses. |
+| `POST` | `/api/v1/accounting-entries/{entryId}/reversal` | Cree l'extourne d'une ecriture exportee sous la forme d'une nouvelle ecriture datee, liee a l'originale, dont les debits et credits sont inverses. L'action, son auteur, sa date et les identifiants des ecritures originale et d'extourne sont journalises dans l'historique en lecture seule de la facture. |
+| `POST` | `/api/v1/accounting-entries/{entryId}/corrective-entry` | Cree l'extourne si elle n'existe pas encore, puis une ecriture corrective datee reprenant les comptes et montants de l'ecriture d'origine. Une nouvelle demande retourne la meme ecriture corrective sans la dupliquer. |
 | `GET` | `/api/v1/notifications?unreadOnly=false&page=0&size=20` | Retourne les notifications de l'utilisateur connecte, de la plus recente a la plus ancienne. `unreadOnly=true` limite la page aux notifications non lues. Chaque notification indique avec `emailRequired` si un email est prepare et expose alors `emailRecipient`, `emailSubject` et `emailBody`. |
 | `PATCH` | `/api/v1/notifications/{id}/read` | Marque comme lue une notification de l'utilisateur connecte et enregistre la date de premiere lecture. Les lectures suivantes conservent cette date. Une notification d'un autre utilisateur retourne `404`. |
 
@@ -120,6 +121,11 @@ valeur normalisee provient d'une correction manuelle.
 
 La fiche d'une facture expose `paymentDate`, `paymentReference` et `paidByUserId`
 lorsqu'un reglement a ete confirme, ainsi que `archivedAt` lorsqu'elle a ete archivee.
+
+L'historique en lecture seule d'une facture expose les changements de statut `PAYEE` et
+`ARCHIVEE`, ainsi que l'action comptable `ACCOUNTING_ENTRY_REVERSED`. Ces traces indiquent
+l'auteur et la date de l'action; la trace d'extourne relie egalement les identifiants des
+ecritures originale et inverse.
 
 Une facture `ARCHIVEE` reste consultable, previsualisable et telechargeable. Toute route
 qui modifierait la facture, son statut, son classement, son affectation, ses doublons, ses

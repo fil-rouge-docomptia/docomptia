@@ -7,11 +7,14 @@ import org.facturation.backend.mapper.AccountingEntryMapper;
 import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.AccountingEntryLine;
 import org.facturation.backend.model.AccountingEntryStatusCode;
+import org.facturation.backend.model.AuditLog;
+import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.AccountingEntryLineRepository;
 import org.facturation.backend.repository.AccountingEntryRepository;
 import org.facturation.backend.service.AccountingEntryReversalService;
+import org.facturation.backend.service.AuditLogService;
 import org.facturation.backend.service.CurrentUserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,20 +26,25 @@ import java.util.List;
 @Service
 public class AccountingEntryReversalServiceImpl implements AccountingEntryReversalService {
 
+    private static final String REVERSAL_CREATED_ACTION = "ACCOUNTING_ENTRY_REVERSED";
+
     private final AccountingEntryRepository accountingEntryRepository;
     private final AccountingEntryLineRepository accountingEntryLineRepository;
     private final AccountingEntryMapper accountingEntryMapper;
+    private final AuditLogService auditLogService;
     private final CurrentUserService currentUserService;
 
     public AccountingEntryReversalServiceImpl(
             AccountingEntryRepository accountingEntryRepository,
             AccountingEntryLineRepository accountingEntryLineRepository,
             AccountingEntryMapper accountingEntryMapper,
+            AuditLogService auditLogService,
             CurrentUserService currentUserService
     ) {
         this.accountingEntryRepository = accountingEntryRepository;
         this.accountingEntryLineRepository = accountingEntryLineRepository;
         this.accountingEntryMapper = accountingEntryMapper;
+        this.auditLogService = auditLogService;
         this.currentUserService = currentUserService;
     }
 
@@ -59,7 +67,21 @@ public class AccountingEntryReversalServiceImpl implements AccountingEntryRevers
                 .map(line -> createReversalLine(reversal, line))
                 .toList();
         accountingEntryLineRepository.saveAll(reversalLines);
+        auditLogService.save(createReversalAuditLog(originalEntry, reversal, user));
         return accountingEntryMapper.toResponse(reversal, reversalLines);
+    }
+
+    private AuditLog createReversalAuditLog(AccountingEntry originalEntry, AccountingEntry reversal, User user) {
+        AuditLog auditLog = new AuditLog();
+        auditLog.setOrganization(user.getOrganization());
+        auditLog.setUser(user);
+        auditLog.setEntityName(Invoice.class.getSimpleName());
+        auditLog.setEntityId(originalEntry.getInvoice().getInvoiceId());
+        auditLog.setAction(REVERSAL_CREATED_ACTION);
+        auditLog.setOldValue("accountingEntryId=" + originalEntry.getAccountingEntryId());
+        auditLog.setNewValue("accountingEntryId=" + reversal.getAccountingEntryId());
+        auditLog.setCreatedAt(reversal.getCreatedAt());
+        return auditLog;
     }
 
     private void ensureReversible(AccountingEntry accountingEntry) {
