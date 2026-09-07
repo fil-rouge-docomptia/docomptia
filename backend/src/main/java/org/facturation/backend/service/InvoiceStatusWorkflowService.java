@@ -27,6 +27,8 @@ public interface InvoiceStatusWorkflowService {
 
     void ensureModifiable(Invoice invoice);
 
+    void ensureDirectlyModifiable(Invoice invoice);
+
     void reintegrateAfterCorrectionIfNeeded(Invoice invoice, User user, boolean hasCorrections);
 
     void submitForValidation(Invoice invoice, User user);
@@ -46,6 +48,8 @@ public interface InvoiceStatusWorkflowService {
     void markAccountingEntryToCorrect(Invoice invoice, User user);
 
     void markPaid(Invoice invoice, User user);
+
+    void markArchived(Invoice invoice, User user);
 
     void ensureCanTransition(Invoice invoice, InvoiceStatusCode targetCode);
 

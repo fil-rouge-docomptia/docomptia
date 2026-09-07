@@ -11,6 +11,7 @@ import org.facturation.backend.repository.InvoiceCommentRepository;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.service.CurrentUserService;
 import org.facturation.backend.service.InvoiceCommentService;
+import org.facturation.backend.service.InvoiceStatusWorkflowService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -25,17 +26,20 @@ public class InvoiceCommentServiceImpl implements InvoiceCommentService {
     private final InvoiceRepository invoiceRepository;
     private final InvoiceCommentResponseMapper responseMapper;
     private final CurrentUserService currentUserService;
+    private final InvoiceStatusWorkflowService invoiceStatusWorkflowService;
 
     public InvoiceCommentServiceImpl(
             InvoiceCommentRepository commentRepository,
             InvoiceRepository invoiceRepository,
             InvoiceCommentResponseMapper responseMapper,
-            CurrentUserService currentUserService
+            CurrentUserService currentUserService,
+            InvoiceStatusWorkflowService invoiceStatusWorkflowService
     ) {
         this.commentRepository = commentRepository;
         this.invoiceRepository = invoiceRepository;
         this.responseMapper = responseMapper;
         this.currentUserService = currentUserService;
+        this.invoiceStatusWorkflowService = invoiceStatusWorkflowService;
     }
 
     @Override
@@ -63,6 +67,7 @@ public class InvoiceCommentServiceImpl implements InvoiceCommentService {
         Invoice invoice = invoiceRepository
                 .findByInvoiceIdAndOrganizationOrganizationId(invoiceId, organizationId)
                 .orElseThrow(() -> new InvoiceNotFoundException(invoiceId));
+        invoiceStatusWorkflowService.ensureDirectlyModifiable(invoice);
 
         InvoiceComment comment = new InvoiceComment();
         comment.setInvoice(invoice);

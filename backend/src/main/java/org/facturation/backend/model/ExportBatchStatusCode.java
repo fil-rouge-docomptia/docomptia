@@ -1,12 +1,12 @@
 package org.facturation.backend.model;
 
-public enum AccountingEntryStatusCode {
-    GENERATED("GENERATED"),
-    REVERSAL("REVERSAL");
+public enum ExportBatchStatusCode {
+    PREPARATION("PREPARATION"),
+    GENERE("GENERE");
 
     private final String code;
 
-    AccountingEntryStatusCode(String code) {
+    ExportBatchStatusCode(String code) {
         this.code = code;
     }
 

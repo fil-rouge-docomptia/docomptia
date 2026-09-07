@@ -2,6 +2,7 @@ package org.facturation.backend.service.impl;
 
 import org.facturation.backend.exception.InvoiceStatusTransitionException;
 import org.facturation.backend.exception.ArchivedInvoiceNotModifiableException;
+import org.facturation.backend.exception.ExportedInvoiceNotModifiableException;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatus;
 import org.facturation.backend.model.InvoiceStatusCode;
@@ -70,7 +71,6 @@ class InvoiceStatusWorkflowServiceIntegrationTest {
     void controlsPaidStatusTransitionsThroughTheInvoiceWorkflow() {
         Invoice exportedInvoice = invoiceWithStatus(InvoiceStatusCode.EXPORTEE);
         Invoice exportableInvoice = invoiceWithStatus(InvoiceStatusCode.EXPORTABLE);
-        Invoice paidInvoice = invoiceWithStatus(InvoiceStatusCode.PAYEE);
 
         assertDoesNotThrow(() -> invoiceStatusWorkflowService.ensureCanTransition(
                 exportedInvoice,
@@ -80,10 +80,36 @@ class InvoiceStatusWorkflowServiceIntegrationTest {
                 InvoiceStatusTransitionException.class,
                 () -> invoiceStatusWorkflowService.ensureCanTransition(exportableInvoice, InvoiceStatusCode.PAYEE)
         );
+    }
+
+    @Test
+    void allowsArchivingOnlyFromExportedStatus() {
+        Invoice exportedInvoice = invoiceWithStatus(InvoiceStatusCode.EXPORTEE);
+        Invoice paidInvoice = invoiceWithStatus(InvoiceStatusCode.PAYEE);
+
         assertDoesNotThrow(() -> invoiceStatusWorkflowService.ensureCanTransition(
-                paidInvoice,
+                exportedInvoice,
                 InvoiceStatusCode.ARCHIVEE
         ));
+        assertThrows(
+                InvoiceStatusTransitionException.class,
+                () -> invoiceStatusWorkflowService.ensureCanTransition(paidInvoice, InvoiceStatusCode.ARCHIVEE)
+        );
+    }
+
+    @Test
+    void refusesDirectModificationOfExportedInvoice() {
+        Invoice exportedInvoice = invoiceWithStatus(InvoiceStatusCode.EXPORTEE);
+
+        ExportedInvoiceNotModifiableException exception = assertThrows(
+                ExportedInvoiceNotModifiableException.class,
+                () -> invoiceStatusWorkflowService.ensureDirectlyModifiable(exportedInvoice)
+        );
+
+        assertEquals(
+                "Exported invoice 42 cannot be modified directly; create a reversal instead",
+                exception.getMessage()
+        );
     }
 
     @Test
@@ -96,7 +122,7 @@ class InvoiceStatusWorkflowServiceIntegrationTest {
     @ParameterizedTest
     @EnumSource(
             value = InvoiceStatusCode.class,
-            names = {"VALIDEE", "ARCHIVEE"},
+            names = {"VALIDEE", "EXPORTEE", "ARCHIVEE"},
             mode = EnumSource.Mode.EXCLUDE
     )
     void blocksAccountingEntryGenerationForEveryNonValidatedStatus(InvoiceStatusCode statusCode) {

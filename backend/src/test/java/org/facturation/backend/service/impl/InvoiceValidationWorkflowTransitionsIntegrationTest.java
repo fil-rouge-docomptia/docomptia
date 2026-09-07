@@ -4,6 +4,7 @@ import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.exception.InvoiceStatusTransitionException;
 import org.facturation.backend.exception.ArchivedInvoiceNotModifiableException;
+import org.facturation.backend.exception.ExportedInvoiceNotModifiableException;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.InvoiceStatusHistory;
@@ -158,8 +159,32 @@ class InvoiceValidationWorkflowTransitionsIntegrationTest {
         return Arrays.stream(ValidationAction.values())
                 .flatMap(action -> Arrays.stream(InvoiceStatusCode.values())
                         .filter(status -> status != action.allowedSourceStatus)
+                        .filter(status -> status != InvoiceStatusCode.EXPORTEE)
                         .filter(status -> status != InvoiceStatusCode.ARCHIVEE)
                         .map(status -> Arguments.of(action, status)));
+    }
+
+    @ParameterizedTest(name = "{0} is forbidden for an exported invoice")
+    @MethodSource("validationActions")
+    void returnsExportedReadOnlyErrorForEveryValidationAction(ValidationAction action) {
+        Long invoiceId = uploadCompleteInvoice();
+        Invoice invoice = invoiceRepository.findById(invoiceId).orElseThrow();
+        invoice.setInvoiceStatus(statusWorkflowService.findByCode(InvoiceStatusCode.EXPORTEE));
+        invoiceRepository.saveAndFlush(invoice);
+        int historyCountBefore = statusHistory(invoiceId).size();
+        int decisionCountBefore = validationDecisions(invoiceId).size();
+
+        ExportedInvoiceNotModifiableException exception = assertThrows(
+                ExportedInvoiceNotModifiableException.class,
+                () -> action.execute(invoiceService, invoiceId)
+        );
+
+        assertEquals(
+                "Exported invoice " + invoiceId + " cannot be modified directly; create a reversal instead",
+                exception.getMessage()
+        );
+        assertEquals(historyCountBefore, statusHistory(invoiceId).size());
+        assertEquals(decisionCountBefore, validationDecisions(invoiceId).size());
     }
 
     @ParameterizedTest(name = "{0} is forbidden for an archived invoice")

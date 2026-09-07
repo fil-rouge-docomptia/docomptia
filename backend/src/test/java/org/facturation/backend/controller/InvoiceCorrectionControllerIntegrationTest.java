@@ -313,6 +313,37 @@ class InvoiceCorrectionControllerIntegrationTest {
     }
 
     @Test
+    void refusesDirectCorrectionAfterExportWithoutChangingInvoice() throws Exception {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());
+        invoiceService.validateInvoice(uploadResponse.getInvoiceId()).orElseThrow();
+        invoiceService.generateAccountingEntry(uploadResponse.getInvoiceId()).orElseThrow();
+        Invoice invoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+        User user = userRepository.findById(1L).orElseThrow();
+        invoiceStatusWorkflowService.transitionTo(
+                invoice,
+                InvoiceStatusCode.EXPORTEE,
+                user,
+                "Accounting export completed"
+        );
+        String invoiceNumber = invoice.getInvoiceNumber();
+
+        mockMvc.perform(patch("/api/v1/invoices/{id}", uploadResponse.getInvoiceId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"invoiceNumber\":\"INV-EXPORTED-MODIFIED\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("EXPORTED_INVOICE_NOT_MODIFIABLE"))
+                .andExpect(jsonPath("$.message").value(
+                        "Exported invoice " + uploadResponse.getInvoiceId()
+                                + " cannot be modified directly; create a reversal instead"
+                ));
+
+        Invoice persistedInvoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+        assertEquals(invoiceNumber, persistedInvoice.getInvoiceNumber());
+        assertEquals(InvoiceStatusCode.EXPORTEE.getCode(), persistedInvoice.getInvoiceStatus().getCode());
+    }
+
+    @Test
     void rejectsInvoiceWithMandatoryReason() throws Exception {
         InvoiceUploadResponse uploadResponse = uploadInvoice();
         submitCompleteInvoiceForValidation(uploadResponse.getInvoiceId());

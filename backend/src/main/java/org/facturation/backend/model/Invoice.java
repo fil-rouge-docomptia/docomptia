@@ -50,6 +50,10 @@ public class Invoice {
     @JoinColumn(name = "paid_by_user_id")
     private User paidByUser;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "export_batch_id")
+    private ExportBatch exportBatch;
+
     private String invoiceNumber;
 
     private String commandReference;
@@ -61,6 +65,8 @@ public class Invoice {
     private LocalDate paymentDate;
 
     private String paymentReference;
+
+    private LocalDateTime archivedAt;
 
     @Column(nullable = false, length = 3)
     private String currencyCode;
@@ -145,6 +151,14 @@ public class Invoice {
         this.paidByUser = paidByUser;
     }
 
+    public ExportBatch getExportBatch() {
+        return exportBatch;
+    }
+
+    public void setExportBatch(ExportBatch exportBatch) {
+        this.exportBatch = exportBatch;
+    }
+
     public String getInvoiceNumber() {
         return invoiceNumber;
     }
@@ -191,6 +205,14 @@ public class Invoice {
 
     public void setPaymentReference(String paymentReference) {
         this.paymentReference = paymentReference;
+    }
+
+    public LocalDateTime getArchivedAt() {
+        return archivedAt;
+    }
+
+    public void setArchivedAt(LocalDateTime archivedAt) {
+        this.archivedAt = archivedAt;
     }
 
     public String getCurrencyCode() {

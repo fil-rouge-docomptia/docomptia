@@ -29,6 +29,7 @@ public class ApiExceptionHandler {
     private static final String CHART_OF_ACCOUNT_CONFLICT_CODE = "CHART_OF_ACCOUNT_CONFLICT";
     private static final String INVOICE_ACTION_NOT_ALLOWED_CODE = "INVOICE_ACTION_NOT_ALLOWED";
     private static final String ARCHIVED_INVOICE_NOT_MODIFIABLE_CODE = "ARCHIVED_INVOICE_NOT_MODIFIABLE";
+    private static final String EXPORTED_INVOICE_NOT_MODIFIABLE_CODE = "EXPORTED_INVOICE_NOT_MODIFIABLE";
     private static final String INVOICE_REQUIRED_FIELDS_MISSING_CODE = "INVOICE_REQUIRED_FIELDS_MISSING";
     private static final String DUPLICATE_ALERT_NOT_FOUND_CODE = "DUPLICATE_ALERT_NOT_FOUND";
     private static final String DUPLICATE_ALERT_ACTION_NOT_ALLOWED_CODE = "DUPLICATE_ALERT_ACTION_NOT_ALLOWED";
@@ -37,6 +38,9 @@ public class ApiExceptionHandler {
     private static final String ACCOUNTING_ENTRY_PREREQUISITES_MISSING_CODE =
             "ACCOUNTING_ENTRY_PREREQUISITES_MISSING";
     private static final String ACCOUNTING_ENTRY_LINE_NOT_FOUND_CODE = "ACCOUNTING_ENTRY_LINE_NOT_FOUND";
+    private static final String ACCOUNTING_ENTRY_NOT_FOUND_CODE = "ACCOUNTING_ENTRY_NOT_FOUND";
+    private static final String ACCOUNTING_ENTRY_REVERSAL_NOT_ALLOWED_CODE =
+            "ACCOUNTING_ENTRY_REVERSAL_NOT_ALLOWED";
     private static final String ACCOUNTING_ENTRY_LINE_VALIDATION_ERROR_CODE =
             "ACCOUNTING_ENTRY_LINE_VALIDATION_ERROR";
     private static final String ACCOUNTING_ENTRY_NOT_MODIFIABLE_CODE = "ACCOUNTING_ENTRY_NOT_MODIFIABLE";
@@ -225,6 +229,13 @@ public class ApiExceptionHandler {
         return errorResponse(HttpStatus.CONFLICT, ARCHIVED_INVOICE_NOT_MODIFIABLE_CODE, exception.getMessage());
     }
 
+    @ExceptionHandler(ExportedInvoiceNotModifiableException.class)
+    public ResponseEntity<ApiErrorResponse> handleExportedInvoiceNotModifiable(
+            ExportedInvoiceNotModifiableException exception
+    ) {
+        return errorResponse(HttpStatus.CONFLICT, EXPORTED_INVOICE_NOT_MODIFIABLE_CODE, exception.getMessage());
+    }
+
     @ExceptionHandler(InvoiceMissingRequiredFieldsException.class)
     public ResponseEntity<ApiErrorResponse> handleInvoiceMissingRequiredFields(
             InvoiceMissingRequiredFieldsException exception
@@ -279,6 +290,24 @@ public class ApiExceptionHandler {
             AccountingEntryLineNotFoundException exception
     ) {
         return errorResponse(HttpStatus.NOT_FOUND, ACCOUNTING_ENTRY_LINE_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(AccountingEntryNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountingEntryNotFound(
+            AccountingEntryNotFoundException exception
+    ) {
+        return errorResponse(HttpStatus.NOT_FOUND, ACCOUNTING_ENTRY_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(AccountingEntryReversalNotAllowedException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountingEntryReversalNotAllowed(
+            AccountingEntryReversalNotAllowedException exception
+    ) {
+        return errorResponse(
+                HttpStatus.CONFLICT,
+                ACCOUNTING_ENTRY_REVERSAL_NOT_ALLOWED_CODE,
+                exception.getMessage()
+        );
     }
 
     @ExceptionHandler(InvalidAccountingEntryLineCorrectionException.class)

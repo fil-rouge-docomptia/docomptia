@@ -5,6 +5,7 @@ import java.util.List;
 public class AccountingEntryResponse {
 
     private Long accountingEntryId;
+    private Long reversedAccountingEntryId;
     private String entryNumber;
     private String entryDate;
     private String label;
@@ -21,6 +22,14 @@ public class AccountingEntryResponse {
 
     public void setAccountingEntryId(Long accountingEntryId) {
         this.accountingEntryId = accountingEntryId;
+    }
+
+    public Long getReversedAccountingEntryId() {
+        return reversedAccountingEntryId;
+    }
+
+    public void setReversedAccountingEntryId(Long reversedAccountingEntryId) {
+        this.reversedAccountingEntryId = reversedAccountingEntryId;
     }
 
     public String getEntryNumber() {

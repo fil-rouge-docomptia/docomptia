@@ -4,12 +4,14 @@ import org.facturation.backend.dto.request.InvoiceCorrectionRequest;
 import org.facturation.backend.dto.response.InvoiceAccountingEntryResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.exception.ApiExceptionHandler;
+import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.AccountingEntryLine;
 import org.facturation.backend.model.AuditLog;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.AccountingEntryLineRepository;
+import org.facturation.backend.repository.AccountingEntryRepository;
 import org.facturation.backend.repository.AuditLogRepository;
 import org.facturation.backend.repository.ChartOfAccountRepository;
 import org.facturation.backend.repository.InvoiceRepository;
@@ -24,11 +26,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -39,6 +43,7 @@ class AccountingEntryControllerIntegrationTest {
 
     private final MockMvc mockMvc;
     private final AccountingEntryLineRepository accountingEntryLineRepository;
+    private final AccountingEntryRepository accountingEntryRepository;
     private final AuditLogRepository auditLogRepository;
     private final ChartOfAccountRepository chartOfAccountRepository;
     private final InvoiceRepository invoiceRepository;
@@ -51,6 +56,7 @@ class AccountingEntryControllerIntegrationTest {
             AccountingEntryController accountingEntryController,
             ApiExceptionHandler apiExceptionHandler,
             AccountingEntryLineRepository accountingEntryLineRepository,
+            AccountingEntryRepository accountingEntryRepository,
             AuditLogRepository auditLogRepository,
             ChartOfAccountRepository chartOfAccountRepository,
             InvoiceRepository invoiceRepository,
@@ -62,12 +68,79 @@ class AccountingEntryControllerIntegrationTest {
                 .setControllerAdvice(apiExceptionHandler)
                 .build();
         this.accountingEntryLineRepository = accountingEntryLineRepository;
+        this.accountingEntryRepository = accountingEntryRepository;
         this.auditLogRepository = auditLogRepository;
         this.chartOfAccountRepository = chartOfAccountRepository;
         this.invoiceRepository = invoiceRepository;
         this.invoiceService = invoiceService;
         this.invoiceStatusWorkflowService = invoiceStatusWorkflowService;
         this.userRepository = userRepository;
+    }
+
+    @Test
+    void createsDatedReversalWithIndependentIdAndInvertedLinesWithoutChangingOriginal() throws Exception {
+        GeneratedLine generatedLine = generateAccountingEntry();
+        AccountingEntry originalEntry = accountingEntryRepository.findById(generatedLine.entryId()).orElseThrow();
+        List<AccountingEntryLine> originalLines = accountingEntryLineRepository
+                .findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(generatedLine.entryId());
+        String originalStatus = originalEntry.getStatus();
+        String originalNumber = originalEntry.getEntryNumber();
+        LocalDate originalDate = originalEntry.getEntryDate();
+        List<String> originalAmounts = originalLines.stream()
+                .map(line -> line.getDebitAmount().toPlainString() + "/" + line.getCreditAmount().toPlainString())
+                .toList();
+        markAsExported(generatedLine.invoiceId());
+
+        mockMvc.perform(post("/api/v1/accounting-entries/{entryId}/reversal", generatedLine.entryId()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.accountingEntryId").isNumber())
+                .andExpect(jsonPath("$.accountingEntryId").value(org.hamcrest.Matchers.not(generatedLine.entryId())))
+                .andExpect(jsonPath("$.reversedAccountingEntryId").value(generatedLine.entryId()))
+                .andExpect(jsonPath("$.entryDate").value(LocalDate.now().toString()))
+                .andExpect(jsonPath("$.status").value("REVERSAL"))
+                .andExpect(jsonPath("$.totalDebit").value("120.00"))
+                .andExpect(jsonPath("$.totalCredit").value("120.00"))
+                .andExpect(jsonPath("$.balanced").value(true))
+                .andExpect(jsonPath("$.lines[0].debitAmount").value("0.00"))
+                .andExpect(jsonPath("$.lines[0].creditAmount").value("100.00"))
+                .andExpect(jsonPath("$.lines[2].debitAmount").value("120.00"))
+                .andExpect(jsonPath("$.lines[2].creditAmount").value("0.00"));
+
+        AccountingEntry persistedOriginal = accountingEntryRepository.findById(generatedLine.entryId()).orElseThrow();
+        List<String> persistedOriginalAmounts = accountingEntryLineRepository
+                .findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(generatedLine.entryId())
+                .stream()
+                .map(line -> line.getDebitAmount().toPlainString() + "/" + line.getCreditAmount().toPlainString())
+                .toList();
+        assertEquals(originalStatus, persistedOriginal.getStatus());
+        assertEquals(originalNumber, persistedOriginal.getEntryNumber());
+        assertEquals(originalDate, persistedOriginal.getEntryDate());
+        assertEquals(originalAmounts, persistedOriginalAmounts);
+    }
+
+    @Test
+    void rejectsReversalForNonExportedEntry() throws Exception {
+        GeneratedLine generatedLine = generateAccountingEntry();
+
+        mockMvc.perform(post("/api/v1/accounting-entries/{entryId}/reversal", generatedLine.entryId()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ACCOUNTING_ENTRY_REVERSAL_NOT_ALLOWED"));
+
+        assertTrue(accountingEntryRepository
+                .findByReversedAccountingEntryAccountingEntryId(generatedLine.entryId())
+                .isEmpty());
+    }
+
+    @Test
+    void rejectsSecondReversalForSameEntry() throws Exception {
+        GeneratedLine generatedLine = generateAccountingEntry();
+        markAsExported(generatedLine.invoiceId());
+
+        mockMvc.perform(post("/api/v1/accounting-entries/{entryId}/reversal", generatedLine.entryId()))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/accounting-entries/{entryId}/reversal", generatedLine.entryId()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ACCOUNTING_ENTRY_REVERSAL_NOT_ALLOWED"));
     }
 
     @Test
@@ -217,6 +290,17 @@ class AccountingEntryControllerIntegrationTest {
                 .filter(log -> lineId.equals(log.getEntityId()))
                 .filter(log -> "LINE_CORRECTION".equals(log.getAction()))
                 .toList();
+    }
+
+    private void markAsExported(Long invoiceId) {
+        Invoice invoice = invoiceRepository.findById(invoiceId).orElseThrow();
+        User user = userRepository.findById(1L).orElseThrow();
+        invoiceStatusWorkflowService.transitionTo(
+                invoice,
+                InvoiceStatusCode.EXPORTEE,
+                user,
+                "Accounting export completed"
+        );
     }
 
     private record GeneratedLine(Long invoiceId, Long entryId, AccountingEntryLine line) {

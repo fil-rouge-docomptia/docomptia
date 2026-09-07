@@ -79,7 +79,9 @@ http://ocr:8000/ocr/analyze
 | `POST` | `/api/v1/invoices/{id}/reject` | Refuse une facture eligible avec un motif obligatoire et historise la decision, son auteur et sa date |
 | `POST` | `/api/v1/invoices/{invoiceId}/duplicate-alerts/{alertId}/decision` | Ignore une alerte en attente, confirme le doublon ou rejette la facture, puis met a jour son workflow |
 | `POST` | `/api/v1/invoices/{id}/accounting-entry` | Genere ou controle l'ecriture comptable apres validation. Une ecriture desequilibree retourne `409` avec les totaux et l'ecart, et la facture reste `VALIDEE`. |
+| `POST` | `/api/v1/accounting-exports/csv?startDate=2026-08-01&endDate=2026-08-31` | Genere un CSV comptable telechargeable pour les factures `EXPORTABLE` de l'organisation courante et de la periode optionnelle. Un lot d'export `CSV` est cree avec l'organisation, la periode, l'auteur, le statut `PREPARATION`, les factures retenues, puis passe `GENERE` apres generation. Les ecritures sont recontrolees equilibrees, les dates sont au format ISO, les montants a deux decimales, puis les factures incluses passent `EXPORTEE` et l'action est journalisee avec l'identifiant du lot. |
 | `POST` | `/api/v1/invoices/{id}/mark-paid` | Confirme le reglement d'une facture `EXPORTEE` avec une `paymentDate` obligatoire et une `paymentReference` facultative, enregistre l'utilisateur connecte, passe la facture au statut `PAYEE` et historise l'action. Une nouvelle demande sur une facture deja `PAYEE` reste sans effet et ne duplique pas l'historique. |
+| `POST` | `/api/v1/invoices/{id}/archive` | Archive une facture au statut `EXPORTEE`, enregistre `archivedAt`, passe la facture au statut `ARCHIVEE` et historise l'action. |
 | `GET` | `/api/v1/invoices?status=EXTRAITE&status=VALIDEE&invoiceNumber=FAC-2026&supplier=Orange&client=Docomptia&dueDate=2026-08-31&startDate=2026-08-01&endDate=2026-08-31&minAmount=100.00&maxAmount=500.00&page=0&size=20&sortBy=invoiceDate&direction=DESC` | Recherche les factures de l'organisation courante, filtre par un ou plusieurs statuts connus (parametre repete ou codes separes par des virgules), le numero exact ou partiel, le fournisseur ou client par nom ou identifiant, la date de facture, la date d'echeance, une periode inclusive de dates de facture ou une plage inclusive de montants TTC, puis retourne une page triable par date, montant TTC ou statut. Un statut inconnu retourne `400`. Les bornes de periode et de montant peuvent etre omises individuellement; une borne minimum posterieure a la borne maximum correspondante retourne `400`. |
 | `GET` | `/api/v1/invoices/pending-validation?page=0&size=20&sortBy=invoiceDate&direction=DESC` | Retourne au responsable comptable une page triable des seules factures `A_VERIFIER` de son organisation. |
 | `GET` | `/api/v1/invoices/assigned-to-me?status=EXTRAITE&status=A_VERIFIER&page=0&size=20&sortBy=invoiceDate&direction=DESC` | Retourne une page triable des factures affectees a l'utilisateur connecte dans son organisation, avec un filtre optionnel sur un ou plusieurs statuts connus. |
@@ -90,6 +92,7 @@ http://ocr:8000/ocr/analyze
 | `POST` | `/api/v1/invoices/{id}/comments` | Ajoute un commentaire non vide a une facture de l'organisation courante avec l'utilisateur connecte comme auteur et l'integre a son historique |
 | `GET` | `/api/v1/invoices/{id}/comments?page=0&size=20` | Retourne une page de commentaires de l'organisation courante, du plus ancien au plus recent, avec leur auteur et leur date |
 | `PATCH` | `/api/v1/accounting-entries/{entryId}/lines/{lineId}` | Corrige le compte, le libelle, le debit ou le credit d'une ligne non exportee et historise les valeurs avant/apres |
+| `POST` | `/api/v1/accounting-entries/{entryId}/reversal` | Cree l'extourne d'une ecriture exportee sous la forme d'une nouvelle ecriture datee, liee a l'originale, dont les debits et credits sont inverses. |
 | `GET` | `/api/v1/notifications?unreadOnly=false&page=0&size=20` | Retourne les notifications de l'utilisateur connecte, de la plus recente a la plus ancienne. `unreadOnly=true` limite la page aux notifications non lues. Chaque notification indique avec `emailRequired` si un email est prepare et expose alors `emailRecipient`, `emailSubject` et `emailBody`. |
 | `PATCH` | `/api/v1/notifications/{id}/read` | Marque comme lue une notification de l'utilisateur connecte et enregistre la date de premiere lecture. Les lectures suivantes conservent cette date. Une notification d'un autre utilisateur retourne `404`. |
 
@@ -107,15 +110,21 @@ le payload est invalide ou n'applique aucune modification effective, et `409` si
 le statut courant interdit la correction. Une facture hors de l'organisation courante
 retourne `404`.
 
+Une facture `EXPORTEE` et son ecriture ne sont plus modifiables directement. Les routes de
+correction de facture, classement, affectation, doublon et commentaire retournent `409` avec le
+code metier `EXPORTED_INVOICE_NOT_MODIFIABLE`. La correction d'une ligne comptable conserve le
+code `ACCOUNTING_ENTRY_NOT_MODIFIABLE`; une correction apres export doit passer par une extourne.
+
 Dans les reponses OCR, `ocrAnalysis.fields[].corrected` vaut `true` lorsqu'une
 valeur normalisee provient d'une correction manuelle.
 
 La fiche d'une facture expose `paymentDate`, `paymentReference` et `paidByUserId`
-lorsqu'un reglement a ete confirme.
+lorsqu'un reglement a ete confirme, ainsi que `archivedAt` lorsqu'elle a ete archivee.
 
 Une facture `ARCHIVEE` reste consultable, previsualisable et telechargeable. Toute route
-qui modifierait la facture, son statut, son classement, son affectation, ses doublons ou son
-ecriture retourne `409` avec le code metier `ARCHIVED_INVOICE_NOT_MODIFIABLE`.
+qui modifierait la facture, son statut, son classement, son affectation, ses doublons, ses
+commentaires ou son ecriture retourne `409` avec le code metier
+`ARCHIVED_INVOICE_NOT_MODIFIABLE`. Les commentaires deja presents restent consultables.
 
 ## Matrice Des Permissions MVP
 
@@ -136,7 +145,9 @@ par defaut.
 | `PROCESS_INVOICES` | Deposer, corriger, relancer l'OCR, soumettre et traiter un doublon | Oui | Oui | Non |
 | `VALIDATE_INVOICES` | Valider, refuser ou demander une correction | Non | Non | Oui |
 | `MANAGE_ACCOUNTING_ENTRIES` | Generer une ecriture et corriger ses lignes | Oui | Oui | Oui |
+| `EXPORT_ACCOUNTING` | Generer et telecharger l'export CSV comptable | Oui | Oui | Oui |
 | `CONFIRM_INVOICE_PAYMENTS` | Confirmer le reglement d'une facture exportee | Oui | Oui | Oui |
+| `ARCHIVE_INVOICES` | Archiver une facture exportee | Oui | Oui | Oui |
 | `VIEW_SUPPLIERS` | Lister et consulter les fournisseurs | Oui | Oui | Oui |
 | `MANAGE_SUPPLIERS` | Modifier un fournisseur | Oui | Oui | Non |
 | `VIEW_ACCOUNTING_CONFIGURATION` | Consulter le plan et les regles comptables | Oui | Oui | Oui |

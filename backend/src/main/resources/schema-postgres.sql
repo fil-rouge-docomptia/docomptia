@@ -109,6 +109,29 @@ ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS assigned_user_id BIGINT 
 ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS payment_date DATE;
 ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(255);
 ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS paid_by_user_id BIGINT REFERENCES users(user_id);
+ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP;
+
+ALTER TABLE IF EXISTS accounting_entries
+    ADD COLUMN IF NOT EXISTS reversed_accounting_entry_id BIGINT REFERENCES accounting_entries(accounting_entry_id);
+ALTER TABLE accounting_entries DROP CONSTRAINT IF EXISTS accounting_entries_invoice_id_key;
+ALTER TABLE accounting_entries DROP CONSTRAINT IF EXISTS uk_accounting_entries_invoice_id;
+ALTER TABLE accounting_entries DROP CONSTRAINT IF EXISTS uk7b1slv0ctibyct165fnb3a958;
+CREATE UNIQUE INDEX IF NOT EXISTS uk_accounting_entries_reversed_entry
+    ON accounting_entries (reversed_accounting_entry_id)
+    WHERE reversed_accounting_entry_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS export_batches (
+    export_batch_id BIGSERIAL PRIMARY KEY,
+    organization_id BIGINT NOT NULL REFERENCES organizations(organization_id),
+    created_by_user_id BIGINT NOT NULL REFERENCES users(user_id),
+    period_start_date DATE,
+    period_end_date DATE,
+    format VARCHAR(255) NOT NULL,
+    status VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP,
+    generated_at TIMESTAMP
+);
+ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS export_batch_id BIGINT REFERENCES export_batches(export_batch_id);
 
 ALTER TABLE IF EXISTS invoice_duplicate_alerts ALTER COLUMN invoice_date DROP NOT NULL;
 ALTER TABLE IF EXISTS invoice_duplicate_alerts ALTER COLUMN total_ttc DROP NOT NULL;
