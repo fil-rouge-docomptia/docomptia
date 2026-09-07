@@ -42,15 +42,17 @@ avec `Content-Type: application/json`. Aucun identifiant d'organisation n'est en
    Aucun compte nouveau : état explicite et confirmation bloquée.
 4. **Confirm Import** : récapitulatif du fichier et des nombres importés/ignorés/exclus.
    Import accounts envoie l'empreinte de prévisualisation et le choix d'exclusion.
-   Après réponse réelle uniquement, message avec les nombres du serveur et retour au plan
-   fraîchement chargé. Les écrans détaillés de résultat restent réservés à KAN-291.
+   Après réponse réelle uniquement, rapport détaillé avec les nombres et lignes du serveur.
+   Les [résultats KAN-291](frontend-account-import-results.md) restent consultables avant
+   téléchargement ou retour explicite au plan fraîchement chargé.
 
 ## Erreurs, navigation et limites
 
 - 400 : erreur de validation serveur ; 413 : fichier dépassant la limite d'envoi.
 - 403 : accès refusé ; 404/405/501 : import indisponible. La progression est bloquée,
   l'annulation reste possible. Aucune importation simulée.
-- 409 : prévisualisation périmée. Retour au mapping et nouvelle prévisualisation obligatoire.
+- 409 : prévisualisation périmée. Écran d'échec ; Retry import retourne au mapping pour une
+  nouvelle prévisualisation obligatoire.
 - Erreur réseau/serveur à la confirmation : résultat incertain, aucun rejeu automatique.
   Fichier et mapping conservés ; nouvelle prévisualisation obligatoire pour distinguer les
   comptes encore nouveaux de ceux qui auraient déjà été créés. Même règle après tout rejet
