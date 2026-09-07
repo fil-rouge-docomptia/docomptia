@@ -33,6 +33,8 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
     private static final String COMMENT_TYPE = "COMMENT";
     private static final String ASSIGNEE_CHANGED_ACTION = "ASSIGNEE_CHANGED";
     private static final String ASSIGNMENT_TYPE = "ASSIGNMENT";
+    private static final String REVERSAL_CREATED_ACTION = "ACCOUNTING_ENTRY_REVERSED";
+    private static final String ACCOUNTING_ACTION_TYPE = "ACCOUNTING_ACTION";
     private static final String DUPLICATE_DECISION_TYPE = "DUPLICATE_DECISION";
     private static final String STATUS_CHANGE_TYPE = "STATUS_CHANGE";
     private static final String VALIDATION_DECISION_TYPE = "VALIDATION_DECISION";
@@ -101,6 +103,16 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
                 )
                 .stream()
                 .map(this::toAssignmentHistoryItem)
+                .forEach(history::add);
+        auditLogRepository
+                .findByOrganizationOrganizationIdAndEntityNameAndEntityIdAndActionOrderByCreatedAtAscAuditLogIdAsc(
+                        organizationId,
+                        Invoice.class.getSimpleName(),
+                        invoiceId,
+                        REVERSAL_CREATED_ACTION
+                )
+                .stream()
+                .map(auditLog -> toAuditHistoryItem(auditLog, ACCOUNTING_ACTION_TYPE))
                 .forEach(history::add);
         duplicateAlertRepository
                 .findByInvoiceInvoiceIdAndInvoiceOrganizationOrganizationIdAndDecidedAtIsNotNullOrderByDecidedAtAscDuplicateAlertIdAsc(

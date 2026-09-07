@@ -31,6 +31,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -42,6 +43,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AccountingEntryControllerIntegrationTest {
 
     private final MockMvc mockMvc;
+    private final MockMvc invoiceMockMvc;
     private final AccountingEntryLineRepository accountingEntryLineRepository;
     private final AccountingEntryRepository accountingEntryRepository;
     private final AuditLogRepository auditLogRepository;
@@ -54,6 +56,7 @@ class AccountingEntryControllerIntegrationTest {
     @Autowired
     AccountingEntryControllerIntegrationTest(
             AccountingEntryController accountingEntryController,
+            InvoiceController invoiceController,
             ApiExceptionHandler apiExceptionHandler,
             AccountingEntryLineRepository accountingEntryLineRepository,
             AccountingEntryRepository accountingEntryRepository,
@@ -65,6 +68,9 @@ class AccountingEntryControllerIntegrationTest {
             UserRepository userRepository
     ) {
         this.mockMvc = MockMvcBuilders.standaloneSetup(accountingEntryController)
+                .setControllerAdvice(apiExceptionHandler)
+                .build();
+        this.invoiceMockMvc = MockMvcBuilders.standaloneSetup(invoiceController)
                 .setControllerAdvice(apiExceptionHandler)
                 .build();
         this.accountingEntryLineRepository = accountingEntryLineRepository;
@@ -116,6 +122,34 @@ class AccountingEntryControllerIntegrationTest {
         assertEquals(originalNumber, persistedOriginal.getEntryNumber());
         assertEquals(originalDate, persistedOriginal.getEntryDate());
         assertEquals(originalAmounts, persistedOriginalAmounts);
+
+        AccountingEntry reversal = accountingEntryRepository
+                .findByReversedAccountingEntryAccountingEntryId(generatedLine.entryId())
+                .orElseThrow();
+        List<AuditLog> reversalLogs = auditLogRepository
+                .findByOrganizationOrganizationIdAndEntityNameAndEntityIdAndActionOrderByCreatedAtAscAuditLogIdAsc(
+                        1L,
+                        Invoice.class.getSimpleName(),
+                        generatedLine.invoiceId(),
+                        "ACCOUNTING_ENTRY_REVERSED"
+                );
+        assertEquals(1, reversalLogs.size());
+        assertEquals(1L, reversalLogs.getFirst().getUser().getUserId());
+        assertEquals("accountingEntryId=" + generatedLine.entryId(), reversalLogs.getFirst().getOldValue());
+        assertEquals("accountingEntryId=" + reversal.getAccountingEntryId(), reversalLogs.getFirst().getNewValue());
+        assertEquals(reversal.getCreatedAt(), reversalLogs.getFirst().getCreatedAt());
+
+        invoiceMockMvc.perform(get("/api/v1/invoices/{id}/history", generatedLine.invoiceId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.action == 'ACCOUNTING_ENTRY_REVERSED')].type")
+                        .value("ACCOUNTING_ACTION"))
+                .andExpect(jsonPath("$[?(@.action == 'ACCOUNTING_ENTRY_REVERSED')].authorId").value(1))
+                .andExpect(jsonPath("$[?(@.action == 'ACCOUNTING_ENTRY_REVERSED')].fieldName")
+                        .value("accountingEntryId"))
+                .andExpect(jsonPath("$[?(@.action == 'ACCOUNTING_ENTRY_REVERSED')].oldValue")
+                        .value(generatedLine.entryId().toString()))
+                .andExpect(jsonPath("$[?(@.action == 'ACCOUNTING_ENTRY_REVERSED')].newValue")
+                        .value(reversal.getAccountingEntryId().toString()));
     }
 
     @Test
