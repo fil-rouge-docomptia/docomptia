@@ -2,7 +2,7 @@ import { FileText } from 'lucide-react'
 
 import { DocumentActions } from '@/components/document/DocumentActions'
 import { getDocumentName } from '@/components/document/document-utils'
-import { InvoiceStatusBadge } from '@/components/invoice/InvoiceStatusBadge'
+import { DocumentStatusBadge } from '@/components/document/DocumentStatusBadge'
 import {
   formatInvoiceDate,
   formatInvoiceMoney,
@@ -52,7 +52,7 @@ export function DocumentTable({ documents }: { documents: InvoiceListItem[] }) {
               {formatInvoiceMoney(invoice.totalTtc, invoice.currencyCode)}
             </TableCell>
             <TableCell className="px-3 py-2">
-              <InvoiceStatusBadge status={invoice.status} />
+              <DocumentStatusBadge status={invoice.status} />
             </TableCell>
             <TableCell className="px-3 py-2">
               <DocumentActions invoice={invoice} />

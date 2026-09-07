@@ -1,7 +1,7 @@
 import { DocumentActions } from '@/components/document/DocumentActions'
 import { DocumentPreview } from '@/components/document/DocumentPreview'
 import { getDocumentName } from '@/components/document/document-utils'
-import { InvoiceStatusBadge } from '@/components/invoice/InvoiceStatusBadge'
+import { DocumentStatusBadge } from '@/components/document/DocumentStatusBadge'
 import { formatInvoiceMoney } from '@/components/invoice/detail/invoice-detail-utils'
 import { Card, CardContent } from '@/components/ui/card'
 import type { InvoiceListItem } from '@/types/invoice'
@@ -26,7 +26,7 @@ export function DocumentGrid({ documents }: { documents: InvoiceListItem[] }) {
               </p>
             </div>
             <div className="flex items-start justify-between gap-2">
-              <InvoiceStatusBadge status={invoice.status} />
+              <DocumentStatusBadge status={invoice.status} />
               <DocumentActions invoice={invoice} />
             </div>
           </CardContent>

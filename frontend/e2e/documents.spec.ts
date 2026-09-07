@@ -305,3 +305,106 @@ test('shows the document library empty state', async ({ page }) => {
     '/inbox?upload=1',
   )
 })
+
+for (const view of ['table', 'grid']) {
+  test(`identifies archived documents as read-only in ${view} view`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: view === 'table' ? 1440 : 390, height: 1024 })
+    await mockApiRoute(page, '/v1/invoices*', async (route) => {
+      const url = new URL(route.request().url())
+      expect(route.request().method()).toBe('GET')
+      expect(url.searchParams.getAll('status')).toEqual(['ARCHIVEE'])
+      expect(url.searchParams.get('invoiceNumber')).toBe('INV-2026')
+      await fulfillJson(route, 200, {
+        ...emptyPage, content: [documents[0]], totalElements: 1, totalPages: 1,
+      })
+    })
+    await mockApiRoute(page, '/v1/invoices/42/preview', fulfillPreview)
+    await page.goto(`/documents?view=${view}&status=ARCHIVEE&invoiceNumber=INV-2026`)
+
+    const notice = page.getByRole('status', { name: 'Archived document notice' })
+    await expect(notice).toContainText('Archived — read only')
+    const results = view === 'table' ? page.getByRole('table') : page.getByLabel('Document preview grid')
+    await expect(results.getByText('Archived — read only', { exact: true })).toBeVisible()
+    await expect(results.getByRole('button', { name: /Edit|Delete|Approve|Reject/ })).toHaveCount(0)
+    const open = page.getByRole('link', { name: 'Open document INV-2026-0421' })
+    await expect(open).toHaveAttribute('href', '/invoices/42')
+    await expect(page.getByRole('button', { name: 'Download document INV-2026-0421' })).toBeEnabled()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    await page.screenshot({ path: testInfo.outputPath(`archived-${view}.png`), fullPage: true })
+
+    await open.focus()
+    await page.keyboard.press('Enter')
+    await expect(page).toHaveURL(/\/invoices\/42$/)
+    await page.goBack()
+    await expect(page).toHaveURL(/status=ARCHIVEE&invoiceNumber=INV-2026/)
+    await expect(notice).toBeVisible()
+  })
+}
+
+test('only shows the archived notice when returned results contain archives', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices*', (route) => fulfillJson(route, 200, {
+    ...emptyPage, content: [documents[1]], totalElements: 1, totalPages: 1,
+  }))
+  await page.goto('/documents')
+  await expect(page.getByRole('table')).toBeVisible()
+  await expect(page.getByRole('status', { name: 'Archived document notice' })).toHaveCount(0)
+})
+
+test('respects denied archived previews and downloads without a public URL fallback', async ({ page }) => {
+  let downloads = 0
+  page.on('download', () => { downloads += 1 })
+  await mockApiRoute(page, '/v1/invoices*', (route) => fulfillJson(route, 200, {
+    ...emptyPage, content: [documents[0]], totalElements: 1, totalPages: 1,
+  }))
+  for (const endpoint of ['preview', 'file']) {
+    await mockApiRoute(page, `/v1/invoices/42/${endpoint}`, async (route) => {
+      expect(route.request().method()).toBe('GET')
+      expect(route.request().headers().authorization).toBe('Bearer e2e-token')
+      await fulfillJson(route, 403, { code: 'ACCESS_DENIED' })
+    })
+  }
+  await page.goto('/documents?view=grid&status=ARCHIVEE')
+  await expect(page.getByText('You do not have permission to preview this document.')).toBeVisible()
+  const download = page.getByRole('button', { name: 'Download document INV-2026-0421' })
+  await download.click()
+  await expect(page.getByText('You do not have permission to download this document.')).toBeVisible()
+  await expect(download).toBeDisabled()
+  await expect(page.getByRole('link', { name: 'Open document INV-2026-0421' })).toBeVisible()
+  await expect(page.locator('object, img[alt^="Preview of"]')).toHaveCount(0)
+  expect(downloads).toBe(0)
+})
+
+test('waits for the protected archived file and allows retry after download failure', async ({ page }) => {
+  let attempts = 0
+  let releaseFile!: () => void
+  const fileResponse = new Promise<void>((resolve) => { releaseFile = resolve })
+  await mockApiRoute(page, '/v1/invoices*', (route) => fulfillJson(route, 200, {
+    ...emptyPage, content: [documents[0]], totalElements: 1, totalPages: 1,
+  }))
+  await mockApiRoute(page, '/v1/invoices/42/file', async (route) => {
+    expect(route.request().headers().authorization).toBe('Bearer e2e-token')
+    attempts += 1
+    if (attempts === 1) {
+      await fulfillJson(route, 503, {})
+      return
+    }
+    await fileResponse
+    await route.fulfill({
+      body: transparentPng, contentType: 'image/png', headers: fileHeaders, status: 200,
+    })
+  })
+  await page.goto('/documents?status=ARCHIVEE')
+  const button = page.getByRole('button', { name: 'Download document INV-2026-0421' })
+  await button.click()
+  await expect(page.getByText('Download unavailable')).toBeVisible()
+  await expect(button).toBeEnabled()
+  await button.click()
+  await expect(button).toBeDisabled()
+  await expect(button).toContainText('Downloading…')
+  const downloadPromise = page.waitForEvent('download')
+  releaseFile()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe('INV-2026-0421.png')
+  await expect(button).toBeEnabled()
+  await expect(page.getByText('Download unavailable')).toHaveCount(0)
+})

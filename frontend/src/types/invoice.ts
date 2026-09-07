@@ -169,6 +169,7 @@ export type InvoiceSupplier = {
 }
 
 export type InvoiceDetails = {
+  archivedAt?: string | null
   invoiceId: number
   invoiceNumber: string | null
   commandReference: string | null

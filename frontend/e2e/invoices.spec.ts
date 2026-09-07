@@ -806,7 +806,7 @@ test('keeps exported, paid and archived invoices read-only', async ({ page }) =>
   const scenarios = [
     { badge: 'Exported', notice: 'Invoice exported', status: 'EXPORTEE' },
     { badge: 'Paid', notice: 'Invoice paid', status: 'PAYEE' },
-    { badge: 'Archived', notice: 'Invoice archived', status: 'ARCHIVEE' },
+    { badge: 'Archived', notice: 'Archived — read only', status: 'ARCHIVEE' },
   ]
 
   for (const scenario of scenarios) {
@@ -814,7 +814,9 @@ test('keeps exported, paid and archived invoices read-only', async ({ page }) =>
     await page.goto('/invoices/42')
 
     await expect(page.getByText(scenario.badge, { exact: true })).toBeVisible()
-    await expect(page.getByRole('status', { name: 'Invoice lifecycle status' }))
+    await expect(page.getByRole('status', { name: scenario.status === 'ARCHIVEE'
+      ? 'Archived document notice'
+      : 'Invoice lifecycle status' }))
       .toContainText(scenario.notice)
     await expect(page.getByLabel('Invoice number')).toBeDisabled()
     await expect(page.getByRole('button', { name: 'Request approval' })).toHaveCount(0)
@@ -824,6 +826,103 @@ test('keeps exported, paid and archived invoices read-only', async ({ page }) =>
     await expect(page.getByText('Accounting entry is read-only')).toBeVisible()
     await expect(page.getByRole('button', { name: /Edit accounting line/ })).toHaveCount(0)
   }
+})
+
+for (const [role, width] of [
+  ['ADMIN', 1440],
+  ['OPERATEUR_COMPTABLE', 390],
+  ['RESPONSABLE_COMPTABLE', 768],
+] as const) {
+  test(`keeps archived invoice actions absent for ${role}, including stale duplicate alerts`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 1024 })
+    await mockCurrentUser(page, { ...currentUser, role: { id: 1, code: role, label: role } })
+    const mutations: string[] = []
+    page.on('request', (request) => {
+      if (/\/api\/v1\/(invoices|accounting-entries)/.test(request.url())
+        && !['GET', 'OPTIONS'].includes(request.method())) {
+        mutations.push(`${request.method()} ${request.url()}`)
+      }
+    })
+    await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, {
+      ...balancedInvoiceDetails,
+      status: 'ARCHIVEE',
+      archivedAt: '2026-09-07T15:30:00',
+      duplicateAlerts: [pendingDuplicateAlert],
+      history: [
+        ...invoiceHistory,
+        { ...invoiceHistory[0], action: 'ARCHIVEE', date: '2026-09-07T15:30:00', comment: 'Invoice archived' },
+      ],
+    }))
+    await mockApiRoute(page, '/v1/invoices/42/file', async (route) => {
+      expect(route.request().headers().authorization).toBe('Bearer e2e-token')
+      await fulfillOriginalInvoicePdf(route)
+    })
+    await page.goto('/invoices/42')
+
+    const notice = page.getByRole('status', { name: 'Archived document notice' })
+    await expect(notice).toContainText('Archived on 07 Sept 2026')
+    await expect(page.getByText('Archived', { exact: true })).toBeVisible()
+    await expect(page.getByText('Duplicate suspected', { exact: true })).toHaveCount(0)
+    await expect(page.getByText(/fields? require(s)? review/)).toHaveCount(0)
+    await expect(page.getByLabel('Invoice number')).toBeDisabled()
+    await expect(page.getByRole('combobox', { name: 'Supplier', exact: true })).toBeDisabled()
+    await expect(page.getByRole('button', { name: /^(Save|Request approval|Retry OCR|Not a duplicate|Review duplicate)$/ })).toHaveCount(0)
+    await expect(page.getByRole('img', { name: 'Invoice PDF page 1' })).toBeVisible()
+    await page.screenshot({ path: testInfo.outputPath(`archive-detail-${width}.png`), fullPage: true })
+
+    await page.getByRole('button', { name: 'Next page' }).click()
+    await expect(page.getByRole('img', { name: 'Invoice PDF page 2' })).toBeVisible()
+    const downloadPromise = page.waitForEvent('download')
+    await page.getByRole('button', { name: 'Download original invoice' }).click()
+    expect((await downloadPromise).suggestedFilename()).toBe('Leroy Construction — INV-2026-0421.pdf')
+
+    await page.getByRole('tab', { name: 'Accounting' }).click()
+    await expect(notice).toBeVisible()
+    await expect(page.getByRole('button', { name: /Edit accounting line/ })).toHaveCount(0)
+    await page.getByRole('tab', { name: 'Approval' }).click()
+    await expect(notice).toBeVisible()
+    await expect(page.getByRole('button', { name: /^(Approve|Reject|Request changes|Edit invoice)$/ })).toHaveCount(0)
+    await page.keyboard.press('a')
+    await page.keyboard.press('r')
+    await page.keyboard.press('c')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await page.getByRole('tab', { name: 'Activity' }).click()
+    await expect(notice).toBeVisible()
+    await expect(page.getByRole('list', { name: 'Invoice activity' })).toContainText('Invoice archived')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    expect(mutations).toEqual([])
+  })
+}
+
+test('does not invent an archive date when it is unavailable', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, {
+    ...invoiceDetails, status: 'ARCHIVEE', archivedAt: null,
+  }))
+  await page.goto('/invoices/42')
+  const notice = page.getByRole('status', { name: 'Archived document notice' })
+  await expect(notice).toBeVisible()
+  await expect(notice.locator('time')).toHaveCount(0)
+})
+
+test('keeps an archived invoice read-only when original file access is denied', async ({ page }) => {
+  let downloads = 0
+  page.on('download', () => { downloads += 1 })
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, {
+    ...invoiceDetails, status: 'ARCHIVEE',
+  }))
+  await mockApiRoute(page, '/v1/invoices/42/file', async (route) => {
+    expect(route.request().headers().authorization).toBe('Bearer e2e-token')
+    await fulfillJson(route, 403, { code: 'ACCESS_DENIED' })
+  })
+  await page.goto('/invoices/42')
+  const documentPanel = page.getByLabel('Original invoice document')
+  await expect(documentPanel.getByText('Document access denied', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Download original invoice' })).toBeDisabled()
+  await expect(documentPanel.getByRole('img')).toHaveCount(0)
+  await expect(documentPanel.getByRole('button', { name: 'Try again' })).toHaveCount(0)
+  await expect(page.getByLabel('Invoice number')).toBeDisabled()
+  await expect(page.getByRole('status', { name: 'Archived document notice' })).toBeVisible()
+  expect(downloads).toBe(0)
 })
 
 test('shows a balanced entry without claiming export eligibility before backend confirmation', async ({ page }) => {
