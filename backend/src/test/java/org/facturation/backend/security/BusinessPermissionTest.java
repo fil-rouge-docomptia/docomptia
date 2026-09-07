@@ -36,6 +36,9 @@ class BusinessPermissionTest {
         assertThat(BusinessPermission.VIEW_SUPPLIERS.getRoles()).isEqualTo(ALL_ROLES);
         assertThat(BusinessPermission.MANAGE_SUPPLIERS.getRoles())
                 .containsExactlyInAnyOrder(RoleCode.ADMIN, RoleCode.OPERATEUR_COMPTABLE);
+        assertThat(BusinessPermission.VIEW_CUSTOMERS.getRoles()).isEqualTo(ALL_ROLES);
+        assertThat(BusinessPermission.MANAGE_CUSTOMERS.getRoles())
+                .containsExactlyInAnyOrder(RoleCode.ADMIN, RoleCode.OPERATEUR_COMPTABLE);
         assertThat(BusinessPermission.VIEW_ACCOUNTING_CONFIGURATION.getRoles()).isEqualTo(ALL_ROLES);
         assertThat(BusinessPermission.MANAGE_ACCOUNTING_CONFIGURATION.getRoles())
                 .containsExactly(RoleCode.ADMIN);

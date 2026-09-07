@@ -21,6 +21,26 @@ ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS country_code VARCHAR(2);
 ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS search_name VARCHAR(511);
 UPDATE suppliers SET search_name = lower(concat_ws(' ', legal_name, name)) WHERE search_name IS NULL;
 
+CREATE TABLE IF NOT EXISTS customers (
+    customer_id BIGSERIAL PRIMARY KEY,
+    organization_id BIGINT NOT NULL REFERENCES organizations(organization_id),
+    name VARCHAR(255) NOT NULL,
+    legal_name VARCHAR(255) NOT NULL,
+    siret VARCHAR(255),
+    vat_number VARCHAR(255),
+    email VARCHAR(255),
+    phone VARCHAR(255),
+    address VARCHAR(255),
+    is_active BOOLEAN NOT NULL,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_customers_organization_siret
+    ON customers (organization_id, siret) WHERE siret IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uk_customers_organization_vat_number
+    ON customers (organization_id, vat_number) WHERE vat_number IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS supplier_legal_identifiers (
     supplier_legal_identifier_id BIGSERIAL PRIMARY KEY,
     organization_id BIGINT NOT NULL REFERENCES organizations(organization_id),
