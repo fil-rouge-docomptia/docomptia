@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, CheckCircle2, LoaderCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { ExportGenerationResult } from '@/components/export/ExportGenerationResult'
+import type { ExportGenerationState } from '@/components/export/ExportGenerationResult'
 import { ExportLoadError } from '@/components/export/ExportLoadError'
 import { ExportStepper } from '@/components/export/ExportStepper'
 import { ExportTotals } from '@/components/export/ExportTotals'
@@ -13,7 +15,7 @@ import { Card } from '@/components/ui/card'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ApiError } from '@/services/api'
-import { checkExportFormat, getExportFormats } from '@/services/exports'
+import { checkExportFormat, generateExport, getExportFormats } from '@/services/exports'
 import type { ExportFormat, ExportPreflight, ExportSelection } from '@/types/export'
 
 const descriptions = {
@@ -28,6 +30,7 @@ export function ExportReview({ selection, onEdit }: { selection: ExportSelection
   const [chosen, setChosen] = useState<ExportFormat | null>(null)
   const [checked, setChecked] = useState<ExportPreflight | null>(null)
   const [failure, setFailure] = useState<{ cause: unknown; message: string; blocked: boolean } | null>(null)
+  const [generation, setGeneration] = useState<ExportGenerationState | null>(null)
   const [busy, setBusy] = useState(false)
   const request = useRef<AbortController | null>(null)
   const heading = useRef<HTMLHeadingElement>(null)
@@ -79,6 +82,23 @@ export function ExportReview({ selection, onEdit }: { selection: ExportSelection
     }
   }
 
+  async function generate() {
+    if (!checked || generation || request.current) return
+    const controller = new AbortController()
+    request.current = controller
+    setGeneration({ status: 'pending' })
+    try {
+      const receipt = await generateExport(checked.selection, checked.format, controller.signal)
+      if (!controller.signal.aborted) setGeneration({ status: 'success', receipt })
+    } catch (cause) {
+      if (!controller.signal.aborted) setGeneration({ status: 'failure', cause })
+    } finally {
+      if (!controller.signal.aborted) request.current = null
+    }
+  }
+
+  if (generation && checked) return <ExportGenerationResult state={generation} format={checked.format} onEdit={onEdit} />
+
   return <div className="mx-auto min-w-0 max-w-[800px] space-y-6">
     <ExportStepper step={step} />
     {step === 2 && <>
@@ -124,9 +144,9 @@ export function ExportReview({ selection, onEdit }: { selection: ExportSelection
         <ExportTotals totals={checked.selection.totals} />
         <InvoiceList selection={checked.selection} />
         <Alert className="rounded-md border-0 bg-green-50" role="status"><AlertTitle className="text-sm">Export configuration checked</AlertTitle><AlertDescription className="text-muted-foreground">The selected invoices passed the {checked.format} controls. No export file has been generated and no invoice has been modified.</AlertDescription></Alert>
-        <p className="text-sm text-muted-foreground" id="generation-unavailable">File generation for a selected batch is not available yet. This selection is not saved when you leave the page.</p>
+        <p className="text-sm text-muted-foreground" id="generation-effects">Generating stores the file and marks the selected invoices as exported after the server succeeds. This selection is not saved when you leave the page.</p>
       </Card>
-      <div className="flex justify-between gap-3"><Button className="h-11 sm:h-10" onClick={() => { setChecked(null); setStep(3) }} variant="outline">Back</Button><Button className="h-11 sm:h-10" disabled aria-describedby="generation-unavailable">Generate export</Button></div>
+      <div className="flex justify-between gap-3"><Button className="h-11 sm:h-10" onClick={() => { setChecked(null); setStep(3) }} variant="outline">Back</Button><Button className="h-11 sm:h-10" aria-describedby="generation-effects" onClick={() => void generate()}>Generate export</Button></div>
     </>}
     <p className="text-center text-sm"><Link className="text-muted-foreground underline underline-offset-4" to="/exports">Back to exports</Link></p>
   </div>

@@ -1,48 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
-import { Download, LoaderCircle } from 'lucide-react'
+import { DownloadExportButton } from '@/components/export/DownloadExportButton'
 import { exportPeriod, exportStatusLabels, formatExportAmount, formatExportDate } from '@/components/export/export-utils'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ApiError } from '@/services/api'
-import { downloadExport } from '@/services/exports'
 import type { ExportBatch } from '@/types/export'
-
-function DownloadExportButton({ batch }: { batch: ExportBatch }) {
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const request = useRef<AbortController | null>(null)
-  useEffect(() => () => request.current?.abort(), [])
-  async function download() {
-    if (request.current) return
-    const controller = new AbortController()
-    request.current = controller
-    setBusy(true)
-    setError(null)
-    try {
-      const blob = await downloadExport(batch.exportBatchId, controller.signal)
-      if (controller.signal.aborted) return
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = batch.fileName ?? `export-${batch.exportBatchId}.${batch.format === 'FEC' ? 'txt' : 'csv'}`
-      document.body.append(link)
-      link.click()
-      link.remove()
-      window.setTimeout(() => URL.revokeObjectURL(url), 0)
-    } catch (cause) {
-      if (!controller.signal.aborted) setError(cause instanceof ApiError && cause.status === 403 ? 'Download access denied' : cause instanceof ApiError && cause.status === 404 ? 'Export file not found' : 'Download failed. Try again.')
-    } finally {
-      if (!controller.signal.aborted) { request.current = null; setBusy(false) }
-    }
-  }
-  return <div className="text-right">
-    <Button aria-label={`Download export ${batch.exportBatchId}`} className="size-11 p-0 sm:size-10" disabled={!batch.downloadable || busy} onClick={() => void download()} title={batch.downloadable ? 'Download export' : 'No generated file available'} variant="ghost">
-      {busy ? <LoaderCircle aria-hidden="true" className="animate-spin" /> : <Download aria-hidden="true" />}
-    </Button>
-    {error && <p className="max-w-40 text-xs text-destructive" role="alert">{error}</p>}
-  </div>
-}
 
 export function ExportHistoryTable({ batches }: { batches: ExportBatch[] }) {
   return <>

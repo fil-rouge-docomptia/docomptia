@@ -3,6 +3,18 @@ export type ExportFormat = 'CSV' | 'FEC'
 
 export type ExportPreflight = { format: ExportFormat; selection: ExportSelection }
 
+export type ExportGenerationReceipt = {
+  exportBatchId: number
+  organizationId: number
+  format: ExportFormat
+  status: 'GENERE'
+  fileName: string
+  fileSize: number
+  generatedAt: string
+  createdByName: string
+  invoiceIds: number[]
+}
+
 export type ExportInvoiceErrors = {
   invoiceId: number | null
   invoiceNumber: string | null

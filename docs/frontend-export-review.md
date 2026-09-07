@@ -48,9 +48,9 @@ générateur actuel ; les totaux restent séparés par devise.
 
 Le parcours reste en mémoire. Rechargement ou sortie de page effacent la préparation ;
 les paramètres d'URL ne permettent pas de sauter les contrôles. **Generate export**
-reste désactivé avec explication : la génération du lot sélectionné relève de KAN-294.
-Elle devra revalider exactement ces identifiants et le format. Les anciens endpoints
-CSV/FEC basés uniquement sur une période ne sont pas appelés par ce parcours.
+lance ensuite la génération KAN-294, qui revalide ces identifiants et le format
+avant de stocker le fichier. Voir [frontend-export-generation.md](frontend-export-generation.md).
+Les anciens endpoints CSV/FEC basés uniquement sur une période ne sont pas appelés par ce parcours.
 
 ## Fichiers et vérification
 
