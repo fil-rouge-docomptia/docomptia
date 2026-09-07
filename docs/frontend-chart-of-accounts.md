@@ -54,8 +54,8 @@ Les catégories et compteurs d'usage Figma ne figurent pas dans le DTO et sont o
 La sélection en lot et les menus de modification ne sont pas proposés sans action associée.
 Création, modification et désactivation relèvent de KAN-289 ; import de KAN-290/KAN-291.
 Les boutons correspondants restent désactivés pour l'administrateur. L'export du plan est
-hors périmètre. Cette branche part de staging, où KAN-287 n'est pas encore intégré :
-l'onglet Rules conserve donc son état désactivé ; les onglets seront à réunir lors des merges.
+hors périmètre. Les trois onglets Entries, Rules (KAN-287) et Chart of accounts sont
+disponibles et permettent de naviguer entre les écrans comptables, y compris au clavier.
 
 ## Vérifications
 

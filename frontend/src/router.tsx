@@ -79,6 +79,10 @@ export const privateRoutes = [
     element: <AccountingPage />,
   },
   {
+    path: '/accounting/rules',
+    element: <AccountingRulesPage />,
+  },
+  {
     path: '/accounting/accounts',
     element: <ChartOfAccountsPage />,
   },

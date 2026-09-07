@@ -218,7 +218,7 @@ for (const [role, width] of [['ADMIN', 1440], ['ADMIN', 768], ['ADMIN', 390], ['
     await page.setViewportSize({ width, height: 1024 })
     await page.goto('/accounting')
     await page.getByRole('tab', { name: 'Entries', exact: true }).focus()
-    await page.keyboard.press('ArrowRight')
+    await page.keyboard.press('End')
     await expect(page).toHaveURL(/\/accounting\/accounts$/)
     await expect(page.getByRole('tab', { name: 'Chart of accounts', exact: true })).toHaveAttribute('aria-selected', 'true')
     await expect(page.locator('tbody tr')).toHaveCount(8)

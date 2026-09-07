@@ -201,10 +201,18 @@ for (const [role, width] of [['ADMIN', 1440], ['ADMIN', 768], ['ADMIN', 390], ['
   })
 }
 
-test('rules are reachable from Entries and preserve existing accounting navigation', async ({ page }) => {
+test('rules and chart of accounts remain reachable through the three accounting tabs', async ({ page }) => {
   await mockApiRoute(page, '/v1/accounting-entries?*', (route) => fulfillJson(route, 200, { content: [], number: 0, size: 8, totalElements: 0, totalPages: 0 }))
   await page.goto('/accounting')
   await page.getByRole('tab', { name: 'Rules', exact: true }).click()
+  await expect(page).toHaveURL(/\/accounting\/rules$/)
+  await expect(page.locator('#rule-editor-title')).toHaveText('Orange Business')
+  await page.getByRole('tab', { name: 'Rules', exact: true }).focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(page).toHaveURL(/\/accounting\/accounts$/)
+  await expect(page.getByRole('table', { name: 'Organization accounts' })).toContainText('Telecommunications')
+  await page.getByRole('tab', { name: 'Chart of accounts', exact: true }).focus()
+  await page.keyboard.press('ArrowLeft')
   await expect(page).toHaveURL(/\/accounting\/rules$/)
   await expect(page.locator('#rule-editor-title')).toHaveText('Orange Business')
   await page.getByRole('tab', { name: 'Entries', exact: true }).click()
