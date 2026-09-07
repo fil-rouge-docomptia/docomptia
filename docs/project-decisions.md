@@ -234,6 +234,10 @@ au nombre de documents de facture acceptes pendant un mois calendaire. Une
 limite absente represente un usage illimite; aucune valeur numerique artificielle
 ne doit representer l'illimite.
 
+Les limites d'un plan sont datees par une periode de validite. Une evolution ajoute une
+nouvelle periode au lieu de remplacer les valeurs anterieures, afin que les limites passees
+restent consultables sans modification.
+
 Les trois plans sont crees actifs avec un code stable et unique. Un plan est
 desactive par un indicateur d'activite et n'est jamais supprime, afin de conserver
 l'historique des abonnements. Pour KAN-231, les limites et fonctionnalites sont

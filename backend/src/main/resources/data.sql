@@ -1,13 +1,19 @@
 INSERT INTO organizations (organization_id, name, legal_name, siret, email, phone, address, default_currency_code, validation_required, created_at, updated_at)
 VALUES (1, 'Facturation Demo', 'Facturation Demo SARL', '55210055400013', 'contact@facturation-demo.fr', '0102030405', '10 rue de Paris, 75001 Paris', 'EUR', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
-INSERT INTO subscription_plans (subscription_plan_id, code, name, max_active_users, monthly_invoice_limit, active)
-VALUES (1, 'STARTER', 'Starter', 2, 100, true);
-INSERT INTO subscription_plans (subscription_plan_id, code, name, max_active_users, monthly_invoice_limit, active)
-VALUES (2, 'BUSINESS', 'Business', 10, 1000, true);
-INSERT INTO subscription_plans (subscription_plan_id, code, name, max_active_users, monthly_invoice_limit, active)
-VALUES (3, 'PRO', 'Pro', null, null, true);
+INSERT INTO subscription_plans (subscription_plan_id, code, name, active)
+VALUES (1, 'STARTER', 'Starter', true);
+INSERT INTO subscription_plans (subscription_plan_id, code, name, active)
+VALUES (2, 'BUSINESS', 'Business', true);
+INSERT INTO subscription_plans (subscription_plan_id, code, name, active)
+VALUES (3, 'PRO', 'Pro', true);
 ALTER TABLE subscription_plans ALTER COLUMN subscription_plan_id RESTART WITH 4;
+
+INSERT INTO subscription_plan_limits (subscription_plan_limit_id, subscription_plan_id, valid_from, valid_to, max_active_users, monthly_invoice_limit)
+VALUES (1, 1, '2026-09-01', null, 2, 100),
+       (2, 2, '2026-09-01', null, 10, 1000),
+       (3, 3, '2026-09-01', null, null, null);
+ALTER TABLE subscription_plan_limits ALTER COLUMN subscription_plan_limit_id RESTART WITH 4;
 
 INSERT INTO subscription_plan_features (subscription_plan_id, feature_order, feature_code)
 VALUES (1, 0, 'INVOICE_MANAGEMENT'), (1, 1, 'OCR'), (1, 2, 'ACCOUNTING_EXPORT');

@@ -7,11 +7,21 @@ INSERT INTO organizations (organization_id, name, legal_name, siret, email, phon
 VALUES (1, 'Facturation Demo', 'Facturation Demo SARL', '55210055400013', 'contact@facturation-demo.fr', '0102030405', '10 rue de Paris, 75001 Paris', 'EUR', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT (organization_id) DO NOTHING;
 
-INSERT INTO subscription_plans (code, name, max_active_users, monthly_invoice_limit, active)
-VALUES ('STARTER', 'Starter', 2, 100, true),
-       ('BUSINESS', 'Business', 10, 1000, true),
-       ('PRO', 'Pro', null, null, true)
+INSERT INTO subscription_plans (code, name, active)
+VALUES ('STARTER', 'Starter', true),
+       ('BUSINESS', 'Business', true),
+       ('PRO', 'Pro', true)
 ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO subscription_plan_limits (subscription_plan_id, valid_from, valid_to, max_active_users, monthly_invoice_limit)
+SELECT plan.subscription_plan_id, DATE '2026-09-01', null, limits.max_active_users, limits.monthly_invoice_limit
+FROM subscription_plans plan
+JOIN (VALUES
+    ('STARTER', 2, 100),
+    ('BUSINESS', 10, 1000),
+    ('PRO', null, null)
+) AS limits(plan_code, max_active_users, monthly_invoice_limit) ON limits.plan_code = plan.code
+ON CONFLICT (subscription_plan_id, valid_from) DO NOTHING;
 
 INSERT INTO subscription_plan_features (subscription_plan_id, feature_order, feature_code)
 SELECT plan.subscription_plan_id, feature.feature_order, feature.feature_code
@@ -167,6 +177,7 @@ ON CONFLICT (accounting_rule_id) DO NOTHING;
 
 SELECT setval(pg_get_serial_sequence('organizations', 'organization_id'), COALESCE((SELECT MAX(organization_id) FROM organizations), 1), true);
 SELECT setval(pg_get_serial_sequence('subscription_plans', 'subscription_plan_id'), COALESCE((SELECT MAX(subscription_plan_id) FROM subscription_plans), 1), true);
+SELECT setval(pg_get_serial_sequence('subscription_plan_limits', 'subscription_plan_limit_id'), COALESCE((SELECT MAX(subscription_plan_limit_id) FROM subscription_plan_limits), 1), true);
 SELECT setval(pg_get_serial_sequence('roles', 'role_id'), COALESCE((SELECT MAX(role_id) FROM roles), 1), true);
 SELECT setval(pg_get_serial_sequence('invoice_statuses', 'invoice_status_id'), COALESCE((SELECT MAX(invoice_status_id) FROM invoice_statuses), 1), true);
 SELECT setval(pg_get_serial_sequence('users', 'user_id'), COALESCE((SELECT MAX(user_id) FROM users), 1), true);
