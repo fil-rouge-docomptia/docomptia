@@ -111,6 +111,36 @@ ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS payment_reference VARCHA
 ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS paid_by_user_id BIGINT REFERENCES users(user_id);
 ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP;
 
+ALTER TABLE IF EXISTS accounting_entries
+    ADD COLUMN IF NOT EXISTS reversed_accounting_entry_id BIGINT REFERENCES accounting_entries(accounting_entry_id);
+DO $$
+DECLARE
+    invoice_unique_constraint RECORD;
+BEGIN
+    FOR invoice_unique_constraint IN
+        SELECT constraint_name
+        FROM information_schema.constraint_column_usage
+        WHERE table_schema = current_schema()
+          AND table_name = 'accounting_entries'
+          AND column_name = 'invoice_id'
+          AND constraint_name IN (
+              SELECT constraint_name
+              FROM information_schema.table_constraints
+              WHERE table_schema = current_schema()
+                AND table_name = 'accounting_entries'
+                AND constraint_type = 'UNIQUE'
+          )
+    LOOP
+        EXECUTE format(
+                'ALTER TABLE accounting_entries DROP CONSTRAINT IF EXISTS %I',
+                invoice_unique_constraint.constraint_name
+        );
+    END LOOP;
+END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS uk_accounting_entries_reversed_entry
+    ON accounting_entries (reversed_accounting_entry_id)
+    WHERE reversed_accounting_entry_id IS NOT NULL;
+
 ALTER TABLE IF EXISTS invoice_duplicate_alerts ALTER COLUMN invoice_date DROP NOT NULL;
 ALTER TABLE IF EXISTS invoice_duplicate_alerts ALTER COLUMN total_ttc DROP NOT NULL;
 ALTER TABLE IF EXISTS invoice_duplicate_alerts

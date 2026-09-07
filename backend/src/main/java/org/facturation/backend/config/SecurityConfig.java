@@ -101,6 +101,8 @@ public class SecurityConfig {
                         .hasAnyRole(BusinessPermission.VALIDATE_INVOICES.roleCodes())
                         .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/accounting-entry")
                         .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/accounting-entries/*/reversal")
+                        .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())
                         .requestMatchers(HttpMethod.POST, "/api/v1/accounting-exports/csv")
                         .hasAnyRole(BusinessPermission.EXPORT_ACCOUNTING.roleCodes())
                         .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/mark-paid")

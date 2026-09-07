@@ -62,13 +62,13 @@ public class AccountingEntryServiceImpl implements AccountingEntryService {
     @Override
     @Transactional
     public AccountingEntry generateFromInvoice(Invoice invoice, User user) {
-        return accountingEntryRepository.findByInvoiceInvoiceId(invoice.getInvoiceId())
+        return accountingEntryRepository.findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(invoice.getInvoiceId())
                 .orElseGet(() -> createAccountingEntry(invoice, user));
     }
 
     @Override
     public Optional<AccountingEntry> findByInvoiceId(Long invoiceId) {
-        return accountingEntryRepository.findByInvoiceInvoiceId(invoiceId);
+        return accountingEntryRepository.findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(invoiceId);
     }
 
     @Override

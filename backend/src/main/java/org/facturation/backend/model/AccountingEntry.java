@@ -22,9 +22,13 @@ public class AccountingEntry {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long accountingEntryId;
 
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "invoice_id", nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "invoice_id", nullable = false)
     private Invoice invoice;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reversed_accounting_entry_id", unique = true)
+    private AccountingEntry reversedAccountingEntry;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "created_by_user_id", nullable = false)
@@ -60,6 +64,14 @@ public class AccountingEntry {
 
     public void setInvoice(Invoice invoice) {
         this.invoice = invoice;
+    }
+
+    public AccountingEntry getReversedAccountingEntry() {
+        return reversedAccountingEntry;
+    }
+
+    public void setReversedAccountingEntry(AccountingEntry reversedAccountingEntry) {
+        this.reversedAccountingEntry = reversedAccountingEntry;
     }
 
     public User getCreatedByUser() {

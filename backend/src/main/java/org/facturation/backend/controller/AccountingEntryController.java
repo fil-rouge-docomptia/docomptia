@@ -7,9 +7,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.AccountingEntryLineCorrectionRequest;
 import org.facturation.backend.dto.response.AccountingEntryResponse;
 import org.facturation.backend.service.AccountingEntryCorrectionService;
+import org.facturation.backend.service.AccountingEntryReversalService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -20,9 +22,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class AccountingEntryController {
 
     private final AccountingEntryCorrectionService accountingEntryCorrectionService;
+    private final AccountingEntryReversalService accountingEntryReversalService;
 
-    public AccountingEntryController(AccountingEntryCorrectionService accountingEntryCorrectionService) {
+    public AccountingEntryController(
+            AccountingEntryCorrectionService accountingEntryCorrectionService,
+            AccountingEntryReversalService accountingEntryReversalService
+    ) {
         this.accountingEntryCorrectionService = accountingEntryCorrectionService;
+        this.accountingEntryReversalService = accountingEntryReversalService;
     }
 
     @PatchMapping("/{entryId}/lines/{lineId}")
@@ -42,5 +49,19 @@ public class AccountingEntryController {
             @RequestBody AccountingEntryLineCorrectionRequest request
     ) {
         return ResponseEntity.ok(accountingEntryCorrectionService.correctLine(entryId, lineId, request));
+    }
+
+    @PostMapping("/{entryId}/reversal")
+    @Operation(
+            summary = "Creer l'extourne d'une ecriture exportee",
+            description = "Cree une nouvelle ecriture liee a l'originale avec les debits et credits inverses"
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Extourne creee"),
+            @ApiResponse(responseCode = "404", description = "Ecriture introuvable dans l'organisation"),
+            @ApiResponse(responseCode = "409", description = "Ecriture non exportee ou deja extournee")
+    })
+    public ResponseEntity<AccountingEntryResponse> createReversal(@PathVariable Long entryId) {
+        return ResponseEntity.status(201).body(accountingEntryReversalService.createReversal(entryId));
     }
 }

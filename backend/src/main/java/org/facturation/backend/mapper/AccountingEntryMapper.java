@@ -18,6 +18,11 @@ public class AccountingEntryMapper {
     public AccountingEntryResponse toResponse(AccountingEntry accountingEntry, List<AccountingEntryLine> lines) {
         AccountingEntryResponse response = new AccountingEntryResponse();
         response.setAccountingEntryId(accountingEntry.getAccountingEntryId());
+        if (accountingEntry.getReversedAccountingEntry() != null) {
+            response.setReversedAccountingEntryId(
+                    accountingEntry.getReversedAccountingEntry().getAccountingEntryId()
+            );
+        }
         response.setEntryNumber(accountingEntry.getEntryNumber());
         response.setEntryDate(accountingEntry.getEntryDate() == null ? null : accountingEntry.getEntryDate().toString());
         response.setLabel(accountingEntry.getLabel());

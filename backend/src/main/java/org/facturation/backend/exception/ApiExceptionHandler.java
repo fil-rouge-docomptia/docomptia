@@ -38,6 +38,9 @@ public class ApiExceptionHandler {
     private static final String ACCOUNTING_ENTRY_PREREQUISITES_MISSING_CODE =
             "ACCOUNTING_ENTRY_PREREQUISITES_MISSING";
     private static final String ACCOUNTING_ENTRY_LINE_NOT_FOUND_CODE = "ACCOUNTING_ENTRY_LINE_NOT_FOUND";
+    private static final String ACCOUNTING_ENTRY_NOT_FOUND_CODE = "ACCOUNTING_ENTRY_NOT_FOUND";
+    private static final String ACCOUNTING_ENTRY_REVERSAL_NOT_ALLOWED_CODE =
+            "ACCOUNTING_ENTRY_REVERSAL_NOT_ALLOWED";
     private static final String ACCOUNTING_ENTRY_LINE_VALIDATION_ERROR_CODE =
             "ACCOUNTING_ENTRY_LINE_VALIDATION_ERROR";
     private static final String ACCOUNTING_ENTRY_NOT_MODIFIABLE_CODE = "ACCOUNTING_ENTRY_NOT_MODIFIABLE";
@@ -287,6 +290,24 @@ public class ApiExceptionHandler {
             AccountingEntryLineNotFoundException exception
     ) {
         return errorResponse(HttpStatus.NOT_FOUND, ACCOUNTING_ENTRY_LINE_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(AccountingEntryNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountingEntryNotFound(
+            AccountingEntryNotFoundException exception
+    ) {
+        return errorResponse(HttpStatus.NOT_FOUND, ACCOUNTING_ENTRY_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(AccountingEntryReversalNotAllowedException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountingEntryReversalNotAllowed(
+            AccountingEntryReversalNotAllowedException exception
+    ) {
+        return errorResponse(
+                HttpStatus.CONFLICT,
+                ACCOUNTING_ENTRY_REVERSAL_NOT_ALLOWED_CODE,
+                exception.getMessage()
+        );
     }
 
     @ExceptionHandler(InvalidAccountingEntryLineCorrectionException.class)
