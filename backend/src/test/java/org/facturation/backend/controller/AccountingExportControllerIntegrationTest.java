@@ -163,6 +163,64 @@ class AccountingExportControllerIntegrationTest {
     }
 
     @Test
+    void reportsAllBlockingErrorsForEveryInvoiceWithoutApplyingExportStatus() throws Exception {
+        User user = userRepository.findById(1L).orElseThrow();
+        Invoice invoiceWithSeveralErrors = createInvoice(
+                user,
+                InvoiceStatusCode.VALIDEE,
+                "CSV-INVALID",
+                "EUR"
+        );
+        invoiceWithSeveralErrors.setTotalTva(new BigDecimal("21.00"));
+        invoiceRepository.save(invoiceWithSeveralErrors);
+        createBalancedEntry(invoiceWithSeveralErrors, user, "CSV-ENTRY-INVALID");
+
+        AccountingEntry entry = accountingEntryRepository
+                .findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(invoiceWithSeveralErrors.getInvoiceId())
+                .orElseThrow();
+        entry.setEntryNumber(" ");
+        accountingEntryRepository.save(entry);
+
+        List<AccountingEntryLine> lines = accountingEntryLineRepository
+                .findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(entry.getAccountingEntryId());
+        lines.getLast().setCreditAmount(new BigDecimal("119.00"));
+        accountingEntryLineRepository.saveAll(lines);
+
+        Invoice invoiceWithoutEntry = createInvoice(
+                user,
+                InvoiceStatusCode.EXPORTABLE,
+                "CSV-NO-ENTRY",
+                "EUR"
+        );
+
+        mockMvc.perform(post("/api/v1/accounting-exports/csv")
+                        .param("startDate", "2026-08-01")
+                        .param("endDate", "2026-08-31")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ACCOUNTING_EXPORT_VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.invoices.length()").value(2))
+                .andExpect(jsonPath("$.invoices[0].invoiceId").value(invoiceWithSeveralErrors.getInvoiceId()))
+                .andExpect(jsonPath("$.invoices[0].invoiceNumber").value("CSV-INVALID"))
+                .andExpect(jsonPath("$.invoices[0].errors[*].code", containsInAnyOrder(
+                        "INVOICE_NOT_EXPORTABLE",
+                        "VAT_INCONSISTENT",
+                        "ACCOUNTING_ENTRY_UNBALANCED",
+                        "PIECE_NUMBER_MISSING"
+                )))
+                .andExpect(jsonPath("$.invoices[1].invoiceId").value(invoiceWithoutEntry.getInvoiceId()))
+                .andExpect(jsonPath("$.invoices[1].invoiceNumber").value("CSV-NO-ENTRY"))
+                .andExpect(jsonPath("$.invoices[1].errors[0].code").value("ACCOUNTING_ENTRY_MISSING"));
+
+        assertThat(invoiceRepository.findById(invoiceWithSeveralErrors.getInvoiceId()).orElseThrow()
+                .getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.VALIDEE.getCode());
+        assertThat(invoiceRepository.findById(invoiceWithoutEntry.getInvoiceId()).orElseThrow()
+                .getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.EXPORTABLE.getCode());
+        assertThat(exportBatchRepository.findAll()).isEmpty();
+        assertThat(auditLogRepository.findAll()).noneMatch(log -> "CSV_EXPORT".equals(log.getAction()));
+    }
+
+    @Test
     void returnsAllBlockingControlsBeforeGeneratingTheExport() throws Exception {
         User user = userRepository.findById(1L).orElseThrow();
         Invoice invalidInvoice = createInvoice(user, InvoiceStatusCode.VALIDEE, "CSV-INVALID", "EUR");
