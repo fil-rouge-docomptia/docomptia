@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 
 import { getDocumentFileName } from '@/components/document/document-utils'
 import { Button } from '@/components/ui/button'
+import { ApiError } from '@/services/api'
 import { getInvoiceFile } from '@/services/invoice'
 import type { InvoiceListItem } from '@/types/invoice'
 
@@ -13,11 +14,11 @@ type DocumentActionsProps = {
 
 export function DocumentActions({ invoice }: DocumentActionsProps) {
   const [downloading, setDownloading] = useState(false)
-  const [downloadError, setDownloadError] = useState(false)
+  const [downloadError, setDownloadError] = useState<'forbidden' | 'unavailable' | null>(null)
 
   const handleDownload = async () => {
     setDownloading(true)
-    setDownloadError(false)
+    setDownloadError(null)
 
     try {
       const blob = await getInvoiceFile(invoice.invoiceId)
@@ -29,8 +30,8 @@ export function DocumentActions({ invoice }: DocumentActionsProps) {
       link.click()
       link.remove()
       window.setTimeout(() => URL.revokeObjectURL(fileUrl), 0)
-    } catch {
-      setDownloadError(true)
+    } catch (error) {
+      setDownloadError(error instanceof ApiError && error.status === 403 ? 'forbidden' : 'unavailable')
     } finally {
       setDownloading(false)
     }
@@ -46,7 +47,7 @@ export function DocumentActions({ invoice }: DocumentActionsProps) {
       <Button
         aria-label={`Download document ${invoice.invoiceNumber ?? invoice.invoiceId}`}
         className="px-2 text-primary"
-        disabled={downloading}
+        disabled={downloading || downloadError === 'forbidden'}
         onClick={() => void handleDownload()}
         size="sm"
         type="button"
@@ -61,7 +62,7 @@ export function DocumentActions({ invoice }: DocumentActionsProps) {
       </Button>
       {downloadError ? (
         <span aria-live="polite" className="w-full text-right text-xs text-destructive">
-          Download unavailable
+          {downloadError === 'forbidden' ? 'You do not have permission to download this document.' : 'Download unavailable'}
         </span>
       ) : null}
     </div>

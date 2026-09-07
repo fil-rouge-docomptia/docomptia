@@ -21,6 +21,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ApiError } from '@/services/api'
 import { getInvoiceFile } from '@/services/invoice'
 import type { InvoiceDetails } from '@/types/invoice'
 
@@ -53,7 +54,7 @@ type DocumentFile = {
 }
 
 type FileRequestState = {
-  error: boolean
+  error: 'forbidden' | 'unavailable' | null
   file: DocumentFile | null
   requestKey: string
 }
@@ -102,7 +103,7 @@ export function InvoiceDocumentPanel({ invoice }: InvoiceDocumentPanelProps) {
   const [scale, setScale] = useState(1)
   const [rotation, setRotation] = useState(0)
   const [fileRequestState, setFileRequestState] = useState<FileRequestState>({
-    error: false,
+    error: null,
     file: null,
     requestKey: '',
   })
@@ -141,14 +142,18 @@ export function InvoiceDocumentPanel({ invoice }: InvoiceDocumentPanelProps) {
     getInvoiceFile(invoice.invoiceId, controller.signal)
       .then((blob) => {
         setFileRequestState({
-          error: false,
+          error: null,
           file: { blob, url: URL.createObjectURL(blob) },
           requestKey,
         })
       })
       .catch((requestError: unknown) => {
         if (!(requestError instanceof DOMException && requestError.name === 'AbortError')) {
-          setFileRequestState({ error: true, file: null, requestKey })
+          setFileRequestState({
+            error: requestError instanceof ApiError && requestError.status === 403 ? 'forbidden' : 'unavailable',
+            file: null,
+            requestKey,
+          })
         }
       })
 
@@ -295,7 +300,7 @@ export function InvoiceDocumentPanel({ invoice }: InvoiceDocumentPanelProps) {
             <p className="text-xs text-muted-foreground">
               {file
                 ? `${pdfFile ? 'PDF' : file.blob.type || 'Document'} · ${pdfDocument ? `${totalPages} ${totalPages === 1 ? 'page' : 'pages'} · ` : ''}${formatFileSize(file.blob.size)}`
-                : 'Loading original invoice…'}
+                : fileError ? 'Original invoice unavailable' : 'Loading original invoice…'}
             </p>
           </div>
         </div>
@@ -415,12 +420,20 @@ export function InvoiceDocumentPanel({ invoice }: InvoiceDocumentPanelProps) {
         ) : fileError || pdfError || renderError || (!pdfFile && !imageFile) ? (
           <Alert className="my-auto max-w-md bg-card" variant="destructive">
             <AlertCircle aria-hidden="true" />
-            <AlertTitle>Unable to display the original invoice</AlertTitle>
+            <AlertTitle>
+              {fileError === 'forbidden' ? 'Document access denied' : 'Unable to display the original invoice'}
+            </AlertTitle>
             <AlertDescription className="space-y-3">
-              <p>Check your connection or download the file to open it locally.</p>
-              <Button onClick={handleRetry} size="sm" type="button" variant="outline">
-                Try again
-              </Button>
+              <p>
+                {fileError === 'forbidden'
+                  ? 'You do not have permission to preview or download this document.'
+                  : 'Check your connection or download the file to open it locally.'}
+              </p>
+              {fileError !== 'forbidden' ? (
+                <Button onClick={handleRetry} size="sm" type="button" variant="outline">
+                  Try again
+                </Button>
+              ) : null}
             </AlertDescription>
           </Alert>
         ) : pdfFile ? (

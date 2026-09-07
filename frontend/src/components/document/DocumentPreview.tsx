@@ -3,11 +3,12 @@ import { FileText } from 'lucide-react'
 
 import { getDocumentTypeLabel } from '@/components/document/document-utils'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ApiError } from '@/services/api'
 import { getInvoicePreview } from '@/services/invoice'
 import type { InvoiceListItem } from '@/types/invoice'
 
 type PreviewState = {
-  error: boolean
+  error: 'forbidden' | 'unavailable' | null
   mimeType: string
   url: string
 }
@@ -22,11 +23,15 @@ export function DocumentPreview({ invoice }: { invoice: InvoiceListItem }) {
     getInvoicePreview(invoice.invoiceId, controller.signal)
       .then((blob) => {
         objectUrl = URL.createObjectURL(blob)
-        setPreview({ error: false, mimeType: blob.type, url: objectUrl })
+        setPreview({ error: null, mimeType: blob.type, url: objectUrl })
       })
       .catch((requestError: unknown) => {
         if (!(requestError instanceof DOMException && requestError.name === 'AbortError')) {
-          setPreview({ error: true, mimeType: '', url: '' })
+          setPreview({
+            error: requestError instanceof ApiError && requestError.status === 403 ? 'forbidden' : 'unavailable',
+            mimeType: '',
+            url: '',
+          })
         }
       })
 
@@ -46,7 +51,9 @@ export function DocumentPreview({ invoice }: { invoice: InvoiceListItem }) {
     return (
       <div className="flex h-full flex-col items-center justify-center bg-muted text-muted-foreground">
         <FileText aria-hidden="true" className="size-6" />
-        <span className="mt-2 text-xs">Preview unavailable</span>
+        <span className="mt-2 text-xs">
+          {preview.error === 'forbidden' ? 'You do not have permission to preview this document.' : 'Preview unavailable'}
+        </span>
       </div>
     )
   }
