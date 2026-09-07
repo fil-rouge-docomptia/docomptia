@@ -66,6 +66,12 @@ En Docker, `APP_OCR_MOCK=false` et le backend appelle:
 http://ocr:8000/ocr/analyze
 ```
 
+## Endpoint Plans D'Abonnement
+
+| Methode | Endpoint | Role |
+| --- | --- | --- |
+| `GET` | `/api/v1/subscription-plans` | Retourne aux utilisateurs authentifies les plans SaaS actifs avec leurs limites et leurs fonctionnalites. Une limite `null` signifie que l'usage est illimite. |
+
 ## Endpoints Factures MVP
 
 | Methode | Endpoint | Role |
@@ -149,6 +155,7 @@ par defaut.
 | --- | --- | --- | --- | --- |
 | `VIEW_OWN_PROFILE` | Consulter son profil | Oui | Oui | Oui |
 | `VIEW_REFERENCE_DATA` | Consulter les referentiels frontend | Oui | Oui | Oui |
+| `VIEW_SUBSCRIPTION_PLANS` | Consulter les offres SaaS actives | Oui | Oui | Oui |
 | `VIEW_ORGANIZATION` | Consulter l'organisation courante | Oui | Oui | Oui |
 | `MANAGE_ORGANIZATION` | Modifier les informations legales de l'organisation | Oui | Non | Non |
 | `VIEW_INVOICES` | Rechercher, consulter, telecharger une facture et son historique | Oui | Oui | Oui |
