@@ -2,7 +2,8 @@ package org.facturation.backend.model;
 
 public enum AccountingEntryStatusCode {
     GENERATED("GENERATED"),
-    REVERSAL("REVERSAL");
+    REVERSAL("REVERSAL"),
+    CORRECTIVE("CORRECTIVE");
 
     private final String code;
 
