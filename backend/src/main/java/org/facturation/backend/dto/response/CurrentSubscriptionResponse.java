@@ -6,9 +6,10 @@ public record CurrentSubscriptionResponse(
         boolean subscribed,
         String status,
         LocalDate nextBillingDate,
-        SubscriptionPlanResponse plan
+        SubscriptionPlanResponse plan,
+        SubscriptionUsageResponse usage
 ) {
     public static CurrentSubscriptionResponse withoutSubscription() {
-        return new CurrentSubscriptionResponse(false, null, null, null);
+        return new CurrentSubscriptionResponse(false, null, null, null, null);
     }
 }

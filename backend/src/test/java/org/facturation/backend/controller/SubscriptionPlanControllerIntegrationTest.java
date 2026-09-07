@@ -2,8 +2,13 @@ package org.facturation.backend.controller;
 
 import jakarta.persistence.EntityManager;
 import org.facturation.backend.model.SubscriptionPlan;
+import org.facturation.backend.model.Invoice;
+import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.SubscriptionPlanLimit;
 import org.facturation.backend.model.User;
+import org.facturation.backend.repository.InvoiceRepository;
+import org.facturation.backend.repository.InvoiceStatusRepository;
+import org.facturation.backend.repository.OrganizationRepository;
 import org.facturation.backend.repository.SubscriptionPlanRepository;
 import org.facturation.backend.repository.OrganizationSubscriptionRepository;
 import org.facturation.backend.repository.RoleRepository;
@@ -18,6 +23,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,6 +51,15 @@ class SubscriptionPlanControllerIntegrationTest {
 
     @Autowired
     private RoleRepository roleRepository;
+
+    @Autowired
+    private InvoiceRepository invoiceRepository;
+
+    @Autowired
+    private InvoiceStatusRepository invoiceStatusRepository;
+
+    @Autowired
+    private OrganizationRepository organizationRepository;
 
     @Autowired
     private EntityManager entityManager;
@@ -123,6 +139,21 @@ class SubscriptionPlanControllerIntegrationTest {
 
     @Test
     void adminGetsCurrentOrganizationSubscriptionWithPlanDetails() throws Exception {
+        User admin = userRepository.findByEmailIgnoreCase("admin@facturation-demo.fr").orElseThrow();
+        YearMonth currentMonth = YearMonth.now();
+        long activeUsersBeforeTest = userRepository.countByOrganizationOrganizationIdAndIsActiveTrue(
+                admin.getOrganization().getOrganizationId()
+        );
+        long monthlyInvoicesBeforeTest = invoiceRepository
+                .countByOrganizationOrganizationIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                        admin.getOrganization().getOrganizationId(),
+                        currentMonth.atDay(1).atStartOfDay(),
+                        currentMonth.plusMonths(1).atDay(1).atStartOfDay()
+                );
+        createInvoice(admin, currentMonth.atDay(1).atStartOfDay());
+        createInvoice(admin, currentMonth.minusMonths(1).atEndOfMonth().atTime(23, 59));
+        createInvoice(createUserInAnotherOrganization(), currentMonth.atDay(1).atStartOfDay());
+
         mockMvc.perform(get("/api/v1/organizations/current/subscription")
                         .header("Authorization", "Bearer " + adminToken()))
                 .andExpect(status().isOk())
@@ -132,7 +163,11 @@ class SubscriptionPlanControllerIntegrationTest {
                 .andExpect(jsonPath("$.plan.code").value("STARTER"))
                 .andExpect(jsonPath("$.plan.maxActiveUsers").value(2))
                 .andExpect(jsonPath("$.plan.monthlyInvoiceLimit").value(100))
-                .andExpect(jsonPath("$.plan.features[0]").value("INVOICE_MANAGEMENT"));
+                .andExpect(jsonPath("$.plan.features[0]").value("INVOICE_MANAGEMENT"))
+                .andExpect(jsonPath("$.usage.periodStart").value(currentMonth.atDay(1).toString()))
+                .andExpect(jsonPath("$.usage.periodEnd").value(currentMonth.atEndOfMonth().toString()))
+                .andExpect(jsonPath("$.usage.activeUsers").value(activeUsersBeforeTest))
+                .andExpect(jsonPath("$.usage.monthlyInvoices").value(monthlyInvoicesBeforeTest + 1));
     }
 
     @Test
@@ -146,7 +181,8 @@ class SubscriptionPlanControllerIntegrationTest {
                 .andExpect(jsonPath("$.subscribed").value(false))
                 .andExpect(jsonPath("$.status").isEmpty())
                 .andExpect(jsonPath("$.nextBillingDate").isEmpty())
-                .andExpect(jsonPath("$.plan").isEmpty());
+                .andExpect(jsonPath("$.plan").isEmpty())
+                .andExpect(jsonPath("$.usage").isEmpty());
     }
 
     @Test
@@ -168,6 +204,41 @@ class SubscriptionPlanControllerIntegrationTest {
 
     private String adminToken() {
         return tokenFor("admin@facturation-demo.fr");
+    }
+
+    private void createInvoice(User creator, LocalDateTime createdAt) {
+        Invoice invoice = new Invoice();
+        invoice.setOrganization(creator.getOrganization());
+        invoice.setCreatedByUser(creator);
+        invoice.setInvoiceStatus(invoiceStatusRepository.findByCode("DEPOSEE").orElseThrow());
+        invoice.setCurrencyCode("EUR");
+        invoice.setCreatedAt(createdAt);
+        invoice.setUpdatedAt(createdAt);
+        invoiceRepository.saveAndFlush(invoice);
+    }
+
+    private User createUserInAnotherOrganization() {
+        LocalDateTime now = LocalDateTime.now();
+        Organization organization = new Organization();
+        organization.setName("Other organization");
+        organization.setLegalName("Other organization SAS");
+        organization.setSiret("73282932000074");
+        organization.setEmail("other-organization@example.com");
+        organization.setCreatedAt(now);
+        organization.setUpdatedAt(now);
+        organizationRepository.saveAndFlush(organization);
+
+        User user = new User();
+        user.setOrganization(organization);
+        user.setRole(roleRepository.findByCode("ADMIN").orElseThrow());
+        user.setFirstName("Other");
+        user.setLastName("Admin");
+        user.setEmail("other-subscription-admin@example.com");
+        user.setPasswordHash("not-used");
+        user.setActive(true);
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
+        return userRepository.saveAndFlush(user);
     }
 
     private String tokenFor(String email) {

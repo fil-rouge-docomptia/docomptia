@@ -204,7 +204,7 @@ l'upload d'une facture.
 | Methode | Endpoint | Role |
 | --- | --- | --- |
 | `GET` | `/api/v1/organizations/current` | Retourne les informations legales, de contact et la devise par defaut de l'organisation de l'utilisateur connecte |
-| `GET` | `/api/v1/organizations/current/subscription` | Retourne a l'administrateur le statut, la prochaine echeance, le plan courant, ses limites et ses fonctionnalites. `subscribed=false` et les autres champs `null` indiquent l'absence d'abonnement. |
+| `GET` | `/api/v1/organizations/current/subscription` | Retourne a l'administrateur le statut, la prochaine echeance, le plan courant, ses limites, ses fonctionnalites et la consommation de l'organisation. `subscribed=false` et les autres champs `null` indiquent l'absence d'abonnement. |
 | `PATCH` | `/api/v1/organizations/current` | Modifie les informations legales, de contact et la devise par defaut de l'organisation de l'administrateur connecte |
 | `GET` | `/api/v1/organizations/current/onboarding` | Retourne a l'administrateur la progression de la configuration initiale, les etapes terminees et les actions restantes |
 | `GET` | `/api/v1/organizations/current/validation-preferences` | Retourne si le circuit de validation est actif et son seuil TTC optionnel |
@@ -217,6 +217,10 @@ utilisee par les nouvelles factures de l'organisation. La modification
 retourne `400` si une valeur est invalide ou inchangee et `409` si le SIRET est deja utilise par
 une autre organisation. Chaque champ modifie est journalise avec sa valeur avant/apres et
 l'administrateur responsable.
+
+La consommation expose le nombre courant d'utilisateurs actifs et le nombre de factures creees
+pendant le mois calendaire courant. Les bornes `periodStart` et `periodEnd` rendent la periode
+explicite; le calcul recommence automatiquement au changement de mois.
 
 L'avancement de l'onboarding est recalcule a chaque consultation a partir des informations de
 l'organisation, de la devise par defaut et de la presence d'au moins un compte comptable actif.
