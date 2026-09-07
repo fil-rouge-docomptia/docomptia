@@ -1,6 +1,8 @@
 package org.facturation.backend.service;
 
 import org.facturation.backend.dto.request.AccountingExportSelectionRequest;
+import org.facturation.backend.dto.request.AccountingExportPreflightRequest;
+import org.facturation.backend.dto.response.AccountingExportPreflightResponse;
 import org.facturation.backend.dto.response.AccountingExportHistoryResponse;
 import org.facturation.backend.dto.response.AccountingExportSelectionResponse;
 import org.facturation.backend.dto.response.AccountingExportSelectionResponse.Candidate;
@@ -80,13 +82,38 @@ public class AccountingExportReadService {
     }
 
     public AccountingExportSelectionResponse confirm(AccountingExportSelectionRequest request) {
+        Organization organization = organization();
+        List<Candidate> checked = selectedInvoices(organization, request).stream().map(this::candidate).toList();
+        List<InvoiceExportErrorResponse> errors = checked.stream().filter(item -> !item.eligible())
+                .map(item -> new InvoiceExportErrorResponse(item.invoiceId(), item.invoiceNumber(), item.errors()))
+                .toList();
+        if (!errors.isEmpty()) {
+            throw new AccountingExportValidationException(errors);
+        }
+        return selectionResponse(organization, request.startDate(), request.endDate(), checked);
+    }
+
+    public AccountingExportPreflightResponse preflight(AccountingExportPreflightRequest request) {
+        if (request.format() == null) {
+            throw new IllegalArgumentException("Select an export format");
+        }
+        Organization organization = organization();
+        List<Invoice> selected = selectedInvoices(organization, new AccountingExportSelectionRequest(
+                request.startDate(), request.endDate(), request.invoiceIds()));
+        var entries = request.format() == ExportBatchFormat.FEC
+                ? validator.validateForFec(selected) : validator.validate(selected);
+        List<Candidate> checked = entries.stream().map(item -> candidate(item.entry().getInvoice(), item)).toList();
+        return new AccountingExportPreflightResponse(request.format(),
+                selectionResponse(organization, request.startDate(), request.endDate(), checked));
+    }
+
+    private List<Invoice> selectedInvoices(Organization organization, AccountingExportSelectionRequest request) {
         validatePeriod(request.startDate(), request.endDate());
         if (request.invoiceIds() == null || request.invoiceIds().isEmpty()
                 || request.invoiceIds().stream().anyMatch(id -> id == null || id <= 0)
                 || new HashSet<>(request.invoiceIds()).size() != request.invoiceIds().size()) {
             throw new IllegalArgumentException("Select at least one invoice, with unique positive identifiers");
         }
-        Organization organization = organization();
         var requestedIds = new HashSet<>(request.invoiceIds());
         List<Invoice> selected = candidates(organization, request.startDate(), request.endDate()).stream()
                 .filter(invoice -> requestedIds.contains(invoice.getInvoiceId())).toList();
@@ -96,14 +123,7 @@ public class AccountingExportReadService {
                     List.of(new AccountingExportControlErrorResponse("SELECTION_CHANGED",
                             "One or more selected invoices are no longer available in this period")))));
         }
-        List<Candidate> checked = selected.stream().map(this::candidate).toList();
-        List<InvoiceExportErrorResponse> errors = checked.stream().filter(item -> !item.eligible())
-                .map(item -> new InvoiceExportErrorResponse(item.invoiceId(), item.invoiceNumber(), item.errors()))
-                .toList();
-        if (!errors.isEmpty()) {
-            throw new AccountingExportValidationException(errors);
-        }
-        return selectionResponse(organization, request.startDate(), request.endDate(), checked);
+        return selected;
     }
 
     private Organization organization() {
@@ -123,22 +143,24 @@ public class AccountingExportReadService {
     }
 
     private Candidate candidate(Invoice invoice) {
-        BigDecimal debit = BigDecimal.ZERO;
-        BigDecimal credit = BigDecimal.ZERO;
-        List<AccountingExportControlErrorResponse> errors = List.of();
         try {
-            var entry = validator.validate(List.of(invoice)).getFirst();
-            debit = entry.lines().stream().map(line -> amount(line.getDebitAmount()))
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-            credit = entry.lines().stream().map(line -> amount(line.getCreditAmount()))
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            return candidate(invoice, validator.validate(List.of(invoice)).getFirst());
         } catch (AccountingExportValidationException exception) {
-            errors = exception.getInvoiceErrors().getFirst().errors();
+            return new Candidate(invoice.getInvoiceId(), invoice.getInvoiceNumber(), invoice.getInvoiceDate(),
+                    invoice.getSupplier() == null ? null : invoice.getSupplier().getLegalName(),
+                    invoice.getCurrencyCode(), invoice.getTotalTtc(), false, null, null,
+                    exception.getInvoiceErrors().getFirst().errors());
         }
+    }
+
+    private Candidate candidate(Invoice invoice, AccountingExportValidator.ValidatedEntry entry) {
+        BigDecimal debit = entry.lines().stream().map(line -> amount(line.getDebitAmount()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal credit = entry.lines().stream().map(line -> amount(line.getCreditAmount()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         return new Candidate(invoice.getInvoiceId(), invoice.getInvoiceNumber(), invoice.getInvoiceDate(),
                 invoice.getSupplier() == null ? null : invoice.getSupplier().getLegalName(),
-                invoice.getCurrencyCode(), invoice.getTotalTtc(), errors.isEmpty(),
-                errors.isEmpty() ? debit : null, errors.isEmpty() ? credit : null, errors);
+                invoice.getCurrencyCode(), invoice.getTotalTtc(), true, debit, credit, List.of());
     }
 
     private AccountingExportSelectionResponse selectionResponse(Organization organization, LocalDate start,
