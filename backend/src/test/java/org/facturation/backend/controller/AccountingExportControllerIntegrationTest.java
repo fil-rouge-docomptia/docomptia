@@ -17,6 +17,7 @@ import org.facturation.backend.repository.AuditLogRepository;
 import org.facturation.backend.repository.ChartOfAccountRepository;
 import org.facturation.backend.repository.ExportBatchRepository;
 import org.facturation.backend.repository.InvoiceRepository;
+import org.facturation.backend.repository.InvoiceStatusHistoryRepository;
 import org.facturation.backend.repository.InvoiceStatusRepository;
 import org.facturation.backend.repository.OrganizationRepository;
 import org.facturation.backend.repository.RoleRepository;
@@ -82,6 +83,9 @@ class AccountingExportControllerIntegrationTest {
     private InvoiceRepository invoiceRepository;
 
     @Autowired
+    private InvoiceStatusHistoryRepository invoiceStatusHistoryRepository;
+
+    @Autowired
     private InvoiceStatusRepository invoiceStatusRepository;
 
     @Autowired
@@ -138,6 +142,16 @@ class AccountingExportControllerIntegrationTest {
                 .orElseThrow().getEntryNumber()).isEqualTo("1");
         assertThat(invoiceRepository.findById(exportedInvoice.getInvoiceId()).orElseThrow()
                 .getExportBatch().getExportBatchId()).isEqualTo(1000L);
+        assertThat(invoiceStatusHistoryRepository
+                .findByInvoiceInvoiceIdAndInvoiceOrganizationOrganizationIdOrderByChangedAtAscInvoiceStatusHistoryIdAsc(
+                        exportedInvoice.getInvoiceId(),
+                        user.getOrganization().getOrganizationId()
+                ))
+                .anySatisfy(history -> {
+                    assertThat(history.getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.EXPORTEE.getCode());
+                    assertThat(history.getChangedByUser().getUserId()).isEqualTo(user.getUserId());
+                    assertThat(history.getComment()).isEqualTo("Accounting CSV export completed");
+                });
         assertThat(invoiceRepository.findById(nonExportableInvoice.getInvoiceId()).orElseThrow()
                 .getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.VALIDEE.getCode());
         assertThat(invoiceRepository.findById(nonExportableInvoice.getInvoiceId()).orElseThrow()
