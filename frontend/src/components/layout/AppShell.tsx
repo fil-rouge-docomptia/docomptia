@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { Bell, Menu, Search } from 'lucide-react'
 import { Outlet } from 'react-router-dom'
 
+import { DocomptiaLogo } from '@/components/common/DocomptiaLogo'
 import { AppSidebar, type ShellIdentity } from '@/components/layout/AppSidebar'
 import { Button } from '@/components/ui/button'
 import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
@@ -71,6 +72,8 @@ function GlobalHeader() {
           <Search className="size-5" aria-hidden="true" />
         </Button>
       </div>
+
+      <DocomptiaLogo className="absolute left-1/2 top-1/2 w-28 -translate-x-1/2 -translate-y-1/2 md:hidden" />
 
       <div className="relative">
         <Button

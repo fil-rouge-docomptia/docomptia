@@ -4,6 +4,7 @@ import { CircleAlert, LoaderCircle } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import type { Location } from 'react-router-dom'
 
+import { DocomptiaLogo } from '@/components/common/DocomptiaLogo'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card'
@@ -60,9 +61,9 @@ export default function LoginRoutePage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <div className="flex w-full max-w-[440px] flex-col items-center gap-6">
-        <p className="text-xl font-semibold leading-7 tracking-[-0.25px] text-foreground">
-          Docomptia
-        </p>
+        <div className="flex min-h-16 items-center justify-center px-4 py-2">
+          <DocomptiaLogo className="w-48" />
+        </div>
 
         <Card className="w-full overflow-hidden rounded-xl shadow-elevation-2">
           <CardHeader className="space-y-2 p-6 pb-0 md:p-8 md:pb-0">
