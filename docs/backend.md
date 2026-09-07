@@ -70,6 +70,8 @@ http://ocr:8000/ocr/analyze
 
 | Methode | Endpoint | Role |
 | --- | --- | --- |
+| `POST` | `/api/v1/customer-invoices` | Cree une facture client au statut `BROUILLON` pour un client de l'organisation courante. La devise est obligatoire et validee comme code ISO 4217; les dates, la reference de commande et la description sont facultatives. Aucun numero de facture n'est attribue. |
+| `PATCH` | `/api/v1/customer-invoices/{id}` | Modifie le client, la devise ou les informations principales tant que la facture client reste au statut `BROUILLON`, sans lui attribuer de numero. |
 | `POST` | `/api/v1/invoices/upload` | Upload, OCR et sauvegarde de la facture |
 | `PATCH` | `/api/v1/invoices/{id}` | Corrige les donnees extraites, conserve les valeurs OCR brutes, marque les champs OCR corriges manuellement et journalise chaque valeur avant/apres. Une facture `REJETEE` redevient `EXTRAITE` et doit etre soumise explicitement. |
 | `PATCH` | `/api/v1/invoices/{id}/assignee` | Affecte ou reaffecte la facture a un utilisateur actif de l'organisation courante, ou retire l'affectation avec `userId: null`, puis journalise l'ancien affectataire, le nouveau et l'auteur. |
