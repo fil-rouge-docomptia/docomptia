@@ -79,4 +79,5 @@ recherche, tri, pagination et isolation de session.
 Les tests frontend contrôlent les réponses API ; la conservation des références côté serveur
 est aussi vérifiée par lecture de `ChartOfAccountServiceImpl` et des tests backend existants.
 Aucun backend, contrat, schéma ou service en cours n'est modifié.
-L'import reste traité par KAN-290/KAN-291 ; l'export du plan reste hors périmètre.
+L'[assistant d'import](frontend-account-import.md) est disponible via KAN-290 et son backend
+KAN-356 ; les résultats détaillés relèvent de KAN-291. L'export du plan reste hors périmètre.

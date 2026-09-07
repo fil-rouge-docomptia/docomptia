@@ -11,8 +11,8 @@ page `11 — Accounting` (`283:972`). Les pages `23 — Prototype Flows` (`617:2
 `22 — Responsive` (`573:2`) ne contiennent pas de variante dédiée à cette consultation.
 Les tokens existants, Inter, Lucide, boutons, onglets, badges et tableau shadcn sont réutilisés.
 Sur mobile, le tableau défile horizontalement dans une région accessible au clavier ;
-la page et les filtres restent dans la largeur disponible. Les actions futures d'import/export
-sont masquées aux petites largeurs ; Add account reste accessible à l'administrateur.
+la page et les filtres restent dans la largeur disponible. L'export futur est masqué aux
+petites largeurs ; Add account et Import CSV restent accessibles à l'administrateur.
 
 ## Contrat et périmètre MVP
 
@@ -53,7 +53,8 @@ interrupteur ne suggère une modification dans cet écran de consultation.
 Les catégories et compteurs d'usage Figma ne figurent pas dans le DTO et sont omis.
 La sélection en lot n'est pas proposée sans action associée.
 [Création, modification et désactivation](frontend-account-management.md) sont disponibles
-via KAN-289. L'import relève de KAN-290/KAN-291 et reste désactivé. L'export du plan est
+via KAN-289. L'[assistant d'import](frontend-account-import.md) est disponible via KAN-290 ;
+les résultats détaillés relèvent de KAN-291. L'export du plan est
 hors périmètre. Les trois onglets Entries, Rules (KAN-287) et Chart of accounts sont
 disponibles et permettent de naviguer entre les écrans comptables, y compris au clavier.
 
