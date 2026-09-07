@@ -25,6 +25,11 @@ const history = { content: batches, number: 0, size: 8, totalElements: 16, total
 const summary = { readyToExport: 2, blockedInvoices: 1, exportedThisMonth: 8, monthStart: '2026-09-01', monthEnd: '2026-09-30' }
 
 test.beforeEach(async ({ page }) => {
+  await mockApiRoute(page, `${root}/formats`, (route) => fulfillJson(route, 200, ['CSV', 'FEC']))
+  await mockApiRoute(page, `${root}/preflight`, (route) => {
+    const body = route.request().postDataJSON() as { format: string; invoiceIds: number[] }
+    return fulfillJson(route, 200, { format: body.format, selection: { ...selection, invoices: invoices.filter((invoice) => body.invoiceIds.includes(invoice.invoiceId)) } })
+  })
   await seedAuthSession(page)
   await mockCurrentUser(page)
   await mockApiRoute(page, `${root}?*`, (route) => fulfillJson(route, 200, history))
@@ -185,9 +190,10 @@ test('confirmation posts exactly the selected IDs and waits for the server respo
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Checking selection…' })).toBeDisabled()
   await expect(checkbox).toBeDisabled()
-  await expect(page.getByRole('heading', { name: 'Selection prepared' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Validate accounting data' })).toHaveCount(0)
   release()
-  await expect(page.getByRole('heading', { name: 'Selection prepared' })).toBeFocused()
+  await expect(page.getByRole('heading', { name: 'Validate accounting data' })).toBeFocused()
+  await page.locator('summary').click()
   await expect(page.getByLabel('Confirmed invoices')).toContainText('INV-2026-041')
   await expect(page.getByText('Your selection has been checked. No export file has been generated.')).toBeVisible()
   expect(requests).toBe(1)
@@ -253,18 +259,22 @@ test('leaving during confirmation prevents a late response from restoring the se
   await page.getByRole('link', { name: 'Cancel', exact: true }).click()
   release()
   await expect(page.getByRole('heading', { name: 'Exports', exact: true })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Selection prepared' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Validate accounting data' })).toHaveCount(0)
 })
 
-test('confirmation displays server totals when amounts have changed since loading', async ({ page }) => {
-  await mockApiRoute(page, `${root}/selection/confirm`, (route) => fulfillJson(route, 200, {
-    ...selection, invoices: [{ ...invoices[0], invoiceAmount: 121 }],
-    totals: [{ currencyCode: 'EUR', totalDebit: 121, totalCredit: 121, invoiceAmount: 121 }],
+test('preflight displays server totals when amounts have changed since selection', async ({ page }) => {
+  await mockApiRoute(page, `${root}/preflight`, (route) => fulfillJson(route, 200, {
+    format: 'CSV', selection: { ...selection, invoices: [{ ...invoices[0], invoiceAmount: 121 }],
+      totals: [{ currencyCode: 'EUR', totalDebit: 121, totalCredit: 121, invoiceAmount: 121 }] },
   }))
   await page.goto('/exports/new')
   await page.getByRole('checkbox', { name: 'Select invoice INV-2026-041' }).check()
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Selection prepared' })).toBeVisible()
+  await page.getByRole('heading', { name: 'Validate accounting data' }).waitFor()
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await page.getByRole('radio', { name: 'CSV', exact: true }).check()
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Confirm export generation' })).toBeVisible()
   await expect(page.getByLabel('Selection totals').getByText('121.00 EUR', { exact: true })).toHaveCount(3)
 })
 
@@ -288,7 +298,7 @@ test('a stale selection is rejected, cleared and reloaded before another confirm
   await expect(page.getByRole('alert')).toContainText('Review the refreshed invoices')
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeDisabled()
   await expect(page.getByRole('checkbox', { name: 'Select invoice INV-2026-041' })).toHaveCount(0)
-  await expect(page.getByRole('heading', { name: 'Selection prepared' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Validate accounting data' })).toHaveCount(0)
 })
 
 for (const status of [403, 404, 500]) {
@@ -298,12 +308,12 @@ for (const status of [403, 404, 500]) {
     await page.getByRole('checkbox', { name: 'Select invoice INV-2026-041' }).check()
     await page.getByRole('button', { name: 'Continue', exact: true }).click()
     await expect(page.getByRole('alert')).toContainText('Selection not confirmed')
-    await expect(page.getByRole('heading', { name: 'Selection prepared' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Validate accounting data' })).toHaveCount(0)
     if (status !== 500) await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeDisabled()
     else {
       await mockApiRoute(page, `${root}/selection/confirm`, (route) => fulfillJson(route, 200, { ...selection, invoices: [invoices[0]], totals: [selection.totals[0]] }))
       await page.getByRole('button', { name: 'Continue', exact: true }).click()
-      await expect(page.getByRole('heading', { name: 'Selection prepared' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Validate accounting data' })).toBeVisible()
     }
   })
 }
