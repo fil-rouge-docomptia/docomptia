@@ -161,6 +161,21 @@ class SupplierServiceIntegrationTest {
     }
 
     @Test
+    void createsFrenchSupplierFromVatNumberWithoutLocalChecksumValidation() {
+        Organization organization = createOrganization("french-automatic-creation");
+        OcrAnalysisResponse ocrAnalysis = new OcrAnalysisResponse();
+        ocrAnalysis.setFields(List.of(
+                ocrField("supplierName", "French supplier"),
+                ocrField("vatNumber", "FR88380129866")
+        ));
+
+        Supplier result = supplierService.resolveForInvoiceUpload(null, organization, ocrAnalysis);
+
+        assertNotNull(result);
+        assertEquals("FR88380129866", result.getVatNumber());
+    }
+
+    @Test
     void rejectsAutomaticCreationWithInvalidSiret() {
         Organization organization = createOrganization("invalid-automatic-creation");
         OcrAnalysisResponse ocrAnalysis = new OcrAnalysisResponse();

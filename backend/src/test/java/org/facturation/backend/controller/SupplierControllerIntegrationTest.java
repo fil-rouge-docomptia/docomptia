@@ -237,7 +237,7 @@ class SupplierControllerIntegrationTest {
     }
 
     @Test
-    void rejectsInvalidFrenchVatReplacement() throws Exception {
+    void allowsFrenchVatReplacementWithoutLocalChecksumValidation() throws Exception {
         mockMvc.perform(patch("/api/v1/suppliers/1/legal-identifiers/3")
                         .contentType("application/json")
                         .content("""
@@ -247,9 +247,8 @@ class SupplierControllerIntegrationTest {
                                   "reason": "Correction manuelle"
                                 }
                                 """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("SUPPLIER_VALIDATION_ERROR"))
-                .andExpect(jsonPath("$.message").value("vatNumber must be a valid French VAT number"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.vatNumber").value("FR88380129866"));
     }
 
     @Test
