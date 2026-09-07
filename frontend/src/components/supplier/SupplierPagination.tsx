@@ -21,7 +21,9 @@ function getPageItems(currentPage: number, totalPages: number): PageItem[] {
 }
 
 type SupplierPaginationProps = {
+  ariaLabel?: string
   currentPage: number
+  itemLabel?: string
   onPageChange: (page: number) => void
   pageSize: number
   totalElements: number
@@ -29,7 +31,9 @@ type SupplierPaginationProps = {
 }
 
 export function SupplierPagination({
+  ariaLabel = 'Supplier pagination',
   currentPage,
+  itemLabel = 'suppliers',
   onPageChange,
   pageSize,
   totalElements,
@@ -40,11 +44,11 @@ export function SupplierPagination({
 
   return (
     <nav
-      aria-label="Supplier pagination"
+      aria-label={ariaLabel}
       className="flex flex-col gap-3 border-t border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
     >
       <p className="text-xs text-muted-foreground">
-        {firstItem}–{lastItem} of {totalElements} suppliers
+        {firstItem}–{lastItem} of {totalElements} {itemLabel}
       </p>
 
       <div className="flex items-center gap-2">

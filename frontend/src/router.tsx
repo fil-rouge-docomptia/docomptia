@@ -5,6 +5,8 @@ import { AppShell } from '@/components/layout/AppShell'
 import AccountingOnboardingPage from '@/pages/AccountingOnboardingPage'
 import ApprovalReviewPage from '@/pages/ApprovalReviewPage'
 import ApprovalsPage from '@/pages/ApprovalsPage'
+import ClientDetailsPage from '@/pages/ClientDetailsPage'
+import ClientsPage from '@/pages/ClientsPage'
 import DashboardPage from '@/pages/DashboardPage'
 import DocumentsPage from '@/pages/DocumentsPage'
 import InvoiceUploadPage from '@/pages/InvoiceUploadPage'
@@ -101,12 +103,11 @@ export const privateRoutes = [
   },
   {
     path: '/clients',
-    element: (
-      <ModulePlaceholderPage
-        description="Manage client records for the current organization."
-        title="Clients"
-      />
-    ),
+    element: <ClientsPage />,
+  },
+  {
+    path: '/clients/:customerId',
+    element: <ClientDetailsPage />,
   },
   {
     path: '/projects',
