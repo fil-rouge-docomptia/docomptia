@@ -193,10 +193,17 @@ class AccountingExportControllerIntegrationTest {
         List<AuditLog> exportLogs = auditLogRepository.findAll().stream()
                 .filter(log -> "AccountingCsvExport".equals(log.getEntityName()))
                 .filter(log -> "CSV_EXPORT".equals(log.getAction()))
+                .filter(log -> log.getNewValue().contains("result=SUCCESS"))
                 .toList();
         assertThat(exportLogs).hasSize(1);
         assertThat(exportLogs.getFirst().getEntityId()).isEqualTo(1000L);
+        assertThat(exportLogs.getFirst().getUser().getUserId()).isEqualTo(user.getUserId());
+        assertThat(exportLogs.getFirst().getCreatedAt()).isNotNull();
+        assertThat(exportLogs.getFirst().getOldValue()).contains("format=CSV");
+        assertThat(exportLogs.getFirst().getOldValue()).contains("periodStartDate=2026-08-01");
+        assertThat(exportLogs.getFirst().getOldValue()).contains("periodEndDate=2026-08-31");
         assertThat(exportLogs.getFirst().getOldValue()).contains(exportedInvoice.getInvoiceId().toString());
+        assertThat(exportLogs.getFirst().getNewValue()).contains("result=SUCCESS");
         assertThat(exportLogs.getFirst().getNewValue()).contains("batchId=1000");
         assertThat(exportLogs.getFirst().getNewValue()).contains("entryCount=1");
 
@@ -209,9 +216,6 @@ class AccountingExportControllerIntegrationTest {
                         .value("No exportable invoices found; invoices already exported cannot be exported again"));
 
         assertThat(exportBatchRepository.findAll()).hasSize(1);
-        assertThat(auditLogRepository.findAll().stream()
-                .filter(log -> "CSV_EXPORT".equals(log.getAction())))
-                .hasSize(1);
         assertThat(invoiceStatusHistoryRepository
                 .findByInvoiceInvoiceIdAndInvoiceOrganizationOrganizationIdOrderByChangedAtAscInvoiceStatusHistoryIdAsc(
                         exportedInvoice.getInvoiceId(),
@@ -342,7 +346,6 @@ class AccountingExportControllerIntegrationTest {
         assertThat(invoiceRepository.findById(invoiceWithoutEntry.getInvoiceId()).orElseThrow()
                 .getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.EXPORTABLE.getCode());
         assertThat(exportBatchRepository.findAll()).isEmpty();
-        assertThat(auditLogRepository.findAll()).noneMatch(log -> "CSV_EXPORT".equals(log.getAction()));
     }
 
     @Test
@@ -385,7 +388,6 @@ class AccountingExportControllerIntegrationTest {
         assertThat(invoiceRepository.findById(invalidInvoice.getInvoiceId()).orElseThrow()
                 .getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.EXPORTABLE.getCode());
         assertThat(exportBatchRepository.findAll()).isEmpty();
-        assertThat(auditLogRepository.findAll()).noneMatch(log -> "CSV_EXPORT".equals(log.getAction()));
     }
 
     @Test

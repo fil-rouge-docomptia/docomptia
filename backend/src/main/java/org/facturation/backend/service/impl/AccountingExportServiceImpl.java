@@ -16,6 +16,7 @@ import org.facturation.backend.model.User;
 import org.facturation.backend.repository.AuditLogRepository;
 import org.facturation.backend.repository.ExportBatchRepository;
 import org.facturation.backend.repository.InvoiceRepository;
+import org.facturation.backend.service.AccountingExportFailureAuditService;
 import org.facturation.backend.service.AccountingExportService;
 import org.facturation.backend.service.AccountingExportValidator;
 import org.facturation.backend.service.AccountingExportValidator.ValidatedEntry;
@@ -25,6 +26,8 @@ import org.facturation.backend.service.InvoiceStatusWorkflowService;
 import org.facturation.backend.service.storage.AccountingExportFileStorageService;
 import org.facturation.backend.service.storage.StoredAccountingExportFile;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -39,7 +42,7 @@ import java.util.List;
 public class AccountingExportServiceImpl implements AccountingExportService {
 
     private static final int AMOUNT_SCALE = 2;
-    private static final String HEADER =
+    private static final String CSV_HEADER =
             "entryNumber,entryDate,invoiceNumber,invoiceDate,supplierName,accountNumber,"
                     + "accountLabel,lineLabel,debitAmount,creditAmount,currencyCode";
     private static final String FEC_HEADER =
@@ -57,6 +60,7 @@ public class AccountingExportServiceImpl implements AccountingExportService {
     private final CurrentUserService currentUserService;
     private final InvoiceStatusWorkflowService invoiceStatusWorkflowService;
     private final AccountingExportFileStorageService accountingExportFileStorageService;
+    private final AccountingExportFailureAuditService accountingExportFailureAuditService;
 
     public AccountingExportServiceImpl(
             InvoiceRepository invoiceRepository,
@@ -66,7 +70,8 @@ public class AccountingExportServiceImpl implements AccountingExportService {
             ExportBatchRepository exportBatchRepository,
             CurrentUserService currentUserService,
             InvoiceStatusWorkflowService invoiceStatusWorkflowService,
-            AccountingExportFileStorageService accountingExportFileStorageService
+            AccountingExportFileStorageService accountingExportFileStorageService,
+            AccountingExportFailureAuditService accountingExportFailureAuditService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.accountingExportValidator = accountingExportValidator;
@@ -76,6 +81,7 @@ public class AccountingExportServiceImpl implements AccountingExportService {
         this.currentUserService = currentUserService;
         this.invoiceStatusWorkflowService = invoiceStatusWorkflowService;
         this.accountingExportFileStorageService = accountingExportFileStorageService;
+        this.accountingExportFailureAuditService = accountingExportFailureAuditService;
     }
 
     @Override
@@ -95,50 +101,56 @@ public class AccountingExportServiceImpl implements AccountingExportService {
             LocalDate endDate,
             ExportBatchFormat format
     ) {
-        validatePeriod(startDate, endDate);
         User user = currentUserService.getCurrentUser();
-        Long organizationId = user.getOrganization().getOrganizationId();
-        Organization organization = accountingPieceNumberService.lockSequence(organizationId);
-        List<Invoice> invoices = invoiceRepository.findAccountingExportCandidates(
-                organizationId,
-                startDate != null,
-                startDate,
-                endDate != null,
-                endDate
-        );
-        if (invoices.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "No exportable invoices found; invoices already exported cannot be exported again"
+        List<Invoice> invoices = List.of();
+        try {
+            validatePeriod(startDate, endDate);
+            Long organizationId = user.getOrganization().getOrganizationId();
+            Organization organization = accountingPieceNumberService.lockSequence(organizationId);
+            invoices = invoiceRepository.findAccountingExportCandidates(
+                    organizationId,
+                    startDate != null,
+                    startDate,
+                    endDate != null,
+                    endDate
             );
-        }
-        List<ValidatedEntry> exportedEntries = format == ExportBatchFormat.FEC
-                ? accountingExportValidator.validateForFec(invoices)
-                : accountingExportValidator.validate(invoices);
-        if (format == ExportBatchFormat.FEC) {
-            exportedEntries = sortForFec(exportedEntries);
-        }
-        accountingPieceNumberService.assign(
-                organization,
-                exportedEntries.stream().map(ValidatedEntry::entry).toList()
-        );
+            if (invoices.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "No exportable invoices found; invoices already exported cannot be exported again"
+                );
+            }
+            List<ValidatedEntry> exportedEntries = format == ExportBatchFormat.FEC
+                    ? accountingExportValidator.validateForFec(invoices)
+                    : accountingExportValidator.validate(invoices);
+            if (format == ExportBatchFormat.FEC) {
+                exportedEntries = sortForFec(exportedEntries);
+            }
+            accountingPieceNumberService.assign(
+                    organization,
+                    exportedEntries.stream().map(ValidatedEntry::entry).toList()
+            );
 
-        String filename = format == ExportBatchFormat.FEC
-                ? buildFecFilename(organization, endDate)
-                : buildFilename(startDate, endDate);
-        String exportContent = format == ExportBatchFormat.FEC
-                ? buildFec(exportedEntries)
-                : buildCsv(exportedEntries);
-        byte[] content = exportContent.getBytes(StandardCharsets.UTF_8);
-        ExportBatch exportBatch = createBatch(user, startDate, endDate, exportedEntries, format);
-        StoredAccountingExportFile storedFile = accountingExportFileStorageService.store(
-                content,
-                filename,
-                exportBatch.getExportBatchId()
-        );
-        markInvoicesExported(exportedEntries, user, format);
-        markBatchGenerated(exportBatch, storedFile);
-        recordExport(exportedEntries, user, filename, exportBatch, format);
-        return new AccountingCsvExport(filename, content);
+            String filename = format == ExportBatchFormat.FEC
+                    ? buildFecFilename(organization, endDate)
+                    : buildCsvFilename(startDate, endDate);
+            String exportContent = format == ExportBatchFormat.FEC
+                    ? buildFec(exportedEntries)
+                    : buildCsv(exportedEntries);
+            byte[] content = exportContent.getBytes(StandardCharsets.UTF_8);
+            ExportBatch exportBatch = createBatch(user, startDate, endDate, exportedEntries, format);
+            StoredAccountingExportFile storedFile = accountingExportFileStorageService.store(
+                    content,
+                    filename,
+                    exportBatch.getExportBatchId()
+            );
+            markInvoicesExported(exportedEntries, user, format);
+            markBatchGenerated(exportBatch, storedFile);
+            recordSuccessfulExport(exportedEntries, user, startDate, endDate, filename, exportBatch, format);
+            return new AccountingCsvExport(filename, content);
+        } catch (RuntimeException exception) {
+            recordFailedExportAfterRollback(user, startDate, endDate, invoices, format, exception);
+            throw exception;
+        }
     }
 
     @Override
@@ -179,12 +191,12 @@ public class AccountingExportServiceImpl implements AccountingExportService {
     }
 
     private String buildCsv(List<ValidatedEntry> exportedEntries) {
-        StringBuilder csv = new StringBuilder(HEADER).append('\n');
+        StringBuilder csv = new StringBuilder(CSV_HEADER).append('\n');
         for (ValidatedEntry exportedEntry : exportedEntries) {
             AccountingEntry entry = exportedEntry.entry();
             Invoice invoice = entry.getInvoice();
             for (AccountingEntryLine line : exportedEntry.lines()) {
-                appendRow(csv, entry, invoice, line);
+                appendCsvRow(csv, entry, invoice, line);
             }
         }
         return csv.toString();
@@ -226,7 +238,7 @@ public class AccountingExportServiceImpl implements AccountingExportService {
                 .toList();
     }
 
-    private void appendRow(StringBuilder csv, AccountingEntry entry, Invoice invoice, AccountingEntryLine line) {
+    private void appendCsvRow(StringBuilder csv, AccountingEntry entry, Invoice invoice, AccountingEntryLine line) {
         csv.append(csvValue(entry.getEntryNumber())).append(',')
                 .append(csvValue(formatDate(entry.getEntryDate()))).append(',')
                 .append(csvValue(invoice.getInvoiceNumber())).append(',')
@@ -287,9 +299,11 @@ public class AccountingExportServiceImpl implements AccountingExportService {
         exportBatchRepository.save(exportBatch);
     }
 
-    private void recordExport(
+    private void recordSuccessfulExport(
             List<ValidatedEntry> exportedEntries,
             User user,
+            LocalDate startDate,
+            LocalDate endDate,
             String filename,
             ExportBatch exportBatch,
             ExportBatchFormat format
@@ -297,21 +311,46 @@ public class AccountingExportServiceImpl implements AccountingExportService {
         AuditLog auditLog = new AuditLog();
         auditLog.setOrganization(user.getOrganization());
         auditLog.setUser(user);
-        auditLog.setEntityName("Accounting" + format.getCode().charAt(0)
-                + format.getCode().substring(1).toLowerCase() + "Export");
+        auditLog.setEntityName(exportEntityName(format));
         auditLog.setEntityId(exportBatch.getExportBatchId());
         auditLog.setAction(format.getCode() + "_EXPORT");
-        auditLog.setOldValue("invoiceIds=" + exportedEntries.stream()
-                .map(exportedEntry -> exportedEntry.entry().getInvoice().getInvoiceId().toString())
+        auditLog.setOldValue("format=" + format.getCode()
+                + ", periodStartDate=" + startDate
+                + ", periodEndDate=" + endDate
+                + ", invoiceIds=" + exportedEntries.stream()
+                .map(exportedEntry -> exportedEntry.entry().getInvoice().getInvoiceId())
                 .toList());
-        auditLog.setNewValue("batchId=" + exportBatch.getExportBatchId()
+        auditLog.setNewValue("result=SUCCESS, batchId=" + exportBatch.getExportBatchId()
                 + ", filename=" + filename
                 + ", entryCount=" + exportedEntries.size());
         auditLog.setCreatedAt(LocalDateTime.now());
         auditLogRepository.save(auditLog);
     }
 
-    private String buildFilename(LocalDate startDate, LocalDate endDate) {
+    private void recordFailedExportAfterRollback(
+            User user,
+            LocalDate startDate,
+            LocalDate endDate,
+            List<Invoice> invoices,
+            ExportBatchFormat format,
+            RuntimeException exception
+    ) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            accountingExportFailureAuditService.record(user, startDate, endDate, invoices, format, exception);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    accountingExportFailureAuditService.record(user, startDate, endDate, invoices, format, exception);
+                }
+            }
+        });
+    }
+
+    private String buildCsvFilename(LocalDate startDate, LocalDate endDate) {
         String period = "all";
         if (startDate != null || endDate != null) {
             period = (startDate == null ? "start" : startDate.toString())
@@ -327,6 +366,11 @@ public class AccountingExportServiceImpl implements AccountingExportService {
                 + "FEC"
                 + formatFecDate(closingDate)
                 + ".txt";
+    }
+
+    private String exportEntityName(ExportBatchFormat format) {
+        return "Accounting" + format.getCode().charAt(0)
+                + format.getCode().substring(1).toLowerCase() + "Export";
     }
 
     private String csvValue(String value) {
