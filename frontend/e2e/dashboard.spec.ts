@@ -486,3 +486,138 @@ test('keeps the dashboard readable at the Figma breakpoints', async ({ page }) =
     }
   }
 })
+
+test('opens the explicit global search state from the header and keyboard', async ({ page }) => {
+  await mockDashboardRequests(page)
+  await page.setViewportSize({ height: 900, width: 1440 })
+  await page.goto('/dashboard')
+
+  await page.locator('header').getByRole('button', { name: 'Search…' }).click()
+
+  const searchDialog = page.getByRole('dialog', { name: 'Global search' })
+  await expect(searchDialog).toBeVisible()
+  await expect(searchDialog.getByText('Global search is not available yet.')).toBeVisible()
+  await expect(searchDialog.getByRole('link', { name: 'Search invoices' }))
+    .toHaveAttribute('href', '/invoices')
+  await expect(searchDialog.getByRole('link', { name: 'Search suppliers' }))
+    .toHaveAttribute('href', '/suppliers')
+  await expect(searchDialog.getByRole('link', { name: 'Search documents' }))
+    .toHaveAttribute('href', '/documents')
+
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Control+k')
+  await expect(searchDialog).toBeVisible()
+})
+
+test('loads the current user notifications and marks one as read', async ({ page }) => {
+  const unreadTotals: number[] = []
+  const notifications = [
+    {
+      notificationId: 81,
+      type: 'PENDING_VALIDATION',
+      message: 'Invoice INV-2026-081 is ready for review.',
+      invoiceId: null,
+      read: false,
+      readAt: null as string | null,
+      createdAt: '2026-09-07T09:15:00',
+    },
+    {
+      notificationId: 80,
+      type: 'OCR_ERROR',
+      message: 'Invoice INV-2026-080 could not be processed.',
+      invoiceId: 80,
+      read: false,
+      readAt: null as string | null,
+      createdAt: '2026-09-06T16:45:00',
+    },
+  ]
+
+  await page.unroute('**/api/v1/notifications*')
+  await mockApiRoute(page, '/v1/notifications?*', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+
+    const unreadOnly = url.searchParams.get('unreadOnly') === 'true'
+    const content = unreadOnly ? notifications.filter((notification) => !notification.read) : notifications
+    if (unreadOnly) {
+      unreadTotals.push(content.length)
+    }
+    await fulfillJson(route, 200, {
+      content: content.slice(0, Number(url.searchParams.get('size') ?? 20)),
+      number: 0,
+      size: Number(url.searchParams.get('size') ?? 20),
+      totalElements: content.length,
+      totalPages: content.length > 0 ? 1 : 0,
+    })
+  })
+  await mockApiRoute(page, '/v1/notifications/81/read', async (route) => {
+    notifications[0] = {
+      ...notifications[0],
+      read: true,
+      readAt: '2026-09-07T10:00:00',
+    }
+    await fulfillJson(route, 200, notifications[0])
+  })
+  await mockDashboardRequests(page)
+  await page.setViewportSize({ height: 900, width: 1440 })
+  await page.goto('/dashboard')
+
+  const notificationTrigger = page.locator('header').getByRole('button', {
+    name: 'Notifications, 2 unread',
+  })
+  await expect(notificationTrigger).toBeVisible()
+  await notificationTrigger.click()
+
+  const notificationSheet = page.getByRole('dialog', { name: 'Notifications' })
+  await expect(notificationSheet).toBeVisible()
+  await expect(notificationSheet.getByText('Invoice INV-2026-081 is ready for review.'))
+    .toBeVisible()
+  await expect(notificationSheet.getByText('Showing 2 of 2 notifications')).toBeVisible()
+
+  const readRequest = page.waitForRequest((request) =>
+    request.method() === 'PATCH'
+      && request.url().endsWith('/api/v1/notifications/81/read'),
+  )
+  await notificationSheet.getByRole('button', {
+    name: 'Unread notification — Invoice ready for review: Invoice INV-2026-081 is ready for review.',
+  }).click()
+  await readRequest
+  await expect(notificationSheet.getByRole('button', {
+    name: 'Read notification — Invoice ready for review: Invoice INV-2026-081 is ready for review.',
+  })).toBeVisible()
+  await expect.poll(() => unreadTotals.at(-1)).toBe(1)
+  await page.keyboard.press('Escape')
+
+  await expect(page.locator('header').getByRole('button', {
+    name: 'Notifications, 1 unread',
+  })).toBeVisible()
+})
+
+test('keeps global controls usable at the Figma breakpoints', async ({ page }) => {
+  await mockDashboardRequests(page)
+
+  for (const width of [1440, 1024, 768, 390]) {
+    await page.setViewportSize({ height: 900, width })
+    await page.goto('/dashboard')
+
+    const header = page.locator('header')
+    await header.getByRole('button', { name: 'Notifications' }).click()
+
+    const notificationSheet = page.getByRole('dialog', { name: 'Notifications' })
+    await expect(notificationSheet).toBeVisible()
+    const notificationBox = await notificationSheet.boundingBox()
+    expect(notificationBox).not.toBeNull()
+    expect(notificationBox?.width).toBeLessThanOrEqual(width)
+    await page.keyboard.press('Escape')
+
+    await header.getByRole('button', { name: width === 1440 ? 'Search…' : 'Search' }).click()
+    const searchDialog = page.getByRole('dialog', { name: 'Global search' })
+    await expect(searchDialog).toBeVisible()
+
+    const viewportFits = await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    )
+    expect(viewportFits, `global controls should not overflow at ${width}px`).toBe(true)
+    await page.keyboard.press('Escape')
+  }
+})
