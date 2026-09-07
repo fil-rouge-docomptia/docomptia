@@ -45,7 +45,7 @@ function approvalMessage(invoice: InvoiceDetails, role?: RoleCode) {
       : 'Review the extracted fields, then request approval from the invoice header.'
   }
 
-  if (['VALIDEE', 'COMPTABILISEE', 'EXPORTABLE', 'EXPORTEE', 'ARCHIVEE'].includes(invoice.status)) {
+  if (['VALIDEE', 'COMPTABILISEE', 'EXPORTABLE', 'EXPORTEE', 'PAYEE', 'ARCHIVEE'].includes(invoice.status)) {
     return 'The approval step has been completed for this invoice.'
   }
 
@@ -146,7 +146,7 @@ function BasicApprovalState({
   invoice: InvoiceDetails
   role?: RoleCode
 }) {
-  const completed = ['VALIDEE', 'COMPTABILISEE', 'EXPORTABLE', 'EXPORTEE', 'ARCHIVEE'].includes(
+  const completed = ['VALIDEE', 'COMPTABILISEE', 'EXPORTABLE', 'EXPORTEE', 'PAYEE', 'ARCHIVEE'].includes(
     invoice.status,
   )
 

@@ -607,12 +607,48 @@ test('renders the invoice review sections from the detail endpoint', async ({ pa
   await expect(page.getByText('OCR analysis completed')).toBeVisible()
 })
 
+test('presents API lifecycle states with explicit next-step guidance', async ({ page }) => {
+  let currentInvoice = invoiceDetails
+  await mockApiRoute(page, '/v1/invoices/42', (route) => (
+    fulfillJson(route, 200, currentInvoice)
+  ))
+
+  const scenarios = [
+    { badge: 'To process', notice: 'Invoice received', status: 'DEPOSEE' },
+    { badge: 'Processing', notice: 'Invoice processing', status: 'OCR_EN_COURS' },
+    { badge: 'Waiting approval', notice: 'Waiting for approval', status: 'A_VERIFIER' },
+    { badge: 'Approved', notice: 'Invoice approved', status: 'VALIDEE' },
+    { badge: 'Accounted', notice: 'Accounting complete', status: 'COMPTABILISEE' },
+    { badge: 'Ready to export', notice: 'Ready to export', status: 'EXPORTABLE' },
+  ]
+
+  for (const scenario of scenarios) {
+    currentInvoice = {
+      ...invoiceDetails,
+      accountingEntry: scenario.status === 'COMPTABILISEE' || scenario.status === 'EXPORTABLE'
+        ? balancedAccountingEntry
+        : null,
+      status: scenario.status,
+    }
+    await page.goto('/invoices/42')
+
+    await expect(page.getByText(scenario.badge, { exact: true }).first()).toBeVisible()
+    await expect(page.getByRole('status', { name: 'Invoice lifecycle status' }))
+      .toContainText(scenario.notice)
+    await expect(page.getByRole('button', { name: 'Request approval' })).toHaveCount(0)
+  }
+})
+
 test('renders an unbalanced accounting entry with API totals and lines to review', async ({ page }) => {
   await mockApiRoute(page, '/v1/invoices/42', (route) => (
     fulfillJson(route, 200, unbalancedInvoiceDetails)
   ))
 
   await page.goto('/invoices/42')
+
+  await expect(page.getByText('Accounting unbalanced', { exact: true })).toBeVisible()
+  await expect(page.getByRole('status', { name: 'Invoice lifecycle status' }))
+    .toContainText('Accounting needs attention')
   await page.getByRole('tab', { name: 'Accounting' }).click()
 
   await expect(page.getByRole('heading', { name: 'Accounting entry' })).toBeVisible()
@@ -746,24 +782,33 @@ test('keeps line changes visible for validation and status conflict errors', asy
   await expect(page.getByLabel('Credit amount')).toHaveValue('1250.00')
 })
 
-test('does not offer direct correction for exported or archived invoices', async ({ page }) => {
-  let currentInvoice = { ...balancedInvoiceDetails, status: 'EXPORTEE' }
+test('keeps exported, paid and archived invoices read-only', async ({ page }) => {
+  let currentInvoice = balancedInvoiceDetails
   await mockApiRoute(page, '/v1/invoices/42', (route) => (
     fulfillJson(route, 200, currentInvoice)
   ))
 
-  await page.goto('/invoices/42')
-  await page.getByRole('tab', { name: 'Accounting' }).click()
+  const scenarios = [
+    { badge: 'Exported', notice: 'Invoice exported', status: 'EXPORTEE' },
+    { badge: 'Paid', notice: 'Invoice paid', status: 'PAYEE' },
+    { badge: 'Archived', notice: 'Invoice archived', status: 'ARCHIVEE' },
+  ]
 
-  await expect(page.getByText('Accounting entry is read-only')).toBeVisible()
-  await expect(page.getByRole('button', { name: /Edit accounting line/ })).toHaveCount(0)
+  for (const scenario of scenarios) {
+    currentInvoice = { ...balancedInvoiceDetails, status: scenario.status }
+    await page.goto('/invoices/42')
 
-  currentInvoice = { ...balancedInvoiceDetails, status: 'ARCHIVEE' }
-  await page.reload()
-  await page.getByRole('tab', { name: 'Accounting' }).click()
+    await expect(page.getByText(scenario.badge, { exact: true })).toBeVisible()
+    await expect(page.getByRole('status', { name: 'Invoice lifecycle status' }))
+      .toContainText(scenario.notice)
+    await expect(page.getByLabel('Invoice number')).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Request approval' })).toHaveCount(0)
 
-  await expect(page.getByText('Accounting entry is read-only')).toBeVisible()
-  await expect(page.getByRole('button', { name: /Edit accounting line/ })).toHaveCount(0)
+    await page.getByRole('tab', { name: 'Accounting' }).click()
+
+    await expect(page.getByText('Accounting entry is read-only')).toBeVisible()
+    await expect(page.getByRole('button', { name: /Edit accounting line/ })).toHaveCount(0)
+  }
 })
 
 test('shows a balanced entry without claiming export eligibility before backend confirmation', async ({ page }) => {
@@ -783,7 +828,7 @@ test('shows a balanced entry without claiming export eligibility before backend 
   currentInvoice = { ...balancedInvoiceDetails, status: 'EXPORTABLE' }
   await page.reload()
 
-  await expect(page.getByText('Ready to export', { exact: true })).toBeVisible()
+  await expect(page.getByText('Ready to export', { exact: true }).first()).toBeVisible()
 })
 
 test('keeps the accounting balance readable on a narrow viewport', async ({ page }) => {

@@ -13,6 +13,7 @@ import {
   canProcessInvoice,
   isRetryableOcrError,
 } from './invoice-detail-utils'
+import { isInvoiceAccountingUnbalanced } from './invoice-lifecycle'
 
 type CorrectionState = {
   dirty: boolean
@@ -49,6 +50,7 @@ export function InvoiceDetailHeader({
   const [retryingOcr, setRetryingOcr] = useState(false)
   const canProcess = canProcessInvoice(role)
   const hasPendingDuplicate = Boolean(duplicateAlert)
+  const accountingUnbalanced = isInvoiceAccountingUnbalanced(invoice)
   const canRequestApproval =
     invoice.status === 'EXTRAITE' && canProcess && !hasPendingDuplicate
   const canRetryOcr = invoice.status === 'ERREUR_OCR'
@@ -113,7 +115,15 @@ export function InvoiceDetailHeader({
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <span>{invoice.invoiceNumber ?? `Invoice ${invoice.invoiceId}`}</span>
             <span aria-hidden="true">·</span>
-            <InvoiceStatusBadge status={hasPendingDuplicate ? 'DUPLICATE_SUSPECTED' : invoice.status} />
+            <InvoiceStatusBadge
+              className={accountingUnbalanced && !hasPendingDuplicate
+                ? 'border-destructive bg-destructive text-destructive-foreground'
+                : undefined}
+              label={accountingUnbalanced && !hasPendingDuplicate
+                ? 'Accounting unbalanced'
+                : undefined}
+              status={hasPendingDuplicate ? 'DUPLICATE_SUSPECTED' : invoice.status}
+            />
           </div>
         </div>
 
