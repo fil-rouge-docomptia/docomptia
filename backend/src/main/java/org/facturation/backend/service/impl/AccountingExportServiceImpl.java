@@ -1,9 +1,6 @@
 package org.facturation.backend.service.impl;
 
 import jakarta.transaction.Transactional;
-import org.facturation.backend.dto.response.AccountingEntryResponse;
-import org.facturation.backend.exception.UnbalancedAccountingEntryException;
-import org.facturation.backend.mapper.AccountingEntryMapper;
 import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.AccountingEntryLine;
 import org.facturation.backend.model.AuditLog;
@@ -13,11 +10,12 @@ import org.facturation.backend.model.ExportBatchStatusCode;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.User;
-import org.facturation.backend.repository.AccountingEntryLineRepository;
-import org.facturation.backend.repository.AccountingEntryRepository;
 import org.facturation.backend.repository.AuditLogRepository;
 import org.facturation.backend.repository.ExportBatchRepository;
+import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.service.AccountingExportService;
+import org.facturation.backend.service.AccountingExportValidator;
+import org.facturation.backend.service.AccountingExportValidator.ValidatedEntry;
 import org.facturation.backend.service.CurrentUserService;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
 import org.springframework.stereotype.Service;
@@ -28,7 +26,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -39,26 +36,23 @@ public class AccountingExportServiceImpl implements AccountingExportService {
             "entryNumber,entryDate,invoiceNumber,invoiceDate,supplierName,accountNumber,"
                     + "accountLabel,lineLabel,debitAmount,creditAmount,currencyCode";
 
-    private final AccountingEntryRepository accountingEntryRepository;
-    private final AccountingEntryLineRepository accountingEntryLineRepository;
-    private final AccountingEntryMapper accountingEntryMapper;
+    private final InvoiceRepository invoiceRepository;
+    private final AccountingExportValidator accountingExportValidator;
     private final AuditLogRepository auditLogRepository;
     private final ExportBatchRepository exportBatchRepository;
     private final CurrentUserService currentUserService;
     private final InvoiceStatusWorkflowService invoiceStatusWorkflowService;
 
     public AccountingExportServiceImpl(
-            AccountingEntryRepository accountingEntryRepository,
-            AccountingEntryLineRepository accountingEntryLineRepository,
-            AccountingEntryMapper accountingEntryMapper,
+            InvoiceRepository invoiceRepository,
+            AccountingExportValidator accountingExportValidator,
             AuditLogRepository auditLogRepository,
             ExportBatchRepository exportBatchRepository,
             CurrentUserService currentUserService,
             InvoiceStatusWorkflowService invoiceStatusWorkflowService
     ) {
-        this.accountingEntryRepository = accountingEntryRepository;
-        this.accountingEntryLineRepository = accountingEntryLineRepository;
-        this.accountingEntryMapper = accountingEntryMapper;
+        this.invoiceRepository = invoiceRepository;
+        this.accountingExportValidator = accountingExportValidator;
         this.auditLogRepository = auditLogRepository;
         this.exportBatchRepository = exportBatchRepository;
         this.currentUserService = currentUserService;
@@ -71,27 +65,17 @@ public class AccountingExportServiceImpl implements AccountingExportService {
         validatePeriod(startDate, endDate);
         User user = currentUserService.getCurrentUser();
         Long organizationId = user.getOrganization().getOrganizationId();
-        List<AccountingEntry> entries = accountingEntryRepository.findExportableEntriesForCsvExport(
+        List<Invoice> invoices = invoiceRepository.findAccountingExportCandidates(
                 organizationId,
                 startDate != null,
                 startDate,
                 endDate != null,
                 endDate
         );
-        if (entries.isEmpty()) {
+        if (invoices.isEmpty()) {
             throw new IllegalArgumentException("No exportable invoices found for accounting CSV export");
         }
-
-        List<ExportedEntry> exportedEntries = new ArrayList<>();
-        for (AccountingEntry entry : entries) {
-            List<AccountingEntryLine> lines = accountingEntryLineRepository
-                    .findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(entry.getAccountingEntryId());
-            AccountingEntryResponse response = accountingEntryMapper.toResponse(entry, lines);
-            if (!response.isBalanced()) {
-                throw new UnbalancedAccountingEntryException(response);
-            }
-            exportedEntries.add(new ExportedEntry(entry, lines));
-        }
+        List<ValidatedEntry> exportedEntries = accountingExportValidator.validate(invoices);
 
         String filename = buildFilename(startDate, endDate);
         String csv = buildCsv(exportedEntries);
@@ -108,9 +92,9 @@ public class AccountingExportServiceImpl implements AccountingExportService {
         }
     }
 
-    private String buildCsv(List<ExportedEntry> exportedEntries) {
+    private String buildCsv(List<ValidatedEntry> exportedEntries) {
         StringBuilder csv = new StringBuilder(HEADER).append('\n');
-        for (ExportedEntry exportedEntry : exportedEntries) {
+        for (ValidatedEntry exportedEntry : exportedEntries) {
             AccountingEntry entry = exportedEntry.entry();
             Invoice invoice = entry.getInvoice();
             for (AccountingEntryLine line : exportedEntry.lines()) {
@@ -135,8 +119,8 @@ public class AccountingExportServiceImpl implements AccountingExportService {
                 .append('\n');
     }
 
-    private void markInvoicesExported(List<ExportedEntry> exportedEntries, User user) {
-        for (ExportedEntry exportedEntry : exportedEntries) {
+    private void markInvoicesExported(List<ValidatedEntry> exportedEntries, User user) {
+        for (ValidatedEntry exportedEntry : exportedEntries) {
             invoiceStatusWorkflowService.transitionTo(
                     exportedEntry.entry().getInvoice(),
                     InvoiceStatusCode.EXPORTEE,
@@ -150,7 +134,7 @@ public class AccountingExportServiceImpl implements AccountingExportService {
             User user,
             LocalDate startDate,
             LocalDate endDate,
-            List<ExportedEntry> exportedEntries
+            List<ValidatedEntry> exportedEntries
     ) {
         ExportBatch exportBatch = new ExportBatch();
         exportBatch.setOrganization(user.getOrganization());
@@ -160,7 +144,7 @@ public class AccountingExportServiceImpl implements AccountingExportService {
         exportBatch.setFormat(ExportBatchFormat.CSV.getCode());
         exportBatch.setStatus(ExportBatchStatusCode.PREPARATION.getCode());
         exportBatch.setCreatedAt(LocalDateTime.now());
-        for (ExportedEntry exportedEntry : exportedEntries) {
+        for (ValidatedEntry exportedEntry : exportedEntries) {
             exportBatch.addInvoice(exportedEntry.entry().getInvoice());
         }
         return exportBatchRepository.save(exportBatch);
@@ -173,7 +157,7 @@ public class AccountingExportServiceImpl implements AccountingExportService {
     }
 
     private void recordExport(
-            List<ExportedEntry> exportedEntries,
+            List<ValidatedEntry> exportedEntries,
             User user,
             String filename,
             ExportBatch exportBatch
@@ -220,8 +204,5 @@ public class AccountingExportServiceImpl implements AccountingExportService {
             return BigDecimal.ZERO.setScale(AMOUNT_SCALE).toPlainString();
         }
         return amount.setScale(AMOUNT_SCALE, RoundingMode.HALF_UP).toPlainString();
-    }
-
-    private record ExportedEntry(AccountingEntry entry, List<AccountingEntryLine> lines) {
     }
 }

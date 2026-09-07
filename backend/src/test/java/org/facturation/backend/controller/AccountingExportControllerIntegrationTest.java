@@ -38,6 +38,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -89,11 +90,13 @@ class AccountingExportControllerIntegrationTest {
     private String jwtSecret;
 
     @Test
-    void exportsOnlyCurrentOrganizationExportableInvoicesAndMarksThemExported() throws Exception {
+    void exportsValidatedInvoicesInTheRequestedPeriodAndMarksThemExported() throws Exception {
         User user = userRepository.findById(1L).orElseThrow();
         Invoice exportedInvoice = createInvoice(user, InvoiceStatusCode.EXPORTABLE, "CSV-EXPORT", "EUR");
         createBalancedEntry(exportedInvoice, user, "CSV-ENTRY-1");
         Invoice nonExportableInvoice = createInvoice(user, InvoiceStatusCode.VALIDEE, "CSV-VALIDATED", "EUR");
+        nonExportableInvoice.setInvoiceDate(LocalDate.of(2026, 9, 15));
+        invoiceRepository.save(nonExportableInvoice);
         createBalancedEntry(nonExportableInvoice, user, "CSV-ENTRY-2");
 
         String csv = mockMvc.perform(post("/api/v1/accounting-exports/csv")
@@ -148,6 +151,51 @@ class AccountingExportControllerIntegrationTest {
         assertThat(exportLogs.getFirst().getOldValue()).contains(exportedInvoice.getInvoiceId().toString());
         assertThat(exportLogs.getFirst().getNewValue()).contains("batchId=1000");
         assertThat(exportLogs.getFirst().getNewValue()).contains("entryCount=1");
+    }
+
+    @Test
+    void returnsAllBlockingControlsBeforeGeneratingTheExport() throws Exception {
+        User user = userRepository.findById(1L).orElseThrow();
+        Invoice invalidInvoice = createInvoice(user, InvoiceStatusCode.VALIDEE, "CSV-INVALID", "EUR");
+        invalidInvoice.setTotalTva(new BigDecimal("21.00"));
+        invoiceRepository.save(invalidInvoice);
+        createBalancedEntry(invalidInvoice, user, "CSV-ENTRY-INVALID");
+
+        AccountingEntry entry = accountingEntryRepository
+                .findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(invalidInvoice.getInvoiceId())
+                .orElseThrow();
+        entry.setEntryNumber(" ");
+        accountingEntryRepository.save(entry);
+
+        ChartOfAccount inactiveAccount = chartOfAccountRepository.findById(2L).orElseThrow();
+        inactiveAccount.setActive(false);
+        chartOfAccountRepository.save(inactiveAccount);
+        List<AccountingEntryLine> lines = accountingEntryLineRepository
+                .findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(entry.getAccountingEntryId());
+        lines.getFirst().setAccount(inactiveAccount);
+        lines.getLast().setCreditAmount(new BigDecimal("119.00"));
+        accountingEntryLineRepository.saveAll(lines);
+
+        mockMvc.perform(post("/api/v1/accounting-exports/csv")
+                        .param("startDate", "2026-08-01")
+                        .param("endDate", "2026-08-31")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ACCOUNTING_EXPORT_VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.invoices[0].invoiceId").value(invalidInvoice.getInvoiceId()))
+                .andExpect(jsonPath("$.invoices[0].invoiceNumber").value("CSV-INVALID"))
+                .andExpect(jsonPath("$.invoices[0].errors[*].code", containsInAnyOrder(
+                        "INVOICE_NOT_EXPORTABLE",
+                        "VAT_INCONSISTENT",
+                        "ACCOUNT_INACTIVE",
+                        "ACCOUNTING_ENTRY_UNBALANCED",
+                        "PIECE_NUMBER_MISSING"
+                )));
+
+        assertThat(invoiceRepository.findById(invalidInvoice.getInvoiceId()).orElseThrow()
+                .getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.VALIDEE.getCode());
+        assertThat(exportBatchRepository.findAll()).isEmpty();
+        assertThat(auditLogRepository.findAll()).noneMatch(log -> "CSV_EXPORT".equals(log.getAction()));
     }
 
     @Test
