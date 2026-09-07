@@ -1,6 +1,7 @@
 package org.facturation.backend.service.impl;
 
 import jakarta.transaction.Transactional;
+import org.facturation.backend.exception.AccountingExportFileNotFoundException;
 import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.AccountingEntryLine;
 import org.facturation.backend.model.AuditLog;
@@ -18,6 +19,8 @@ import org.facturation.backend.service.AccountingExportValidator;
 import org.facturation.backend.service.AccountingExportValidator.ValidatedEntry;
 import org.facturation.backend.service.CurrentUserService;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
+import org.facturation.backend.service.storage.AccountingExportFileStorageService;
+import org.facturation.backend.service.storage.StoredAccountingExportFile;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -42,6 +45,7 @@ public class AccountingExportServiceImpl implements AccountingExportService {
     private final ExportBatchRepository exportBatchRepository;
     private final CurrentUserService currentUserService;
     private final InvoiceStatusWorkflowService invoiceStatusWorkflowService;
+    private final AccountingExportFileStorageService accountingExportFileStorageService;
 
     public AccountingExportServiceImpl(
             InvoiceRepository invoiceRepository,
@@ -49,7 +53,8 @@ public class AccountingExportServiceImpl implements AccountingExportService {
             AuditLogRepository auditLogRepository,
             ExportBatchRepository exportBatchRepository,
             CurrentUserService currentUserService,
-            InvoiceStatusWorkflowService invoiceStatusWorkflowService
+            InvoiceStatusWorkflowService invoiceStatusWorkflowService,
+            AccountingExportFileStorageService accountingExportFileStorageService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.accountingExportValidator = accountingExportValidator;
@@ -57,6 +62,7 @@ public class AccountingExportServiceImpl implements AccountingExportService {
         this.exportBatchRepository = exportBatchRepository;
         this.currentUserService = currentUserService;
         this.invoiceStatusWorkflowService = invoiceStatusWorkflowService;
+        this.accountingExportFileStorageService = accountingExportFileStorageService;
     }
 
     @Override
@@ -78,12 +84,30 @@ public class AccountingExportServiceImpl implements AccountingExportService {
         List<ValidatedEntry> exportedEntries = accountingExportValidator.validate(invoices);
 
         String filename = buildFilename(startDate, endDate);
-        String csv = buildCsv(exportedEntries);
+        byte[] content = buildCsv(exportedEntries).getBytes(StandardCharsets.UTF_8);
         ExportBatch exportBatch = createBatch(user, startDate, endDate, exportedEntries);
+        StoredAccountingExportFile storedFile = accountingExportFileStorageService.store(
+                content,
+                filename,
+                exportBatch.getExportBatchId()
+        );
         markInvoicesExported(exportedEntries, user);
-        markBatchGenerated(exportBatch);
+        markBatchGenerated(exportBatch, storedFile);
         recordExport(exportedEntries, user, filename, exportBatch);
-        return new AccountingCsvExport(filename, csv.getBytes(StandardCharsets.UTF_8));
+        return new AccountingCsvExport(filename, content);
+    }
+
+    @Override
+    @Transactional
+    public AccountingCsvExport downloadFile(Long exportBatchId) {
+        Long organizationId = currentUserService.getCurrentUser().getOrganization().getOrganizationId();
+        ExportBatch exportBatch = exportBatchRepository
+                .findByExportBatchIdAndOrganizationOrganizationId(exportBatchId, organizationId)
+                .orElseThrow(() -> new AccountingExportFileNotFoundException(exportBatchId));
+        return new AccountingCsvExport(
+                exportBatch.getFileName(),
+                accountingExportFileStorageService.load(exportBatch)
+        );
     }
 
     private void validatePeriod(LocalDate startDate, LocalDate endDate) {
@@ -150,7 +174,11 @@ public class AccountingExportServiceImpl implements AccountingExportService {
         return exportBatchRepository.save(exportBatch);
     }
 
-    private void markBatchGenerated(ExportBatch exportBatch) {
+    private void markBatchGenerated(ExportBatch exportBatch, StoredAccountingExportFile storedFile) {
+        exportBatch.setFileName(storedFile.fileName());
+        exportBatch.setStoredFileName(storedFile.storedFileName());
+        exportBatch.setFilePath(storedFile.filePath());
+        exportBatch.setFileSize(storedFile.fileSize());
         exportBatch.setStatus(ExportBatchStatusCode.GENERE.getCode());
         exportBatch.setGeneratedAt(LocalDateTime.now());
         exportBatchRepository.save(exportBatch);

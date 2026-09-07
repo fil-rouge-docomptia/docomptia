@@ -11,6 +11,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -40,8 +42,21 @@ public class AccountingExportController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
         AccountingExportService.AccountingCsvExport export = accountingExportService.exportCsv(startDate, endDate);
+        return accountingExportResponse(export);
+    }
+
+    @GetMapping("/{id}/file")
+    @Operation(summary = "Telecharger un fichier d'export comptable")
+    @ApiResponse(responseCode = "200", description = "Fichier d'export retourne")
+    @ApiResponse(responseCode = "404", description = "Lot ou fichier absent dans l'organisation courante")
+    public ResponseEntity<byte[]> downloadFile(@PathVariable Long id) {
+        return accountingExportResponse(accountingExportService.downloadFile(id));
+    }
+
+    private ResponseEntity<byte[]> accountingExportResponse(AccountingExportService.AccountingCsvExport export) {
         return ResponseEntity.ok()
                 .contentType(new MediaType("text", "csv"))
+                .contentLength(export.content().length)
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
                         .filename(export.filename())
                         .build()

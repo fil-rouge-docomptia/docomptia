@@ -132,9 +132,17 @@ CREATE TABLE IF NOT EXISTS export_batches (
     period_end_date DATE,
     format VARCHAR(255) NOT NULL,
     status VARCHAR(255) NOT NULL,
+    file_name VARCHAR(255),
+    stored_file_name VARCHAR(255),
+    file_path VARCHAR(255),
+    file_size BIGINT,
     created_at TIMESTAMP,
     generated_at TIMESTAMP
 );
+ALTER TABLE IF EXISTS export_batches ADD COLUMN IF NOT EXISTS file_name VARCHAR(255);
+ALTER TABLE IF EXISTS export_batches ADD COLUMN IF NOT EXISTS stored_file_name VARCHAR(255);
+ALTER TABLE IF EXISTS export_batches ADD COLUMN IF NOT EXISTS file_path VARCHAR(255);
+ALTER TABLE IF EXISTS export_batches ADD COLUMN IF NOT EXISTS file_size BIGINT;
 ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS export_batch_id BIGINT REFERENCES export_batches(export_batch_id);
 
 ALTER TABLE IF EXISTS invoice_duplicate_alerts ALTER COLUMN invoice_date DROP NOT NULL;
