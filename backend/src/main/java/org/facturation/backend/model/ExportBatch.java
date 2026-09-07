@@ -54,6 +54,8 @@ public class ExportBatch {
 
     private LocalDateTime generatedAt;
 
+    private LocalDateTime archivedAt;
+
     @OneToMany(mappedBy = "exportBatch")
     private List<Invoice> invoices = new ArrayList<>();
 
@@ -159,6 +161,14 @@ public class ExportBatch {
 
     public void setGeneratedAt(LocalDateTime generatedAt) {
         this.generatedAt = generatedAt;
+    }
+
+    public LocalDateTime getArchivedAt() {
+        return archivedAt;
+    }
+
+    public void setArchivedAt(LocalDateTime archivedAt) {
+        this.archivedAt = archivedAt;
     }
 
     public List<Invoice> getInvoices() {

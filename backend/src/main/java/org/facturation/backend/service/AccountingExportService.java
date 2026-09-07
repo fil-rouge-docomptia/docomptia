@@ -1,6 +1,7 @@
 package org.facturation.backend.service;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 public interface AccountingExportService {
 
@@ -10,6 +11,11 @@ public interface AccountingExportService {
 
     AccountingCsvExport downloadFile(Long exportBatchId);
 
+    AccountingExportArchive archiveFile(Long exportBatchId);
+
     record AccountingCsvExport(String filename, byte[] content) {
+    }
+
+    record AccountingExportArchive(Long exportBatchId, String status, LocalDateTime archivedAt) {
     }
 }

@@ -151,12 +151,14 @@ CREATE TABLE IF NOT EXISTS export_batches (
     file_path VARCHAR(255),
     file_size BIGINT,
     created_at TIMESTAMP,
-    generated_at TIMESTAMP
+    generated_at TIMESTAMP,
+    archived_at TIMESTAMP
 );
 ALTER TABLE IF EXISTS export_batches ADD COLUMN IF NOT EXISTS file_name VARCHAR(255);
 ALTER TABLE IF EXISTS export_batches ADD COLUMN IF NOT EXISTS stored_file_name VARCHAR(255);
 ALTER TABLE IF EXISTS export_batches ADD COLUMN IF NOT EXISTS file_path VARCHAR(255);
 ALTER TABLE IF EXISTS export_batches ADD COLUMN IF NOT EXISTS file_size BIGINT;
+ALTER TABLE IF EXISTS export_batches ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP;
 ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS export_batch_id BIGINT REFERENCES export_batches(export_batch_id);
 
 ALTER TABLE IF EXISTS invoice_duplicate_alerts ALTER COLUMN invoice_date DROP NOT NULL;

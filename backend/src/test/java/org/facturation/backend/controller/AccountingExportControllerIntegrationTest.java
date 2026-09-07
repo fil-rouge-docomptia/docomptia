@@ -572,6 +572,62 @@ class AccountingExportControllerIntegrationTest {
                 .andExpect(jsonPath("$.code").value("ACCOUNTING_EXPORT_FILE_NOT_FOUND"));
     }
 
+    @Test
+    void archivesGeneratedExportAndKeepsItsFileDownloadable() throws Exception {
+        User user = userRepository.findById(1L).orElseThrow();
+        Invoice invoice = createInvoice(user, InvoiceStatusCode.EXPORTABLE, "CSV-ARCHIVE", "EUR");
+        createBalancedEntry(invoice, user, "CSV-ENTRY-ARCHIVE");
+
+        byte[] content = mockMvc.perform(post("/api/v1/accounting-exports/csv")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        ExportBatch exportBatch = exportBatchRepository.findAll().getFirst();
+
+        mockMvc.perform(post("/api/v1/accounting-exports/{id}/archive", exportBatch.getExportBatchId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.exportBatchId").value(exportBatch.getExportBatchId()))
+                .andExpect(jsonPath("$.status").value(ExportBatchStatusCode.ARCHIVE.getCode()))
+                .andExpect(jsonPath("$.archivedAt").isNotEmpty());
+
+        ExportBatch archivedBatch = exportBatchRepository.findById(exportBatch.getExportBatchId()).orElseThrow();
+        assertThat(archivedBatch.getStatus()).isEqualTo(ExportBatchStatusCode.ARCHIVE.getCode());
+        assertThat(archivedBatch.getArchivedAt()).isNotNull();
+
+        mockMvc.perform(get("/api/v1/accounting-exports/{id}/file", exportBatch.getExportBatchId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(content));
+
+        mockMvc.perform(post("/api/v1/accounting-exports/{id}/archive", exportBatch.getExportBatchId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ACCOUNTING_EXPORT_ARCHIVE_NOT_ALLOWED"));
+    }
+
+    @Test
+    void doesNotArchiveExportFromAnotherOrganization() throws Exception {
+        User owner = userRepository.findById(1L).orElseThrow();
+        Invoice invoice = createInvoice(owner, InvoiceStatusCode.EXPORTABLE, "CSV-ARCHIVE-OWNER", "EUR");
+        createBalancedEntry(invoice, owner, "CSV-ENTRY-ARCHIVE-OWNER");
+
+        mockMvc.perform(post("/api/v1/accounting-exports/csv")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(owner)))
+                .andExpect(status().isOk());
+        ExportBatch exportBatch = exportBatchRepository.findAll().getFirst();
+        User otherOrganizationUser = createUserForAnotherOrganization();
+
+        mockMvc.perform(post("/api/v1/accounting-exports/{id}/archive", exportBatch.getExportBatchId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(otherOrganizationUser)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ACCOUNTING_EXPORT_FILE_NOT_FOUND"));
+
+        ExportBatch unchangedBatch = exportBatchRepository.findById(exportBatch.getExportBatchId()).orElseThrow();
+        assertThat(unchangedBatch.getStatus()).isEqualTo(ExportBatchStatusCode.GENERE.getCode());
+        assertThat(unchangedBatch.getArchivedAt()).isNull();
+    }
+
     private Invoice createInvoice(User user, InvoiceStatusCode statusCode, String invoiceNumber, String currencyCode) {
         return createInvoice(user, statusCode, invoiceNumber, currencyCode, LocalDate.of(2026, 8, 15));
     }
