@@ -4,12 +4,14 @@ import org.facturation.backend.dto.response.CurrentSubscriptionResponse;
 import org.facturation.backend.dto.response.SubscriptionPlanResponse;
 import org.facturation.backend.model.OrganizationSubscription;
 import org.facturation.backend.model.SubscriptionPlan;
+import org.facturation.backend.model.SubscriptionPlanLimit;
 import org.facturation.backend.repository.OrganizationSubscriptionRepository;
 import org.facturation.backend.service.CurrentSubscriptionService;
 import org.facturation.backend.service.CurrentUserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -37,11 +39,13 @@ public class CurrentSubscriptionServiceImpl implements CurrentSubscriptionServic
 
     private static CurrentSubscriptionResponse toResponse(OrganizationSubscription subscription) {
         SubscriptionPlan plan = subscription.getPlan();
+        SubscriptionPlanLimit limits = plan.findLimitsAt(LocalDate.now())
+                .orElseThrow(() -> new IllegalStateException("No current limits configured for plan " + plan.getCode()));
         SubscriptionPlanResponse planResponse = new SubscriptionPlanResponse(
                 plan.getCode(),
                 plan.getName(),
-                plan.getMaxActiveUsers(),
-                plan.getMonthlyInvoiceLimit(),
+                limits.getMaxActiveUsers(),
+                limits.getMonthlyInvoiceLimit(),
                 List.copyOf(plan.getFeatures())
         );
         return new CurrentSubscriptionResponse(

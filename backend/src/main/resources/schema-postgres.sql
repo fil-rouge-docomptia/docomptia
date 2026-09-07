@@ -8,6 +8,16 @@ CREATE TABLE IF NOT EXISTS subscription_plans (
     active BOOLEAN NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS subscription_plan_limits (
+    subscription_plan_limit_id BIGSERIAL PRIMARY KEY,
+    subscription_plan_id BIGINT NOT NULL REFERENCES subscription_plans(subscription_plan_id),
+    valid_from DATE NOT NULL,
+    valid_to DATE,
+    max_active_users INTEGER,
+    monthly_invoice_limit INTEGER,
+    CONSTRAINT uk_subscription_plan_limits_period UNIQUE (subscription_plan_id, valid_from)
+);
+
 CREATE TABLE IF NOT EXISTS subscription_plan_features (
     subscription_plan_id BIGINT NOT NULL REFERENCES subscription_plans(subscription_plan_id),
     feature_order INTEGER NOT NULL,

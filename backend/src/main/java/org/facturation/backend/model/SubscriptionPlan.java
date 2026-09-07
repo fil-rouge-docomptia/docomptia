@@ -8,11 +8,15 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 @Entity
 @Table(name = "subscription_plans")
@@ -28,12 +32,11 @@ public class SubscriptionPlan {
     @Column(nullable = false)
     private String name;
 
-    private Integer maxActiveUsers;
-
-    private Integer monthlyInvoiceLimit;
-
     @Column(nullable = false)
     private boolean active;
+
+    @OneToMany(mappedBy = "plan")
+    private List<SubscriptionPlanLimit> limits = new ArrayList<>();
 
     @ElementCollection
     @CollectionTable(
@@ -68,28 +71,23 @@ public class SubscriptionPlan {
         this.name = name;
     }
 
-    public Integer getMaxActiveUsers() {
-        return maxActiveUsers;
-    }
-
-    public void setMaxActiveUsers(Integer maxActiveUsers) {
-        this.maxActiveUsers = maxActiveUsers;
-    }
-
-    public Integer getMonthlyInvoiceLimit() {
-        return monthlyInvoiceLimit;
-    }
-
-    public void setMonthlyInvoiceLimit(Integer monthlyInvoiceLimit) {
-        this.monthlyInvoiceLimit = monthlyInvoiceLimit;
-    }
-
     public boolean isActive() {
         return active;
     }
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public List<SubscriptionPlanLimit> getLimits() {
+        return limits;
+    }
+
+    public Optional<SubscriptionPlanLimit> findLimitsAt(LocalDate date) {
+        return limits.stream()
+                .filter(limit -> !date.isBefore(limit.getValidFrom()))
+                .filter(limit -> limit.getValidTo() == null || !date.isAfter(limit.getValidTo()))
+                .max(Comparator.comparing(SubscriptionPlanLimit::getValidFrom));
     }
 
     public List<String> getFeatures() {

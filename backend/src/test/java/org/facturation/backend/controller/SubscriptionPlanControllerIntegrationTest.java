@@ -1,6 +1,8 @@
 package org.facturation.backend.controller;
 
+import jakarta.persistence.EntityManager;
 import org.facturation.backend.model.SubscriptionPlan;
+import org.facturation.backend.model.SubscriptionPlanLimit;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.SubscriptionPlanRepository;
 import org.facturation.backend.repository.OrganizationSubscriptionRepository;
@@ -16,7 +18,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.time.LocalDate;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -40,6 +44,9 @@ class SubscriptionPlanControllerIntegrationTest {
 
     @Autowired
     private RoleRepository roleRepository;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @Value("${app.jwt.secret}")
     private String jwtSecret;
@@ -82,6 +89,30 @@ class SubscriptionPlanControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
                 .andExpect(jsonPath("$[?(@.code == 'BUSINESS')]").isEmpty());
+    }
+
+    @Test
+    void aNewLimitPeriodDoesNotChangePastPeriods() {
+        SubscriptionPlan starter = subscriptionPlanRepository.findAll().stream()
+                .filter(plan -> plan.getCode().equals("STARTER"))
+                .findFirst()
+                .orElseThrow();
+
+        SubscriptionPlanLimit futureLimits = new SubscriptionPlanLimit();
+        futureLimits.setPlan(starter);
+        futureLimits.setValidFrom(LocalDate.of(2026, 10, 1));
+        futureLimits.setMaxActiveUsers(3);
+        futureLimits.setMonthlyInvoiceLimit(150);
+        entityManager.persist(futureLimits);
+        entityManager.flush();
+        entityManager.clear();
+
+        SubscriptionPlan reloadedStarter = subscriptionPlanRepository.findById(starter.getSubscriptionPlanId()).orElseThrow();
+
+        assertThat(reloadedStarter.findLimitsAt(LocalDate.of(2026, 9, 30)).orElseThrow().getMonthlyInvoiceLimit())
+                .isEqualTo(100);
+        assertThat(reloadedStarter.findLimitsAt(LocalDate.of(2026, 10, 1)).orElseThrow().getMonthlyInvoiceLimit())
+                .isEqualTo(150);
     }
 
     @Test
