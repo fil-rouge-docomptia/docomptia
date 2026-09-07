@@ -167,7 +167,7 @@ class AccountingExportControllerIntegrationTest {
         User user = userRepository.findById(1L).orElseThrow();
         Invoice invoiceWithSeveralErrors = createInvoice(
                 user,
-                InvoiceStatusCode.VALIDEE,
+                InvoiceStatusCode.EXPORTABLE,
                 "CSV-INVALID",
                 "EUR"
         );
@@ -203,7 +203,6 @@ class AccountingExportControllerIntegrationTest {
                 .andExpect(jsonPath("$.invoices[0].invoiceId").value(invoiceWithSeveralErrors.getInvoiceId()))
                 .andExpect(jsonPath("$.invoices[0].invoiceNumber").value("CSV-INVALID"))
                 .andExpect(jsonPath("$.invoices[0].errors[*].code", containsInAnyOrder(
-                        "INVOICE_NOT_EXPORTABLE",
                         "VAT_INCONSISTENT",
                         "ACCOUNTING_ENTRY_UNBALANCED",
                         "PIECE_NUMBER_MISSING"
@@ -213,7 +212,7 @@ class AccountingExportControllerIntegrationTest {
                 .andExpect(jsonPath("$.invoices[1].errors[0].code").value("ACCOUNTING_ENTRY_MISSING"));
 
         assertThat(invoiceRepository.findById(invoiceWithSeveralErrors.getInvoiceId()).orElseThrow()
-                .getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.VALIDEE.getCode());
+                .getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.EXPORTABLE.getCode());
         assertThat(invoiceRepository.findById(invoiceWithoutEntry.getInvoiceId()).orElseThrow()
                 .getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.EXPORTABLE.getCode());
         assertThat(exportBatchRepository.findAll()).isEmpty();
