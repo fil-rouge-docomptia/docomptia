@@ -28,6 +28,8 @@ public class ApiExceptionHandler {
     private static final String SUPPLIER_LEGAL_IDENTIFIER_CONFLICT_CODE = "SUPPLIER_LEGAL_IDENTIFIER_CONFLICT";
     private static final String CUSTOMER_NOT_FOUND_CODE = "CUSTOMER_NOT_FOUND";
     private static final String CUSTOMER_VALIDATION_ERROR_CODE = "CUSTOMER_VALIDATION_ERROR";
+    private static final String SUBSCRIPTION_CHANGE_VALIDATION_ERROR_CODE = "SUBSCRIPTION_CHANGE_VALIDATION_ERROR";
+    private static final String SUBSCRIPTION_CHANGE_NOT_ALLOWED_CODE = "SUBSCRIPTION_CHANGE_NOT_ALLOWED";
     private static final String CUSTOMER_LEGAL_IDENTIFIER_CONFLICT_CODE = "CUSTOMER_LEGAL_IDENTIFIER_CONFLICT";
     private static final String CHART_OF_ACCOUNT_NOT_FOUND_CODE = "CHART_OF_ACCOUNT_NOT_FOUND";
     private static final String CHART_OF_ACCOUNT_VALIDATION_ERROR_CODE = "CHART_OF_ACCOUNT_VALIDATION_ERROR";
@@ -213,6 +215,20 @@ public class ApiExceptionHandler {
                 exception.getUsage(),
                 exception.getSuggestedPlans()
         ));
+    }
+
+    @ExceptionHandler(InvalidSubscriptionChangeException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidSubscriptionChange(
+            InvalidSubscriptionChangeException exception
+    ) {
+        return errorResponse(HttpStatus.BAD_REQUEST, SUBSCRIPTION_CHANGE_VALIDATION_ERROR_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(SubscriptionChangeConflictException.class)
+    public ResponseEntity<ApiErrorResponse> handleSubscriptionChangeConflict(
+            SubscriptionChangeConflictException exception
+    ) {
+        return errorResponse(HttpStatus.CONFLICT, SUBSCRIPTION_CHANGE_NOT_ALLOWED_CODE, exception.getMessage());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

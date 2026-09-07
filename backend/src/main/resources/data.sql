@@ -25,8 +25,8 @@ VALUES (3, 0, 'INVOICE_MANAGEMENT'), (3, 1, 'OCR'), (3, 2, 'ACCOUNTING_EXPORT'),
        (3, 3, 'APPROVAL_WORKFLOW'), (3, 4, 'AUDIT_LOG'), (3, 5, 'API_ACCESS'),
        (3, 6, 'ADVANCED_CONNECTORS');
 
-INSERT INTO organization_subscriptions (organization_subscription_id, organization_id, subscription_plan_id, status, next_billing_date)
-VALUES (1, 1, 1, 'ACTIVE', '2026-10-01');
+INSERT INTO organization_subscriptions (organization_subscription_id, organization_id, subscription_plan_id, status, start_date, end_date, next_billing_date)
+VALUES (1, 1, 1, 'ACTIVE', '2026-09-01', null, '2026-10-01');
 ALTER TABLE organization_subscriptions ALTER COLUMN organization_subscription_id RESTART WITH 2;
 
 ALTER TABLE organizations ALTER COLUMN organization_id RESTART WITH 2;

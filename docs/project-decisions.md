@@ -246,6 +246,13 @@ les plans actifs. L'affectation d'un plan a une organisation, le controle des
 quotas, les prix, la facturation et les changements d'offre restent hors du
 perimetre de ce ticket.
 
+### Validee - changement d'offre et historique par organisation
+
+Un abonnement lie une organisation a un plan avec une date de debut et une date de fin optionnelle.
+Un upgrade prend effet immediatement. Un downgrade prend effet a la prochaine echeance et reste
+refuse tant que la consommation courante depasse une limite du plan cible. Chaque changement clot
+la periode precedente et ajoute une nouvelle periode afin de conserver l'historique.
+
 ## API Et Frontend
 
 ### Validee - contrats minimaux et documentes

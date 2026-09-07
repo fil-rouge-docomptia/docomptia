@@ -4,14 +4,17 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.OrganizationUpdateRequest;
+import org.facturation.backend.dto.request.SubscriptionPlanChangeRequest;
 import org.facturation.backend.dto.request.ValidationPreferencesUpdateRequest;
 import org.facturation.backend.dto.response.CurrentSubscriptionResponse;
 import org.facturation.backend.dto.response.OnboardingStatusResponse;
 import org.facturation.backend.dto.response.OrganizationResponse;
+import org.facturation.backend.dto.response.SubscriptionPlanChangeResponse;
 import org.facturation.backend.dto.response.ValidationPreferencesResponse;
 import org.facturation.backend.service.CurrentSubscriptionService;
 import org.facturation.backend.service.OnboardingService;
 import org.facturation.backend.service.OrganizationService;
+import org.facturation.backend.service.SubscriptionPlanChangeService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -27,12 +30,15 @@ public class OrganizationController {
     private final OrganizationService organizationService;
     private final OnboardingService onboardingService;
     private final CurrentSubscriptionService currentSubscriptionService;
+    private final SubscriptionPlanChangeService subscriptionPlanChangeService;
 
     public OrganizationController(OrganizationService organizationService, OnboardingService onboardingService,
-                                  CurrentSubscriptionService currentSubscriptionService) {
+                                  CurrentSubscriptionService currentSubscriptionService,
+                                  SubscriptionPlanChangeService subscriptionPlanChangeService) {
         this.organizationService = organizationService;
         this.onboardingService = onboardingService;
         this.currentSubscriptionService = currentSubscriptionService;
+        this.subscriptionPlanChangeService = subscriptionPlanChangeService;
     }
 
     @GetMapping("/current/subscription")
@@ -41,6 +47,18 @@ public class OrganizationController {
     @ApiResponse(responseCode = "403", description = "Droits administrateur requis")
     public ResponseEntity<CurrentSubscriptionResponse> getCurrentSubscription() {
         return ResponseEntity.ok(currentSubscriptionService.findCurrentSubscription());
+    }
+
+    @PatchMapping("/current/subscription")
+    @Operation(summary = "Changer l'offre de l'organisation courante")
+    @ApiResponse(responseCode = "400", description = "Demande ou offre invalide")
+    @ApiResponse(responseCode = "401", description = "Authentification requise")
+    @ApiResponse(responseCode = "403", description = "Droits administrateur requis")
+    @ApiResponse(responseCode = "409", description = "Changement incompatible avec l'abonnement ou les limites")
+    public ResponseEntity<SubscriptionPlanChangeResponse> changeCurrentSubscription(
+            @RequestBody SubscriptionPlanChangeRequest request
+    ) {
+        return ResponseEntity.ok(subscriptionPlanChangeService.changeCurrentPlan(request));
     }
 
     @GetMapping("/current")
