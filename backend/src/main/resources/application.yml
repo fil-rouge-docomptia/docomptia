@@ -33,6 +33,8 @@ app:
     validity: ${APP_JWT_VALIDITY:1h}
   invoice-upload:
     max-file-size: 10MB
+  legal-retention:
+    duration-years: 10
   cors:
     allowed-origins: http://localhost:5173
   ocr:

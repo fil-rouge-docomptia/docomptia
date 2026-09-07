@@ -23,6 +23,7 @@ public class InvoiceDetailsResponse {
     private String totalTva;
     private String totalTtc;
     private String filePath;
+    private LegalRetentionMetadataResponse legalRetentionMetadata;
     private OcrAnalysisResponse ocrAnalysis;
     private OcrErrorResponse ocrError;
     private AccountingEntryResponse accountingEntry;
@@ -171,6 +172,14 @@ public class InvoiceDetailsResponse {
 
     public void setFilePath(String filePath) {
         this.filePath = filePath;
+    }
+
+    public LegalRetentionMetadataResponse getLegalRetentionMetadata() {
+        return legalRetentionMetadata;
+    }
+
+    public void setLegalRetentionMetadata(LegalRetentionMetadataResponse legalRetentionMetadata) {
+        this.legalRetentionMetadata = legalRetentionMetadata;
     }
 
     public OcrAnalysisResponse getOcrAnalysis() {
