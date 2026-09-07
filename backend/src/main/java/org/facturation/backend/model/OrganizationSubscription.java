@@ -20,7 +20,7 @@ public class OrganizationSubscription {
     private Long organizationSubscriptionId;
 
     @ManyToOne(optional = false)
-    @JoinColumn(name = "organization_id", nullable = false, unique = true)
+    @JoinColumn(name = "organization_id", nullable = false)
     private Organization organization;
 
     @ManyToOne(optional = false)
@@ -29,6 +29,11 @@ public class OrganizationSubscription {
 
     @Column(nullable = false)
     private String status;
+
+    @Column(nullable = false)
+    private LocalDate startDate;
+
+    private LocalDate endDate;
 
     private LocalDate nextBillingDate;
 
@@ -58,6 +63,22 @@ public class OrganizationSubscription {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public LocalDate getStartDate() {
+        return startDate;
+    }
+
+    public void setStartDate(LocalDate startDate) {
+        this.startDate = startDate;
+    }
+
+    public LocalDate getEndDate() {
+        return endDate;
+    }
+
+    public void setEndDate(LocalDate endDate) {
+        this.endDate = endDate;
     }
 
     public LocalDate getNextBillingDate() {

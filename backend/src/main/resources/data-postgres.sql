@@ -45,11 +45,14 @@ JOIN (VALUES
 ) AS feature(plan_code, feature_order, feature_code) ON feature.plan_code = plan.code
 ON CONFLICT (subscription_plan_id, feature_order) DO NOTHING;
 
-INSERT INTO organization_subscriptions (organization_id, subscription_plan_id, status, next_billing_date)
-SELECT 1, subscription_plan_id, 'ACTIVE', DATE '2026-10-01'
+INSERT INTO organization_subscriptions (organization_id, subscription_plan_id, status, start_date, end_date, next_billing_date)
+SELECT 1, subscription_plan_id, 'ACTIVE', DATE '2026-09-01', null, DATE '2026-10-01'
 FROM subscription_plans
 WHERE code = 'STARTER'
-ON CONFLICT (organization_id) DO NOTHING;
+  AND NOT EXISTS (
+      SELECT 1 FROM organization_subscriptions
+      WHERE organization_id = 1 AND end_date IS NULL
+  );
 
 INSERT INTO roles (role_id, code, label, description)
 VALUES (1, 'ADMIN', 'Administrateur', 'Administration generale de la plateforme')

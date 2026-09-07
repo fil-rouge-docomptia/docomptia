@@ -29,11 +29,26 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_subscription_plan_feature_order
 
 CREATE TABLE IF NOT EXISTS organization_subscriptions (
     organization_subscription_id BIGSERIAL PRIMARY KEY,
-    organization_id BIGINT NOT NULL UNIQUE REFERENCES organizations(organization_id),
+    organization_id BIGINT NOT NULL REFERENCES organizations(organization_id),
     subscription_plan_id BIGINT NOT NULL REFERENCES subscription_plans(subscription_plan_id),
     status VARCHAR(255) NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE,
     next_billing_date DATE
 );
+
+ALTER TABLE organization_subscriptions
+    DROP CONSTRAINT IF EXISTS organization_subscriptions_organization_id_key;
+ALTER TABLE organization_subscriptions ADD COLUMN IF NOT EXISTS start_date DATE;
+ALTER TABLE organization_subscriptions ADD COLUMN IF NOT EXISTS end_date DATE;
+UPDATE organization_subscriptions
+SET start_date = COALESCE(start_date, (next_billing_date - INTERVAL '1 month')::date, CURRENT_DATE)
+WHERE start_date IS NULL;
+ALTER TABLE organization_subscriptions ALTER COLUMN start_date SET NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_organization_subscription_open_period
+    ON organization_subscriptions (organization_id)
+    WHERE end_date IS NULL;
 
 ALTER TABLE invoices ALTER COLUMN invoice_number DROP NOT NULL;
 ALTER TABLE invoices ALTER COLUMN invoice_date DROP NOT NULL;

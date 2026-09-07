@@ -67,7 +67,7 @@ public class SubscriptionQuotaService {
             Function<SubscriptionPlanLimit, Integer> quotaExtractor,
             ToLongFunction<Long> usageCounter
     ) {
-        subscriptionRepository.findByOrganizationOrganizationId(organizationId).ifPresent(subscription -> {
+        subscriptionRepository.findCurrentAt(organizationId, LocalDate.now()).ifPresent(subscription -> {
             SubscriptionPlanLimit limits = subscription.getPlan().findLimitsAt(LocalDate.now())
                     .orElseThrow(() -> new IllegalStateException(
                             "No current limits configured for plan " + subscription.getPlan().getCode()

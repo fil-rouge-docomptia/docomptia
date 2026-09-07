@@ -1,6 +1,7 @@
 package org.facturation.backend.controller;
 
 import jakarta.persistence.EntityManager;
+import org.facturation.backend.model.OrganizationSubscription;
 import org.facturation.backend.model.SubscriptionPlan;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.Organization;
@@ -29,6 +30,7 @@ import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -171,6 +173,80 @@ class SubscriptionPlanControllerIntegrationTest {
     }
 
     @Test
+    void upgradeTakesEffectImmediatelyAndKeepsSubscriptionHistory() throws Exception {
+        LocalDate today = LocalDate.now();
+
+        mockMvc.perform(patch("/api/v1/organizations/current/subscription")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .contentType("application/json")
+                        .content("{\"planCode\":\"BUSINESS\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.changeType").value("UPGRADE"))
+                .andExpect(jsonPath("$.effectiveDate").value(today.toString()))
+                .andExpect(jsonPath("$.plan.code").value("BUSINESS"));
+
+        var history = organizationSubscriptionRepository
+                .findByOrganizationOrganizationIdOrderByStartDateAscOrganizationSubscriptionIdAsc(1L);
+        assertThat(history).hasSize(2);
+        assertThat(history.getFirst().getPlan().getCode()).isEqualTo("STARTER");
+        assertThat(history.getFirst().getEndDate()).isEqualTo(today.minusDays(1));
+        assertThat(history.getLast().getPlan().getCode()).isEqualTo("BUSINESS");
+        assertThat(history.getLast().getStartDate()).isEqualTo(today);
+        assertThat(history.getLast().getEndDate()).isNull();
+    }
+
+    @Test
+    void downgradeTakesEffectAtPeriodEndAndKeepsCurrentPlanUntilThen() throws Exception {
+        OrganizationSubscription current = currentSubscription();
+        current.setPlan(plan("PRO"));
+        organizationSubscriptionRepository.saveAndFlush(current);
+
+        mockMvc.perform(patch("/api/v1/organizations/current/subscription")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .contentType("application/json")
+                        .content("{\"planCode\":\"BUSINESS\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.changeType").value("DOWNGRADE"))
+                .andExpect(jsonPath("$.effectiveDate").value("2026-10-01"))
+                .andExpect(jsonPath("$.plan.code").value("BUSINESS"));
+
+        assertThat(organizationSubscriptionRepository.findCurrentAt(1L, LocalDate.of(2026, 9, 30)))
+                .get().extracting(subscription -> subscription.getPlan().getCode()).isEqualTo("PRO");
+        assertThat(organizationSubscriptionRepository.findCurrentAt(1L, LocalDate.of(2026, 10, 1)))
+                .get().extracting(subscription -> subscription.getPlan().getCode()).isEqualTo("BUSINESS");
+        assertThat(organizationSubscriptionRepository
+                .findByOrganizationOrganizationIdOrderByStartDateAscOrganizationSubscriptionIdAsc(1L))
+                .hasSize(2);
+
+        mockMvc.perform(get("/api/v1/organizations/current/subscription")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.plan.code").value("PRO"));
+    }
+
+    @Test
+    void downgradeIsRejectedWhenTargetPlanCannotSupportActiveUsers() throws Exception {
+        OrganizationSubscription current = currentSubscription();
+        current.setPlan(plan("BUSINESS"));
+        organizationSubscriptionRepository.saveAndFlush(current);
+        createActiveUser("second-subscription-user@example.com");
+        createActiveUser("third-subscription-user@example.com");
+
+        mockMvc.perform(patch("/api/v1/organizations/current/subscription")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .contentType("application/json")
+                        .content("{\"planCode\":\"STARTER\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SUBSCRIPTION_CHANGE_NOT_ALLOWED"));
+
+        assertThat(currentSubscription().getPlan().getCode()).isEqualTo("BUSINESS");
+        assertThat(currentSubscription().getEndDate()).isNull();
+        assertThat(organizationSubscriptionRepository
+                .findByOrganizationOrganizationIdOrderByStartDateAscOrganizationSubscriptionIdAsc(1L))
+                .hasSize(1);
+    }
+
+    @Test
     void currentSubscriptionExplicitlyReportsNoSubscription() throws Exception {
         organizationSubscriptionRepository.deleteAll();
         organizationSubscriptionRepository.flush();
@@ -200,10 +276,38 @@ class SubscriptionPlanControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/organizations/current/subscription")
                         .header("Authorization", "Bearer " + tokenFor(operator.getEmail())))
                 .andExpect(status().isForbidden());
+
+        mockMvc.perform(patch("/api/v1/organizations/current/subscription")
+                        .header("Authorization", "Bearer " + tokenFor(operator.getEmail()))
+                        .contentType("application/json")
+                        .content("{\"planCode\":\"BUSINESS\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     private String adminToken() {
         return tokenFor("admin@facturation-demo.fr");
+    }
+
+    private OrganizationSubscription currentSubscription() {
+        return organizationSubscriptionRepository.findCurrentAt(1L, LocalDate.now()).orElseThrow();
+    }
+
+    private SubscriptionPlan plan(String code) {
+        return subscriptionPlanRepository.findByCodeIgnoreCaseAndActiveTrue(code).orElseThrow();
+    }
+
+    private User createActiveUser(String email) {
+        User user = new User();
+        user.setOrganization(userRepository.findByEmailIgnoreCase("admin@facturation-demo.fr")
+                .orElseThrow().getOrganization());
+        user.setRole(roleRepository.findByCode("OPERATEUR_COMPTABLE").orElseThrow());
+        user.setFirstName("Subscription");
+        user.setLastName("User");
+        user.setEmail(email);
+        user.setPasswordHash("not-used");
+        user.setActive(true);
+        return userRepository.saveAndFlush(user);
     }
 
     private void createInvoice(User creator, LocalDateTime createdAt) {
