@@ -108,7 +108,8 @@ public class SecurityConfig {
                         .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/accounting-exports/csv",
-                                "/api/v1/accounting-exports/fec"
+                                "/api/v1/accounting-exports/fec",
+                                "/api/v1/accounting-exports/*/archive"
                         )
                         .hasAnyRole(BusinessPermission.EXPORT_ACCOUNTING.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/accounting-exports/*/file")

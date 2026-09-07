@@ -67,6 +67,15 @@ public class AccountingExportController {
         return accountingExportResponse(accountingExportService.downloadFile(id));
     }
 
+    @PostMapping("/{id}/archive")
+    @Operation(summary = "Archiver un fichier d'export comptable genere")
+    @ApiResponse(responseCode = "200", description = "Fichier d'export archive")
+    @ApiResponse(responseCode = "404", description = "Lot absent dans l'organisation courante")
+    @ApiResponse(responseCode = "409", description = "Le lot n'est pas dans un statut archivable")
+    public ResponseEntity<AccountingExportService.AccountingExportArchive> archiveFile(@PathVariable Long id) {
+        return ResponseEntity.ok(accountingExportService.archiveFile(id));
+    }
+
     private ResponseEntity<byte[]> accountingExportResponse(AccountingExportService.AccountingCsvExport export) {
         MediaType mediaType = export.filename().endsWith(".txt")
                 ? new MediaType("text", "plain")

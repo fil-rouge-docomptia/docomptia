@@ -48,6 +48,8 @@ public class ApiExceptionHandler {
     private static final String ACCOUNTING_ENTRY_UNBALANCED_CODE = "ACCOUNTING_ENTRY_UNBALANCED";
     private static final String ACCOUNTING_EXPORT_VALIDATION_FAILED_CODE = "ACCOUNTING_EXPORT_VALIDATION_FAILED";
     private static final String ACCOUNTING_EXPORT_FILE_NOT_FOUND_CODE = "ACCOUNTING_EXPORT_FILE_NOT_FOUND";
+    private static final String ACCOUNTING_EXPORT_ARCHIVE_NOT_ALLOWED_CODE =
+            "ACCOUNTING_EXPORT_ARCHIVE_NOT_ALLOWED";
     private static final String INVALID_CREDENTIALS_CODE = "INVALID_CREDENTIALS";
     private static final String USER_VALIDATION_ERROR_CODE = "USER_VALIDATION_ERROR";
     private static final String USER_EMAIL_CONFLICT_CODE = "USER_EMAIL_CONFLICT";
@@ -75,6 +77,13 @@ public class ApiExceptionHandler {
     @ExceptionHandler(InvoiceFileNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleInvoiceFileNotFound(InvoiceFileNotFoundException exception) {
         return errorResponse(HttpStatus.NOT_FOUND, INVOICE_FILE_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(AccountingExportArchiveNotAllowedException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountingExportArchiveNotAllowed(
+            AccountingExportArchiveNotAllowedException exception
+    ) {
+        return errorResponse(HttpStatus.CONFLICT, ACCOUNTING_EXPORT_ARCHIVE_NOT_ALLOWED_CODE, exception.getMessage());
     }
 
     @ExceptionHandler(InvoiceFileNotPreviewableException.class)

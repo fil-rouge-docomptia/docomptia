@@ -1,6 +1,7 @@
 package org.facturation.backend.service.impl;
 
 import jakarta.transaction.Transactional;
+import org.facturation.backend.exception.AccountingExportArchiveNotAllowedException;
 import org.facturation.backend.exception.AccountingExportFileNotFoundException;
 import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.AccountingEntryLine;
@@ -163,6 +164,24 @@ public class AccountingExportServiceImpl implements AccountingExportService {
                 exportBatch.getFileName(),
                 accountingExportFileStorageService.load(exportBatch)
         );
+    }
+
+    @Override
+    @Transactional
+    public AccountingExportArchive archiveFile(Long exportBatchId) {
+        Long organizationId = currentUserService.getCurrentUser().getOrganization().getOrganizationId();
+        ExportBatch exportBatch = exportBatchRepository
+                .findByExportBatchIdAndOrganizationOrganizationId(exportBatchId, organizationId)
+                .orElseThrow(() -> new AccountingExportFileNotFoundException(exportBatchId));
+        if (!ExportBatchStatusCode.GENERE.getCode().equals(exportBatch.getStatus())) {
+            throw new AccountingExportArchiveNotAllowedException(exportBatchId, exportBatch.getStatus());
+        }
+
+        LocalDateTime archivedAt = LocalDateTime.now();
+        exportBatch.setStatus(ExportBatchStatusCode.ARCHIVE.getCode());
+        exportBatch.setArchivedAt(archivedAt);
+        exportBatchRepository.save(exportBatch);
+        return new AccountingExportArchive(exportBatchId, exportBatch.getStatus(), archivedAt);
     }
 
     private void validatePeriod(LocalDate startDate, LocalDate endDate) {
