@@ -5,6 +5,7 @@ import org.facturation.backend.dto.response.AccountingExportValidationResponse;
 import org.facturation.backend.dto.response.ApiErrorResponse;
 import org.facturation.backend.dto.response.InvoiceMissingRequiredFieldsResponse;
 import org.facturation.backend.dto.response.InvoiceOcrFailureResponse;
+import org.facturation.backend.dto.response.SubscriptionLimitExceededResponse;
 import org.facturation.backend.dto.response.UnbalancedAccountingEntryResponse;
 import org.facturation.backend.mapper.OcrErrorMapper;
 import org.facturation.backend.model.InvoiceStatusCode;
@@ -68,6 +69,7 @@ public class ApiExceptionHandler {
     private static final String CLIENT_NOT_FOUND_CODE = "CLIENT_NOT_FOUND";
     private static final String CUSTOMER_INVOICE_DRAFT_VALIDATION_ERROR_CODE =
             "CUSTOMER_INVOICE_DRAFT_VALIDATION_ERROR";
+    private static final String SUBSCRIPTION_LIMIT_REACHED_CODE = "SUBSCRIPTION_LIMIT_REACHED";
 
     private final OcrErrorMapper ocrErrorMapper;
 
@@ -197,6 +199,19 @@ public class ApiExceptionHandler {
                 CUSTOMER_INVOICE_DRAFT_VALIDATION_ERROR_CODE,
                 exception.getMessage()
         );
+    }
+
+    @ExceptionHandler(SubscriptionLimitExceededException.class)
+    public ResponseEntity<SubscriptionLimitExceededResponse> handleSubscriptionLimitExceeded(
+            SubscriptionLimitExceededException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new SubscriptionLimitExceededResponse(
+                SUBSCRIPTION_LIMIT_REACHED_CODE,
+                exception.getMessage(),
+                exception.getLimit(),
+                exception.getQuota(),
+                exception.getUsage()
+        ));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

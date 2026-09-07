@@ -19,6 +19,7 @@ import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.AuditLogService;
 import org.facturation.backend.service.RoleService;
 import org.facturation.backend.service.UserService;
+import org.facturation.backend.service.SubscriptionQuotaService;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -45,19 +46,22 @@ public class UserServiceImpl implements UserService {
     private final UserResponseMapper userResponseMapper;
     private final RoleService roleService;
     private final AuditLogService auditLogService;
+    private final SubscriptionQuotaService subscriptionQuotaService;
 
     public UserServiceImpl(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             UserResponseMapper userResponseMapper,
             RoleService roleService,
-            AuditLogService auditLogService
+            AuditLogService auditLogService,
+            SubscriptionQuotaService subscriptionQuotaService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.userResponseMapper = userResponseMapper;
         this.roleService = roleService;
         this.auditLogService = auditLogService;
+        this.subscriptionQuotaService = subscriptionQuotaService;
     }
 
     @Override
@@ -194,6 +198,8 @@ public class UserServiceImpl implements UserService {
         }
         if (!requestedStatus) {
             ensureAnotherActiveAdministratorExists(user, organizationId);
+        } else {
+            subscriptionQuotaService.ensureUserCanBeActivated(organizationId);
         }
 
         boolean previousStatus = user.isActive();
