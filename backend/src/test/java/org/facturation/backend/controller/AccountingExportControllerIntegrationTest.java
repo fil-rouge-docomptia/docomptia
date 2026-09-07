@@ -9,6 +9,7 @@ import org.facturation.backend.model.ExportBatchFormat;
 import org.facturation.backend.model.ExportBatchStatusCode;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatusCode;
+import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.AccountingEntryLineRepository;
 import org.facturation.backend.repository.AccountingEntryRepository;
@@ -17,6 +18,8 @@ import org.facturation.backend.repository.ChartOfAccountRepository;
 import org.facturation.backend.repository.ExportBatchRepository;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.InvoiceStatusRepository;
+import org.facturation.backend.repository.OrganizationRepository;
+import org.facturation.backend.repository.RoleRepository;
 import org.facturation.backend.repository.SupplierRepository;
 import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.JwtTokenService;
@@ -78,6 +81,12 @@ class AccountingExportControllerIntegrationTest {
 
     @Autowired
     private InvoiceStatusRepository invoiceStatusRepository;
+
+    @Autowired
+    private OrganizationRepository organizationRepository;
+
+    @Autowired
+    private RoleRepository roleRepository;
 
     @Autowired
     private SupplierRepository supplierRepository;
@@ -169,6 +178,61 @@ class AccountingExportControllerIntegrationTest {
     }
 
     @Test
+    void selectsExportableInvoicesWithinInclusivePeriodForCurrentOrganization() throws Exception {
+        User user = userRepository.findById(1L).orElseThrow();
+        Invoice startBoundary = createInvoice(
+                user, InvoiceStatusCode.EXPORTABLE, "CSV-START-BOUNDARY", "EUR", LocalDate.of(2026, 8, 1)
+        );
+        Invoice endBoundary = createInvoice(
+                user, InvoiceStatusCode.EXPORTABLE, "CSV-END-BOUNDARY", "EUR", LocalDate.of(2026, 8, 31)
+        );
+        Invoice beforePeriod = createInvoice(
+                user, InvoiceStatusCode.EXPORTABLE, "CSV-BEFORE-PERIOD", "EUR", LocalDate.of(2026, 7, 31)
+        );
+        Invoice afterPeriod = createInvoice(
+                user, InvoiceStatusCode.EXPORTABLE, "CSV-AFTER-PERIOD", "EUR", LocalDate.of(2026, 9, 1)
+        );
+        Invoice alreadyExported = createInvoice(
+                user, InvoiceStatusCode.EXPORTEE, "CSV-ALREADY-EXPORTED", "EUR", LocalDate.of(2026, 8, 15)
+        );
+        User otherOrganizationUser = createUserForAnotherOrganization();
+        Invoice otherOrganizationInvoice = createInvoice(
+                otherOrganizationUser,
+                InvoiceStatusCode.EXPORTABLE,
+                "CSV-OTHER-ORGANIZATION",
+                "EUR",
+                LocalDate.of(2026, 8, 15)
+        );
+
+        createBalancedEntry(startBoundary, user, "CSV-ENTRY-START-BOUNDARY");
+        createBalancedEntry(endBoundary, user, "CSV-ENTRY-END-BOUNDARY");
+        createBalancedEntry(beforePeriod, user, "CSV-ENTRY-BEFORE-PERIOD");
+        createBalancedEntry(afterPeriod, user, "CSV-ENTRY-AFTER-PERIOD");
+        createBalancedEntry(alreadyExported, user, "CSV-ENTRY-ALREADY-EXPORTED");
+        createEntry(otherOrganizationInvoice, otherOrganizationUser, "CSV-ENTRY-OTHER-ORGANIZATION");
+
+        String csv = mockMvc.perform(post("/api/v1/accounting-exports/csv")
+                        .param("startDate", "2026-08-01")
+                        .param("endDate", "2026-08-31")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(csv).contains("CSV-START-BOUNDARY", "CSV-END-BOUNDARY");
+        assertThat(csv).doesNotContain(
+                "CSV-BEFORE-PERIOD",
+                "CSV-AFTER-PERIOD",
+                "CSV-ALREADY-EXPORTED",
+                "CSV-OTHER-ORGANIZATION"
+        );
+        assertThat(statusOf(startBoundary)).isEqualTo(InvoiceStatusCode.EXPORTEE.getCode());
+        assertThat(statusOf(endBoundary)).isEqualTo(InvoiceStatusCode.EXPORTEE.getCode());
+        assertThat(statusOf(beforePeriod)).isEqualTo(InvoiceStatusCode.EXPORTABLE.getCode());
+        assertThat(statusOf(afterPeriod)).isEqualTo(InvoiceStatusCode.EXPORTABLE.getCode());
+        assertThat(statusOf(otherOrganizationInvoice)).isEqualTo(InvoiceStatusCode.EXPORTABLE.getCode());
+    }
+
+    @Test
     void rejectsExportWhenNoInvoiceIsExportable() throws Exception {
         User user = userRepository.findById(1L).orElseThrow();
 
@@ -184,13 +248,25 @@ class AccountingExportControllerIntegrationTest {
     }
 
     private Invoice createInvoice(User user, InvoiceStatusCode statusCode, String invoiceNumber, String currencyCode) {
+        return createInvoice(user, statusCode, invoiceNumber, currencyCode, LocalDate.of(2026, 8, 15));
+    }
+
+    private Invoice createInvoice(
+            User user,
+            InvoiceStatusCode statusCode,
+            String invoiceNumber,
+            String currencyCode,
+            LocalDate invoiceDate
+    ) {
         Invoice invoice = new Invoice();
         invoice.setOrganization(user.getOrganization());
         invoice.setCreatedByUser(user);
-        invoice.setSupplier(supplierRepository.findById(1L).orElseThrow());
+        if (user.getOrganization().getOrganizationId().equals(1L)) {
+            invoice.setSupplier(supplierRepository.findById(1L).orElseThrow());
+        }
         invoice.setInvoiceStatus(invoiceStatusRepository.findByCode(statusCode.getCode()).orElseThrow());
         invoice.setInvoiceNumber(invoiceNumber);
-        invoice.setInvoiceDate(LocalDate.of(2026, 8, 15));
+        invoice.setInvoiceDate(invoiceDate);
         invoice.setCurrencyCode(currencyCode);
         invoice.setTotalHt(new BigDecimal("100.00"));
         invoice.setTotalTva(new BigDecimal("20.00"));
@@ -200,7 +276,44 @@ class AccountingExportControllerIntegrationTest {
         return invoiceRepository.save(invoice);
     }
 
+    private User createUserForAnotherOrganization() {
+        LocalDateTime now = LocalDateTime.now();
+        Organization organization = new Organization();
+        organization.setName("KAN-126 other organization");
+        organization.setLegalName("KAN-126 Other Organization SAS");
+        organization.setSiret("73282932000074");
+        organization.setEmail("kan-126-other-organization@example.com");
+        organization.setDefaultCurrencyCode("EUR");
+        organization.setCreatedAt(now);
+        organization.setUpdatedAt(now);
+        organizationRepository.save(organization);
+
+        User user = new User();
+        user.setOrganization(organization);
+        user.setRole(roleRepository.findByCode("OPERATEUR_COMPTABLE").orElseThrow());
+        user.setFirstName("Other");
+        user.setLastName("Operator");
+        user.setEmail("kan-126-other-organization-user@example.com");
+        user.setPasswordHash("not-used");
+        user.setActive(true);
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
+        return userRepository.save(user);
+    }
+
+    private String statusOf(Invoice invoice) {
+        return invoiceRepository.findById(invoice.getInvoiceId()).orElseThrow().getInvoiceStatus().getCode();
+    }
+
     private void createBalancedEntry(Invoice invoice, User user, String entryNumber) {
+        AccountingEntry entry = createEntry(invoice, user, entryNumber);
+
+        createLine(entry, 1, 2L, "Achat " + invoice.getInvoiceNumber(), "100.00", "0.00");
+        createLine(entry, 2, 3L, "TVA " + invoice.getInvoiceNumber(), "20.00", "0.00");
+        createLine(entry, 3, 1L, "Fournisseur " + invoice.getInvoiceNumber(), "0.00", "120.00");
+    }
+
+    private AccountingEntry createEntry(Invoice invoice, User user, String entryNumber) {
         AccountingEntry entry = new AccountingEntry();
         entry.setInvoice(invoice);
         entry.setCreatedByUser(user);
@@ -210,11 +323,7 @@ class AccountingExportControllerIntegrationTest {
         entry.setStatus("GENERATED");
         entry.setCreatedAt(LocalDateTime.now());
         entry.setUpdatedAt(LocalDateTime.now());
-        accountingEntryRepository.save(entry);
-
-        createLine(entry, 1, 2L, "Achat " + invoice.getInvoiceNumber(), "100.00", "0.00");
-        createLine(entry, 2, 3L, "TVA " + invoice.getInvoiceNumber(), "20.00", "0.00");
-        createLine(entry, 3, 1L, "Fournisseur " + invoice.getInvoiceNumber(), "0.00", "120.00");
+        return accountingEntryRepository.save(entry);
     }
 
     private void createLine(
