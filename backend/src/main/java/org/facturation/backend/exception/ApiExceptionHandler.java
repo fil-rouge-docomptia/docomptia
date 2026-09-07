@@ -25,6 +25,9 @@ public class ApiExceptionHandler {
     private static final String SUPPLIER_NOT_FOUND_CODE = "SUPPLIER_NOT_FOUND";
     private static final String SUPPLIER_VALIDATION_ERROR_CODE = "SUPPLIER_VALIDATION_ERROR";
     private static final String SUPPLIER_LEGAL_IDENTIFIER_CONFLICT_CODE = "SUPPLIER_LEGAL_IDENTIFIER_CONFLICT";
+    private static final String CUSTOMER_NOT_FOUND_CODE = "CUSTOMER_NOT_FOUND";
+    private static final String CUSTOMER_VALIDATION_ERROR_CODE = "CUSTOMER_VALIDATION_ERROR";
+    private static final String CUSTOMER_LEGAL_IDENTIFIER_CONFLICT_CODE = "CUSTOMER_LEGAL_IDENTIFIER_CONFLICT";
     private static final String CHART_OF_ACCOUNT_NOT_FOUND_CODE = "CHART_OF_ACCOUNT_NOT_FOUND";
     private static final String CHART_OF_ACCOUNT_VALIDATION_ERROR_CODE = "CHART_OF_ACCOUNT_VALIDATION_ERROR";
     private static final String CHART_OF_ACCOUNT_CONFLICT_CODE = "CHART_OF_ACCOUNT_CONFLICT";
@@ -194,6 +197,23 @@ public class ApiExceptionHandler {
                 SUPPLIER_LEGAL_IDENTIFIER_CONFLICT_CODE,
                 exception.getMessage()
         );
+    }
+
+    @ExceptionHandler(CustomerNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleCustomerNotFound(CustomerNotFoundException exception) {
+        return errorResponse(HttpStatus.NOT_FOUND, CUSTOMER_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidCustomerException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidCustomer(InvalidCustomerException exception) {
+        return errorResponse(HttpStatus.BAD_REQUEST, CUSTOMER_VALIDATION_ERROR_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(CustomerLegalIdentifierConflictException.class)
+    public ResponseEntity<ApiErrorResponse> handleCustomerLegalIdentifierConflict(
+            CustomerLegalIdentifierConflictException exception
+    ) {
+        return errorResponse(HttpStatus.CONFLICT, CUSTOMER_LEGAL_IDENTIFIER_CONFLICT_CODE, exception.getMessage());
     }
 
     @ExceptionHandler(ChartOfAccountNotFoundException.class)

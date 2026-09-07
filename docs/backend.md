@@ -161,6 +161,8 @@ par defaut.
 | `ARCHIVE_INVOICES` | Archiver une facture exportee | Oui | Oui | Oui |
 | `VIEW_SUPPLIERS` | Lister et consulter les fournisseurs | Oui | Oui | Oui |
 | `MANAGE_SUPPLIERS` | Modifier un fournisseur | Oui | Oui | Non |
+| `VIEW_CUSTOMERS` | Lister et consulter les clients | Oui | Oui | Oui |
+| `MANAGE_CUSTOMERS` | Creer, modifier ou desactiver un client | Oui | Oui | Non |
 | `VIEW_ACCOUNTING_CONFIGURATION` | Consulter le plan et les regles comptables | Oui | Oui | Oui |
 | `MANAGE_ACCOUNTING_CONFIGURATION` | Creer, modifier ou desactiver un compte et modifier une regle | Oui | Non | Non |
 | `MANAGE_USERS` | Inviter ou modifier un utilisateur dans l'organisation | Oui | Non | Non |
@@ -241,6 +243,20 @@ les schemas et pays francais et retourne `409` lorsqu'un identifiant actif est d
 Un numero de compte est unique dans une organisation. Un compte absent ou rattache a une autre
 organisation retourne `404`; un numero deja utilise retourne `409`. La desactivation conserve les
 regles et lignes comptables qui referencent le compte.
+
+## Endpoints Clients MVP
+
+| Methode | Endpoint | Role |
+| --- | --- | --- |
+| `POST` | `/api/v1/customers` | Cree un client actif dans l'organisation courante |
+| `GET` | `/api/v1/customers?page=0&size=20` | Retourne une page des clients de l'organisation courante |
+| `GET` | `/api/v1/customers/{id}` | Retourne le detail d'un client de l'organisation courante |
+| `PATCH` | `/api/v1/customers/{id}` | Modifie les informations legales et de contact d'un client de l'organisation courante |
+| `POST` | `/api/v1/customers/{id}/deactivate` | Desactive un client sans le supprimer |
+
+Le SIRET et le numero de TVA sont normalises et uniques dans l'organisation. Les identifiants
+francais sont controles et doivent correspondre lorsqu'ils sont renseignes ensemble. Un client
+d'une autre organisation retourne `404`; la desactivation conserve la ligne pour l'historique.
 
 ## Endpoints Classement MVP
 

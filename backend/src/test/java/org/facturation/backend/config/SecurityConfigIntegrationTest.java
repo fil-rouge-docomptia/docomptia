@@ -268,6 +268,25 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
+    void customersCanBeViewedByAllRolesButManagedOnlyByAdministratorsAndOperators() throws Exception {
+        for (String email : new String[]{
+                "admin@facturation-demo.fr",
+                "operator-security@facturation-demo.fr",
+                "manager-security@facturation-demo.fr"
+        }) {
+            mockMvc.perform(get("/api/v1/customers/999999")
+                            .header("Authorization", "Bearer " + tokenFor(email)))
+                    .andExpect(status().isNotFound());
+        }
+
+        mockMvc.perform(post("/api/v1/customers/999999/deactivate")
+                        .header("Authorization", "Bearer " + tokenFor("operator-security@facturation-demo.fr")))
+                .andExpect(status().isNotFound());
+        assertForbidden(post("/api/v1/customers/999999/deactivate"),
+                tokenFor("manager-security@facturation-demo.fr"));
+    }
+
+    @Test
     void classificationsCanBeViewedByAllRolesButManagedOnlyByAdministrators() throws Exception {
         String operatorToken = tokenFor("operator-security@facturation-demo.fr");
 
