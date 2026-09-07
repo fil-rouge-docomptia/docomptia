@@ -94,6 +94,13 @@ class InvoiceArchiveControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ARCHIVEE"))
                 .andExpect(jsonPath("$.archivedAt").value(archivedInvoice.getArchivedAt().toString()));
+
+        mockMvc.perform(get("/api/v1/invoices/{id}/history", invoice.getInvoiceId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.action == 'ARCHIVEE')].type").value("STATUS_CHANGE"))
+                .andExpect(jsonPath("$[?(@.action == 'ARCHIVEE')].authorId").value(1))
+                .andExpect(jsonPath("$[?(@.action == 'ARCHIVEE')].date").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.action == 'ARCHIVEE')].comment").value("Invoice archived"));
     }
 
     @Test
