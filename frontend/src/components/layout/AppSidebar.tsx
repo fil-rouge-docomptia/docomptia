@@ -2,6 +2,10 @@ import { Bell, CircleHelp, LogOut, Search } from 'lucide-react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 
 import { DocomptiaLogo } from '@/components/common/DocomptiaLogo'
+import {
+  getNotificationBadgeText,
+  getNotificationButtonLabel,
+} from '@/components/layout/notification-utils'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getNavigationGroups } from '@/config/navigation'
@@ -31,6 +35,9 @@ export type ShellIdentity = {
 
 type AppSidebarProps = {
   identity?: ShellIdentity
+  notificationUnreadCount: number | null
+  onNotificationsOpen: () => void
+  onSearchOpen: () => void
   onSignOut: () => void
   role?: RoleCode
 }
@@ -39,10 +46,18 @@ function isPathActive(currentPath: string, itemPath: string) {
   return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`)
 }
 
-export function AppSidebar({ identity, onSignOut, role }: AppSidebarProps) {
+export function AppSidebar({
+  identity,
+  notificationUnreadCount,
+  onNotificationsOpen,
+  onSearchOpen,
+  onSignOut,
+  role,
+}: AppSidebarProps) {
   const location = useLocation()
   const { setOpenMobile } = useSidebar()
   const navigationGroups = role ? getNavigationGroups(role) : []
+  const notificationLabel = getNotificationButtonLabel(notificationUnreadCount)
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -66,6 +81,10 @@ export function AppSidebar({ identity, onSignOut, role }: AppSidebarProps) {
           <SidebarMenuItem className="min-w-0">
             <SidebarMenuButton
               className="h-10 border border-border bg-background px-3 group-data-[collapsible=icon]:!size-10 group-data-[collapsible=icon]:!p-2.5"
+              onClick={() => {
+                setOpenMobile(false)
+                onSearchOpen()
+              }}
               tooltip="Search"
             >
               <Search className="!size-5" aria-hidden="true" />
@@ -77,16 +96,22 @@ export function AppSidebar({ identity, onSignOut, role }: AppSidebarProps) {
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
-              aria-label="Notifications, 3 unread"
+              aria-label={notificationLabel}
               className="size-10 justify-center bg-accent p-0 text-accent-foreground md:h-10 md:w-full md:justify-start md:px-3 group-data-[collapsible=icon]:!size-10 group-data-[collapsible=icon]:!p-2.5"
+              onClick={() => {
+                setOpenMobile(false)
+                onNotificationsOpen()
+              }}
               tooltip="Notifications"
             >
               <Bell className="!size-5" aria-hidden="true" />
               <span className="hidden md:inline">Notifications</span>
             </SidebarMenuButton>
-            <SidebarMenuBadge className="hidden bg-destructive text-destructive-foreground md:flex group-data-[collapsible=icon]:!hidden">
-              3
-            </SidebarMenuBadge>
+            {notificationUnreadCount && notificationUnreadCount > 0 ? (
+              <SidebarMenuBadge className="hidden bg-destructive text-destructive-foreground md:flex group-data-[collapsible=icon]:!hidden">
+                {getNotificationBadgeText(notificationUnreadCount)}
+              </SidebarMenuBadge>
+            ) : null}
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
