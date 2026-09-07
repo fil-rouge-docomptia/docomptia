@@ -1,4 +1,22 @@
 ALTER TABLE invoices ALTER COLUMN supplier_id DROP NOT NULL;
+CREATE TABLE IF NOT EXISTS subscription_plans (
+    subscription_plan_id BIGSERIAL PRIMARY KEY,
+    code VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    max_active_users INTEGER,
+    monthly_invoice_limit INTEGER,
+    active BOOLEAN NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS subscription_plan_features (
+    subscription_plan_id BIGINT NOT NULL REFERENCES subscription_plans(subscription_plan_id),
+    feature_order INTEGER NOT NULL,
+    feature_code VARCHAR(255) NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_subscription_plan_feature_order
+    ON subscription_plan_features (subscription_plan_id, feature_order);
+
 ALTER TABLE invoices ALTER COLUMN invoice_number DROP NOT NULL;
 ALTER TABLE invoices ALTER COLUMN invoice_date DROP NOT NULL;
 ALTER TABLE invoices ALTER COLUMN total_ht DROP NOT NULL;
