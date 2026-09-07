@@ -31,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -40,6 +41,12 @@ public class AccountingExportServiceImpl implements AccountingExportService {
     private static final String HEADER =
             "entryNumber,entryDate,invoiceNumber,invoiceDate,supplierName,accountNumber,"
                     + "accountLabel,lineLabel,debitAmount,creditAmount,currencyCode";
+    private static final String FEC_HEADER =
+            "JournalCode\tJournalLib\tEcritureNum\tEcritureDate\tCompteNum\tCompteLib\tCompAuxNum\t"
+                    + "CompAuxLib\tPieceRef\tPieceDate\tEcritureLib\tDebit\tCredit\tEcritureLet\tDateLet\t"
+                    + "ValidDate\tMontantdevise\tIdevise";
+    private static final String PURCHASE_JOURNAL_CODE = "AC";
+    private static final String PURCHASE_JOURNAL_LABEL = "Achats";
 
     private final InvoiceRepository invoiceRepository;
     private final AccountingExportValidator accountingExportValidator;
@@ -73,6 +80,20 @@ public class AccountingExportServiceImpl implements AccountingExportService {
     @Override
     @Transactional
     public AccountingCsvExport exportCsv(LocalDate startDate, LocalDate endDate) {
+        return export(startDate, endDate, ExportBatchFormat.CSV);
+    }
+
+    @Override
+    @Transactional
+    public AccountingCsvExport exportFec(LocalDate startDate, LocalDate endDate) {
+        return export(startDate, endDate, ExportBatchFormat.FEC);
+    }
+
+    private AccountingCsvExport export(
+            LocalDate startDate,
+            LocalDate endDate,
+            ExportBatchFormat format
+    ) {
         validatePeriod(startDate, endDate);
         User user = currentUserService.getCurrentUser();
         Long organizationId = user.getOrganization().getOrganizationId();
@@ -89,23 +110,33 @@ public class AccountingExportServiceImpl implements AccountingExportService {
                     "No exportable invoices found; invoices already exported cannot be exported again"
             );
         }
-        List<ValidatedEntry> exportedEntries = accountingExportValidator.validate(invoices);
+        List<ValidatedEntry> exportedEntries = format == ExportBatchFormat.FEC
+                ? accountingExportValidator.validateForFec(invoices)
+                : accountingExportValidator.validate(invoices);
+        if (format == ExportBatchFormat.FEC) {
+            exportedEntries = sortForFec(exportedEntries);
+        }
         accountingPieceNumberService.assign(
                 organization,
                 exportedEntries.stream().map(ValidatedEntry::entry).toList()
         );
 
-        String filename = buildFilename(startDate, endDate);
-        byte[] content = buildCsv(exportedEntries).getBytes(StandardCharsets.UTF_8);
-        ExportBatch exportBatch = createBatch(user, startDate, endDate, exportedEntries);
+        String filename = format == ExportBatchFormat.FEC
+                ? buildFecFilename(organization, endDate)
+                : buildFilename(startDate, endDate);
+        String exportContent = format == ExportBatchFormat.FEC
+                ? buildFec(exportedEntries)
+                : buildCsv(exportedEntries);
+        byte[] content = exportContent.getBytes(StandardCharsets.UTF_8);
+        ExportBatch exportBatch = createBatch(user, startDate, endDate, exportedEntries, format);
         StoredAccountingExportFile storedFile = accountingExportFileStorageService.store(
                 content,
                 filename,
                 exportBatch.getExportBatchId()
         );
-        markInvoicesExported(exportedEntries, user);
+        markInvoicesExported(exportedEntries, user, format);
         markBatchGenerated(exportBatch, storedFile);
-        recordExport(exportedEntries, user, filename, exportBatch);
+        recordExport(exportedEntries, user, filename, exportBatch, format);
         return new AccountingCsvExport(filename, content);
     }
 
@@ -140,6 +171,42 @@ public class AccountingExportServiceImpl implements AccountingExportService {
         return csv.toString();
     }
 
+    private String buildFec(List<ValidatedEntry> exportedEntries) {
+        StringBuilder fec = new StringBuilder(FEC_HEADER).append('\n');
+        for (ValidatedEntry exportedEntry : exportedEntries) {
+            AccountingEntry entry = exportedEntry.entry();
+            Invoice invoice = entry.getInvoice();
+            for (AccountingEntryLine line : exportedEntry.lines()) {
+                fec.append(PURCHASE_JOURNAL_CODE).append('\t')
+                        .append(PURCHASE_JOURNAL_LABEL).append('\t')
+                        .append(entry.getEntryNumber()).append('\t')
+                        .append(formatFecDate(entry.getEntryDate())).append('\t')
+                        .append(line.getAccount().getAccountNumber()).append('\t')
+                        .append(line.getAccount().getAccountLabel()).append('\t')
+                        .append('\t')
+                        .append('\t')
+                        .append(invoice.getInvoiceNumber()).append('\t')
+                        .append(formatFecDate(invoice.getInvoiceDate())).append('\t')
+                        .append(entry.getLabel()).append('\t')
+                        .append(formatAmount(line.getDebitAmount())).append('\t')
+                        .append(formatAmount(line.getCreditAmount())).append('\t')
+                        .append('\t')
+                        .append('\t')
+                        .append(formatFecDate(entry.getEntryDate())).append('\t')
+                        .append('\t')
+                        .append('\n');
+            }
+        }
+        return fec.toString();
+    }
+
+    private List<ValidatedEntry> sortForFec(List<ValidatedEntry> exportedEntries) {
+        return exportedEntries.stream()
+                .sorted(Comparator.comparing((ValidatedEntry item) -> item.entry().getEntryDate())
+                        .thenComparing(item -> item.entry().getInvoice().getInvoiceId()))
+                .toList();
+    }
+
     private void appendRow(StringBuilder csv, AccountingEntry entry, Invoice invoice, AccountingEntryLine line) {
         csv.append(csvValue(entry.getEntryNumber())).append(',')
                 .append(csvValue(formatDate(entry.getEntryDate()))).append(',')
@@ -155,13 +222,17 @@ public class AccountingExportServiceImpl implements AccountingExportService {
                 .append('\n');
     }
 
-    private void markInvoicesExported(List<ValidatedEntry> exportedEntries, User user) {
+    private void markInvoicesExported(
+            List<ValidatedEntry> exportedEntries,
+            User user,
+            ExportBatchFormat format
+    ) {
         for (ValidatedEntry exportedEntry : exportedEntries) {
             invoiceStatusWorkflowService.transitionTo(
                     exportedEntry.entry().getInvoice(),
                     InvoiceStatusCode.EXPORTEE,
                     user,
-                    "Accounting CSV export completed"
+                    "Accounting " + format.getCode() + " export completed"
             );
         }
     }
@@ -170,14 +241,15 @@ public class AccountingExportServiceImpl implements AccountingExportService {
             User user,
             LocalDate startDate,
             LocalDate endDate,
-            List<ValidatedEntry> exportedEntries
+            List<ValidatedEntry> exportedEntries,
+            ExportBatchFormat format
     ) {
         ExportBatch exportBatch = new ExportBatch();
         exportBatch.setOrganization(user.getOrganization());
         exportBatch.setCreatedByUser(user);
         exportBatch.setPeriodStartDate(startDate);
         exportBatch.setPeriodEndDate(endDate);
-        exportBatch.setFormat(ExportBatchFormat.CSV.getCode());
+        exportBatch.setFormat(format.getCode());
         exportBatch.setStatus(ExportBatchStatusCode.PREPARATION.getCode());
         exportBatch.setCreatedAt(LocalDateTime.now());
         for (ValidatedEntry exportedEntry : exportedEntries) {
@@ -200,14 +272,16 @@ public class AccountingExportServiceImpl implements AccountingExportService {
             List<ValidatedEntry> exportedEntries,
             User user,
             String filename,
-            ExportBatch exportBatch
+            ExportBatch exportBatch,
+            ExportBatchFormat format
     ) {
         AuditLog auditLog = new AuditLog();
         auditLog.setOrganization(user.getOrganization());
         auditLog.setUser(user);
-        auditLog.setEntityName("AccountingCsvExport");
+        auditLog.setEntityName("Accounting" + format.getCode().charAt(0)
+                + format.getCode().substring(1).toLowerCase() + "Export");
         auditLog.setEntityId(exportBatch.getExportBatchId());
-        auditLog.setAction("CSV_EXPORT");
+        auditLog.setAction(format.getCode() + "_EXPORT");
         auditLog.setOldValue("invoiceIds=" + exportedEntries.stream()
                 .map(exportedEntry -> exportedEntry.entry().getInvoice().getInvoiceId().toString())
                 .toList());
@@ -228,6 +302,14 @@ public class AccountingExportServiceImpl implements AccountingExportService {
         return "accounting-export-" + period + "-" + LocalDate.now() + ".csv";
     }
 
+    private String buildFecFilename(Organization organization, LocalDate endDate) {
+        LocalDate closingDate = endDate == null ? LocalDate.now() : endDate;
+        return organization.getSiret().substring(0, 9)
+                + "FEC"
+                + formatFecDate(closingDate)
+                + ".txt";
+    }
+
     private String csvValue(String value) {
         if (value == null) {
             return "";
@@ -237,6 +319,10 @@ public class AccountingExportServiceImpl implements AccountingExportService {
 
     private String formatDate(LocalDate date) {
         return date == null ? "" : DateTimeFormatter.ISO_LOCAL_DATE.format(date);
+    }
+
+    private String formatFecDate(LocalDate date) {
+        return date.format(DateTimeFormatter.BASIC_ISO_DATE);
     }
 
     private String formatAmount(BigDecimal amount) {

@@ -45,6 +45,20 @@ public class AccountingExportController {
         return accountingExportResponse(export);
     }
 
+    @PostMapping("/fec")
+    @Operation(summary = "Generer et telecharger un fichier des ecritures comptables (FEC)")
+    @ApiResponse(responseCode = "200", description = "FEC genere")
+    @ApiResponse(responseCode = "400", description = "Periode invalide ou aucune facture exportable")
+    @ApiResponse(responseCode = "409", description = "Un ou plusieurs controles avant export ont echoue")
+    public ResponseEntity<byte[]> exportFec(
+            @Parameter(description = "Debut inclusif de la periode de facturation")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @Parameter(description = "Fin inclusive de la periode de facturation")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
+    ) {
+        return accountingExportResponse(accountingExportService.exportFec(startDate, endDate));
+    }
+
     @GetMapping("/{id}/file")
     @Operation(summary = "Telecharger un fichier d'export comptable")
     @ApiResponse(responseCode = "200", description = "Fichier d'export retourne")
@@ -54,8 +68,11 @@ public class AccountingExportController {
     }
 
     private ResponseEntity<byte[]> accountingExportResponse(AccountingExportService.AccountingCsvExport export) {
+        MediaType mediaType = export.filename().endsWith(".txt")
+                ? new MediaType("text", "plain")
+                : new MediaType("text", "csv");
         return ResponseEntity.ok()
-                .contentType(new MediaType("text", "csv"))
+                .contentType(mediaType)
                 .contentLength(export.content().length)
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
                         .filename(export.filename())
