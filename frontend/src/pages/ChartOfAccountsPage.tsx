@@ -1,7 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, BookOpen, Download, Plus, Search, Upload } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
 
+import { AccountEditorSheet } from '@/components/accounting/AccountEditorSheet'
+import { DeactivateAccountDialog } from '@/components/accounting/DeactivateAccountDialog'
+import type { AccountActionHandler } from '@/components/accounting/AccountActionsMenu'
 import { AccountingSectionTabs } from '@/components/accounting/AccountingSectionTabs'
 import { ChartOfAccountsTable } from '@/components/accounting/ChartOfAccountsTable'
 import { accountColumns, compareAccounts, normalizeAccountSearch, type AccountSortColumn } from '@/components/accounting/chart-of-accounts-utils'
@@ -19,10 +23,15 @@ import type { ChartOfAccount } from '@/types/onboarding'
 
 const pageSize = 8
 
+type AccountAction = { key: string, kind: 'create' } | { key: string, kind: 'edit' | 'deactivate', account: ChartOfAccount }
+
 export default function ChartOfAccountsPage() {
   const { user } = useAuth()
   const [params, setParams] = useSearchParams()
   const [retry, setRetry] = useState(0)
+  const [action, setAction] = useState<AccountAction | null>(null)
+  const focusOrigin = useRef<HTMLElement | null>(null)
+  const canManage = user?.role.code === 'ADMIN'
   const requestKey = `${user?.id}:${user?.organization.id}:${user?.role.code}:${retry}`
   const [result, setResult] = useState<{
     key: string
@@ -31,6 +40,7 @@ export default function ChartOfAccountsPage() {
   } | null>(null)
   const current = result?.key === requestKey ? result : null
   const accounts = current?.accounts
+  const currentAction = canManage && accounts && action?.key === requestKey ? action : null
   const query = (params.get('query') ?? '').slice(0, 200)
   const search = normalizeAccountSearch(query)
   const types = [...new Set(accounts?.map((account) => account.accountType))].sort()
@@ -76,6 +86,27 @@ export default function ChartOfAccountsPage() {
     update({ sort: column, direction: sort === column && !descending ? 'desc' : 'asc' })
   }
 
+  const openAccountAction: AccountActionHandler = (kind, account, trigger) => {
+    if (!canManage || !accounts) return
+    focusOrigin.current = trigger
+    setAction({ key: requestKey, kind, account })
+  }
+
+  function restoreFocus() {
+    if (focusOrigin.current?.isConnected) focusOrigin.current.focus()
+    else document.getElementById('add-account')?.focus()
+  }
+
+  function accountSaved(saved: ChartOfAccount) {
+    if (!currentAction) return
+    setResult((current) => current?.key === requestKey && current.accounts
+      ? { ...current, accounts: [...current.accounts.filter((account) => account.accountId !== saved.accountId), saved] }
+      : current)
+    if (currentAction.kind === 'create') update({ query: saved.accountNumber, type: null, status: null })
+    toast.success(currentAction.kind === 'create' ? 'Account created' : currentAction.kind === 'deactivate' ? 'Account deactivated' : 'Account updated')
+    setAction(null)
+  }
+
   let content
   if (current?.error) {
     const forbidden = current.error instanceof ApiError && current.error.status === 403
@@ -111,7 +142,7 @@ export default function ChartOfAccountsPage() {
   } else {
     content = (
       <>
-        <ChartOfAccountsTable accounts={filtered.slice((page - 1) * pageSize, page * pageSize)} descending={descending} onSort={changeSort} sort={sort} />
+        <ChartOfAccountsTable accounts={filtered.slice((page - 1) * pageSize, page * pageSize)} descending={descending} onAction={canManage ? openAccountAction : undefined} onSort={changeSort} sort={sort} />
         <div aria-live="polite" className="sr-only">{filtered.length} accounts. Page {page} of {totalPages}.</div>
         <div className="[&_nav]:px-0 [&_nav>div]:gap-1 [&_nav_button]:min-h-11 [&_nav_button]:min-w-11 sm:[&_nav>div]:gap-2 sm:[&_nav_button]:min-h-10 sm:[&_nav_button]:min-w-10">
           <SupplierPagination ariaLabel="Account pagination" currentPage={page} itemLabel="accounts" onPageChange={(page) => update({ page: String(page) }, false)} pageSize={pageSize} totalElements={filtered.length} totalPages={totalPages} />
@@ -124,9 +155,12 @@ export default function ChartOfAccountsPage() {
     <div className="min-w-0 space-y-6">
       <PageHeader
         actions={(
-          <div className="hidden gap-2 lg:flex">
-            <Button disabled variant="outline"><Download aria-hidden="true" />Export</Button>
-            {user?.role.code === 'ADMIN' ? <><Button disabled variant="secondary"><Upload aria-hidden="true" />Import CSV</Button><Button disabled><Plus aria-hidden="true" />Add account</Button></> : null}
+          <div className="flex gap-2">
+            <Button className="hidden lg:inline-flex" disabled variant="outline"><Download aria-hidden="true" />Export</Button>
+            {canManage ? <>
+              <Button className="hidden lg:inline-flex" disabled variant="secondary"><Upload aria-hidden="true" />Import CSV</Button>
+              <Button disabled={!accounts} id="add-account" onClick={(event) => { focusOrigin.current = event.currentTarget; setAction({ key: requestKey, kind: 'create' }) }}><Plus aria-hidden="true" />Add account</Button>
+            </> : null}
           </div>
         )}
         description="Manage the accounts used to automatically generate accounting entries."
@@ -151,6 +185,11 @@ export default function ChartOfAccountsPage() {
         </div>
         {content}
       </section>
+      {currentAction?.kind === 'deactivate' ? (
+        <DeactivateAccountDialog account={currentAction.account} key={`${requestKey}:deactivate:${currentAction.account.accountId}`} onClose={() => setAction(null)} onRestoreFocus={restoreFocus} onSaved={accountSaved} />
+      ) : currentAction ? (
+        <AccountEditorSheet account={currentAction.kind === 'edit' ? currentAction.account : undefined} accountTypes={types} key={`${requestKey}:${currentAction.kind}:${currentAction.kind === 'edit' ? currentAction.account.accountId : 'new'}`} onClose={() => setAction(null)} onRestoreFocus={restoreFocus} onSaved={accountSaved} />
+      ) : null}
     </div>
   )
 }

@@ -224,7 +224,7 @@ for (const [role, width] of [['ADMIN', 1440], ['ADMIN', 768], ['ADMIN', 390], ['
     await expect(page.locator('tbody tr')).toHaveCount(8)
     await expect(page.locator('tbody')).toContainText('Inactive')
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-    if (width === 1440 && role === 'ADMIN') await expect(page.getByRole('button', { name: 'Add account', exact: true })).toBeDisabled()
+    if (role === 'ADMIN') await expect(page.getByRole('button', { name: 'Add account', exact: true })).toBeEnabled()
     if (role !== 'ADMIN') await expect(page.getByRole('button', { name: 'Add account', exact: true })).toHaveCount(0)
     await page.screenshot({ path: testInfo.outputPath(`accounts-${role}-${width}.png`), fullPage: true })
     if (width === 390) {

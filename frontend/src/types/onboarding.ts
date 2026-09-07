@@ -35,6 +35,8 @@ export type AccountingRuleAccount = {
   active: boolean
 }
 
+export type ChartOfAccountInput = Pick<ChartOfAccount, 'accountNumber' | 'accountLabel' | 'accountType'>
+
 export type AccountingRule = {
   accountingRuleId: number
   ruleName: string
