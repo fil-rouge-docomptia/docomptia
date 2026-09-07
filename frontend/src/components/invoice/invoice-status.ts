@@ -9,6 +9,7 @@ export const invoiceStatusLabels: Record<string, string> = {
   EXPORTABLE: 'Ready to export',
   EXTRAITE: 'Needs review',
   OCR_EN_COURS: 'Processing',
+  PAYEE: 'Paid',
   REJETEE: 'Rejected',
   VALIDEE: 'Approved',
 }

@@ -21,6 +21,7 @@ import type {
 } from '@/types/invoice'
 
 import { InvoiceDuplicateWarning } from './InvoiceDuplicateWarning'
+import { InvoiceLifecycleNotice } from './InvoiceLifecycleNotice'
 import { InvoiceOcrFailureAlert } from './InvoiceOcrFailureAlert'
 import { SupplierCombobox } from './SupplierCombobox'
 import type { SupplierComboboxValue } from './SupplierCombobox'
@@ -386,14 +387,7 @@ export function InvoiceDetailsTab({
       onSubmit={handleSubmit}
       ref={formRef}
     >
-      {invoice.status === 'REJETEE' ? (
-        <div className="rounded-md bg-destructive p-4 text-destructive-foreground">
-          <p className="text-xs font-medium tracking-[0.1px]">Invoice rejected</p>
-          <p className="mt-1.5 text-xs leading-4">
-            Review the rejection reason, update the invoice, and resubmit it for approval.
-          </p>
-        </div>
-      ) : null}
+      {duplicateAlert ? null : <InvoiceLifecycleNotice invoice={invoice} />}
 
       {invoice.status === 'ERREUR_OCR' ? (
         <InvoiceOcrFailureAlert
