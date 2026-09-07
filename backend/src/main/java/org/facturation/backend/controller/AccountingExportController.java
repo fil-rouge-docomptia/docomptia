@@ -32,7 +32,7 @@ public class AccountingExportController {
     @Operation(summary = "Generer et telecharger l'export CSV comptable MVP")
     @ApiResponse(responseCode = "200", description = "CSV genere")
     @ApiResponse(responseCode = "400", description = "Periode invalide ou aucune facture exportable")
-    @ApiResponse(responseCode = "409", description = "Ecriture comptable desequilibree")
+    @ApiResponse(responseCode = "409", description = "Un ou plusieurs controles avant export ont echoue")
     public ResponseEntity<byte[]> exportCsv(
             @Parameter(description = "Debut inclusif de la periode de facturation")
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,

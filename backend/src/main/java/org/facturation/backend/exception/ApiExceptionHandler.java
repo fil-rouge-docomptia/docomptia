@@ -1,6 +1,7 @@
 package org.facturation.backend.exception;
 
 import org.facturation.backend.dto.response.AccountingEntryPrerequisitesResponse;
+import org.facturation.backend.dto.response.AccountingExportValidationResponse;
 import org.facturation.backend.dto.response.ApiErrorResponse;
 import org.facturation.backend.dto.response.InvoiceMissingRequiredFieldsResponse;
 import org.facturation.backend.dto.response.InvoiceOcrFailureResponse;
@@ -45,6 +46,7 @@ public class ApiExceptionHandler {
             "ACCOUNTING_ENTRY_LINE_VALIDATION_ERROR";
     private static final String ACCOUNTING_ENTRY_NOT_MODIFIABLE_CODE = "ACCOUNTING_ENTRY_NOT_MODIFIABLE";
     private static final String ACCOUNTING_ENTRY_UNBALANCED_CODE = "ACCOUNTING_ENTRY_UNBALANCED";
+    private static final String ACCOUNTING_EXPORT_VALIDATION_FAILED_CODE = "ACCOUNTING_EXPORT_VALIDATION_FAILED";
     private static final String INVALID_CREDENTIALS_CODE = "INVALID_CREDENTIALS";
     private static final String USER_VALIDATION_ERROR_CODE = "USER_VALIDATION_ERROR";
     private static final String USER_EMAIL_CONFLICT_CODE = "USER_EMAIL_CONFLICT";
@@ -339,6 +341,18 @@ public class ApiExceptionHandler {
                 exception.getTotalDebit(),
                 exception.getTotalCredit(),
                 exception.getBalanceDifference()
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    @ExceptionHandler(AccountingExportValidationException.class)
+    public ResponseEntity<AccountingExportValidationResponse> handleAccountingExportValidation(
+            AccountingExportValidationException exception
+    ) {
+        AccountingExportValidationResponse response = new AccountingExportValidationResponse(
+                ACCOUNTING_EXPORT_VALIDATION_FAILED_CODE,
+                exception.getMessage(),
+                exception.getInvoiceErrors()
         );
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }

@@ -49,6 +49,23 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
             @Param("endDate") LocalDate endDate
     );
 
+    @EntityGraph(attributePaths = {"invoiceStatus", "organization", "supplier"})
+    @Query("""
+            select invoice
+            from Invoice invoice
+            where invoice.organization.organizationId = :organizationId
+              and (:hasStartDate = false or invoice.invoiceDate >= :startDate)
+              and (:hasEndDate = false or invoice.invoiceDate <= :endDate)
+            order by invoice.invoiceDate, invoice.invoiceId
+            """)
+    List<Invoice> findAccountingExportCandidates(
+            @Param("organizationId") Long organizationId,
+            @Param("hasStartDate") boolean hasStartDate,
+            @Param("startDate") LocalDate startDate,
+            @Param("hasEndDate") boolean hasEndDate,
+            @Param("endDate") LocalDate endDate
+    );
+
     boolean existsByInvoiceIdAndOrganizationOrganizationId(Long invoiceId, Long organizationId);
 
     @EntityGraph(attributePaths = {"invoiceStatus", "organization", "supplier", "assignedUser"})
