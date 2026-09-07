@@ -42,6 +42,14 @@ public class ExportBatch {
     @Column(nullable = false)
     private String status;
 
+    private String fileName;
+
+    private String storedFileName;
+
+    private String filePath;
+
+    private Long fileSize;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime generatedAt;
@@ -103,6 +111,38 @@ public class ExportBatch {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getFileName() {
+        return fileName;
+    }
+
+    public void setFileName(String fileName) {
+        this.fileName = fileName;
+    }
+
+    public String getStoredFileName() {
+        return storedFileName;
+    }
+
+    public void setStoredFileName(String storedFileName) {
+        this.storedFileName = storedFileName;
+    }
+
+    public String getFilePath() {
+        return filePath;
+    }
+
+    public void setFilePath(String filePath) {
+        this.filePath = filePath;
+    }
+
+    public Long getFileSize() {
+        return fileSize;
+    }
+
+    public void setFileSize(Long fileSize) {
+        this.fileSize = fileSize;
     }
 
     public LocalDateTime getCreatedAt() {

@@ -42,6 +42,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -149,7 +150,23 @@ class AccountingExportControllerIntegrationTest {
         assertThat(exportBatch.getPeriodEndDate()).isEqualTo(LocalDate.of(2026, 8, 31));
         assertThat(exportBatch.getFormat()).isEqualTo(ExportBatchFormat.CSV.getCode());
         assertThat(exportBatch.getStatus()).isEqualTo(ExportBatchStatusCode.GENERE.getCode());
+        assertThat(exportBatch.getFileName()).startsWith("accounting-export-2026-08-01_2026-08-31-");
+        assertThat(exportBatch.getFileName()).endsWith(".csv");
+        assertThat(exportBatch.getStoredFileName()).endsWith("-" + exportBatch.getFileName());
+        assertThat(exportBatch.getFilePath()).endsWith(exportBatch.getStoredFileName());
+        assertThat(exportBatch.getFileSize()).isEqualTo(csv.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
         assertThat(exportBatch.getGeneratedAt()).isNotNull();
+
+        mockMvc.perform(get("/api/v1/accounting-exports/{id}/file", exportBatch.getExportBatchId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(new MediaType("text", "csv")))
+                .andExpect(header().longValue(HttpHeaders.CONTENT_LENGTH, exportBatch.getFileSize()))
+                .andExpect(header().string(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        org.hamcrest.Matchers.containsString("attachment; filename=\"" + exportBatch.getFileName())
+                ))
+                .andExpect(content().bytes(csv.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
 
         List<AuditLog> exportLogs = auditLogRepository.findAll().stream()
                 .filter(log -> "AccountingCsvExport".equals(log.getEntityName()))
@@ -351,6 +368,25 @@ class AccountingExportControllerIntegrationTest {
                         .value("No exportable invoices found for accounting CSV export"));
 
         assertThat(exportBatchRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    void hidesStoredExportFileFromAnotherOrganization() throws Exception {
+        User owner = userRepository.findById(1L).orElseThrow();
+        Invoice invoice = createInvoice(owner, InvoiceStatusCode.EXPORTABLE, "CSV-OWNER", "EUR");
+        createBalancedEntry(invoice, owner, "CSV-ENTRY-OWNER");
+
+        mockMvc.perform(post("/api/v1/accounting-exports/csv")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(owner)))
+                .andExpect(status().isOk());
+
+        Long exportBatchId = exportBatchRepository.findAll().getFirst().getExportBatchId();
+        User otherOrganizationUser = createUserForAnotherOrganization();
+
+        mockMvc.perform(get("/api/v1/accounting-exports/{id}/file", exportBatchId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(otherOrganizationUser)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ACCOUNTING_EXPORT_FILE_NOT_FOUND"));
     }
 
     private Invoice createInvoice(User user, InvoiceStatusCode statusCode, String invoiceNumber, String currencyCode) {
