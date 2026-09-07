@@ -38,6 +38,7 @@ export type AccountingRuleAccount = {
 export type AccountingRule = {
   accountingRuleId: number
   ruleName: string
+  priority?: number | null
   expenseAccount: AccountingRuleAccount | null
   vatAccount: AccountingRuleAccount | null
   supplierAccount: AccountingRuleAccount | null
