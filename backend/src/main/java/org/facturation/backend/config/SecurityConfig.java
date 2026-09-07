@@ -117,6 +117,7 @@ public class SecurityConfig {
                                 "/api/v1/accounting-exports/fec",
                                 "/api/v1/accounting-exports/selection/confirm",
                                 "/api/v1/accounting-exports/preflight",
+                                "/api/v1/accounting-exports/generate",
                                 "/api/v1/accounting-exports/*/archive"
                         )
                         .hasAnyRole(BusinessPermission.EXPORT_ACCOUNTING.roleCodes())

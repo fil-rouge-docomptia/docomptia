@@ -20,7 +20,8 @@ class AccountingPieceNumberServiceTest {
     private final AccountingEntryRepository accountingEntryRepository = mock(AccountingEntryRepository.class);
     private final AccountingPieceNumberService service = new AccountingPieceNumberService(
             organizationRepository,
-            accountingEntryRepository
+            accountingEntryRepository,
+            mock(jakarta.persistence.EntityManager.class)
     );
 
     @Test

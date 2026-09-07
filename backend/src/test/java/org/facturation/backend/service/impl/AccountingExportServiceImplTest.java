@@ -52,7 +52,8 @@ class AccountingExportServiceImplTest {
                 currentUserService,
                 invoiceStatusWorkflowService,
                 fileStorageService,
-                failureAuditService
+                failureAuditService,
+                mock(org.facturation.backend.service.AccountingExportReadService.class)
         );
 
         Organization organization = new Organization();

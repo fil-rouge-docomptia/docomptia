@@ -5,6 +5,7 @@ import io.minio.GetObjectArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
 import io.minio.errors.ErrorResponseException;
 import org.facturation.backend.exception.AccountingExportFileNotFoundException;
 import org.facturation.backend.model.ExportBatch;
@@ -77,6 +78,16 @@ public class MinioAccountingExportFileStorageService implements AccountingExport
             throw new IllegalStateException("Unable to read stored accounting export file from MinIO", exception);
         } catch (Exception exception) {
             throw new IllegalStateException("Unable to read stored accounting export file from MinIO", exception);
+        }
+    }
+
+    @Override
+    public void delete(StoredAccountingExportFile file) {
+        try {
+            minioClient.removeObject(RemoveObjectArgs.builder()
+                    .bucket(bucketName).object(file.storedFileName()).build());
+        } catch (Exception exception) {
+            throw new IllegalStateException("Unable to remove rolled-back accounting export from MinIO", exception);
         }
     }
 

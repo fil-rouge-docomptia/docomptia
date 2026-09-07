@@ -1,5 +1,7 @@
 package org.facturation.backend.controller;
 
+import org.facturation.backend.dto.request.AccountingExportPreflightRequest;
+import org.facturation.backend.dto.response.AccountingExportGenerationResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -28,6 +31,15 @@ public class AccountingExportController {
 
     public AccountingExportController(AccountingExportService accountingExportService) {
         this.accountingExportService = accountingExportService;
+    }
+
+    @PostMapping("/generate")
+    @Operation(summary = "Generer un export pour les factures selectionnees")
+    @ApiResponse(responseCode = "200", description = "Lot genere et conserve, pret au telechargement")
+    @ApiResponse(responseCode = "400", description = "Selection, periode ou format invalide")
+    @ApiResponse(responseCode = "409", description = "Selection perimee ou controles comptables en echec")
+    public AccountingExportGenerationResponse generate(@RequestBody AccountingExportPreflightRequest request) {
+        return accountingExportService.generate(request);
     }
 
     @PostMapping("/csv")
