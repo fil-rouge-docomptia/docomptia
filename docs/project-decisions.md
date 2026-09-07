@@ -216,6 +216,32 @@ nouvelle. Une nouvelle requete ne doit pas dupliquer l'ecriture ou ses lignes.
 Une ecriture exportee n'est pas modifiee. Une correction produit une ecriture
 inverse et une nouvelle ecriture correcte, toutes deux journalisees.
 
+## Abonnement SaaS
+
+### Temporaire - catalogue initial des plans
+
+Pour debloquer le MVP, le catalogue initial utilise les valeurs provisoires
+suivantes. Elles doivent etre validees avant une mise en production commerciale.
+
+| Code | Nom | Utilisateurs actifs maximum | Factures par mois | Fonctionnalites |
+| --- | --- | ---: | ---: | --- |
+| `STARTER` | Starter | 2 | 100 | `INVOICE_MANAGEMENT`, `OCR`, `ACCOUNTING_EXPORT` |
+| `BUSINESS` | Business | 10 | 1 000 | Fonctionnalites Starter, `APPROVAL_WORKFLOW`, `AUDIT_LOG` |
+| `PRO` | Pro | Illimite | Illimite | Fonctionnalites Business, `API_ACCESS`, `ADVANCED_CONNECTORS` |
+
+Les limites sont appliquees par organisation. La limite de factures correspond
+au nombre de documents de facture acceptes pendant un mois calendaire. Une
+limite absente represente un usage illimite; aucune valeur numerique artificielle
+ne doit representer l'illimite.
+
+Les trois plans sont crees actifs avec un code stable et unique. Un plan est
+desactive par un indicateur d'activite et n'est jamais supprime, afin de conserver
+l'historique des abonnements. Pour KAN-231, les limites et fonctionnalites sont
+consultables par `GET /api/v1/subscription-plans`; la reponse retourne uniquement
+les plans actifs. L'affectation d'un plan a une organisation, le controle des
+quotas, les prix, la facturation et les changements d'offre restent hors du
+perimetre de ce ticket.
+
 ## API Et Frontend
 
 ### Validee - contrats minimaux et documentes
