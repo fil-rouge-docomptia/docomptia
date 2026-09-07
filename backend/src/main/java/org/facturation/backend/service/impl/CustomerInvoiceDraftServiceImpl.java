@@ -16,6 +16,7 @@ import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.service.CurrentUserService;
 import org.facturation.backend.service.CustomerInvoiceDraftService;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
+import org.facturation.backend.service.SubscriptionQuotaService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,17 +32,20 @@ public class CustomerInvoiceDraftServiceImpl implements CustomerInvoiceDraftServ
     private final ClientRepository clientRepository;
     private final CurrentUserService currentUserService;
     private final InvoiceStatusWorkflowService invoiceStatusWorkflowService;
+    private final SubscriptionQuotaService subscriptionQuotaService;
 
     public CustomerInvoiceDraftServiceImpl(
             InvoiceRepository invoiceRepository,
             ClientRepository clientRepository,
             CurrentUserService currentUserService,
-            InvoiceStatusWorkflowService invoiceStatusWorkflowService
+            InvoiceStatusWorkflowService invoiceStatusWorkflowService,
+            SubscriptionQuotaService subscriptionQuotaService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.clientRepository = clientRepository;
         this.currentUserService = currentUserService;
         this.invoiceStatusWorkflowService = invoiceStatusWorkflowService;
+        this.subscriptionQuotaService = subscriptionQuotaService;
     }
 
     @Override
@@ -55,6 +59,7 @@ public class CustomerInvoiceDraftServiceImpl implements CustomerInvoiceDraftServ
         Organization organization = user.getOrganization();
         Client client = findClient(request.getClientId(), organization.getOrganizationId());
         String currencyCode = requireCurrencyCode(request.getCurrencyCode());
+        subscriptionQuotaService.ensureInvoiceCanBeCreated(organization.getOrganizationId());
         LocalDateTime now = LocalDateTime.now();
 
         Invoice invoice = new Invoice();

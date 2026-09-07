@@ -47,6 +47,7 @@ import org.facturation.backend.service.NotificationService;
 import org.facturation.backend.service.OcrErrorService;
 import org.facturation.backend.service.LegalRetentionService;
 import org.facturation.backend.service.SupplierService;
+import org.facturation.backend.service.SubscriptionQuotaService;
 import org.facturation.backend.service.storage.InvoiceFileStorageService;
 import org.facturation.backend.service.storage.StoredInvoiceFile;
 import jakarta.persistence.criteria.Predicate;
@@ -105,6 +106,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final InvoiceDuplicateAlertService duplicateAlertService;
     private final ClassificationService classificationService;
     private final UserRepository userRepository;
+    private final SubscriptionQuotaService subscriptionQuotaService;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
@@ -124,7 +126,8 @@ public class InvoiceServiceImpl implements InvoiceService {
             LegalRetentionService legalRetentionService,
             InvoiceDuplicateAlertService duplicateAlertService,
             ClassificationService classificationService,
-            UserRepository userRepository
+            UserRepository userRepository,
+            SubscriptionQuotaService subscriptionQuotaService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.accountingEntryService = accountingEntryService;
@@ -144,6 +147,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.duplicateAlertService = duplicateAlertService;
         this.classificationService = classificationService;
         this.userRepository = userRepository;
+        this.subscriptionQuotaService = subscriptionQuotaService;
     }
 
     @Override
@@ -170,6 +174,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         Supplier selectedSupplier = supplierId == null
                 ? null
                 : supplierService.findRequiredByIdForOrganization(supplierId, organization);
+        subscriptionQuotaService.ensureInvoiceCanBeCreated(organization.getOrganizationId());
         InvoiceStatus depositedStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.DEPOSEE);
 
         Invoice invoice = createDraftInvoice(organization, user, depositedStatus);

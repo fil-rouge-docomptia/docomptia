@@ -8,6 +8,7 @@ import org.facturation.backend.repository.ClientRepository;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.InvoiceStatusRepository;
 import org.facturation.backend.repository.OrganizationRepository;
+import org.facturation.backend.repository.OrganizationSubscriptionRepository;
 import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.JwtTokenService;
 import org.junit.jupiter.api.Test;
@@ -49,6 +50,9 @@ class CustomerInvoiceControllerIntegrationTest {
     private OrganizationRepository organizationRepository;
 
     @Autowired
+    private OrganizationSubscriptionRepository organizationSubscriptionRepository;
+
+    @Autowired
     private UserRepository userRepository;
 
     @Value("${app.jwt.secret}")
@@ -87,6 +91,37 @@ class CustomerInvoiceControllerIntegrationTest {
         assertEquals(InvoiceStatusCode.BROUILLON.getCode(), invoice.getInvoiceStatus().getCode());
         assertNull(invoice.getInvoiceNumber());
         assertNull(invoice.getSupplier());
+    }
+
+    @Test
+    void rejectsCustomerDraftWhenMonthlyInvoiceLimitIsReachedWithoutCreatingInvoice() throws Exception {
+        Client client = createClient(userOrganization(), "Client quota");
+        long invoiceCount = invoiceRepository.count();
+        int monthlyUsage = Math.toIntExact(invoiceRepository
+                .countByOrganizationOrganizationIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                        userOrganization().getOrganizationId(),
+                        java.time.YearMonth.now().atDay(1).atStartOfDay(),
+                        java.time.YearMonth.now().plusMonths(1).atDay(1).atStartOfDay()
+                ));
+        var subscription = organizationSubscriptionRepository
+                .findByOrganizationOrganizationId(userOrganization().getOrganizationId())
+                .orElseThrow();
+        subscription.getPlan().findLimitsAt(java.time.LocalDate.now()).orElseThrow()
+                .setMonthlyInvoiceLimit(monthlyUsage);
+
+        mockMvc.perform(post("/api/v1/customer-invoices")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .contentType("application/json")
+                        .content("""
+                                {"clientId": %d, "currencyCode": "EUR"}
+                                """.formatted(client.getClientId())))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SUBSCRIPTION_LIMIT_REACHED"))
+                .andExpect(jsonPath("$.limit").value("MONTHLY_INVOICE_LIMIT"))
+                .andExpect(jsonPath("$.quota").value(monthlyUsage))
+                .andExpect(jsonPath("$.usage").value(monthlyUsage));
+
+        assertEquals(invoiceCount, invoiceRepository.count());
     }
 
     @Test
