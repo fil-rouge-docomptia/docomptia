@@ -18,27 +18,40 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 @Service
 public class AccountingExportValidator {
 
     private static final int AMOUNT_SCALE = 2;
+    private static final Pattern FEC_ACCOUNT_NUMBER = Pattern.compile("[0-9]{3}[A-Za-z0-9]*");
 
     private final AccountingEntryRepository accountingEntryRepository;
     private final AccountingEntryLineRepository accountingEntryLineRepository;
     private final AccountingEntryMapper accountingEntryMapper;
+    private final FrenchLegalIdentifierValidator frenchLegalIdentifierValidator;
 
     public AccountingExportValidator(
             AccountingEntryRepository accountingEntryRepository,
             AccountingEntryLineRepository accountingEntryLineRepository,
-            AccountingEntryMapper accountingEntryMapper
+            AccountingEntryMapper accountingEntryMapper,
+            FrenchLegalIdentifierValidator frenchLegalIdentifierValidator
     ) {
         this.accountingEntryRepository = accountingEntryRepository;
         this.accountingEntryLineRepository = accountingEntryLineRepository;
         this.accountingEntryMapper = accountingEntryMapper;
+        this.frenchLegalIdentifierValidator = frenchLegalIdentifierValidator;
     }
 
     public List<ValidatedEntry> validate(List<Invoice> invoices) {
+        return validate(invoices, false);
+    }
+
+    public List<ValidatedEntry> validateForFec(List<Invoice> invoices) {
+        return validate(invoices, true);
+    }
+
+    private List<ValidatedEntry> validate(List<Invoice> invoices, boolean fec) {
         List<ValidatedEntry> validatedEntries = new ArrayList<>();
         List<InvoiceExportErrorResponse> invoiceErrors = new ArrayList<>();
 
@@ -46,6 +59,9 @@ public class AccountingExportValidator {
             List<AccountingExportControlErrorResponse> errors = new ArrayList<>();
             validateStatus(invoice, errors);
             validateVat(invoice, errors);
+            if (fec) {
+                validateFecInvoice(invoice, errors);
+            }
 
             AccountingEntry entry = accountingEntryRepository
                     .findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(invoice.getInvoiceId())
@@ -57,6 +73,9 @@ public class AccountingExportValidator {
                         .findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(entry.getAccountingEntryId());
                 validateAccounts(invoice, lines, errors);
                 validateBalance(entry, lines, errors);
+                if (fec) {
+                    validateFecEntry(entry, lines, errors);
+                }
                 validatedEntries.add(new ValidatedEntry(entry, lines));
             }
 
@@ -73,6 +92,76 @@ public class AccountingExportValidator {
             throw new AccountingExportValidationException(invoiceErrors);
         }
         return validatedEntries;
+    }
+
+    private void validateFecInvoice(Invoice invoice, List<AccountingExportControlErrorResponse> errors) {
+        if (!hasText(invoice.getInvoiceNumber())) {
+            addError(errors, "FEC_PIECE_REFERENCE_MISSING", "The invoice number is required for FEC export");
+        }
+        if (invoice.getInvoiceDate() == null) {
+            addError(errors, "FEC_PIECE_DATE_MISSING", "The invoice date is required for FEC export");
+        }
+        String siret = invoice.getOrganization().getSiret();
+        if (siret == null || !frenchLegalIdentifierValidator.isValidSiret(siret)) {
+            addError(errors, "FEC_ORGANIZATION_SIRET_INVALID", "The organization must have a valid SIRET");
+        }
+        validateFecText(invoice.getInvoiceNumber(), "invoice number", errors);
+    }
+
+    private void validateFecEntry(
+            AccountingEntry entry,
+            List<AccountingEntryLine> lines,
+            List<AccountingExportControlErrorResponse> errors
+    ) {
+        if (entry.getEntryDate() == null) {
+            addError(errors, "FEC_ENTRY_DATE_MISSING", "The accounting entry date is required for FEC export");
+        }
+        if (!hasText(entry.getLabel())) {
+            addError(errors, "FEC_ENTRY_LABEL_MISSING", "The accounting entry label is required for FEC export");
+        }
+        validateFecText(entry.getLabel(), "accounting entry label", errors);
+
+        for (AccountingEntryLine line : lines) {
+            ChartOfAccount account = line.getAccount();
+            if (account != null && hasText(account.getAccountNumber())
+                    && !FEC_ACCOUNT_NUMBER.matcher(account.getAccountNumber()).matches()) {
+                addError(
+                        errors,
+                        "FEC_ACCOUNT_NUMBER_INVALID",
+                        "Account " + account.getAccountNumber() + " must start with three digits"
+                );
+            }
+            if (account != null && !hasText(account.getAccountLabel())) {
+                addError(errors, "FEC_ACCOUNT_LABEL_MISSING", "Accounting line " + line.getLineNumber()
+                        + " has no account label");
+            }
+            validateFecText(account == null ? null : account.getAccountLabel(), "account label", errors);
+            validateFecAmounts(line, errors);
+        }
+    }
+
+    private void validateFecAmounts(
+            AccountingEntryLine line,
+            List<AccountingExportControlErrorResponse> errors
+    ) {
+        BigDecimal debit = normalize(line.getDebitAmount());
+        BigDecimal credit = normalize(line.getCreditAmount());
+        if (debit == null || credit == null || debit.signum() < 0 || credit.signum() < 0
+                || (debit.signum() == 0 && credit.signum() == 0)
+                || (debit.signum() > 0 && credit.signum() > 0)) {
+            addError(errors, "FEC_AMOUNT_INVALID", "Accounting line " + line.getLineNumber()
+                    + " must have one non-negative debit or credit amount");
+        }
+    }
+
+    private void validateFecText(
+            String value,
+            String fieldName,
+            List<AccountingExportControlErrorResponse> errors
+    ) {
+        if (value != null && (value.indexOf('\t') >= 0 || value.indexOf('\n') >= 0 || value.indexOf('\r') >= 0)) {
+            addError(errors, "FEC_TEXT_INVALID", "The " + fieldName + " contains a forbidden control character");
+        }
     }
 
     private void validateStatus(Invoice invoice, List<AccountingExportControlErrorResponse> errors) {

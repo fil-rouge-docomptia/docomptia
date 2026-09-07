@@ -61,6 +61,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 class AccountingExportControllerIntegrationTest {
 
+    private static final String FEC_HEADER =
+            "JournalCode\tJournalLib\tEcritureNum\tEcritureDate\tCompteNum\tCompteLib\tCompAuxNum\t"
+                    + "CompAuxLib\tPieceRef\tPieceDate\tEcritureLib\tDebit\tCredit\tEcritureLet\tDateLet\t"
+                    + "ValidDate\tMontantdevise\tIdevise";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -214,6 +219,74 @@ class AccountingExportControllerIntegrationTest {
                 ).stream()
                 .filter(history -> InvoiceStatusCode.EXPORTEE.getCode().equals(history.getInvoiceStatus().getCode())))
                 .hasSize(1);
+    }
+
+    @Test
+    void exportsFecWithMandatoryColumnsAndFormats() throws Exception {
+        User user = userRepository.findById(1L).orElseThrow();
+        Invoice invoice = createInvoice(user, InvoiceStatusCode.EXPORTABLE, "FEC-2026-001", "EUR");
+        createBalancedEntry(invoice, user, "TEMP-FEC");
+
+        String fec = mockMvc.perform(post("/api/v1/accounting-exports/fec")
+                        .param("startDate", "2026-08-01")
+                        .param("endDate", "2026-08-31")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(new MediaType("text", "plain")))
+                .andExpect(header().string(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        org.hamcrest.Matchers.containsString("attachment; filename=\"552100554FEC20260831.txt\"")
+                ))
+                .andReturn().getResponse().getContentAsString();
+
+        String[] records = fec.split("\\n");
+        assertThat(records).hasSize(4);
+        assertThat(records[0]).isEqualTo(FEC_HEADER);
+        assertThat(records[1].split("\\t", -1)).containsExactly(
+                "AC", "Achats", "1", "20260815", "607000", "Achats de marchandises", "", "",
+                "FEC-2026-001", "20260815", "Ecriture FEC-2026-001", "100.00", "0.00", "", "",
+                "20260815", "", ""
+        );
+        assertThat(records[2].split("\\t", -1)).hasSize(18);
+        assertThat(records[3].split("\\t", -1)).hasSize(18);
+
+        ExportBatch batch = exportBatchRepository.findAll().getFirst();
+        assertThat(batch.getFormat()).isEqualTo(ExportBatchFormat.FEC.getCode());
+        assertThat(batch.getFileName()).isEqualTo("552100554FEC20260831.txt");
+        assertThat(invoiceRepository.findById(invoice.getInvoiceId()).orElseThrow()
+                .getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.EXPORTEE.getCode());
+        assertThat(auditLogRepository.findAll()).anySatisfy(log -> {
+            assertThat(log.getEntityName()).isEqualTo("AccountingFecExport");
+            assertThat(log.getAction()).isEqualTo("FEC_EXPORT");
+        });
+
+        mockMvc.perform(get("/api/v1/accounting-exports/{id}/file", batch.getExportBatchId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(new MediaType("text", "plain")))
+                .andExpect(content().bytes(fec.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void rejectsFecWhenAnAccountNumberIsNotFecCompliant() throws Exception {
+        User user = userRepository.findById(1L).orElseThrow();
+        Invoice invoice = createInvoice(user, InvoiceStatusCode.EXPORTABLE, "FEC-INVALID", "EUR");
+        createBalancedEntry(invoice, user, "TEMP-FEC-INVALID");
+        ChartOfAccount account = chartOfAccountRepository.findById(2L).orElseThrow();
+        account.setAccountNumber("ABCD");
+        chartOfAccountRepository.save(account);
+
+        mockMvc.perform(post("/api/v1/accounting-exports/fec")
+                        .param("endDate", "2026-08-31")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ACCOUNTING_EXPORT_VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.invoices[0].invoiceNumber").value("FEC-INVALID"))
+                .andExpect(jsonPath("$.invoices[0].errors[0].code").value("FEC_ACCOUNT_NUMBER_INVALID"));
+
+        assertThat(exportBatchRepository.findAll()).isEmpty();
+        assertThat(statusOf(invoice)).isEqualTo(InvoiceStatusCode.EXPORTABLE.getCode());
+        assertThat(auditLogRepository.findAll()).noneMatch(log -> "FEC_EXPORT".equals(log.getAction()));
     }
 
     @Test
