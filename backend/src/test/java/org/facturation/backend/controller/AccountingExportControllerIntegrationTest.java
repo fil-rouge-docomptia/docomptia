@@ -125,7 +125,7 @@ class AccountingExportControllerIntegrationTest {
                 "entryNumber,entryDate,invoiceNumber,invoiceDate,supplierName,accountNumber,"
                         + "accountLabel,lineLabel,debitAmount,creditAmount,currencyCode\n"
         );
-        assertThat(csv).contains("\"CSV-ENTRY-1\",\"2026-08-15\",\"CSV-EXPORT\",\"2026-08-15\"");
+        assertThat(csv).contains("\"1\",\"2026-08-15\",\"CSV-EXPORT\",\"2026-08-15\"");
         assertThat(csv).contains("\"607000\",\"Achats de marchandises\",\"Achat CSV-EXPORT\",\"100.00\",\"0.00\"");
         assertThat(csv).contains("\"445660\",\"TVA deductible sur autres biens et services\",\"TVA CSV-EXPORT\",\"20.00\",\"0.00\"");
         assertThat(csv).contains("\"401000\",\"Fournisseurs\",\"Fournisseur CSV-EXPORT\",\"0.00\",\"120.00\"");
@@ -133,6 +133,9 @@ class AccountingExportControllerIntegrationTest {
 
         assertThat(invoiceRepository.findById(exportedInvoice.getInvoiceId()).orElseThrow()
                 .getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.EXPORTEE.getCode());
+        assertThat(accountingEntryRepository
+                .findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(exportedInvoice.getInvoiceId())
+                .orElseThrow().getEntryNumber()).isEqualTo("1");
         assertThat(invoiceRepository.findById(exportedInvoice.getInvoiceId()).orElseThrow()
                 .getExportBatch().getExportBatchId()).isEqualTo(1000L);
         assertThat(invoiceRepository.findById(nonExportableInvoice.getInvoiceId()).orElseThrow()
@@ -222,8 +225,7 @@ class AccountingExportControllerIntegrationTest {
                 .andExpect(jsonPath("$.invoices[0].errors[*].code", containsInAnyOrder(
                         "INVOICE_NOT_EXPORTABLE",
                         "VAT_INCONSISTENT",
-                        "ACCOUNTING_ENTRY_UNBALANCED",
-                        "PIECE_NUMBER_MISSING"
+                        "ACCOUNTING_ENTRY_UNBALANCED"
                 )))
                 .andExpect(jsonPath("$.invoices[1].invoiceId").value(invoiceWithoutEntry.getInvoiceId()))
                 .andExpect(jsonPath("$.invoices[1].invoiceNumber").value("CSV-NO-ENTRY"))
@@ -272,8 +274,7 @@ class AccountingExportControllerIntegrationTest {
                         "INVOICE_NOT_EXPORTABLE",
                         "VAT_INCONSISTENT",
                         "ACCOUNT_INACTIVE",
-                        "ACCOUNTING_ENTRY_UNBALANCED",
-                        "PIECE_NUMBER_MISSING"
+                        "ACCOUNTING_ENTRY_UNBALANCED"
                 )));
 
         assertThat(invoiceRepository.findById(invalidInvoice.getInvoiceId()).orElseThrow()
@@ -353,6 +354,45 @@ class AccountingExportControllerIntegrationTest {
         assertThat(statusOf(beforePeriod)).isEqualTo(InvoiceStatusCode.EXPORTABLE.getCode());
         assertThat(statusOf(afterPeriod)).isEqualTo(InvoiceStatusCode.EXPORTABLE.getCode());
         assertThat(statusOf(otherOrganizationInvoice)).isEqualTo(InvoiceStatusCode.EXPORTABLE.getCode());
+    }
+
+    @Test
+    void continuesTheOrganizationPieceNumberSequenceAcrossExports() throws Exception {
+        User user = userRepository.findById(1L).orElseThrow();
+        Invoice firstInvoice = createInvoice(
+                user, InvoiceStatusCode.EXPORTABLE, "CSV-FIRST", "EUR", LocalDate.of(2026, 8, 15)
+        );
+        Invoice secondInvoice = createInvoice(
+                user, InvoiceStatusCode.EXPORTABLE, "CSV-SECOND", "EUR", LocalDate.of(2026, 9, 15)
+        );
+        createBalancedEntry(firstInvoice, user, "TEMP-FIRST");
+        createBalancedEntry(secondInvoice, user, "TEMP-SECOND");
+
+        mockMvc.perform(post("/api/v1/accounting-exports/csv")
+                        .param("startDate", "2026-08-01")
+                        .param("endDate", "2026-08-31")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "\"1\",\"2026-08-15\",\"CSV-FIRST\""
+                )));
+
+        mockMvc.perform(post("/api/v1/accounting-exports/csv")
+                        .param("startDate", "2026-09-01")
+                        .param("endDate", "2026-09-30")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "\"2\",\"2026-09-15\",\"CSV-SECOND\""
+                )));
+
+        assertThat(accountingEntryRepository
+                .findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(firstInvoice.getInvoiceId())
+                .orElseThrow().getEntryNumber()).isEqualTo("1");
+        assertThat(accountingEntryRepository
+                .findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(secondInvoice.getInvoiceId())
+                .orElseThrow().getEntryNumber()).isEqualTo("2");
+        assertThat(organizationRepository.findById(1L).orElseThrow().getNextAccountingPieceNumber()).isEqualTo(3L);
     }
 
     @Test
