@@ -100,7 +100,7 @@ test('web workflow retries automatically when completed runs still report failed
   assert.deepEqual(finalState.agentResult.commits, ['abc123 KAN-161: Fix failing tests'])
   assert.equal(
     service.events.some((event) =>
-      event.message?.includes('Automatic retry 1/3 because latest tests still failed')),
+      event.message?.includes('Automatic retry 1/1 because latest tests still failed')),
     true,
   )
 })
