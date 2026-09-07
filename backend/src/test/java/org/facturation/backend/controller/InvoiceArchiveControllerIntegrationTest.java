@@ -3,9 +3,12 @@ package org.facturation.backend.controller;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.exception.ApiExceptionHandler;
 import org.facturation.backend.model.Invoice;
+import org.facturation.backend.model.InvoiceFile;
+import org.facturation.backend.model.InvoiceFileIntegrityStatus;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.InvoiceStatusHistory;
 import org.facturation.backend.repository.InvoiceRepository;
+import org.facturation.backend.repository.InvoiceFileRepository;
 import org.facturation.backend.repository.InvoiceStatusHistoryRepository;
 import org.facturation.backend.repository.InvoiceStatusRepository;
 import org.facturation.backend.repository.OrganizationRepository;
@@ -43,6 +46,7 @@ class InvoiceArchiveControllerIntegrationTest {
 
     private final MockMvc mockMvc;
     private final InvoiceRepository invoiceRepository;
+    private final InvoiceFileRepository invoiceFileRepository;
     private final InvoiceStatusRepository invoiceStatusRepository;
     private final InvoiceStatusHistoryRepository statusHistoryRepository;
     private final OrganizationRepository organizationRepository;
@@ -54,6 +58,7 @@ class InvoiceArchiveControllerIntegrationTest {
             InvoiceController invoiceController,
             ApiExceptionHandler apiExceptionHandler,
             InvoiceRepository invoiceRepository,
+            InvoiceFileRepository invoiceFileRepository,
             InvoiceStatusRepository invoiceStatusRepository,
             InvoiceStatusHistoryRepository statusHistoryRepository,
             OrganizationRepository organizationRepository,
@@ -64,6 +69,7 @@ class InvoiceArchiveControllerIntegrationTest {
                 .setControllerAdvice(apiExceptionHandler)
                 .build();
         this.invoiceRepository = invoiceRepository;
+        this.invoiceFileRepository = invoiceFileRepository;
         this.invoiceStatusRepository = invoiceStatusRepository;
         this.statusHistoryRepository = statusHistoryRepository;
         this.organizationRepository = organizationRepository;
@@ -119,11 +125,24 @@ class InvoiceArchiveControllerIntegrationTest {
         mockMvc.perform(post("/api/v1/invoices/{id}/archive", invoice.getInvoiceId()))
                 .andExpect(status().isOk());
 
+        InvoiceFile invoiceFile = invoiceFileRepository.findByInvoiceInvoiceId(invoice.getInvoiceId()).orElseThrow();
+        assertNotNull(invoiceFile.getSha256Checksum());
+        assertEquals(invoice.getArchivedAt(), invoiceFile.getArchivedAt());
+        assertEquals(10, invoiceFile.getRetentionDurationYears());
+        assertEquals(InvoiceFileIntegrityStatus.VERIFIED, invoiceFile.getIntegrityStatus());
+
         mockMvc.perform(get("/api/v1/invoices/{id}", invoice.getInvoiceId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.invoiceId").value(invoice.getInvoiceId()))
                 .andExpect(jsonPath("$.status").value("ARCHIVEE"))
-                .andExpect(jsonPath("$.archivedAt").isNotEmpty());
+                .andExpect(jsonPath("$.archivedAt").isNotEmpty())
+                .andExpect(jsonPath("$.legalRetentionMetadata.invoiceFileId")
+                        .value(invoiceFile.getInvoiceFileId()))
+                .andExpect(jsonPath("$.legalRetentionMetadata.archivedAt")
+                        .value(invoiceFile.getArchivedAt().toString()))
+                .andExpect(jsonPath("$.legalRetentionMetadata.retentionDurationYears").value(10))
+                .andExpect(jsonPath("$.legalRetentionMetadata.integrityStatus").value("VERIFIED"))
+                .andExpect(jsonPath("$.legalRetentionMetadata.storageLocation").value(invoiceFile.getFilePath()));
 
         mockMvc.perform(get("/api/v1/invoices/{id}/file", invoice.getInvoiceId()))
                 .andExpect(status().isOk())
@@ -133,6 +152,30 @@ class InvoiceArchiveControllerIntegrationTest {
                         CONTENT_DISPOSITION,
                         containsString("attachment; filename=\"archived-invoice.png\"")
                 ));
+    }
+
+    @Test
+    void signalsAnIntegrityAnomalyWhenTheStoredFileNoLongerMatchesItsChecksum() throws Exception {
+        InvoiceUploadResponse uploadResponse = invoiceService.uploadAndAnalyze(new MockMultipartFile(
+                "file",
+                "integrity-anomaly.png",
+                "image/png",
+                new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
+        ), null);
+        Invoice invoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+        invoice.setInvoiceStatus(invoiceStatusRepository.findByCode(InvoiceStatusCode.EXPORTEE.getCode()).orElseThrow());
+        invoiceRepository.saveAndFlush(invoice);
+        InvoiceFile invoiceFile = invoiceFileRepository.findByInvoiceInvoiceId(invoice.getInvoiceId()).orElseThrow();
+        invoiceFile.setSha256Checksum("0".repeat(64));
+        invoiceFileRepository.saveAndFlush(invoiceFile);
+
+        mockMvc.perform(post("/api/v1/invoices/{id}/archive", invoice.getInvoiceId()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/invoices/{id}", invoice.getInvoiceId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.legalRetentionMetadata.integrityStatus")
+                        .value("ANOMALY_DETECTED"));
     }
 
     @ParameterizedTest

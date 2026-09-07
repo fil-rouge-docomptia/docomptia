@@ -7,6 +7,7 @@ import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.dto.response.InvoiceSupplierResponse;
+import org.facturation.backend.dto.response.LegalRetentionMetadataResponse;
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
 import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.Invoice;
@@ -140,8 +141,18 @@ public class InvoiceResponseMapper {
             ));
         }
 
-        invoiceFileRepository.findByInvoiceInvoiceId(invoice.getInvoiceId())
-                .ifPresent(invoiceFile -> response.setFilePath(invoiceFile.getFilePath()));
+        invoiceFileRepository.findByInvoiceInvoiceId(invoice.getInvoiceId()).ifPresent(invoiceFile -> {
+            response.setFilePath(invoiceFile.getFilePath());
+            if (invoiceFile.getArchivedAt() != null) {
+                response.setLegalRetentionMetadata(new LegalRetentionMetadataResponse(
+                        invoiceFile.getInvoiceFileId(),
+                        invoiceFile.getArchivedAt().toString(),
+                        invoiceFile.getRetentionDurationYears(),
+                        invoiceFile.getIntegrityStatus() == null ? null : invoiceFile.getIntegrityStatus().name(),
+                        invoiceFile.getFilePath()
+                ));
+            }
+        });
 
         invoiceOcrService.findLatestAnalysisResponse(invoice.getInvoiceId())
                 .ifPresent(response::setOcrAnalysis);

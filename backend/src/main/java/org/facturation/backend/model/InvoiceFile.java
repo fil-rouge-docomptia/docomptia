@@ -2,6 +2,8 @@ package org.facturation.backend.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -41,6 +43,16 @@ public class InvoiceFile {
 
     @Column(nullable = false)
     private LocalDateTime uploadedAt;
+
+    @Column(length = 64)
+    private String sha256Checksum;
+
+    private LocalDateTime archivedAt;
+
+    private Integer retentionDurationYears;
+
+    @Enumerated(EnumType.STRING)
+    private InvoiceFileIntegrityStatus integrityStatus;
 
     public Long getInvoiceFileId() {
         return invoiceFileId;
@@ -104,5 +116,37 @@ public class InvoiceFile {
 
     public void setUploadedAt(LocalDateTime uploadedAt) {
         this.uploadedAt = uploadedAt;
+    }
+
+    public String getSha256Checksum() {
+        return sha256Checksum;
+    }
+
+    public void setSha256Checksum(String sha256Checksum) {
+        this.sha256Checksum = sha256Checksum;
+    }
+
+    public LocalDateTime getArchivedAt() {
+        return archivedAt;
+    }
+
+    public void setArchivedAt(LocalDateTime archivedAt) {
+        this.archivedAt = archivedAt;
+    }
+
+    public Integer getRetentionDurationYears() {
+        return retentionDurationYears;
+    }
+
+    public void setRetentionDurationYears(Integer retentionDurationYears) {
+        this.retentionDurationYears = retentionDurationYears;
+    }
+
+    public InvoiceFileIntegrityStatus getIntegrityStatus() {
+        return integrityStatus;
+    }
+
+    public void setIntegrityStatus(InvoiceFileIntegrityStatus integrityStatus) {
+        this.integrityStatus = integrityStatus;
     }
 }

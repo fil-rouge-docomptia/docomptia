@@ -110,6 +110,10 @@ ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS payment_date DATE;
 ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(255);
 ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS paid_by_user_id BIGINT REFERENCES users(user_id);
 ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP;
+ALTER TABLE IF EXISTS invoice_files ADD COLUMN IF NOT EXISTS sha256_checksum VARCHAR(64);
+ALTER TABLE IF EXISTS invoice_files ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP;
+ALTER TABLE IF EXISTS invoice_files ADD COLUMN IF NOT EXISTS retention_duration_years INTEGER;
+ALTER TABLE IF EXISTS invoice_files ADD COLUMN IF NOT EXISTS integrity_status VARCHAR(255);
 
 ALTER TABLE IF EXISTS accounting_entries
     ADD COLUMN IF NOT EXISTS reversed_accounting_entry_id BIGINT REFERENCES accounting_entries(accounting_entry_id);
