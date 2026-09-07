@@ -3,6 +3,7 @@ import { Navigate, createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth/RouteGuard'
 import { AppShell } from '@/components/layout/AppShell'
 import AccountingPage from '@/pages/AccountingPage'
+import AccountImportPage from '@/pages/AccountImportPage'
 import AccountingRulesPage from '@/pages/AccountingRulesPage'
 import AccountingOnboardingPage from '@/pages/AccountingOnboardingPage'
 import ApprovalReviewPage from '@/pages/ApprovalReviewPage'
@@ -85,6 +86,10 @@ export const privateRoutes = [
   {
     path: '/accounting/accounts',
     element: <ChartOfAccountsPage />,
+  },
+  {
+    path: '/accounting/accounts/import',
+    element: <AccountImportPage />,
   },
   {
     path: '/exports',

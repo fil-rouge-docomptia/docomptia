@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, BookOpen, Download, Plus, Search, Upload } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { AccountEditorSheet } from '@/components/accounting/AccountEditorSheet'
@@ -155,10 +155,10 @@ export default function ChartOfAccountsPage() {
     <div className="min-w-0 space-y-6">
       <PageHeader
         actions={(
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button className="hidden lg:inline-flex" disabled variant="outline"><Download aria-hidden="true" />Export</Button>
             {canManage ? <>
-              <Button className="hidden lg:inline-flex" disabled variant="secondary"><Upload aria-hidden="true" />Import CSV</Button>
+              <Button asChild variant="secondary"><Link to="/accounting/accounts/import"><Upload aria-hidden="true" />Import CSV</Link></Button>
               <Button disabled={!accounts} id="add-account" onClick={(event) => { focusOrigin.current = event.currentTarget; setAction({ key: requestKey, kind: 'create' }) }}><Plus aria-hidden="true" />Add account</Button>
             </> : null}
           </div>
