@@ -22,15 +22,18 @@ public class SubscriptionQuotaService {
     private final OrganizationSubscriptionRepository subscriptionRepository;
     private final UserRepository userRepository;
     private final InvoiceRepository invoiceRepository;
+    private final SubscriptionPlanSuggestionService planSuggestionService;
 
     public SubscriptionQuotaService(
             OrganizationSubscriptionRepository subscriptionRepository,
             UserRepository userRepository,
-            InvoiceRepository invoiceRepository
+            InvoiceRepository invoiceRepository,
+            SubscriptionPlanSuggestionService planSuggestionService
     ) {
         this.subscriptionRepository = subscriptionRepository;
         this.userRepository = userRepository;
         this.invoiceRepository = invoiceRepository;
+        this.planSuggestionService = planSuggestionService;
     }
 
     @Transactional(readOnly = true)
@@ -76,7 +79,14 @@ public class SubscriptionQuotaService {
 
             long usage = usageCounter.applyAsLong(organizationId);
             if (usage >= quota) {
-                throw new SubscriptionLimitExceededException(limitName, quota, usage);
+                throw new SubscriptionLimitExceededException(
+                        limitName,
+                        quota,
+                        usage,
+                        planSuggestionService.findCompatiblePlans(
+                                subscription.getPlan(), limits, limitName, usage
+                        )
+                );
             }
         });
     }

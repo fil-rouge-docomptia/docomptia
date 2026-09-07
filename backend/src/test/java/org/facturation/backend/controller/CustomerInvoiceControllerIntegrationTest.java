@@ -9,6 +9,7 @@ import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.InvoiceStatusRepository;
 import org.facturation.backend.repository.OrganizationRepository;
 import org.facturation.backend.repository.OrganizationSubscriptionRepository;
+import org.facturation.backend.repository.SubscriptionPlanRepository;
 import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.JwtTokenService;
 import org.junit.jupiter.api.Test;
@@ -51,6 +52,9 @@ class CustomerInvoiceControllerIntegrationTest {
 
     @Autowired
     private OrganizationSubscriptionRepository organizationSubscriptionRepository;
+
+    @Autowired
+    private SubscriptionPlanRepository subscriptionPlanRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -108,6 +112,13 @@ class CustomerInvoiceControllerIntegrationTest {
                 .orElseThrow();
         subscription.getPlan().findLimitsAt(java.time.LocalDate.now()).orElseThrow()
                 .setMonthlyInvoiceLimit(monthlyUsage);
+        subscriptionPlanRepository.findAll().stream()
+                .filter(plan -> plan.getCode().equals("BUSINESS"))
+                .findFirst()
+                .orElseThrow()
+                .findLimitsAt(java.time.LocalDate.now())
+                .orElseThrow()
+                .setMonthlyInvoiceLimit(monthlyUsage);
 
         mockMvc.perform(post("/api/v1/customer-invoices")
                         .header("Authorization", "Bearer " + adminToken())
@@ -119,9 +130,23 @@ class CustomerInvoiceControllerIntegrationTest {
                 .andExpect(jsonPath("$.code").value("SUBSCRIPTION_LIMIT_REACHED"))
                 .andExpect(jsonPath("$.limit").value("MONTHLY_INVOICE_LIMIT"))
                 .andExpect(jsonPath("$.quota").value(monthlyUsage))
-                .andExpect(jsonPath("$.usage").value(monthlyUsage));
+                .andExpect(jsonPath("$.usage").value(monthlyUsage))
+                .andExpect(jsonPath("$.suggestedPlans.length()").value(1))
+                .andExpect(jsonPath("$.suggestedPlans[0].plan.code").value("PRO"))
+                .andExpect(jsonPath("$.suggestedPlans[0].limitDifferences[?(@.limit == 'MONTHLY_INVOICE_LIMIT')].currentValue")
+                        .value(monthlyUsage))
+                .andExpect(jsonPath("$.suggestedPlans[0].limitDifferences[1].suggestedValue")
+                        .isEmpty())
+                .andExpect(jsonPath("$.suggestedPlans[0].addedFeatures[0]").value("APPROVAL_WORKFLOW"))
+                .andExpect(jsonPath("$.suggestedPlans[?(@.plan.code == 'STARTER')]").isEmpty())
+                .andExpect(jsonPath("$.suggestedPlans[?(@.plan.code == 'BUSINESS')]").isEmpty());
 
         assertEquals(invoiceCount, invoiceRepository.count());
+        assertEquals("STARTER", organizationSubscriptionRepository
+                .findByOrganizationOrganizationId(userOrganization().getOrganizationId())
+                .orElseThrow()
+                .getPlan()
+                .getCode());
     }
 
     @Test
