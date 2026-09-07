@@ -65,6 +65,9 @@ public class ApiExceptionHandler {
     private static final String CLASSIFICATION_NOT_FOUND_CODE = "CLASSIFICATION_NOT_FOUND";
     private static final String CLASSIFICATION_VALIDATION_ERROR_CODE = "CLASSIFICATION_VALIDATION_ERROR";
     private static final String CLASSIFICATION_CONFLICT_CODE = "CLASSIFICATION_CONFLICT";
+    private static final String CLIENT_NOT_FOUND_CODE = "CLIENT_NOT_FOUND";
+    private static final String CUSTOMER_INVOICE_DRAFT_VALIDATION_ERROR_CODE =
+            "CUSTOMER_INVOICE_DRAFT_VALIDATION_ERROR";
 
     private final OcrErrorMapper ocrErrorMapper;
 
@@ -161,6 +164,33 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ClassificationConflictException.class)
     public ResponseEntity<ApiErrorResponse> handleClassificationConflict(ClassificationConflictException exception) {
         return errorResponse(HttpStatus.CONFLICT, CLASSIFICATION_CONFLICT_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(ClientNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleClientNotFound(ClientNotFoundException exception) {
+        return errorResponse(HttpStatus.NOT_FOUND, CLIENT_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidCustomerInvoiceDraftException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidCustomerInvoiceDraft(
+            InvalidCustomerInvoiceDraftException exception
+    ) {
+        return errorResponse(
+                HttpStatus.BAD_REQUEST,
+                CUSTOMER_INVOICE_DRAFT_VALIDATION_ERROR_CODE,
+                exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(CustomerInvoiceDraftNotModifiableException.class)
+    public ResponseEntity<ApiErrorResponse> handleCustomerInvoiceDraftNotModifiable(
+            CustomerInvoiceDraftNotModifiableException exception
+    ) {
+        return errorResponse(
+                HttpStatus.CONFLICT,
+                CUSTOMER_INVOICE_DRAFT_VALIDATION_ERROR_CODE,
+                exception.getMessage()
+        );
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
