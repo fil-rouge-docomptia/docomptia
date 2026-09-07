@@ -92,7 +92,7 @@ http://ocr:8000/ocr/analyze
 | `POST` | `/api/v1/invoices/{id}/comments` | Ajoute un commentaire non vide a une facture de l'organisation courante avec l'utilisateur connecte comme auteur et l'integre a son historique |
 | `GET` | `/api/v1/invoices/{id}/comments?page=0&size=20` | Retourne une page de commentaires de l'organisation courante, du plus ancien au plus recent, avec leur auteur et leur date |
 | `PATCH` | `/api/v1/accounting-entries/{entryId}/lines/{lineId}` | Corrige le compte, le libelle, le debit ou le credit d'une ligne non exportee et historise les valeurs avant/apres |
-| `POST` | `/api/v1/accounting-entries/{entryId}/reversal` | Cree l'extourne d'une ecriture exportee sous la forme d'une nouvelle ecriture datee, liee a l'originale, dont les debits et credits sont inverses. |
+| `POST` | `/api/v1/accounting-entries/{entryId}/reversal` | Cree l'extourne d'une ecriture exportee sous la forme d'une nouvelle ecriture datee, liee a l'originale, dont les debits et credits sont inverses. L'action, son auteur, sa date et les identifiants des ecritures originale et d'extourne sont journalises dans l'historique en lecture seule de la facture. |
 | `POST` | `/api/v1/accounting-entries/{entryId}/corrective-entry` | Cree l'extourne si elle n'existe pas encore, puis une ecriture corrective datee reprenant les comptes et montants de l'ecriture d'origine. Une nouvelle demande retourne la meme ecriture corrective sans la dupliquer. |
 | `GET` | `/api/v1/notifications?unreadOnly=false&page=0&size=20` | Retourne les notifications de l'utilisateur connecte, de la plus recente a la plus ancienne. `unreadOnly=true` limite la page aux notifications non lues. Chaque notification indique avec `emailRequired` si un email est prepare et expose alors `emailRecipient`, `emailSubject` et `emailBody`. |
 | `PATCH` | `/api/v1/notifications/{id}/read` | Marque comme lue une notification de l'utilisateur connecte et enregistre la date de premiere lecture. Les lectures suivantes conservent cette date. Une notification d'un autre utilisateur retourne `404`. |
@@ -121,6 +121,11 @@ valeur normalisee provient d'une correction manuelle.
 
 La fiche d'une facture expose `paymentDate`, `paymentReference` et `paidByUserId`
 lorsqu'un reglement a ete confirme, ainsi que `archivedAt` lorsqu'elle a ete archivee.
+
+L'historique en lecture seule d'une facture expose les changements de statut `PAYEE` et
+`ARCHIVEE`, ainsi que l'action comptable `ACCOUNTING_ENTRY_REVERSED`. Ces traces indiquent
+l'auteur et la date de l'action; la trace d'extourne relie egalement les identifiants des
+ecritures originale et inverse.
 
 Une facture `ARCHIVEE` reste consultable, previsualisable et telechargeable. Toute route
 qui modifierait la facture, son statut, son classement, son affectation, ses doublons, ses
