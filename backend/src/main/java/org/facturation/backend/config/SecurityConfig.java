@@ -71,6 +71,8 @@ public class SecurityConfig {
                         .hasAnyRole(BusinessPermission.VIEW_OWN_PROFILE.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/reference-data")
                         .hasAnyRole(BusinessPermission.VIEW_REFERENCE_DATA.roleCodes())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/subscription-plans")
+                        .hasAnyRole(BusinessPermission.VIEW_SUBSCRIPTION_PLANS.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/organizations/current")
                         .hasAnyRole(BusinessPermission.VIEW_ORGANIZATION.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/organizations/current/onboarding")
