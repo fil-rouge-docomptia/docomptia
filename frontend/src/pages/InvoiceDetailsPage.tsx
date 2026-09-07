@@ -69,9 +69,10 @@ export default function InvoiceDetailsPage() {
   const { user } = useAuth()
   const [requestState, setRequestState] = useState<{
     error: boolean
+    historyNeedsRefresh: boolean
     invoice: InvoiceDetails | null
     requestKey: string
-  }>({ error: false, invoice: null, requestKey: '' })
+  }>({ error: false, historyNeedsRefresh: false, invoice: null, requestKey: '' })
   const [retryCount, setRetryCount] = useState(0)
   const [activeTab, setActiveTab] = useState<InvoiceDetailTab>('details')
   const [correctionState, setCorrectionState] = useState({ dirty: false, saving: false })
@@ -99,11 +100,11 @@ export default function InvoiceDetailsPage() {
 
     getInvoiceDetails(invoiceId, controller.signal)
       .then((nextInvoice) => {
-        setRequestState({ error: false, invoice: nextInvoice, requestKey })
+        setRequestState({ error: false, historyNeedsRefresh: false, invoice: nextInvoice, requestKey })
       })
       .catch((requestError: unknown) => {
         if (!(requestError instanceof DOMException && requestError.name === 'AbortError')) {
-          setRequestState({ error: true, invoice: null, requestKey })
+          setRequestState({ error: true, historyNeedsRefresh: false, invoice: null, requestKey })
         }
       })
 
@@ -114,15 +115,17 @@ export default function InvoiceDetailsPage() {
     const response = await submitInvoiceForValidation(invoiceId)
     setRequestState((currentState) => ({
       ...currentState,
+      historyNeedsRefresh: true,
       invoice: currentState.invoice
         ? { ...currentState.invoice, status: response.status }
         : currentState.invoice,
     }))
   }
 
-  const handleInvoiceUpdated = (updatedInvoice: InvoiceDetails) => {
+  const handleInvoiceUpdated = (updatedInvoice: InvoiceDetails, historyNeedsRefresh = false) => {
     setRequestState((currentState) => ({
       ...currentState,
+      historyNeedsRefresh,
       invoice: updatedInvoice,
     }))
   }
@@ -170,6 +173,7 @@ export default function InvoiceDetailsPage() {
         const failure = retryError.details
         setRequestState((currentState) => ({
           ...currentState,
+          historyNeedsRefresh: true,
           invoice: currentState.invoice
             ? {
                 ...currentState.invoice,
@@ -213,7 +217,7 @@ export default function InvoiceDetailsPage() {
     return <InvoiceDetailsSkeleton />
   }
 
-  const expandedWorkflowTabActive = activeTab === 'accounting' || activeTab === 'approval'
+  const expandedWorkflowTabActive = activeTab !== 'details'
 
   return (
     <div className="space-y-5">
@@ -250,6 +254,7 @@ export default function InvoiceDetailsPage() {
           duplicateAlert={pendingDuplicateAlert}
           duplicateDecisionError={duplicateDecisionState.error}
           duplicateDecisionPending={duplicateDecisionState.pending}
+          historyNeedsRefresh={requestState.historyNeedsRefresh}
           invoice={invoice}
           key={`${invoice.invoiceId}:${invoice.status}:${invoice.ocrError?.occurredAt ?? ''}:${invoice.duplicateAlerts.map((alert) => `${alert.alertId}-${alert.decision}`).join(',')}`}
           onActiveTabChange={setActiveTab}

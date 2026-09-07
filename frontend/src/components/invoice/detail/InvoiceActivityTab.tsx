@@ -1,67 +1,138 @@
-import { Clock3 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { AlertCircle, Clock3 } from 'lucide-react'
 
+import { InvoiceActivityEvent } from '@/components/invoice/detail/InvoiceActivityEvent'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
+import { getInvoiceHistory } from '@/services/invoice'
 import type { InvoiceHistoryItem } from '@/types/invoice'
 
-function formatActivityDate(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
+import { activityTimestamp } from './invoice-activity-utils'
 
-  return new Intl.DateTimeFormat('en-GB', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date)
-}
+export function InvoiceActivityTab({ history, invoiceId }: {
+  // A partial mutation response invalidates the history included in the invoice details.
+  history: InvoiceHistoryItem[] | null
+  invoiceId: number
+}) {
+  const [retryCount, setRetryCount] = useState(0)
+  const [request, setRequest] = useState<{
+    key: string
+    history: InvoiceHistoryItem[] | null
+    error: boolean
+  }>({ key: '', history: null, error: false })
+  const requestKey = `${invoiceId}:${retryCount}`
+  const currentRequest = request.key === requestKey
+  const events = history ?? (currentRequest ? request.history : null)
+  const error = history === null && currentRequest && request.error
 
-function activityDescription(item: InvoiceHistoryItem) {
-  if (item.comment) {
-    return item.comment
-  }
+  useEffect(() => {
+    if (history !== null) {
+      return
+    }
 
-  if (item.fieldName) {
-    return `${item.fieldName} changed${item.newValue ? ` to ${item.newValue}` : ''}`
-  }
+    const controller = new AbortController()
+    getInvoiceHistory(invoiceId, controller.signal)
+      .then((updatedHistory) => {
+        setRequest({ key: requestKey, history: updatedHistory, error: false })
+      })
+      .catch((requestError: unknown) => {
+        if (!(requestError instanceof DOMException && requestError.name === 'AbortError')) {
+          setRequest({ key: requestKey, history: null, error: true })
+        }
+      })
 
-  return item.type.replaceAll('_', ' ').toLowerCase()
-}
+    return () => controller.abort()
+  }, [history, invoiceId, requestKey])
 
-export function InvoiceActivityTab({ history }: { history: InvoiceHistoryItem[] }) {
-  if (history.length === 0) {
-    return (
-      <div className="flex min-h-80 flex-col items-center justify-center px-6 py-12 text-center">
-        <span className="flex size-12 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
-          <Clock3 aria-hidden="true" className="size-6" />
-        </span>
-        <h2 className="mt-4 text-sm font-semibold text-foreground">No activity yet</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Status changes and corrections will appear here.
-        </p>
-      </div>
-    )
-  }
+  const sortedEvents = events?.toSorted((left, right) => (
+    activityTimestamp(right.date) - activityTimestamp(left.date)
+  ))
 
   return (
-    <ol className="space-y-0 p-5">
-      {history.map((item, index) => (
-        <li className="relative flex gap-3 pb-6 last:pb-0" key={`${item.date}-${item.type}-${index}`}>
-          {index < history.length - 1 ? (
-            <span aria-hidden="true" className="absolute left-[15px] top-8 h-[calc(100%-1rem)] w-px bg-border" />
-          ) : null}
-          <span className="z-10 mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground">
-            <Clock3 aria-hidden="true" className="size-4" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-foreground">
-              {item.action.replaceAll('_', ' ')}
+    <div className="space-y-4 p-4 sm:p-6">
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold tracking-[-0.25px] text-foreground">Activity</h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Chronological audit trail · Newest first
+          </p>
+        </div>
+        <Badge variant="outline">Read-only audit log</Badge>
+      </header>
+
+      <Alert className="border-transparent bg-info-muted">
+        <AlertTitle>Read-only audit history</AlertTitle>
+        <AlertDescription>
+          Recorded events cannot be edited or deleted from this screen.
+        </AlertDescription>
+      </Alert>
+
+      {error ? (
+        <Alert variant="destructive">
+          <AlertCircle aria-hidden="true" />
+          <AlertTitle>Unable to load activity</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>The latest history could not be loaded. You can retry without repeating the invoice action.</p>
+            <Button onClick={() => setRetryCount((count) => count + 1)} variant="outline">
+              Retry activity
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : !sortedEvents ? (
+        <div aria-label="Loading invoice activity" className="space-y-3" role="status">
+          {[0, 1, 2].map((index) => <Skeleton className="h-20 w-full" key={index} />)}
+        </div>
+      ) : (
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <section aria-labelledby="audit-events-title" className="min-w-0">
+            <h3 className="text-base font-semibold text-foreground" id="audit-events-title">
+              Audit events
+            </h3>
+            {sortedEvents.length === 0 ? (
+              <div className="flex min-h-60 flex-col items-center justify-center px-4 py-8 text-center">
+                <Clock3 aria-hidden="true" className="size-8 text-muted-foreground" />
+                <h4 className="mt-4 text-sm font-semibold">No activity yet</h4>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Status changes and corrections will appear here.
+                </p>
+              </div>
+            ) : (
+              <ol aria-label="Invoice activity" className="mt-3 space-y-2">
+                {sortedEvents.map((item, index) => (
+                  <li key={`${item.date}-${item.type}-${item.action}-${index}`}>
+                    {index > 0 ? <Separator className="mb-2" /> : null}
+                    <InvoiceActivityEvent item={item} />
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+
+          <aside aria-label="Audit properties" className="space-y-2.5 rounded-lg border border-border p-4">
+            <Badge variant="outline">Read-only</Badge>
+            <h3 className="text-base font-semibold">Audit properties</h3>
+            <p className="text-sm text-muted-foreground">
+              Review the authors, timestamps and details recorded for this invoice.
             </p>
-            <p className="mt-1 text-sm text-muted-foreground">{activityDescription(item)}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {formatActivityDate(item.date)}{item.author ? ` · ${item.author}` : ''}
-            </p>
-          </div>
-        </li>
-      ))}
-    </ol>
+            <Separator />
+            <dl className="space-y-2.5">
+              <div>
+                <dt className="text-xs text-muted-foreground">History</dt>
+                <dd className="mt-0.5 text-sm font-medium">
+                  {sortedEvents.length} recorded {sortedEvents.length === 1 ? 'event' : 'events'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Editing</dt>
+                <dd className="mt-0.5 text-sm font-medium">Not permitted</dd>
+              </div>
+            </dl>
+          </aside>
+        </div>
+      )}
+    </div>
   )
 }
