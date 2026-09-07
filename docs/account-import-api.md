@@ -54,7 +54,7 @@ si son compte est inactif. Aucun compte existant n'est modifié ou réactivé.
 Les lignes invalides bloquent la confirmation tant que leur exclusion n'a pas
 été explicitement choisie. Les références aux comptes existants sont préservées.
 
-L'empreinte SHA-256 lie les octets du fichier, son nom, le mapping, l'organisation
+L'empreinte SHA-256 lie les octets du fichier, son nom, le séparateur, le mapping, l'organisation
 et les statuts de prévisualisation. Le serveur recalcule l'analyse à la confirmation.
 Un changement exige une nouvelle prévisualisation. Les imports d'une organisation
 sont sérialisés par verrou ; la contrainte d'unicité protège aussi contre une création

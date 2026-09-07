@@ -95,6 +95,21 @@ class AccountImportControllerIntegrationTest {
     }
 
     @Test
+    void rejectsChangedDelimiterEvenWhenBothParsesHaveNewRows() throws Exception {
+        String mapping = "{\"accountNumber\":0,\"accountLabel\":1,\"accountType\":2}";
+        String csv = "number,label,type;label;type\n001ABC,Label,CUSTOM;Other;OTHER\n";
+        String fingerprint = preview(csv, mapping);
+        String changed = mvc.perform(request("preview", csv, mapping, ";")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.newAccounts").value(1))
+                .andExpect(jsonPath("$.rows[0].accountNumber").value("001ABC,Label,CUSTOM"))
+                .andReturn().getResponse().getContentAsString();
+        assertNotEquals(fingerprint, new ObjectMapper().readTree(changed).get("fingerprint").asText());
+        mvc.perform(request("confirm", csv, mapping, ";").param("fingerprint", fingerprint))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ACCOUNT_IMPORT_PREVIEW_CHANGED"));
+        assertEquals(4, accounts.count());
+    }
+
+    @Test
     void defaultsUnmappedActiveToTrueAndDoesNotInventMissingTypes() throws Exception {
         String mapping = "{\"accountNumber\":0,\"accountLabel\":1,\"accountType\":2}";
         String csv = "number,label,type\n0001,Label,CUSTOM\n0002,Missing type,\n0003,Short\n";
@@ -165,9 +180,13 @@ class AccountImportControllerIntegrationTest {
     }
 
     private MockMultipartHttpServletRequestBuilder request(String action, String csv, String mapping) {
+        return request(action, csv, mapping, ",");
+    }
+
+    private MockMultipartHttpServletRequestBuilder request(String action, String csv, String mapping, String delimiter) {
         var request = multipart("/api/v1/chart-of-accounts/import/" + action)
                 .file(new MockMultipartFile("file", "plan.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8)))
-                .param("delimiter", ",");
+                .param("delimiter", delimiter);
         request.with(user("admin@facturation-demo.fr").roles("ADMIN"));
         if (mapping != null) request.file(new MockMultipartFile("mapping", "mapping.json", "application/json", mapping.getBytes(StandardCharsets.UTF_8)));
         return request;

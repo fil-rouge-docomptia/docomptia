@@ -27,7 +27,7 @@ public class AccountImportCsvReader {
             "application/vnd.ms-excel", "application/octet-stream");
 
     public record Record(int lineNumber, List<String> cells) {}
-    public record Csv(String fileName, long fileSize, String contentHash, List<String> columns, List<Record> records) {}
+    public record Csv(String fileName, long fileSize, String delimiter, String contentHash, List<String> columns, List<Record> records) {}
 
     public Csv read(MultipartFile file, String delimiter) {
         if (!List.of(",", ";").contains(delimiter)) throw invalid("Choose a comma or semicolon delimiter");
@@ -55,7 +55,7 @@ public class AccountImportCsvReader {
             }
             name = name.replace('\\', '/');
             name = name.substring(name.lastIndexOf('/') + 1).replaceAll("[\\p{Cntrl}]", "");
-            return new Csv(name, bytes.length, contentHash(bytes), columns, records);
+            return new Csv(name, bytes.length, delimiter, contentHash(bytes), columns, records);
         } catch (IOException exception) {
             throw invalid("The CSV file could not be read");
         }

@@ -168,6 +168,7 @@ public class AccountImportService {
             updateDigest(digest, organizationId.toString());
             updateDigest(digest, mapping.toString());
             updateDigest(digest, csv.fileName());
+            updateDigest(digest, csv.delimiter());
             updateDigest(digest, csv.contentHash());
             for (int i = 0; i < rows.size(); i++) {
                 updateDigest(digest, Integer.toString(rows.get(i).lineNumber()));
