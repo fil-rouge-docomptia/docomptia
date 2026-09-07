@@ -242,6 +242,12 @@ les plans actifs. L'affectation d'un plan a une organisation, le controle des
 quotas, les prix, la facturation et les changements d'offre restent hors du
 perimetre de ce ticket.
 
+### Validee - abonnement courant et historique par organisation
+
+Un abonnement lie une organisation a un plan avec un statut, une date de debut et une date de
+fin optionnelle. La periode sans date de fin est l'abonnement courant. Lors d'un changement de
+plan, la periode precedente est cloturee et conservee afin de ne pas perdre l'historique.
+
 ## API Et Frontend
 
 ### Validee - contrats minimaux et documentes

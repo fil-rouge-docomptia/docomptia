@@ -1,5 +1,6 @@
 package org.facturation.backend.controller;
 
+import org.facturation.backend.model.OrganizationSubscription;
 import org.facturation.backend.model.SubscriptionPlan;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.SubscriptionPlanRepository;
@@ -16,7 +17,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.time.LocalDate;
+import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -102,6 +107,40 @@ class SubscriptionPlanControllerIntegrationTest {
                 .andExpect(jsonPath("$.plan.maxActiveUsers").value(2))
                 .andExpect(jsonPath("$.plan.monthlyInvoiceLimit").value(100))
                 .andExpect(jsonPath("$.plan.features[0]").value("INVOICE_MANAGEMENT"));
+    }
+
+    @Test
+    void planHistoryIsKeptAlongsideCurrentSubscription() throws Exception {
+        OrganizationSubscription current = organizationSubscriptionRepository
+                .findFirstByOrganizationOrganizationIdAndEndDateIsNullOrderByStartDateDescOrganizationSubscriptionIdDesc(1L)
+                .orElseThrow();
+        SubscriptionPlan business = subscriptionPlanRepository.findAll().stream()
+                .filter(plan -> plan.getCode().equals("BUSINESS"))
+                .findFirst()
+                .orElseThrow();
+
+        OrganizationSubscription previous = new OrganizationSubscription();
+        previous.setOrganization(current.getOrganization());
+        previous.setPlan(business);
+        previous.setStatus("ENDED");
+        previous.setStartDate(LocalDate.of(2026, 6, 1));
+        previous.setEndDate(LocalDate.of(2026, 8, 31));
+        organizationSubscriptionRepository.saveAndFlush(previous);
+
+        List<OrganizationSubscription> history = organizationSubscriptionRepository
+                .findByOrganizationOrganizationIdOrderByStartDateAsc(1L);
+        assertEquals(List.of("BUSINESS", "STARTER"), history.stream()
+                .map(subscription -> subscription.getPlan().getCode())
+                .toList());
+        assertEquals(LocalDate.of(2026, 6, 1), history.getFirst().getStartDate());
+        assertEquals(LocalDate.of(2026, 8, 31), history.getFirst().getEndDate());
+        assertEquals(LocalDate.of(2026, 9, 1), history.getLast().getStartDate());
+        assertNull(history.getLast().getEndDate());
+
+        mockMvc.perform(get("/api/v1/organizations/current/subscription")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.plan.code").value("STARTER"));
     }
 
     @Test

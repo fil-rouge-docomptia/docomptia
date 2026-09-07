@@ -72,6 +72,10 @@ http://ocr:8000/ocr/analyze
 | --- | --- | --- |
 | `GET` | `/api/v1/subscription-plans` | Retourne aux utilisateurs authentifies les plans SaaS actifs avec leurs limites et leurs fonctionnalites. Une limite `null` signifie que l'usage est illimite. |
 
+Chaque abonnement d'organisation conserve son plan, son statut et sa periode de validite.
+Un changement de plan est represente par une nouvelle periode; les periodes terminees restent dans
+l'historique et une seule periode sans date de fin peut etre courante pour une organisation.
+
 ## Endpoints Factures MVP
 
 | Methode | Endpoint | Role |
