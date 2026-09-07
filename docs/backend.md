@@ -81,7 +81,7 @@ http://ocr:8000/ocr/analyze
 | `POST` | `/api/v1/invoices/{id}/accounting-entry` | Genere ou controle l'ecriture comptable apres validation. Une ecriture desequilibree retourne `409` avec les totaux et l'ecart, et la facture reste `VALIDEE`. |
 | `POST` | `/api/v1/accounting-exports/csv?startDate=2026-08-01&endDate=2026-08-31` | Genere un CSV comptable telechargeable pour les factures `EXPORTABLE` de l'organisation courante et de la periode optionnelle. Un lot d'export `CSV` est cree avec l'organisation, la periode, l'auteur, le statut `PREPARATION`, les factures retenues, puis passe `GENERE` apres generation. Les ecritures sont recontrolees equilibrees, les dates sont au format ISO, les montants a deux decimales, puis les factures incluses passent `EXPORTEE` et l'action est journalisee avec l'identifiant du lot. |
 | `POST` | `/api/v1/invoices/{id}/mark-paid` | Confirme le reglement d'une facture `EXPORTEE` avec une `paymentDate` obligatoire et une `paymentReference` facultative, enregistre l'utilisateur connecte, passe la facture au statut `PAYEE` et historise l'action. Une nouvelle demande sur une facture deja `PAYEE` reste sans effet et ne duplique pas l'historique. |
-| `POST` | `/api/v1/invoices/{id}/archive` | Archive une facture au statut `EXPORTEE`, enregistre `archivedAt`, passe la facture au statut `ARCHIVEE` et historise l'action. |
+| `POST` | `/api/v1/invoices/{id}/archive` | Archive une facture au statut `EXPORTEE`, enregistre `archivedAt`, passe la facture au statut `ARCHIVEE` et historise l'action. Pour une facture disposant de son fichier original, l'operation fige aussi les metadonnees de conservation: fichier lie, date, duree configuree, emplacement et resultat du controle d'integrite SHA-256. |
 | `GET` | `/api/v1/invoices?status=EXTRAITE&status=VALIDEE&invoiceNumber=FAC-2026&supplier=Orange&client=Docomptia&dueDate=2026-08-31&startDate=2026-08-01&endDate=2026-08-31&minAmount=100.00&maxAmount=500.00&page=0&size=20&sortBy=invoiceDate&direction=DESC` | Recherche les factures de l'organisation courante, filtre par un ou plusieurs statuts connus (parametre repete ou codes separes par des virgules), le numero exact ou partiel, le fournisseur ou client par nom ou identifiant, la date de facture, la date d'echeance, une periode inclusive de dates de facture ou une plage inclusive de montants TTC, puis retourne une page triable par date, montant TTC ou statut. Un statut inconnu retourne `400`. Les bornes de periode et de montant peuvent etre omises individuellement; une borne minimum posterieure a la borne maximum correspondante retourne `400`. |
 | `GET` | `/api/v1/invoices/pending-validation?page=0&size=20&sortBy=invoiceDate&direction=DESC` | Retourne au responsable comptable une page triable des seules factures `A_VERIFIER` de son organisation. |
 | `GET` | `/api/v1/invoices/assigned-to-me?status=EXTRAITE&status=A_VERIFIER&page=0&size=20&sortBy=invoiceDate&direction=DESC` | Retourne une page triable des factures affectees a l'utilisateur connecte dans son organisation, avec un filtre optionnel sur un ou plusieurs statuts connus. |
@@ -121,6 +121,10 @@ valeur normalisee provient d'une correction manuelle.
 
 La fiche d'une facture expose `paymentDate`, `paymentReference` et `paidByUserId`
 lorsqu'un reglement a ete confirme, ainsi que `archivedAt` lorsqu'elle a ete archivee.
+Pour un document archive, `legalRetentionMetadata` expose en lecture seule le fichier lie,
+la date d'archivage, la duree de conservation en annees, l'emplacement et l'etat d'integrite
+`VERIFIED`, `ANOMALY_DETECTED` ou `NOT_VERIFIED`. La duree vaut 10 ans par defaut et se configure
+avec `app.legal-retention.duration-years`.
 
 L'historique en lecture seule d'une facture expose les changements de statut `PAYEE` et
 `ARCHIVEE`, ainsi que l'action comptable `ACCOUNTING_ENTRY_REVERSED`. Ces traces indiquent
