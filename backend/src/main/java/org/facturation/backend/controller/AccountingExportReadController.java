@@ -3,6 +3,8 @@ package org.facturation.backend.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.AccountingExportSelectionRequest;
+import org.facturation.backend.dto.request.AccountingExportPreflightRequest;
+import org.facturation.backend.dto.response.AccountingExportPreflightResponse;
 import org.facturation.backend.dto.response.AccountingExportHistoryResponse;
 import org.facturation.backend.dto.response.AccountingExportSelectionResponse;
 import org.facturation.backend.dto.response.AccountingExportSummaryResponse;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/accounting-exports")
@@ -60,5 +63,17 @@ public class AccountingExportReadController {
     @Operation(summary = "Reverifier une selection explicite sans creer de lot ni modifier les factures")
     public AccountingExportSelectionResponse confirm(@RequestBody AccountingExportSelectionRequest request) {
         return service.confirm(request);
+    }
+
+    @GetMapping("/formats")
+    @Operation(summary = "Lister les formats actuellement pris en charge par les generateurs d'export")
+    public List<ExportBatchFormat> formats() {
+        return List.of(ExportBatchFormat.CSV, ExportBatchFormat.FEC);
+    }
+
+    @PostMapping("/preflight")
+    @Operation(summary = "Controler la selection et le format sans generer de fichier ni modifier les factures")
+    public AccountingExportPreflightResponse preflight(@RequestBody AccountingExportPreflightRequest request) {
+        return service.preflight(request);
     }
 }

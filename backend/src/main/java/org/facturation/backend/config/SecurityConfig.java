@@ -116,12 +116,13 @@ public class SecurityConfig {
                                 "/api/v1/accounting-exports/csv",
                                 "/api/v1/accounting-exports/fec",
                                 "/api/v1/accounting-exports/selection/confirm",
+                                "/api/v1/accounting-exports/preflight",
                                 "/api/v1/accounting-exports/*/archive"
                         )
                         .hasAnyRole(BusinessPermission.EXPORT_ACCOUNTING.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/accounting-exports/*/file",
                                 "/api/v1/accounting-exports", "/api/v1/accounting-exports/summary",
-                                "/api/v1/accounting-exports/selection")
+                                "/api/v1/accounting-exports/selection", "/api/v1/accounting-exports/formats")
                         .hasAnyRole(BusinessPermission.EXPORT_ACCOUNTING.roleCodes())
                         .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/mark-paid")
                         .hasAnyRole(BusinessPermission.CONFIRM_INVOICE_PAYMENTS.roleCodes())

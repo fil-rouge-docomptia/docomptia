@@ -108,6 +108,116 @@ class AccountingExportReadControllerIntegrationTest {
     private static final LocalDate START = LocalDate.of(2042, 8, 1);
     private static final LocalDate END = LocalDate.of(2042, 8, 31);
 
+    @ParameterizedTest
+    @ValueSource(strings = {"CSV", "FEC"})
+    void preflightChecksOnlySelectedInvoicesAndDoesNotWrite(String format) throws Exception {
+        User owner = userRepository.findById(1L).orElseThrow();
+        owner.getOrganization().setSiret("73282932000074");
+        Invoice eur = eligible(owner, "PREFLIGHT-EUR", "EUR");
+        Invoice usd = eligible(owner, "PREFLIGHT-USD", "USD");
+        createInvoice(owner, InvoiceStatusCode.EXPORTABLE, "UNSELECTED-INVALID", "EUR", START);
+        long batches = exportBatchRepository.count();
+        long audits = auditLogRepository.count();
+        long history = invoiceStatusHistoryRepository.count();
+        long sequence = owner.getOrganization().getNextAccountingPieceNumber();
+        var updated = eur.getUpdatedAt();
+
+        mockMvc.perform(post(ROOT + "/preflight").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(owner))
+                        .contentType(MediaType.APPLICATION_JSON).content(preflight(format, eur.getInvoiceId(), usd.getInvoiceId())))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.format").value(format))
+                .andExpect(jsonPath("$.selection.organizationId").value(1))
+                .andExpect(jsonPath("$.selection.startDate").value(START.toString()))
+                .andExpect(jsonPath("$.selection.endDate").value(END.toString()))
+                .andExpect(jsonPath("$.selection.invoices[*].invoiceId", containsInAnyOrder(
+                        eur.getInvoiceId().intValue(), usd.getInvoiceId().intValue())))
+                .andExpect(jsonPath("$.selection.totals.length()").value(2))
+                .andExpect(jsonPath("$.selection.totals[0].totalDebit").value(120))
+                .andExpect(jsonPath("$.selection.totals[0].totalCredit").value(120))
+                .andExpect(jsonPath("$.selection.totals[1].currencyCode").value("USD"))
+                .andExpect(jsonPath("$.selection.totals[1].invoiceAmount").value(120));
+
+        assertThat(exportBatchRepository.count()).isEqualTo(batches);
+        assertThat(auditLogRepository.count()).isEqualTo(audits);
+        assertThat(invoiceStatusHistoryRepository.count()).isEqualTo(history);
+        assertThat(owner.getOrganization().getNextAccountingPieceNumber()).isEqualTo(sequence);
+        assertThat(eur.getUpdatedAt()).isEqualTo(updated);
+        for (Invoice invoice : List.of(eur, usd)) {
+            assertThat(invoice.getExportBatch()).isNull();
+            assertThat(statusOf(invoice)).isEqualTo("EXPORTABLE");
+            assertThat(accountingEntryRepository.findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(
+                    invoice.getInvoiceId()).orElseThrow().getEntryNumber()).isEqualTo("ENTRY-" + invoice.getInvoiceNumber());
+        }
+    }
+
+    @Test
+    void reportsAllFecErrorsByInvoiceWithoutBlockingCsvOrWritingAnAudit() throws Exception {
+        User owner = userRepository.findById(1L).orElseThrow();
+        owner.getOrganization().setSiret("invalid");
+        Invoice first = eligible(owner, "INVALID-FEC-FIRST", "EUR");
+        Invoice second = eligible(owner, "INVALID-FEC-SECOND", "EUR");
+        accountingEntryRepository.findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(first.getInvoiceId())
+                .orElseThrow().setLabel("bad\tlabel");
+        long audits = auditLogRepository.count();
+        long batches = exportBatchRepository.count();
+        mockMvc.perform(post(ROOT + "/preflight").with(user("admin@facturation-demo.fr").roles("ADMIN"))
+                        .contentType(MediaType.APPLICATION_JSON).content(preflight("CSV", first.getInvoiceId(), second.getInvoiceId())))
+                .andExpect(status().isOk());
+        mockMvc.perform(post(ROOT + "/preflight").with(user("admin@facturation-demo.fr").roles("ADMIN"))
+                        .contentType(MediaType.APPLICATION_JSON).content(preflight("FEC", first.getInvoiceId(), second.getInvoiceId())))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.invoices.length()").value(2))
+                .andExpect(jsonPath("$.invoices[0].invoiceId").value(first.getInvoiceId()))
+                .andExpect(jsonPath("$.invoices[0].invoiceNumber").value("INVALID-FEC-FIRST"))
+                .andExpect(jsonPath("$.invoices[0].errors[*].code", containsInAnyOrder(
+                        "FEC_ORGANIZATION_SIRET_INVALID", "FEC_TEXT_INVALID")))
+                .andExpect(jsonPath("$.invoices[1].errors[0].code").value("FEC_ORGANIZATION_SIRET_INVALID"));
+        assertThat(auditLogRepository.count()).isEqualTo(audits);
+        assertThat(exportBatchRepository.count()).isEqualTo(batches);
+        assertThat(statusOf(first)).isEqualTo("EXPORTABLE");
+    }
+
+    @Test
+    void preflightRechecksCommonControlsAndUnavailableIdsWithoutLeakingOtherOrganizations() throws Exception {
+        User owner = userRepository.findById(1L).orElseThrow();
+        Invoice changed = eligible(owner, "CHANGED-PREFLIGHT", "EUR");
+        changed.setTotalTva(new BigDecimal("1.00"));
+        chartOfAccountRepository.findById(2L).orElseThrow().setActive(false);
+        mockMvc.perform(post(ROOT + "/preflight").with(user("admin@facturation-demo.fr").roles("ADMIN"))
+                        .contentType(MediaType.APPLICATION_JSON).content(preflight("CSV", changed.getInvoiceId())))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.invoices[0].errors[*].code", containsInAnyOrder("VAT_INCONSISTENT", "ACCOUNT_INACTIVE")));
+        Invoice foreign = createInvoice(createUserForAnotherOrganization(), InvoiceStatusCode.EXPORTABLE,
+                "SECRET-PREFLIGHT", "EUR", START);
+        Invoice exported = eligible(owner, "EXPORTED-PREFLIGHT", "EUR");
+        batch(owner, "CSV", "GENERE", LocalDateTime.now(), exported);
+        Invoice outside = createInvoice(owner, InvoiceStatusCode.EXPORTABLE, "OUTSIDE-PREFLIGHT", "EUR", END.plusDays(1));
+        changed.setInvoiceStatus(invoiceStatusRepository.findByCode("VALIDEE").orElseThrow());
+        for (Long id : List.of(foreign.getInvoiceId(), exported.getInvoiceId(), outside.getInvoiceId(), changed.getInvoiceId(), 999999L)) {
+            mockMvc.perform(post(ROOT + "/preflight").with(user("admin@facturation-demo.fr").roles("ADMIN"))
+                            .contentType(MediaType.APPLICATION_JSON).content(preflight("CSV", id)))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.invoices[0].invoiceId").isEmpty())
+                    .andExpect(jsonPath("$.invoices[0].invoiceNumber").isEmpty())
+                    .andExpect(jsonPath("$.invoices[0].errors[0].code").value("SELECTION_CHANGED"));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"invoiceIds\":[1]}", "{\"format\":\"PDF\",\"invoiceIds\":[1]}",
+            "{\"format\":\"CSV\",\"invoiceIds\":[]}", "{\"format\":\"FEC\",\"invoiceIds\":[1,1]}",
+            "{\"format\":\"CSV\",\"invoiceIds\":[null]}", "{\"format\":\"FEC\",\"invoiceIds\":[-1]}",
+            "{\"format\":\"CSV\",\"invoiceIds\":[1],\"startDate\":\"2042-09-01\",\"endDate\":\"2042-08-01\"}"})
+    void rejectsInvalidPreflightRequests(String body) throws Exception {
+        mockMvc.perform(post(ROOT + "/preflight").with(user("admin@facturation-demo.fr").roles("ADMIN"))
+                        .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void exposesOnlyImplementedExportFormats() throws Exception {
+        mockMvc.perform(get(ROOT + "/formats").with(user("admin@facturation-demo.fr").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(content().json("[\"CSV\",\"FEC\"]"));
+    }
+
     @Test
     void countsActualEligibilityAndOnlyOrganizationBatchesGeneratedThisMonth() throws Exception {
         User owner = userRepository.findById(1L).orElseThrow();
@@ -272,7 +382,7 @@ class AccountingExportReadControllerIntegrationTest {
     @ParameterizedTest
     @ValueSource(strings = {"ADMIN", "OPERATEUR_COMPTABLE", "RESPONSABLE_COMPTABLE"})
     void allowsCurrentExportRoles(String role) throws Exception {
-        for (String path : List.of("", "/summary", "/selection")) {
+        for (String path : List.of("", "/summary", "/selection", "/formats")) {
             mockMvc.perform(get(ROOT + path).with(user("admin@facturation-demo.fr").roles(role)))
                     .andExpect(status().isOk());
         }
@@ -280,11 +390,14 @@ class AccountingExportReadControllerIntegrationTest {
         mockMvc.perform(post(ROOT + "/selection/confirm").with(user("admin@facturation-demo.fr").roles(role))
                         .contentType(MediaType.APPLICATION_JSON).content(selection(invoice.getInvoiceId())))
                 .andExpect(status().isOk());
+        mockMvc.perform(post(ROOT + "/preflight").with(user("admin@facturation-demo.fr").roles(role))
+                        .contentType(MediaType.APPLICATION_JSON).content(preflight("CSV", invoice.getInvoiceId())))
+                .andExpect(status().isOk());
     }
 
     @Test
     void authenticatesAndRestrictsEveryNewEndpoint() throws Exception {
-        for (String path : List.of("", "/summary", "/selection")) {
+        for (String path : List.of("", "/summary", "/selection", "/formats")) {
             mockMvc.perform(get(ROOT + path)).andExpect(status().isUnauthorized());
             mockMvc.perform(get(ROOT + path).with(user("admin@facturation-demo.fr").roles("UNKNOWN")))
                     .andExpect(status().isForbidden());
@@ -292,6 +405,11 @@ class AccountingExportReadControllerIntegrationTest {
         mockMvc.perform(post(ROOT + "/selection/confirm").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(post(ROOT + "/selection/confirm").with(user("admin@facturation-demo.fr").roles("UNKNOWN"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post(ROOT + "/preflight").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post(ROOT + "/preflight").with(user("admin@facturation-demo.fr").roles("UNKNOWN"))
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isForbidden());
     }
@@ -304,6 +422,10 @@ class AccountingExportReadControllerIntegrationTest {
 
     private String selection(Long... ids) {
         return "{\"startDate\":\"" + START + "\",\"endDate\":\"" + END + "\",\"invoiceIds\":" + List.of(ids) + "}";
+    }
+
+    private String preflight(String format, Long... ids) {
+        return "{\"format\":\"" + format + "\"," + selection(ids).substring(1);
     }
 
     private ExportBatch batch(User owner, String format, String status, LocalDateTime created, Invoice... invoices) {
