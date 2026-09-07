@@ -211,6 +211,7 @@ l'upload d'une facture.
 | --- | --- | --- |
 | `GET` | `/api/v1/organizations/current` | Retourne les informations legales, de contact et la devise par defaut de l'organisation de l'utilisateur connecte |
 | `GET` | `/api/v1/organizations/current/subscription` | Retourne a l'administrateur le statut, la prochaine echeance, le plan courant, ses limites, ses fonctionnalites et la consommation de l'organisation. `subscribed=false` et les autres champs `null` indiquent l'absence d'abonnement. |
+| `PATCH` | `/api/v1/organizations/current/subscription` | Change l'offre de l'organisation. Corps: `{\"planCode\": \"BUSINESS\"}`. Un upgrade est immediat; un downgrade compatible avec la consommation courante est planifie a la prochaine echeance. |
 | `PATCH` | `/api/v1/organizations/current` | Modifie les informations legales, de contact et la devise par defaut de l'organisation de l'administrateur connecte |
 | `GET` | `/api/v1/organizations/current/onboarding` | Retourne a l'administrateur la progression de la configuration initiale, les etapes terminees et les actions restantes |
 | `GET` | `/api/v1/organizations/current/validation-preferences` | Retourne si le circuit de validation est actif et son seuil TTC optionnel |
@@ -236,6 +237,9 @@ donnee partielle. La reponse propose aussi les plans actifs compatibles autres q
 avec leurs limites ameliorees et leurs fonctionnalites ajoutees. Une proposition permet l'action
 bloquee et ne diminue aucune limite ni fonctionnalite actuelle; elle ne modifie jamais l'abonnement.
 Une limite `null` reste illimitee.
+
+Chaque changement d'offre clot la periode du plan precedent et cree une nouvelle periode datee.
+Un downgrade qui depasse une limite du plan cible retourne `409` sans modifier l'abonnement.
 
 L'avancement de l'onboarding est recalcule a chaque consultation a partir des informations de
 l'organisation, de la devise par defaut et de la presence d'au moins un compte comptable actif.
