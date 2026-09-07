@@ -20,5 +20,7 @@ public interface AccountingEntryService {
 
     Optional<AccountingEntry> findByInvoiceId(Long invoiceId);
 
+    List<AccountingEntry> findAllByInvoiceId(Long invoiceId);
+
     List<AccountingEntryLine> findLines(AccountingEntry accountingEntry);
 }

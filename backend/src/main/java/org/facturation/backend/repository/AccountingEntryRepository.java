@@ -13,6 +13,8 @@ public interface AccountingEntryRepository extends JpaRepository<AccountingEntry
 
     Optional<AccountingEntry> findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(Long invoiceId);
 
+    List<AccountingEntry> findByInvoiceInvoiceIdOrderByCreatedAtAscAccountingEntryIdAsc(Long invoiceId);
+
     Optional<AccountingEntry> findByAccountingEntryIdAndInvoiceOrganizationOrganizationId(
             Long accountingEntryId,
             Long organizationId

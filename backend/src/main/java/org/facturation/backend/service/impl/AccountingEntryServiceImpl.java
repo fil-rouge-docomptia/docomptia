@@ -72,6 +72,11 @@ public class AccountingEntryServiceImpl implements AccountingEntryService {
     }
 
     @Override
+    public List<AccountingEntry> findAllByInvoiceId(Long invoiceId) {
+        return accountingEntryRepository.findByInvoiceInvoiceIdOrderByCreatedAtAscAccountingEntryIdAsc(invoiceId);
+    }
+
+    @Override
     public List<AccountingEntryLine> findLines(AccountingEntry accountingEntry) {
         return accountingEntryLineRepository.findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(
                 accountingEntry.getAccountingEntryId()
