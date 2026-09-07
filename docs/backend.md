@@ -204,6 +204,7 @@ l'upload d'une facture.
 | Methode | Endpoint | Role |
 | --- | --- | --- |
 | `GET` | `/api/v1/organizations/current` | Retourne les informations legales, de contact et la devise par defaut de l'organisation de l'utilisateur connecte |
+| `GET` | `/api/v1/organizations/current/subscription` | Retourne a l'administrateur le statut, la prochaine echeance, le plan courant, ses limites et ses fonctionnalites. `subscribed=false` et les autres champs `null` indiquent l'absence d'abonnement. |
 | `PATCH` | `/api/v1/organizations/current` | Modifie les informations legales, de contact et la devise par defaut de l'organisation de l'administrateur connecte |
 | `GET` | `/api/v1/organizations/current/onboarding` | Retourne a l'administrateur la progression de la configuration initiale, les etapes terminees et les actions restantes |
 | `GET` | `/api/v1/organizations/current/validation-preferences` | Retourne si le circuit de validation est actif et son seuil TTC optionnel |

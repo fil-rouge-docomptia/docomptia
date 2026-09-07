@@ -35,6 +35,12 @@ JOIN (VALUES
 ) AS feature(plan_code, feature_order, feature_code) ON feature.plan_code = plan.code
 ON CONFLICT (subscription_plan_id, feature_order) DO NOTHING;
 
+INSERT INTO organization_subscriptions (organization_id, subscription_plan_id, status, next_billing_date)
+SELECT 1, subscription_plan_id, 'ACTIVE', DATE '2026-10-01'
+FROM subscription_plans
+WHERE code = 'STARTER'
+ON CONFLICT (organization_id) DO NOTHING;
+
 INSERT INTO roles (role_id, code, label, description)
 VALUES (1, 'ADMIN', 'Administrateur', 'Administration generale de la plateforme')
 ON CONFLICT (role_id) DO NOTHING;

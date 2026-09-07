@@ -5,9 +5,11 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.OrganizationUpdateRequest;
 import org.facturation.backend.dto.request.ValidationPreferencesUpdateRequest;
+import org.facturation.backend.dto.response.CurrentSubscriptionResponse;
 import org.facturation.backend.dto.response.OnboardingStatusResponse;
 import org.facturation.backend.dto.response.OrganizationResponse;
 import org.facturation.backend.dto.response.ValidationPreferencesResponse;
+import org.facturation.backend.service.CurrentSubscriptionService;
 import org.facturation.backend.service.OnboardingService;
 import org.facturation.backend.service.OrganizationService;
 import org.springframework.http.ResponseEntity;
@@ -24,10 +26,21 @@ public class OrganizationController {
 
     private final OrganizationService organizationService;
     private final OnboardingService onboardingService;
+    private final CurrentSubscriptionService currentSubscriptionService;
 
-    public OrganizationController(OrganizationService organizationService, OnboardingService onboardingService) {
+    public OrganizationController(OrganizationService organizationService, OnboardingService onboardingService,
+                                  CurrentSubscriptionService currentSubscriptionService) {
         this.organizationService = organizationService;
         this.onboardingService = onboardingService;
+        this.currentSubscriptionService = currentSubscriptionService;
+    }
+
+    @GetMapping("/current/subscription")
+    @Operation(summary = "Consulter l'abonnement courant de l'organisation")
+    @ApiResponse(responseCode = "401", description = "Authentification requise")
+    @ApiResponse(responseCode = "403", description = "Droits administrateur requis")
+    public ResponseEntity<CurrentSubscriptionResponse> getCurrentSubscription() {
+        return ResponseEntity.ok(currentSubscriptionService.findCurrentSubscription());
     }
 
     @GetMapping("/current")

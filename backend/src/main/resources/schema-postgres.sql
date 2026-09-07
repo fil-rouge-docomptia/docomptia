@@ -17,6 +17,14 @@ CREATE TABLE IF NOT EXISTS subscription_plan_features (
 CREATE UNIQUE INDEX IF NOT EXISTS uk_subscription_plan_feature_order
     ON subscription_plan_features (subscription_plan_id, feature_order);
 
+CREATE TABLE IF NOT EXISTS organization_subscriptions (
+    organization_subscription_id BIGSERIAL PRIMARY KEY,
+    organization_id BIGINT NOT NULL UNIQUE REFERENCES organizations(organization_id),
+    subscription_plan_id BIGINT NOT NULL REFERENCES subscription_plans(subscription_plan_id),
+    status VARCHAR(255) NOT NULL,
+    next_billing_date DATE
+);
+
 ALTER TABLE invoices ALTER COLUMN invoice_number DROP NOT NULL;
 ALTER TABLE invoices ALTER COLUMN invoice_date DROP NOT NULL;
 ALTER TABLE invoices ALTER COLUMN total_ht DROP NOT NULL;
