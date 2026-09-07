@@ -222,6 +222,12 @@ La consommation expose le nombre courant d'utilisateurs actifs et le nombre de f
 pendant le mois calendaire courant. Les bornes `periodStart` et `periodEnd` rendent la periode
 explicite; le calcul recommence automatiquement au changement de mois.
 
+La creation d'une facture fournisseur ou client est refusee lorsque la consommation mensuelle
+atteint la limite du plan. L'activation d'un utilisateur est refusee lorsque le nombre
+d'utilisateurs actifs atteint sa limite. Ces refus retournent `409` avec le code
+`SUBSCRIPTION_LIMIT_REACHED`, la limite concernee, le quota et la consommation, sans creer de
+donnee partielle. Une limite `null` reste illimitee.
+
 L'avancement de l'onboarding est recalcule a chaque consultation a partir des informations de
 l'organisation, de la devise par defaut et de la presence d'au moins un compte comptable actif.
 
