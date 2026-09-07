@@ -1,4 +1,18 @@
-import type { ExportCandidate, ExportTotals } from '@/types/export'
+import { ApiError } from '@/services/api'
+import type { ExportCandidate, ExportInvoiceErrors, ExportTotals } from '@/types/export'
+
+export function exportValidationErrors(error: unknown): ExportInvoiceErrors[] {
+  if (!(error instanceof ApiError) || error.status !== 409) return []
+  const details = error.details
+  if (!details || typeof details !== 'object' || !('invoices' in details) || !Array.isArray(details.invoices)) return []
+  return details.invoices.filter((item): item is ExportInvoiceErrors => item && typeof item === 'object'
+    && (item.invoiceId === null || (Number.isSafeInteger(item.invoiceId) && item.invoiceId > 0))
+    && (item.invoiceNumber === null || typeof item.invoiceNumber === 'string')
+    && Array.isArray(item.errors) && item.errors.length > 0
+    && item.errors.every((control: unknown) => control && typeof control === 'object'
+      && 'code' in control && typeof control.code === 'string'
+      && 'message' in control && typeof control.message === 'string'))
+}
 
 export const exportStatusLabels = { PREPARATION: 'Preparation', GENERE: 'Generated', ARCHIVE: 'Archived' }
 

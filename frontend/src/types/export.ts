@@ -1,6 +1,14 @@
 export type ExportStatus = 'PREPARATION' | 'GENERE' | 'ARCHIVE'
 export type ExportFormat = 'CSV' | 'FEC'
 
+export type ExportPreflight = { format: ExportFormat; selection: ExportSelection }
+
+export type ExportInvoiceErrors = {
+  invoiceId: number | null
+  invoiceNumber: string | null
+  errors: { code: string; message: string }[]
+}
+
 export type ExportBatch = {
   exportBatchId: number
   createdAt: string | null

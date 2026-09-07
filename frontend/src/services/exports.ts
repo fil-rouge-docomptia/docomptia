@@ -1,6 +1,6 @@
 import { apiBaseUrl } from '@/lib/env'
 import { authenticatedFetch } from '@/services/api'
-import type { ExportHistory, ExportSelection, ExportSummary } from '@/types/export'
+import type { ExportFormat, ExportHistory, ExportPreflight, ExportSelection, ExportSummary } from '@/types/export'
 
 const root = `${apiBaseUrl}/v1/accounting-exports`
 
@@ -35,4 +35,20 @@ export async function confirmExportSelection(startDate: string, endDate: string,
 export async function downloadExport(id: number, signal?: AbortSignal): Promise<Blob> {
   const response = await authenticatedFetch(`${root}/${id}/file`, { signal })
   return response.blob()
+}
+
+export async function getExportFormats(signal?: AbortSignal): Promise<ExportFormat[]> {
+  const response = await authenticatedFetch(`${root}/formats`, { signal })
+  const formats: unknown = await response.json()
+  if (!Array.isArray(formats)) throw new Error('Invalid export formats response')
+  return [...new Set(formats.filter((format): format is ExportFormat => format === 'CSV' || format === 'FEC'))]
+}
+
+export async function checkExportFormat(selection: ExportSelection, format: ExportFormat, signal?: AbortSignal): Promise<ExportPreflight> {
+  const response = await authenticatedFetch(`${root}/preflight`, {
+    method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ startDate: selection.startDate, endDate: selection.endDate,
+      invoiceIds: selection.invoices.map((invoice) => invoice.invoiceId), format }),
+  })
+  return response.json() as Promise<ExportPreflight>
 }
