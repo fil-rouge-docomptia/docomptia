@@ -2,12 +2,14 @@ package org.facturation.backend.service.impl;
 
 import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.ExportBatch;
+import org.facturation.backend.model.ExportBatchFormat;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.AuditLogRepository;
 import org.facturation.backend.repository.ExportBatchRepository;
 import org.facturation.backend.repository.InvoiceRepository;
+import org.facturation.backend.service.AccountingExportFailureAuditService;
 import org.facturation.backend.service.AccountingExportValidator;
 import org.facturation.backend.service.AccountingExportValidator.ValidatedEntry;
 import org.facturation.backend.service.AccountingPieceNumberService;
@@ -22,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -39,6 +42,7 @@ class AccountingExportServiceImplTest {
         CurrentUserService currentUserService = mock(CurrentUserService.class);
         InvoiceStatusWorkflowService invoiceStatusWorkflowService = mock(InvoiceStatusWorkflowService.class);
         AccountingExportFileStorageService fileStorageService = mock(AccountingExportFileStorageService.class);
+        AccountingExportFailureAuditService failureAuditService = mock(AccountingExportFailureAuditService.class);
         AccountingExportServiceImpl service = new AccountingExportServiceImpl(
                 invoiceRepository,
                 accountingExportValidator,
@@ -47,7 +51,8 @@ class AccountingExportServiceImplTest {
                 exportBatchRepository,
                 currentUserService,
                 invoiceStatusWorkflowService,
-                fileStorageService
+                fileStorageService,
+                failureAuditService
         );
 
         Organization organization = new Organization();
@@ -77,5 +82,13 @@ class AccountingExportServiceImplTest {
 
         verify(invoiceStatusWorkflowService, never()).transitionTo(any(), any(), any(), anyString());
         verify(auditLogRepository, never()).save(any());
+        verify(failureAuditService).record(
+                eq(user),
+                eq(null),
+                eq(null),
+                eq(List.of(invoice)),
+                eq(ExportBatchFormat.CSV),
+                any(IllegalStateException.class)
+        );
     }
 }
