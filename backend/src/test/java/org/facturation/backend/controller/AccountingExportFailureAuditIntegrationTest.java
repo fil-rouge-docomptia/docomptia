@@ -39,6 +39,9 @@ class AccountingExportFailureAuditIntegrationTest {
     @Test
     void recordsFailedExportAfterTheExportTransactionRollsBack() throws Exception {
         User user = userRepository.findById(1L).orElseThrow();
+        List<Long> existingAuditLogIds = auditLogRepository.findAll().stream()
+                .map(AuditLog::getAuditLogId)
+                .toList();
 
         mockMvc.perform(post("/api/v1/accounting-exports/csv")
                         .param("startDate", "2026-01-01")
@@ -49,6 +52,7 @@ class AccountingExportFailureAuditIntegrationTest {
                         .value("No exportable invoices found; invoices already exported cannot be exported again"));
 
         List<AuditLog> exportLogs = auditLogRepository.findAll().stream()
+                .filter(log -> !existingAuditLogIds.contains(log.getAuditLogId()))
                 .filter(log -> "AccountingCsvExport".equals(log.getEntityName()))
                 .filter(log -> "CSV_EXPORT".equals(log.getAction()))
                 .toList();
