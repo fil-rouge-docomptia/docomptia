@@ -4,6 +4,9 @@ import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.AccountingEntryLine;
 import org.facturation.backend.model.AuditLog;
 import org.facturation.backend.model.ChartOfAccount;
+import org.facturation.backend.model.ExportBatch;
+import org.facturation.backend.model.ExportBatchFormat;
+import org.facturation.backend.model.ExportBatchStatusCode;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.User;
@@ -11,6 +14,7 @@ import org.facturation.backend.repository.AccountingEntryLineRepository;
 import org.facturation.backend.repository.AccountingEntryRepository;
 import org.facturation.backend.repository.AuditLogRepository;
 import org.facturation.backend.repository.ChartOfAccountRepository;
+import org.facturation.backend.repository.ExportBatchRepository;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.InvoiceStatusRepository;
 import org.facturation.backend.repository.SupplierRepository;
@@ -45,6 +49,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional
 @Sql(statements = {
         "ALTER TABLE invoices ALTER COLUMN invoice_id RESTART WITH 1000",
+        "ALTER TABLE export_batches ALTER COLUMN export_batch_id RESTART WITH 1000",
         "ALTER TABLE accounting_entries ALTER COLUMN accounting_entry_id RESTART WITH 1000",
         "ALTER TABLE accounting_entry_lines ALTER COLUMN accounting_entry_line_id RESTART WITH 1000"
 })
@@ -64,6 +69,9 @@ class AccountingExportControllerIntegrationTest {
 
     @Autowired
     private ChartOfAccountRepository chartOfAccountRepository;
+
+    @Autowired
+    private ExportBatchRepository exportBatchRepository;
 
     @Autowired
     private InvoiceRepository invoiceRepository;
@@ -112,15 +120,33 @@ class AccountingExportControllerIntegrationTest {
 
         assertThat(invoiceRepository.findById(exportedInvoice.getInvoiceId()).orElseThrow()
                 .getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.EXPORTEE.getCode());
+        assertThat(invoiceRepository.findById(exportedInvoice.getInvoiceId()).orElseThrow()
+                .getExportBatch().getExportBatchId()).isEqualTo(1000L);
         assertThat(invoiceRepository.findById(nonExportableInvoice.getInvoiceId()).orElseThrow()
                 .getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.VALIDEE.getCode());
+        assertThat(invoiceRepository.findById(nonExportableInvoice.getInvoiceId()).orElseThrow()
+                .getExportBatch()).isNull();
+
+        List<ExportBatch> exportBatches = exportBatchRepository.findAll();
+        assertThat(exportBatches).hasSize(1);
+        ExportBatch exportBatch = exportBatches.getFirst();
+        assertThat(exportBatch.getExportBatchId()).isEqualTo(1000L);
+        assertThat(exportBatch.getOrganization().getOrganizationId()).isEqualTo(user.getOrganization().getOrganizationId());
+        assertThat(exportBatch.getCreatedByUser().getUserId()).isEqualTo(user.getUserId());
+        assertThat(exportBatch.getPeriodStartDate()).isEqualTo(LocalDate.of(2026, 8, 1));
+        assertThat(exportBatch.getPeriodEndDate()).isEqualTo(LocalDate.of(2026, 8, 31));
+        assertThat(exportBatch.getFormat()).isEqualTo(ExportBatchFormat.CSV.getCode());
+        assertThat(exportBatch.getStatus()).isEqualTo(ExportBatchStatusCode.GENERE.getCode());
+        assertThat(exportBatch.getGeneratedAt()).isNotNull();
 
         List<AuditLog> exportLogs = auditLogRepository.findAll().stream()
                 .filter(log -> "AccountingCsvExport".equals(log.getEntityName()))
                 .filter(log -> "CSV_EXPORT".equals(log.getAction()))
                 .toList();
         assertThat(exportLogs).hasSize(1);
+        assertThat(exportLogs.getFirst().getEntityId()).isEqualTo(1000L);
         assertThat(exportLogs.getFirst().getOldValue()).contains(exportedInvoice.getInvoiceId().toString());
+        assertThat(exportLogs.getFirst().getNewValue()).contains("batchId=1000");
         assertThat(exportLogs.getFirst().getNewValue()).contains("entryCount=1");
     }
 
@@ -139,6 +165,7 @@ class AccountingExportControllerIntegrationTest {
 
         assertThat(invoiceRepository.findById(exportableInvoice.getInvoiceId()).orElseThrow()
                 .getInvoiceStatus().getCode()).isEqualTo(InvoiceStatusCode.EXPORTABLE.getCode());
+        assertThat(exportBatchRepository.findAll()).isEmpty();
     }
 
     @Test
@@ -152,6 +179,8 @@ class AccountingExportControllerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message")
                         .value("No exportable invoices found for accounting CSV export"));
+
+        assertThat(exportBatchRepository.findAll()).isEmpty();
     }
 
     private Invoice createInvoice(User user, InvoiceStatusCode statusCode, String invoiceNumber, String currencyCode) {

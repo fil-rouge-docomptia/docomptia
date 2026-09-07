@@ -7,12 +7,16 @@ import org.facturation.backend.mapper.AccountingEntryMapper;
 import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.AccountingEntryLine;
 import org.facturation.backend.model.AuditLog;
+import org.facturation.backend.model.ExportBatch;
+import org.facturation.backend.model.ExportBatchFormat;
+import org.facturation.backend.model.ExportBatchStatusCode;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.AccountingEntryLineRepository;
 import org.facturation.backend.repository.AccountingEntryRepository;
 import org.facturation.backend.repository.AuditLogRepository;
+import org.facturation.backend.repository.ExportBatchRepository;
 import org.facturation.backend.service.AccountingExportService;
 import org.facturation.backend.service.CurrentUserService;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
@@ -39,6 +43,7 @@ public class AccountingExportServiceImpl implements AccountingExportService {
     private final AccountingEntryLineRepository accountingEntryLineRepository;
     private final AccountingEntryMapper accountingEntryMapper;
     private final AuditLogRepository auditLogRepository;
+    private final ExportBatchRepository exportBatchRepository;
     private final CurrentUserService currentUserService;
     private final InvoiceStatusWorkflowService invoiceStatusWorkflowService;
 
@@ -47,6 +52,7 @@ public class AccountingExportServiceImpl implements AccountingExportService {
             AccountingEntryLineRepository accountingEntryLineRepository,
             AccountingEntryMapper accountingEntryMapper,
             AuditLogRepository auditLogRepository,
+            ExportBatchRepository exportBatchRepository,
             CurrentUserService currentUserService,
             InvoiceStatusWorkflowService invoiceStatusWorkflowService
     ) {
@@ -54,6 +60,7 @@ public class AccountingExportServiceImpl implements AccountingExportService {
         this.accountingEntryLineRepository = accountingEntryLineRepository;
         this.accountingEntryMapper = accountingEntryMapper;
         this.auditLogRepository = auditLogRepository;
+        this.exportBatchRepository = exportBatchRepository;
         this.currentUserService = currentUserService;
         this.invoiceStatusWorkflowService = invoiceStatusWorkflowService;
     }
@@ -88,8 +95,10 @@ public class AccountingExportServiceImpl implements AccountingExportService {
 
         String filename = buildFilename(startDate, endDate);
         String csv = buildCsv(exportedEntries);
+        ExportBatch exportBatch = createBatch(user, startDate, endDate, exportedEntries);
         markInvoicesExported(exportedEntries, user);
-        recordExport(exportedEntries, user, filename);
+        markBatchGenerated(exportBatch);
+        recordExport(exportedEntries, user, filename, exportBatch);
         return new AccountingCsvExport(filename, csv.getBytes(StandardCharsets.UTF_8));
     }
 
@@ -137,17 +146,50 @@ public class AccountingExportServiceImpl implements AccountingExportService {
         }
     }
 
-    private void recordExport(List<ExportedEntry> exportedEntries, User user, String filename) {
+    private ExportBatch createBatch(
+            User user,
+            LocalDate startDate,
+            LocalDate endDate,
+            List<ExportedEntry> exportedEntries
+    ) {
+        ExportBatch exportBatch = new ExportBatch();
+        exportBatch.setOrganization(user.getOrganization());
+        exportBatch.setCreatedByUser(user);
+        exportBatch.setPeriodStartDate(startDate);
+        exportBatch.setPeriodEndDate(endDate);
+        exportBatch.setFormat(ExportBatchFormat.CSV.getCode());
+        exportBatch.setStatus(ExportBatchStatusCode.PREPARATION.getCode());
+        exportBatch.setCreatedAt(LocalDateTime.now());
+        for (ExportedEntry exportedEntry : exportedEntries) {
+            exportBatch.addInvoice(exportedEntry.entry().getInvoice());
+        }
+        return exportBatchRepository.save(exportBatch);
+    }
+
+    private void markBatchGenerated(ExportBatch exportBatch) {
+        exportBatch.setStatus(ExportBatchStatusCode.GENERE.getCode());
+        exportBatch.setGeneratedAt(LocalDateTime.now());
+        exportBatchRepository.save(exportBatch);
+    }
+
+    private void recordExport(
+            List<ExportedEntry> exportedEntries,
+            User user,
+            String filename,
+            ExportBatch exportBatch
+    ) {
         AuditLog auditLog = new AuditLog();
         auditLog.setOrganization(user.getOrganization());
         auditLog.setUser(user);
         auditLog.setEntityName("AccountingCsvExport");
-        auditLog.setEntityId(user.getOrganization().getOrganizationId());
+        auditLog.setEntityId(exportBatch.getExportBatchId());
         auditLog.setAction("CSV_EXPORT");
         auditLog.setOldValue("invoiceIds=" + exportedEntries.stream()
                 .map(exportedEntry -> exportedEntry.entry().getInvoice().getInvoiceId().toString())
                 .toList());
-        auditLog.setNewValue("filename=" + filename + ", entryCount=" + exportedEntries.size());
+        auditLog.setNewValue("batchId=" + exportBatch.getExportBatchId()
+                + ", filename=" + filename
+                + ", entryCount=" + exportedEntries.size());
         auditLog.setCreatedAt(LocalDateTime.now());
         auditLogRepository.save(auditLog);
     }
