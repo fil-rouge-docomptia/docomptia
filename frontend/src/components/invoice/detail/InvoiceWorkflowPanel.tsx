@@ -24,23 +24,25 @@ type InvoiceWorkflowPanelProps = {
   duplicateAlert: InvoiceDuplicateAlert | null
   duplicateDecisionError: boolean
   duplicateDecisionPending: InvoiceDuplicateDecision | null
+  historyNeedsRefresh: boolean
   invoice: InvoiceDetails
   onActiveTabChange: (tab: InvoiceDetailTab) => void
   onCorrectionStateChange: (state: CorrectionState) => void
   onIgnoreDuplicate: () => Promise<void>
-  onInvoiceUpdated: (invoice: InvoiceDetails) => void
+  onInvoiceUpdated: (invoice: InvoiceDetails, historyNeedsRefresh?: boolean) => void
   onReviewDuplicate: () => void
   role?: RoleCode
 }
 
 const tabClassName =
-  'h-9 rounded-md border border-transparent px-3 py-2 text-sm font-medium shadow-none data-[state=active]:border-border data-[state=active]:bg-card data-[state=active]:shadow-elevation-1'
+  'h-11 rounded-md border border-transparent px-3 py-2 text-xs font-medium shadow-none sm:text-sm lg:h-9 data-[state=active]:border-border data-[state=active]:bg-card data-[state=active]:shadow-elevation-1'
 
 export function InvoiceWorkflowPanel({
   activeTab,
   duplicateAlert,
   duplicateDecisionError,
   duplicateDecisionPending,
+  historyNeedsRefresh,
   invoice,
   onActiveTabChange,
   onCorrectionStateChange,
@@ -56,7 +58,7 @@ export function InvoiceWorkflowPanel({
       value={activeTab}
     >
       <div className="overflow-x-auto border-b border-border px-2 py-2">
-        <TabsList className="h-9 min-w-max justify-start gap-1 rounded-none bg-transparent p-0">
+        <TabsList className="h-11 min-w-max justify-start gap-1 rounded-none bg-transparent p-0 lg:h-9">
           <TabsTrigger className={tabClassName} value="details">Details</TabsTrigger>
           <TabsTrigger className={tabClassName} value="accounting">Accounting</TabsTrigger>
           <TabsTrigger className={tabClassName} value="approval">Approval</TabsTrigger>
@@ -82,19 +84,22 @@ export function InvoiceWorkflowPanel({
         <TabsContent className="m-0 focus-visible:ring-inset" value="accounting">
           <InvoiceAccountingTab
             invoice={invoice}
-            onInvoiceUpdated={onInvoiceUpdated}
+            onInvoiceUpdated={(updatedInvoice) => onInvoiceUpdated(updatedInvoice, true)}
           />
         </TabsContent>
         <TabsContent className="m-0 focus-visible:ring-inset" value="approval">
           <InvoiceApprovalTab
             invoice={invoice}
             onEditInvoice={() => onActiveTabChange('details')}
-            onStatusChanged={(status) => onInvoiceUpdated({ ...invoice, status })}
+            onStatusChanged={(status) => onInvoiceUpdated({ ...invoice, status }, true)}
             role={role}
           />
         </TabsContent>
         <TabsContent className="m-0 focus-visible:ring-inset" value="activity">
-          <InvoiceActivityTab history={invoice.history} />
+          <InvoiceActivityTab
+            history={historyNeedsRefresh ? null : invoice.history}
+            invoiceId={invoice.invoiceId}
+          />
         </TabsContent>
       </div>
     </Tabs>

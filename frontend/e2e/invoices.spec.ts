@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Route } from '@playwright/test'
+import type { InvoiceHistoryItem } from '../src/types/invoice'
 
 import {
   currentUser,
@@ -46,7 +47,7 @@ const emptyPage = {
   totalPages: 0,
 }
 
-const invoiceHistory = [
+const invoiceHistory: InvoiceHistoryItem[] = [
   {
     action: 'EXTRAITE',
     author: 'Alex Martin',
@@ -418,6 +419,19 @@ function duplicateDecisionDetails(
 
 const correctedInvoiceDetails = {
   ...invoiceDetails,
+  history: [
+    ...invoiceHistory,
+    {
+      ...invoiceHistory[0],
+      action: 'FIELD_CORRECTION',
+      comment: null,
+      date: '2026-08-13T11:32:00',
+      fieldName: 'totalTva',
+      newValue: '260.10',
+      oldValue: '250.10',
+      type: 'CORRECTION',
+    },
+  ],
   ocrAnalysis: {
     ...invoiceDetails.ocrAnalysis,
     fields: invoiceDetails.ocrAnalysis.fields.map((field) => (
@@ -604,6 +618,7 @@ test('renders the invoice review sections from the detail endpoint', async ({ pa
   await expect(page.getByText('Review the extracted fields, then request approval')).toBeVisible()
 
   await page.getByRole('tab', { name: 'Activity' }).click()
+  await page.getByRole('button', { name: 'View details: OCR extraction completed' }).click()
   await expect(page.getByText('OCR analysis completed')).toBeVisible()
 })
 
@@ -997,9 +1012,10 @@ test('ignores a suspected duplicate and refreshes its status and activity', asyn
   expect(decisionPayload).toEqual({ decision: 'IGNORE' })
 
   await page.getByRole('tab', { name: 'Activity' }).click()
-  await expect(page.getByText('IGNORE')).toBeVisible()
+  await expect(page.getByText('Alex Martin · Duplicate alert ignored')).toBeVisible()
+  await page.getByRole('button', { name: 'View details: Duplicate alert ignored' }).click()
   await expect(page.getByText('Two distinct purchases')).toBeVisible()
-  await expect(page.getByText(/1 Sept 2026, 11:45 · Alex Martin/)).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Duplicate alert ignored details' })).toContainText('1 Sept 2026, 11:45')
 })
 
 test('confirms a duplicate from the comparison and updates the invoice immediately', async ({ page }) => {
@@ -1083,6 +1099,14 @@ test('sends only changed OCR values and keeps the manual correction after reload
   await expect(page.getByRole('status')).toHaveText('Corrections saved.')
   await expect(page.getByText('Edited manually')).toBeVisible()
   expect(correctionPayload).toEqual({ totalTva: '260.10' })
+
+  await page.getByRole('tab', { name: 'Activity' }).click()
+  const event = page.getByRole('list', { name: 'Invoice activity' }).getByRole('listitem').first()
+  await expect(event).toContainText('Alex Martin · Tax changed')
+  await event.getByRole('button', { name: 'View details: Tax changed' }).click()
+  await expect(event.getByRole('definition')).toHaveText([
+    'Tax', '250.10', '260.10', 'Alex Martin', '13 Aug 2026, 11:32',
+  ])
 
   await page.reload()
 
@@ -1228,6 +1252,8 @@ test('shows the OCR failure while keeping the original invoice accessible', asyn
 
 test('retries OCR on the existing invoice and refreshes its details', async ({ page }) => {
   let retryRequests = 0
+  let finishRetry!: () => void
+  const retryResponse = new Promise<void>((resolve) => { finishRetry = resolve })
 
   await mockApiRoute(page, '/v1/invoices/42', (route) =>
     fulfillJson(route, 200, retryableOcrFailureDetails),
@@ -1235,11 +1261,16 @@ test('retries OCR on the existing invoice and refreshes its details', async ({ p
   await mockApiRoute(page, '/v1/invoices/42/ocr/retry', async (route) => {
     retryRequests += 1
     expect(route.request().method()).toBe('POST')
+    await retryResponse
     await fulfillJson(route, 200, invoiceDetails)
   })
 
   await page.goto('/invoices/42')
   await page.getByRole('button', { name: 'Retry OCR' }).click()
+
+  await expect(page.getByRole('button', { name: 'Retrying OCR…' })).toBeDisabled()
+  await expect(page.getByText('Needs review', { exact: true })).toHaveCount(0)
+  finishRetry()
 
   await expect(page.getByText('Needs review')).toBeVisible()
   await expect(page.getByText('OCR processing failed', { exact: true })).toHaveCount(0)
@@ -1247,6 +1278,8 @@ test('retries OCR on the existing invoice and refreshes its details', async ({ p
   await expect(page.getByRole('img', { name: 'Invoice PDF page 1' })).toBeVisible()
   expect(retryRequests).toBe(1)
   expect(page.url()).toMatch(/\/invoices\/42$/)
+  await page.getByRole('tab', { name: 'Activity' }).click()
+  await expect(page.getByText('Alex Martin · OCR extraction completed')).toBeVisible()
 })
 
 test('offers manual correction when the OCR failure cannot be retried', async ({ page }) => {
@@ -1291,9 +1324,232 @@ test('renders activity included in invoice details without another request', asy
 
   await page.goto('/invoices/42')
   await page.getByRole('tab', { name: 'Activity' }).click()
+  await expect(page.getByLabel('Original invoice document')).toBeHidden()
+  await page.getByRole('button', { name: 'View details: OCR extraction completed' }).click()
   await expect(page.getByText('OCR analysis completed')).toBeVisible()
   expect(historyRequestCount).toBe(0)
 })
+
+test('orders audit events newest first and preserves changes, reasons and missing authors', async ({ page }) => {
+  const history: InvoiceHistoryItem[] = [
+    invoiceHistory[0],
+    {
+      ...invoiceHistory[0],
+      type: 'CORRECTION',
+      action: 'FIELD_CORRECTION',
+      date: '2026-08-13T11:32:00',
+      fieldName: 'commandReference',
+      oldValue: 'PO-2026-0184',
+      newValue: null,
+      comment: 'Removed an incorrect purchase order.\nChecked against the original PDF.',
+    },
+    {
+      ...invoiceHistory[0],
+      type: 'VALIDATION_DECISION',
+      action: 'REJECTION',
+      author: 'Marie Laurent',
+      authorId: 8,
+      date: '2026-08-13T11:42:00',
+      comment: 'Missing purchase order',
+    },
+    { ...invoiceHistory[0], author: null, authorId: null, date: 'invalid-date' },
+  ]
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, {
+    ...invoiceDetails, history,
+  }))
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Activity' }).click()
+  const events = page.getByRole('list', { name: 'Invoice activity' }).getByRole('listitem')
+  await expect(events).toHaveCount(4)
+  await expect(events.nth(0)).toContainText('Marie Laurent · Invoice rejected')
+  await expect(events.nth(1)).toContainText('Alex Martin · Purchase order changed')
+  await expect(events.nth(2)).toContainText('Alex Martin · OCR extraction completed')
+  await expect(events.nth(3)).toContainText('Author unavailable')
+  await expect(events.nth(3)).toContainText('invalid-date')
+  await expect(page.getByText('4 recorded events')).toBeVisible()
+
+  const toggle = events.nth(1).getByRole('button')
+  await toggle.focus()
+  await page.keyboard.press('Enter')
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  const details = page.getByRole('region', { name: 'Purchase order changed details' })
+  await expect(details.getByRole('definition')).toHaveText([
+    'Purchase order', 'PO-2026-0184', 'Not set', 'Alex Martin', '13 Aug 2026, 11:32',
+    'Removed an incorrect purchase order.\nChecked against the original PDF.',
+  ])
+  await page.keyboard.press('Space')
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(details).toBeHidden()
+})
+
+test('shows an explicit empty audit history without fabricated events', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, {
+    ...invoiceDetails, history: [],
+  }))
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Activity' }).click()
+  await expect(page.getByText('No activity yet')).toBeVisible()
+  await expect(page.getByText('0 recorded events')).toBeVisible()
+  await expect(page.getByRole('button', { name: /View details:/ })).toHaveCount(0)
+})
+
+test('refreshes activity after submission and retries history errors without resubmitting', async ({ page }) => {
+  let submissionCount = 0
+  let historyCount = 0
+  let finishHistory!: () => void
+  const historyResponse = new Promise<void>((resolve) => { finishHistory = resolve })
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, invoiceDetails))
+  await mockApiRoute(page, '/v1/invoices/42/submit-for-validation', async (route) => {
+    submissionCount += 1
+    await fulfillJson(route, 200, { invoiceId: 42, status: 'A_VERIFIER' })
+  })
+  await mockApiRoute(page, '/v1/invoices/42/history', async (route) => {
+    expect(route.request().method()).toBe('GET')
+    historyCount += 1
+    if (historyCount === 1) {
+      await historyResponse
+      await fulfillJson(route, 503, { message: 'History temporarily unavailable' })
+    } else {
+      await fulfillJson(route, 200, approvalHistory)
+    }
+  })
+  await page.goto('/invoices/42')
+  await page.getByRole('button', { name: 'Request approval' }).click()
+  await expect(page.getByText('Waiting approval', { exact: true })).toBeVisible()
+  await page.getByRole('tab', { name: 'Activity' }).click()
+  await expect(page.getByRole('status', { name: 'Loading invoice activity' })).toBeVisible()
+  await expect(page.getByRole('list', { name: 'Invoice activity' })).toHaveCount(0)
+  finishHistory()
+  await expect(page.getByText('Unable to load activity')).toBeVisible()
+  await page.getByRole('button', { name: 'Retry activity' }).click()
+  await expect(page.getByText('Alex Martin · Status changed to Waiting approval')).toBeVisible()
+  expect(submissionCount).toBe(1)
+  expect(historyCount).toBe(2)
+  await page.getByRole('tab', { name: 'Details' }).click()
+  await expect(page.getByLabel('Original invoice document')).toBeVisible()
+})
+
+test('refreshes activity after approval using the backend validation decision', async ({ page }) => {
+  let approved = false
+  await mockCurrentUser(page, {
+    ...currentUser, role: { ...currentUser.role, code: 'RESPONSABLE_COMPTABLE' },
+  })
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, waitingApprovalDetails))
+  await mockApiRoute(page, '/v1/invoices/42/history', (route) => fulfillJson(route, 200, approved
+    ? [...approvalHistory, {
+        ...invoiceHistory[0], type: 'VALIDATION_DECISION', action: 'VALIDATION',
+        date: '2026-09-02T12:00:00', author: 'Marie Laurent', authorId: 8, comment: null,
+      }]
+    : approvalHistory))
+  await mockApiRoute(page, '/v1/invoices/42/validate', async (route) => {
+    expect(route.request().method()).toBe('POST')
+    approved = true
+    await fulfillJson(route, 200, { invoiceId: 42, status: 'VALIDEE' })
+  })
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Approval' }).click()
+  await page.getByRole('button', { name: 'Approve', exact: true }).click()
+  await expect(page.getByRole('tab', { name: 'Approval' })).toHaveAttribute('data-state', 'active')
+  await page.getByRole('tab', { name: 'Activity' }).click()
+  await expect(page.getByRole('list', { name: 'Invoice activity' }).getByRole('listitem').first())
+    .toContainText('Marie Laurent · Invoice approved')
+})
+
+test('keeps rejected corrections editable and adds activity only after a successful save', async ({ page }) => {
+  let patchCount = 0
+  await mockApiRoute(page, '/v1/invoices/42', async (route) => {
+    if (route.request().method() === 'PATCH') {
+      patchCount += 1
+      expect(route.request().postDataJSON()).toEqual({ totalTva: '260.10' })
+      await fulfillJson(route, patchCount === 1 ? 409 : 200, patchCount === 1
+        ? { message: 'Invoice changed. Check its current values before saving.' }
+        : correctedInvoiceDetails)
+      return
+    }
+    await fulfillJson(route, 200, invoiceDetails)
+  })
+  await page.goto('/invoices/42')
+  await page.getByLabel('Tax', { exact: true }).fill('260.10')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByRole('alert').filter({ hasText: 'Invoice changed.' })).toBeVisible()
+  await expect(page.getByLabel('Tax', { exact: true })).toHaveValue('260.10')
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled()
+  await expect(page.getByText('Corrections saved.')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByText('Corrections saved.')).toBeVisible()
+  await page.getByRole('tab', { name: 'Activity' }).click()
+  await expect(page.getByText('Alex Martin · Tax changed')).toBeVisible()
+  expect(patchCount).toBe(2)
+})
+
+test('retains the original PDF and records another failed OCR attempt in activity', async ({ page }) => {
+  const failure = {
+    invoiceId: 42,
+    status: 'ERREUR_OCR',
+    ocrError: { ...retryableOcrFailureDetails.ocrError, occurredAt: '2026-09-02T12:00:00' },
+  }
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, retryableOcrFailureDetails))
+  await mockApiRoute(page, '/v1/invoices/42/ocr/retry', (route) => fulfillJson(route, 503, failure))
+  await mockApiRoute(page, '/v1/invoices/42/history', (route) => fulfillJson(route, 200, [{
+    ...invoiceHistory[0], action: 'ERREUR_OCR', date: failure.ocrError.occurredAt,
+    comment: 'Second OCR attempt failed: service unavailable',
+  }]))
+  await page.goto('/invoices/42')
+  await page.getByRole('button', { name: 'Retry OCR' }).click()
+  await expect(page.getByRole('alert').filter({ hasText: 'OCR could not be restarted.' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Invoice PDF page 1' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Retry OCR' })).toBeEnabled()
+  await page.getByRole('tab', { name: 'Activity' }).click()
+  await page.getByRole('button', { name: 'View details: OCR processing failed' }).click()
+  await expect(page.getByText('Second OCR attempt failed: service unavailable')).toBeVisible()
+})
+
+test('does not dismiss a duplicate or invent a decision when the API rejects it', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, duplicateInvoiceDetails))
+  await mockApiRoute(page, '/v1/invoices/42/duplicate-alerts/71/decision', (route) => (
+    fulfillJson(route, 409, { message: 'Duplicate decision conflict' })
+  ))
+  await page.goto('/invoices/42')
+  await page.getByRole('button', { name: 'Not a duplicate' }).first().click()
+  await expect(page.getByRole('tabpanel', { name: 'Details' }).getByRole('alert').filter({ hasText: 'The duplicate decision could not be saved.' })).toBeVisible()
+  await expect(page.getByText('Possible duplicate invoice')).toBeVisible()
+  await page.getByRole('tab', { name: 'Activity' }).click()
+  await expect(page.getByRole('button', { name: 'View details: Duplicate alert ignored' })).toHaveCount(0)
+  await expect(page.getByText('1 recorded event')).toBeVisible()
+})
+
+for (const width of [1440, 768, 390]) {
+  test(`keeps the audit timeline and expanded values usable at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1024 })
+    await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, {
+      ...correctedInvoiceDetails,
+      history: [...correctedInvoiceDetails.history, {
+        ...invoiceHistory[0], type: 'COMMENT', action: 'COMMENT_ADDED',
+        date: '2026-08-13T12:00:00', comment: 'LongReference'.repeat(30),
+      }],
+    }))
+    await page.goto('/invoices/42')
+    await page.getByRole('tab', { name: 'Details' }).focus()
+    await page.keyboard.press('End')
+    await expect(page.getByRole('tab', { name: 'Activity' })).toHaveAttribute('data-state', 'active')
+    await page.getByRole('button', { name: 'View details: Tax changed' }).click()
+    await expect(page.getByRole('region', { name: 'Tax changed details' })).toBeVisible()
+    await page.getByRole('button', { name: 'View details: Comment added' }).click()
+    await expect(page.getByText('LongReference'.repeat(30))).toBeVisible()
+    await expect(page.getByRole('complementary', { name: 'Audit properties' })).toBeVisible()
+    const dimensions = await page.evaluate(() => ({
+      client: document.documentElement.clientWidth,
+      scroll: document.documentElement.scrollWidth,
+    }))
+    expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.client)
+    await page.getByRole('button', { name: 'Hide details: Comment added' }).click()
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await page.screenshot({ path: testInfo.outputPath(`activity-${width}.png`), fullPage: true })
+    await page.getByRole('tab', { name: 'Details' }).click()
+    await expect(page.getByLabel('Tax', { exact: true })).toHaveValue('260.10')
+    await expect(page.getByRole('button', { name: 'Download original invoice' })).toBeEnabled()
+  })
+}
 
 test('submits an extracted invoice for approval and refreshes the available action', async ({ page }) => {
   let submissionCount = 0
