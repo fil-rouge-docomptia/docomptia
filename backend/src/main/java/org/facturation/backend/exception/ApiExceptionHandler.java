@@ -75,6 +75,12 @@ public class ApiExceptionHandler {
         this.ocrErrorMapper = ocrErrorMapper;
     }
 
+    @ExceptionHandler(AccountImportException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountImport(AccountImportException exception) {
+        return errorResponse(exception.getStatus(), exception.getStatus() == HttpStatus.CONFLICT
+                ? "ACCOUNT_IMPORT_PREVIEW_CHANGED" : "ACCOUNT_IMPORT_INVALID", exception.getMessage());
+    }
+
     @ExceptionHandler(InvalidInvoiceFileException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidInvoiceFile(InvalidInvoiceFileException exception) {
         return errorResponse(HttpStatus.BAD_REQUEST, INVALID_INVOICE_FILE_CODE, exception.getMessage());

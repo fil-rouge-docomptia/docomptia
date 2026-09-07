@@ -156,7 +156,9 @@ public class SecurityConfig {
                         .hasAnyRole(BusinessPermission.VIEW_ACCOUNTING_CONFIGURATION.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/accounting-rules", "/api/v1/accounting-rules/**")
                         .hasAnyRole(BusinessPermission.VIEW_ACCOUNTING_CONFIGURATION.roleCodes())
-                        .requestMatchers(HttpMethod.POST, "/api/v1/chart-of-accounts", "/api/v1/chart-of-accounts/*/deactivate")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/chart-of-accounts", "/api/v1/chart-of-accounts/*/deactivate",
+                                "/api/v1/chart-of-accounts/import/inspect", "/api/v1/chart-of-accounts/import/preview",
+                                "/api/v1/chart-of-accounts/import/confirm")
                         .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_CONFIGURATION.roleCodes())
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/chart-of-accounts/**", "/api/v1/accounting-rules/**")
                         .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_CONFIGURATION.roleCodes())

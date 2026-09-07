@@ -18,4 +18,8 @@ public interface OrganizationRepository extends JpaRepository<Organization, Long
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select organization from Organization organization where organization.organizationId = :organizationId")
     Optional<Organization> findByIdForPieceNumberUpdate(@Param("organizationId") Long organizationId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select organization from Organization organization where organization.organizationId = :organizationId")
+    Optional<Organization> findForAccountImport(@Param("organizationId") Long organizationId);
 }
