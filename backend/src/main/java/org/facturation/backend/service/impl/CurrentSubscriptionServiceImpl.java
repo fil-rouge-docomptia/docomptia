@@ -30,7 +30,10 @@ public class CurrentSubscriptionServiceImpl implements CurrentSubscriptionServic
     @Transactional(readOnly = true)
     public CurrentSubscriptionResponse findCurrentSubscription() {
         Long organizationId = currentUserService.getCurrentUser().getOrganization().getOrganizationId();
-        return subscriptionRepository.findByOrganizationOrganizationId(organizationId)
+        return subscriptionRepository
+                .findFirstByOrganizationOrganizationIdAndEndDateIsNullOrderByStartDateDescOrganizationSubscriptionIdDesc(
+                        organizationId
+                )
                 .map(CurrentSubscriptionServiceImpl::toResponse)
                 .orElseGet(CurrentSubscriptionResponse::withoutSubscription);
     }
