@@ -2,6 +2,7 @@ import { Navigate, createBrowserRouter } from 'react-router-dom'
 
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth/RouteGuard'
 import { AppShell } from '@/components/layout/AppShell'
+import AccountingPage from '@/pages/AccountingPage'
 import AccountingOnboardingPage from '@/pages/AccountingOnboardingPage'
 import ApprovalReviewPage from '@/pages/ApprovalReviewPage'
 import ApprovalsPage from '@/pages/ApprovalsPage'
@@ -73,12 +74,7 @@ export const privateRoutes = [
   },
   {
     path: '/accounting',
-    element: (
-      <ModulePlaceholderPage
-        description="Manage entries and accounting configuration."
-        title="Accounting"
-      />
-    ),
+    element: <AccountingPage />,
   },
   {
     path: '/exports',
