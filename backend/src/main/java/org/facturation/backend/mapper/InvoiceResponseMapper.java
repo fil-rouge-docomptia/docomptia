@@ -157,6 +157,12 @@ public class InvoiceResponseMapper {
                         accountingEntry,
                         accountingEntryService.findLines(accountingEntry)
                 )));
+        response.setAccountingEntries(accountingEntryService.findAllByInvoiceId(invoice.getInvoiceId()).stream()
+                .map(accountingEntry -> accountingEntryMapper.toResponse(
+                        accountingEntry,
+                        accountingEntryService.findLines(accountingEntry)
+                ))
+                .toList());
 
         return response;
     }
