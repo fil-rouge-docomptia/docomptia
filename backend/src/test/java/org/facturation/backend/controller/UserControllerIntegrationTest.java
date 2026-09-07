@@ -264,10 +264,21 @@ class UserControllerIntegrationTest {
                 .andExpect(jsonPath("$.code").value("SUBSCRIPTION_LIMIT_REACHED"))
                 .andExpect(jsonPath("$.limit").value("MAX_ACTIVE_USERS"))
                 .andExpect(jsonPath("$.quota").value(activeUsers))
-                .andExpect(jsonPath("$.usage").value(activeUsers));
+                .andExpect(jsonPath("$.usage").value(activeUsers))
+                .andExpect(jsonPath("$.suggestedPlans.length()").value(2))
+                .andExpect(jsonPath("$.suggestedPlans[0].plan.code").value("BUSINESS"))
+                .andExpect(jsonPath("$.suggestedPlans[0].limitDifferences[0].limit")
+                        .value("MAX_ACTIVE_USERS"))
+                .andExpect(jsonPath("$.suggestedPlans[0].limitDifferences[0].currentValue").value(activeUsers))
+                .andExpect(jsonPath("$.suggestedPlans[0].limitDifferences[0].suggestedValue").value(10))
+                .andExpect(jsonPath("$.suggestedPlans[0].addedFeatures[0]").value("APPROVAL_WORKFLOW"))
+                .andExpect(jsonPath("$.suggestedPlans[1].plan.code").value("PRO"))
+                .andExpect(jsonPath("$.suggestedPlans[?(@.plan.code == 'STARTER')]").isEmpty());
 
         assertThat(userRepository.findById(9631L).orElseThrow().isActive()).isFalse();
         assertThat(auditLogRepository.count()).isEqualTo(auditCount);
+        assertThat(organizationSubscriptionRepository.findByOrganizationOrganizationId(1L).orElseThrow()
+                .getPlan().getCode()).isEqualTo("STARTER");
     }
 
     @Test

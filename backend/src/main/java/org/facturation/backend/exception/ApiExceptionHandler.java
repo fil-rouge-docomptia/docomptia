@@ -210,7 +210,8 @@ public class ApiExceptionHandler {
                 exception.getMessage(),
                 exception.getLimit(),
                 exception.getQuota(),
-                exception.getUsage()
+                exception.getUsage(),
+                exception.getSuggestedPlans()
         ));
     }
 
