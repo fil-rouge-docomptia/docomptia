@@ -17,6 +17,8 @@ import InvoiceUploadPage from '@/pages/InvoiceUploadPage'
 import InvoiceDetailsPage from '@/pages/InvoiceDetailsPage'
 import InvoicesPage from '@/pages/InvoicesPage'
 import EmailVerificationPage from '@/pages/EmailVerificationPage'
+import ExportsPage from '@/pages/ExportsPage'
+import CreateExportPage from '@/pages/CreateExportPage'
 import LoginRoutePage from '@/pages/LoginRoutePage'
 import ModulePlaceholderPage from '@/pages/ModulePlaceholderPage'
 import NotFoundPage from '@/pages/NotFoundPage'
@@ -93,12 +95,11 @@ export const privateRoutes = [
   },
   {
     path: '/exports',
-    element: (
-      <ModulePlaceholderPage
-        description="Prepare and retrieve accounting exports."
-        title="Exports"
-      />
-    ),
+    element: <ExportsPage />,
+  },
+  {
+    path: '/exports/new',
+    element: <CreateExportPage />,
   },
   {
     path: '/documents',
