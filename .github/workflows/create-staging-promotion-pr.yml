@@ -13,7 +13,7 @@ concurrency:
 jobs:
   prepare-pr:
     name: Prepare PR from staging to main
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
 
     steps:
       - name: Check out repository
