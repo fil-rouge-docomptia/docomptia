@@ -11,6 +11,7 @@ import ApprovalsPage from '@/pages/ApprovalsPage'
 import ClientDetailsPage from '@/pages/ClientDetailsPage'
 import ClientsPage from '@/pages/ClientsPage'
 import ChartOfAccountsPage from '@/pages/ChartOfAccountsPage'
+import ClassificationSettingsPage from '@/pages/ClassificationSettingsPage'
 import DashboardPage from '@/pages/DashboardPage'
 import DocumentsPage from '@/pages/DocumentsPage'
 import InvoiceUploadPage from '@/pages/InvoiceUploadPage'
@@ -150,6 +151,10 @@ export const privateRoutes = [
   {
     path: '/settings/general',
     element: <OrganizationSettingsPage general />,
+  },
+  {
+    path: '/settings/categories',
+    element: <ClassificationSettingsPage />,
   },
 ]
 

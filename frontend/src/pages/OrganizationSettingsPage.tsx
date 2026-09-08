@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react'
-import { AlertCircle, ArrowLeft, ChevronRight, Settings } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { AlertCircle } from 'lucide-react'
 
-import { PageHeader } from '@/components/layout/PageHeader'
+import { SettingsLayout } from '@/components/settings/SettingsLayout'
 import { OrganizationSettingsForm } from '@/components/settings/OrganizationSettingsForm'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/hooks/use-auth'
-import { cn } from '@/lib/utils'
 import { ApiError } from '@/services/api'
 import { getCurrentOrganization } from '@/services/organization'
 import type { Organization } from '@/types/organization'
@@ -72,29 +70,8 @@ function GeneralSettings() {
 
 export default function OrganizationSettingsPage({ general = false }: { general?: boolean }) {
   return (
-    <div className="space-y-6 px-2 md:px-0">
-      <PageHeader description="Manage workspace identity and default preferences." title="Settings" />
-      <div className="grid gap-8 lg:grid-cols-[224px_minmax(0,1fr)]">
-        <nav aria-label="Settings categories" className={cn('min-w-0 space-y-4', general && 'hidden lg:block')}>
-          <div className="hidden space-y-1 lg:block">
-            <h2 className="text-xl font-semibold tracking-[-0.25px]">Settings</h2>
-            <p className="text-xs text-muted-foreground">Workspace preferences and administration.</p>
-          </div>
-          <Link aria-current={general ? 'page' : undefined} className="flex min-h-11 items-center gap-3 rounded-md bg-accent px-3 py-2 text-sm font-medium text-accent-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring lg:min-h-10" to="/settings/general">
-            <Settings aria-hidden="true" className="size-5 shrink-0" />
-            General
-            <ChevronRight aria-hidden="true" className="ml-auto size-4 lg:hidden" />
-          </Link>
-        </nav>
-        <div className={cn('min-w-0 space-y-6', !general && 'hidden lg:block')}>
-          <Button asChild className="h-11 bg-accent text-accent-foreground hover:bg-accent/80 lg:hidden" variant="ghost"><Link to="/settings"><ArrowLeft aria-hidden="true" />All settings</Link></Button>
-          <header className="space-y-1">
-            <h2 className="text-xl font-semibold tracking-[-0.25px]">General</h2>
-            <p className="text-xs text-muted-foreground">Manage workspace identity and default preferences.</p>
-          </header>
-          <GeneralSettings />
-        </div>
-      </div>
-    </div>
+    <SettingsLayout description="Manage workspace identity and default preferences." overview={!general} section="general">
+      <GeneralSettings />
+    </SettingsLayout>
   )
 }
