@@ -23,6 +23,7 @@ import LoginRoutePage from '@/pages/LoginRoutePage'
 import ModulePlaceholderPage from '@/pages/ModulePlaceholderPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import OrganizationOnboardingPage from '@/pages/OrganizationOnboardingPage'
+import OrganizationSettingsPage from '@/pages/OrganizationSettingsPage'
 import ProjectDetailsPage from '@/pages/ProjectDetailsPage'
 import ProjectsPage from '@/pages/ProjectsPage'
 import RegisterPage from '@/pages/RegisterPage'
@@ -144,12 +145,11 @@ export const privateRoutes = [
   },
   {
     path: '/settings',
-    element: (
-      <ModulePlaceholderPage
-        description="Configure your organization and workspace."
-        title="Settings"
-      />
-    ),
+    element: <OrganizationSettingsPage />,
+  },
+  {
+    path: '/settings/general',
+    element: <OrganizationSettingsPage general />,
   },
 ]
 

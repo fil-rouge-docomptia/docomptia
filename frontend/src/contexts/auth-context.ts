@@ -1,6 +1,6 @@
 import { createContext } from 'react'
 
-import type { CurrentUser, LoginCredentials } from '@/types/auth'
+import type { CurrentUser, CurrentUserOrganization, LoginCredentials } from '@/types/auth'
 
 export type AuthStatus = 'loading' | 'authenticated' | 'anonymous' | 'error'
 
@@ -13,6 +13,7 @@ export type AuthContextValue = {
   user: CurrentUser | null
   signIn: (credentials: LoginCredentials) => Promise<SignInResult>
   signOut: () => void
+  updateOrganization: (organization: CurrentUserOrganization) => void
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined)

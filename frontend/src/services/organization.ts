@@ -14,6 +14,7 @@ export async function getCurrentOrganization(signal?: AbortSignal): Promise<Orga
 
 export async function updateCurrentOrganization(
   update: OrganizationUpdate,
+  signal?: AbortSignal,
 ): Promise<Organization> {
   const response = await authenticatedFetch(`${apiBaseUrl}/v1/organizations/current`, {
     method: 'PATCH',
@@ -21,6 +22,7 @@ export async function updateCurrentOrganization(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(update),
+    signal,
   })
 
   return (await response.json()) as Organization
