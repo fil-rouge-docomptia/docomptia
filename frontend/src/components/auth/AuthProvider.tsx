@@ -94,6 +94,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
       : current)
   }, [])
 
+  const updateCurrentUser = useCallback(({ id, firstName, lastName, email, role }: Omit<CurrentUser, 'organization'>) => {
+    setUser((current) => current?.id === id ? { ...current, firstName, lastName, email, role } : current)
+  }, [])
+
   const value = useMemo(
     () => ({
       status,
@@ -101,8 +105,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
       signIn,
       signOut,
       updateOrganization,
+      updateCurrentUser,
     }),
-    [signIn, signOut, status, updateOrganization, user],
+    [signIn, signOut, status, updateCurrentUser, updateOrganization, user],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

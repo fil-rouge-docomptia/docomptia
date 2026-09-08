@@ -14,6 +14,7 @@ export type AuthContextValue = {
   signIn: (credentials: LoginCredentials) => Promise<SignInResult>
   signOut: () => void
   updateOrganization: (organization: CurrentUserOrganization) => void
+  updateCurrentUser: (profile: Omit<CurrentUser, 'organization'>) => void
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined)
