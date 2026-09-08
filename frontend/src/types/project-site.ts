@@ -1,20 +1,8 @@
-export type ProjectSite = {
-  active: boolean
-  classificationId: number
-  createdAt: string
-  description: string | null
-  name: string
-  type: string
-  updatedAt: string
-}
+import type { Classification, ClassificationPage } from '@/types/classification'
 
-export type ProjectSitePage = {
-  content: ProjectSite[]
-  number: number
-  size: number
-  totalElements: number
-  totalPages: number
-}
+export type ProjectSite = Classification
+
+export type ProjectSitePage = ClassificationPage
 
 export type ProjectSiteListQuery = {
   page: number

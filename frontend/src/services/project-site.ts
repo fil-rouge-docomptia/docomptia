@@ -1,63 +1,18 @@
-import { apiBaseUrl } from '@/lib/env'
-import { authenticatedFetch } from '@/services/api'
-import type {
-  ProjectSite,
-  ProjectSiteInput,
-  ProjectSiteListQuery,
-  ProjectSitePage,
-} from '@/types/project-site'
+import { createClassification, getClassification, listClassifications, updateClassification } from '@/services/classification'
+import type { ProjectSite, ProjectSiteInput, ProjectSiteListQuery, ProjectSitePage } from '@/types/project-site'
 
-export async function listProjectSites(
-  query: ProjectSiteListQuery,
-  signal?: AbortSignal,
-): Promise<ProjectSitePage> {
-  const searchParams = new URLSearchParams({
-    page: String(query.page),
-    size: String(query.size),
-    type: 'CHANTIER',
-  })
-  const response = await authenticatedFetch(
-    `${apiBaseUrl}/v1/classifications?${searchParams.toString()}`,
-    { signal },
-  )
-
-  return response.json() as Promise<ProjectSitePage>
+export function listProjectSites(query: ProjectSiteListQuery, signal?: AbortSignal): Promise<ProjectSitePage> {
+  return listClassifications({ ...query, type: 'CHANTIER' }, signal)
 }
 
-export async function getProjectSite(
-  projectSiteId: number,
-  signal?: AbortSignal,
-): Promise<ProjectSite> {
-  const response = await authenticatedFetch(
-    `${apiBaseUrl}/v1/classifications/${projectSiteId}`,
-    { signal },
-  )
-
-  return response.json() as Promise<ProjectSite>
+export function getProjectSite(projectSiteId: number, signal?: AbortSignal): Promise<ProjectSite> {
+  return getClassification(projectSiteId, signal)
 }
 
-export async function createProjectSite(input: ProjectSiteInput): Promise<ProjectSite> {
-  const response = await authenticatedFetch(`${apiBaseUrl}/v1/classifications`, {
-    body: JSON.stringify({ ...input, type: 'CHANTIER' }),
-    headers: { 'Content-Type': 'application/json' },
-    method: 'POST',
-  })
-
-  return response.json() as Promise<ProjectSite>
+export function createProjectSite(input: ProjectSiteInput): Promise<ProjectSite> {
+  return createClassification({ ...input, type: 'CHANTIER' })
 }
 
-export async function updateProjectSite(
-  projectSiteId: number,
-  input: ProjectSiteInput,
-): Promise<ProjectSite> {
-  const response = await authenticatedFetch(
-    `${apiBaseUrl}/v1/classifications/${projectSiteId}`,
-    {
-      body: JSON.stringify(input),
-      headers: { 'Content-Type': 'application/json' },
-      method: 'PATCH',
-    },
-  )
-
-  return response.json() as Promise<ProjectSite>
+export function updateProjectSite(projectSiteId: number, input: ProjectSiteInput): Promise<ProjectSite> {
+  return updateClassification(projectSiteId, input)
 }
