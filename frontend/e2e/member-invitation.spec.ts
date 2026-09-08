@@ -45,7 +45,7 @@ test('member invitation sends the exact normalized payload once and updates only
     await pending.promise
     await fulfillJson(route, 201, invited)
   })
-  const dialog = await openInvitation(page, '?status=active&q=alex&page=99&organizationId=999')
+  const dialog = await openInvitation(page, '?status=active&q=alex&role=ADMIN&page=99&organizationId=999')
   await fillInvitation(page, dialog)
   await dialog.getByLabel('Email', { exact: true }).fill(' CAMILLE.DUBOIS@EXAMPLE.COM ')
   await dialog.getByLabel('First name', { exact: true }).fill(' Camille ')
@@ -71,6 +71,7 @@ test('member invitation sends the exact normalized payload once and updates only
   await expect(page.getByRole('textbox', { name: 'Search members' })).toHaveValue(invited.email)
   const params = new URL(page.url()).searchParams
   expect(params.has('status')).toBe(false)
+  expect(params.has('role')).toBe(false)
   expect(params.has('page')).toBe(false)
   expect(creates).toBe(1)
   await expect(trigger(page)).toBeFocused()
