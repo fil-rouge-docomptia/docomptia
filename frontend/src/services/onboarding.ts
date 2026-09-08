@@ -14,8 +14,8 @@ import type {
   ValidationPreferencesUpdate,
 } from '@/types/onboarding'
 
-export async function getReferenceData(): Promise<ReferenceData> {
-  const response = await authenticatedFetch(`${apiBaseUrl}/v1/reference-data`)
+export async function getReferenceData(signal?: AbortSignal): Promise<ReferenceData> {
+  const response = await authenticatedFetch(`${apiBaseUrl}/v1/reference-data`, { signal })
 
   return (await response.json()) as ReferenceData
 }

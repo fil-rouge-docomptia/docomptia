@@ -10,7 +10,7 @@ import {
 } from '@/lib/auth-session'
 import { getCurrentUser, login } from '@/services/auth'
 import { getOrganizationOnboardingStatus } from '@/services/organization'
-import type { CurrentUser, LoginCredentials } from '@/types/auth'
+import type { CurrentUser, CurrentUserOrganization, LoginCredentials } from '@/types/auth'
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [status, setStatus] = useState<AuthStatus>(() =>
@@ -88,14 +88,21 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setStatus('anonymous')
   }, [])
 
+  const updateOrganization = useCallback((organization: CurrentUserOrganization) => {
+    setUser((current) => current?.organization.id === organization.id
+      ? { ...current, organization }
+      : current)
+  }, [])
+
   const value = useMemo(
     () => ({
       status,
       user,
       signIn,
       signOut,
+      updateOrganization,
     }),
-    [signIn, signOut, status, user],
+    [signIn, signOut, status, updateOrganization, user],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
