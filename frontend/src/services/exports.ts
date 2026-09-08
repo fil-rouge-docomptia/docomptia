@@ -1,6 +1,6 @@
 import { apiBaseUrl } from '@/lib/env'
 import { authenticatedFetch } from '@/services/api'
-import type { ExportFormat, ExportHistory, ExportPreflight, ExportSelection, ExportSummary } from '@/types/export'
+import type { ExportFormat, ExportGenerationReceipt, ExportHistory, ExportPreflight, ExportSelection, ExportSummary } from '@/types/export'
 
 const root = `${apiBaseUrl}/v1/accounting-exports`
 
@@ -51,4 +51,24 @@ export async function checkExportFormat(selection: ExportSelection, format: Expo
       invoiceIds: selection.invoices.map((invoice) => invoice.invoiceId), format }),
   })
   return response.json() as Promise<ExportPreflight>
+}
+
+export async function generateExport(selection: ExportSelection, format: ExportFormat, signal?: AbortSignal): Promise<ExportGenerationReceipt> {
+  const response = await authenticatedFetch(`${root}/generate`, {
+    method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ startDate: selection.startDate, endDate: selection.endDate,
+      invoiceIds: selection.invoices.map((invoice) => invoice.invoiceId), format }),
+  })
+  const receipt = await response.json() as ExportGenerationReceipt | null
+  if (!receipt || !Number.isSafeInteger(receipt.exportBatchId) || receipt.exportBatchId <= 0
+    || receipt.organizationId !== selection.organizationId || receipt.format !== format || receipt.status !== 'GENERE'
+    || typeof receipt.fileName !== 'string' || !receipt.fileName.trim()
+    || !Number.isSafeInteger(receipt.fileSize) || receipt.fileSize < 0
+    || typeof receipt.generatedAt !== 'string' || !Number.isFinite(Date.parse(receipt.generatedAt))
+    || typeof receipt.createdByName !== 'string'
+    || !Array.isArray(receipt.invoiceIds) || receipt.invoiceIds.length !== selection.invoices.length
+    || !selection.invoices.every((invoice) => receipt.invoiceIds.includes(invoice.invoiceId))) {
+    throw new Error('The generated batch receipt is incomplete or does not match the requested selection')
+  }
+  return receipt
 }

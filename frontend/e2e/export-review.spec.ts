@@ -70,7 +70,7 @@ test('export review waits for format validation, posts the exact lot and never g
   await page.locator('summary').click()
   await expect(page.getByLabel('Confirmed invoices')).toContainText('INV-041')
   await expect(page.getByLabel('Confirmed invoices')).toContainText('INV-042')
-  await expect(page.getByRole('button', { name: 'Generate export' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Generate export' })).toBeEnabled()
   expect(posts).toEqual(['/api/v1/accounting-exports/selection/confirm', '/api/v1/accounting-exports/preflight'])
 })
 
