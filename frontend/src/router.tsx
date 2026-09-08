@@ -22,6 +22,7 @@ import ExportsPage from '@/pages/ExportsPage'
 import CreateExportPage from '@/pages/CreateExportPage'
 import LoginRoutePage from '@/pages/LoginRoutePage'
 import ModulePlaceholderPage from '@/pages/ModulePlaceholderPage'
+import MemberSettingsPage from '@/pages/MemberSettingsPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import OrganizationOnboardingPage from '@/pages/OrganizationOnboardingPage'
 import OrganizationSettingsPage from '@/pages/OrganizationSettingsPage'
@@ -155,6 +156,10 @@ export const privateRoutes = [
   {
     path: '/settings/categories',
     element: <ClassificationSettingsPage />,
+  },
+  {
+    path: '/settings/members',
+    element: <MemberSettingsPage />,
   },
 ]
 
