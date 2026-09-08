@@ -80,8 +80,8 @@ export async function updateValidationPreferences(
   return (await response.json()) as ValidationPreferences
 }
 
-export async function getRoles(): Promise<ReferenceItem[]> {
-  const response = await authenticatedFetch(`${apiBaseUrl}/v1/roles`)
+export async function getRoles(signal?: AbortSignal): Promise<ReferenceItem[]> {
+  const response = await authenticatedFetch(`${apiBaseUrl}/v1/roles`, { signal })
 
   return (await response.json()) as ReferenceItem[]
 }
