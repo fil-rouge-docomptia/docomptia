@@ -31,17 +31,20 @@ public class AccountingExportValidator {
     private final AccountingEntryLineRepository accountingEntryLineRepository;
     private final AccountingEntryMapper accountingEntryMapper;
     private final FrenchLegalIdentifierValidator frenchLegalIdentifierValidator;
+    private final InvoiceAmountConsistencyService invoiceAmountConsistencyService;
 
     public AccountingExportValidator(
             AccountingEntryRepository accountingEntryRepository,
             AccountingEntryLineRepository accountingEntryLineRepository,
             AccountingEntryMapper accountingEntryMapper,
-            FrenchLegalIdentifierValidator frenchLegalIdentifierValidator
+            FrenchLegalIdentifierValidator frenchLegalIdentifierValidator,
+            InvoiceAmountConsistencyService invoiceAmountConsistencyService
     ) {
         this.accountingEntryRepository = accountingEntryRepository;
         this.accountingEntryLineRepository = accountingEntryLineRepository;
         this.accountingEntryMapper = accountingEntryMapper;
         this.frenchLegalIdentifierValidator = frenchLegalIdentifierValidator;
+        this.invoiceAmountConsistencyService = invoiceAmountConsistencyService;
     }
 
     public List<ValidatedEntry> validate(List<Invoice> invoices) {
@@ -181,9 +184,12 @@ public class AccountingExportValidator {
         BigDecimal totalTva = normalize(invoice.getTotalTva());
         BigDecimal totalTtc = normalize(invoice.getTotalTtc());
         if (totalHt == null || totalTva == null || totalTtc == null
-                || totalHt.signum() < 0 || totalTva.signum() < 0 || totalTtc.signum() <= 0
-                || totalHt.add(totalTva).compareTo(totalTtc) != 0) {
-            addError(errors, "VAT_INCONSISTENT", "The invoice VAT totals are inconsistent");
+                || totalHt.signum() < 0 || totalTva.signum() < 0 || totalTtc.signum() <= 0) {
+            addError(errors, "VAT_INCONSISTENT", "HT, TVA and TTC must all be present and valid");
+        } else if (!invoiceAmountConsistencyService.isConsistent(invoice)) {
+            BigDecimal expectedTtc = invoiceAmountConsistencyService.expectedTtc(invoice);
+            addError(errors, "VAT_INCONSISTENT", "HT + TVA = " + expectedTtc + ", but TTC = " + totalTtc
+                    + " (accepted tolerance " + InvoiceAmountConsistencyService.ROUNDING_TOLERANCE + ")");
         }
     }
 

@@ -15,6 +15,7 @@ import org.facturation.backend.repository.AccountingEntryLineRepository;
 import org.facturation.backend.repository.AccountingEntryRepository;
 import org.facturation.backend.repository.AccountingRuleRepository;
 import org.facturation.backend.repository.SupplierAccountRepository;
+import org.facturation.backend.service.InvoiceAmountConsistencyService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -34,11 +35,14 @@ class AccountingEntrySupplierAccountTest {
     private final AccountingEntryLineRepository lineRepository = mock(AccountingEntryLineRepository.class);
     private final AccountingRuleRepository ruleRepository = mock(AccountingRuleRepository.class);
     private final SupplierAccountRepository supplierAccountRepository = mock(SupplierAccountRepository.class);
+    private final InvoiceAmountConsistencyService invoiceAmountConsistencyService =
+            mock(InvoiceAmountConsistencyService.class);
     private final AccountingEntryServiceImpl service = new AccountingEntryServiceImpl(
             entryRepository,
             lineRepository,
             ruleRepository,
-            supplierAccountRepository
+            supplierAccountRepository,
+            invoiceAmountConsistencyService
     );
 
     @Test

@@ -15,6 +15,7 @@ import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.InvoiceStatusHistoryRepository;
 import org.facturation.backend.repository.InvoiceStatusRepository;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
+import org.facturation.backend.service.InvoiceAmountConsistencyService;
 import org.facturation.backend.service.InvoiceValidationDecisionService;
 import org.springframework.stereotype.Service;
 
@@ -36,17 +37,20 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     private final InvoiceStatusRepository invoiceStatusRepository;
     private final InvoiceStatusHistoryRepository invoiceStatusHistoryRepository;
     private final InvoiceValidationDecisionService validationDecisionService;
+    private final InvoiceAmountConsistencyService invoiceAmountConsistencyService;
 
     public InvoiceStatusWorkflowServiceImpl(
             InvoiceRepository invoiceRepository,
             InvoiceStatusRepository invoiceStatusRepository,
             InvoiceStatusHistoryRepository invoiceStatusHistoryRepository,
-            InvoiceValidationDecisionService validationDecisionService
+            InvoiceValidationDecisionService validationDecisionService,
+            InvoiceAmountConsistencyService invoiceAmountConsistencyService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.invoiceStatusRepository = invoiceStatusRepository;
         this.invoiceStatusHistoryRepository = invoiceStatusHistoryRepository;
         this.validationDecisionService = validationDecisionService;
+        this.invoiceAmountConsistencyService = invoiceAmountConsistencyService;
     }
 
     @Override
@@ -145,7 +149,9 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     @Override
     public void submitForValidation(Invoice invoice, User user) {
         ensureCurrentStatus(invoice, InvoiceStatusCode.EXTRAITE, "be submitted for validation");
+        invoiceAmountConsistencyService.recalculateTtcWhenMissingOrWithinTolerance(invoice);
         ensureRequiredFields(invoice, "be submitted for validation");
+        invoiceAmountConsistencyService.ensureConsistent(invoice);
         if (requiresValidation(invoice)) {
             transitionTo(invoice, InvoiceStatusCode.A_VERIFIER, user, "Invoice submitted for validation");
         } else {
@@ -161,7 +167,9 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     @Override
     public void validateInvoice(Invoice invoice, User user) {
         ensureCurrentStatus(invoice, InvoiceStatusCode.A_VERIFIER, "be validated");
+        invoiceAmountConsistencyService.recalculateTtcWhenMissingOrWithinTolerance(invoice);
         ensureRequiredFields(invoice, "be validated");
+        invoiceAmountConsistencyService.ensureConsistent(invoice);
         transitionTo(invoice, InvoiceStatusCode.VALIDEE, user, "Invoice validated");
         validationDecisionService.record(invoice, InvoiceValidationDecisionType.VALIDATION, user, null);
     }
