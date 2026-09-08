@@ -30,6 +30,7 @@ import ProjectDetailsPage from '@/pages/ProjectDetailsPage'
 import ProjectsPage from '@/pages/ProjectsPage'
 import RegisterPage from '@/pages/RegisterPage'
 import ReportsPage from '@/pages/ReportsPage'
+import RoleSettingsPage from '@/pages/RoleSettingsPage'
 import SupplierDetailsPage from '@/pages/SupplierDetailsPage'
 import SuppliersPage from '@/pages/SuppliersPage'
 import TeamOnboardingPage from '@/pages/TeamOnboardingPage'
@@ -160,6 +161,10 @@ export const privateRoutes = [
   {
     path: '/settings/members',
     element: <MemberSettingsPage />,
+  },
+  {
+    path: '/settings/roles',
+    element: <RoleSettingsPage />,
   },
 ]
 

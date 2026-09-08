@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, Search, UserPlus, Users } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { MemberActionsMenu, type MemberAction, type MemberActionHandler } from '@/components/settings/MemberActionsMenu'
@@ -30,6 +30,7 @@ function MemberSettings() {
   const { user, updateCurrentUser, signOut } = useAuth()
   const [params, setParams] = useSearchParams()
   const query = (params.get('q') ?? '').slice(0, 200)
+  const roleFilter = params.get('role') ?? ''
   const status = ['active', 'inactive'].includes(params.get('status') ?? '') ? params.get('status')! : 'all'
   const requestedPage = Number(params.get('page') ?? '1')
   const [retry, setRetry] = useState(0)
@@ -49,6 +50,7 @@ function MemberSettings() {
   }, [retry])
 
   const filtered = (members ?? []).filter((member) => (
+    (!roleFilter || member.role.code === roleFilter) &&
     (status === 'all' || member.active === (status === 'active')) &&
     normalize(`${member.firstName} ${member.lastName} ${member.email}`).includes(normalize(query.trim()))
   )).sort((a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName) || a.id - b.id)
@@ -70,6 +72,7 @@ function MemberSettings() {
     const next = new URLSearchParams(params)
     next.set('q', member.email)
     next.delete('status')
+    next.delete('role')
     next.delete('page')
     setParams(next)
     toast.success(member.active ? 'Member added.' : 'Invitation created. The member is inactive.')
@@ -95,6 +98,7 @@ function MemberSettings() {
         <div className="relative min-w-0 flex-1 sm:max-w-xs"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted-foreground" /><Input aria-label="Search members" className="h-11 pl-9" maxLength={200} onChange={(event) => changeQuery('q', event.target.value)} placeholder="Search members…" ref={search} value={query} /></div>
         <Select onValueChange={(value) => changeQuery('status', value)} value={status}><SelectTrigger aria-label="Filter by status" className="h-11 w-[124px]"><SelectValue><span className="text-xs">{status === 'all' ? 'All statuses' : status === 'active' ? 'Active' : 'Inactive'}</span></SelectValue></SelectTrigger><SelectContent><SelectItem className="min-h-11" value="all">All statuses</SelectItem><SelectItem className="min-h-11" value="active">Active</SelectItem><SelectItem className="min-h-11" value="inactive">Inactive</SelectItem></SelectContent></Select>
       </div>
+      {roleFilter ? <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 p-3"><p className="text-sm">Showing members with the selected role.</p><div className="flex flex-wrap gap-2"><Button asChild className="h-11" variant="outline"><Link to={`/settings/roles?${new URLSearchParams({ role: roleFilter })}`}>View role details</Link></Button><Button className="h-11" onClick={() => changeQuery('role', '')} variant="outline">Show all roles</Button></div></div> : null}
       {current?.error ? <Alert variant="destructive"><AlertCircle aria-hidden="true" /><AlertTitle>{forbidden ? 'Member access denied' : 'Unable to load members'}</AlertTitle><AlertDescription className="space-y-3"><p>{forbidden ? 'Only administrators can access members in this organization.' : 'The complete member list could not be loaded. Please try again.'}</p><Button onClick={() => setRetry((value) => value + 1)} variant="outline">Retry</Button></AlertDescription></Alert> : !members ? (
         <div aria-busy="true" aria-label="Loading members" className="space-y-3" role="status"><Skeleton className="h-10" />{Array.from({ length: 5 }, (_, index) => <Skeleton className="h-16" key={index} />)}</div>
       ) : (
@@ -111,7 +115,7 @@ function MemberSettings() {
                 <TableCell className="p-0 text-right max-sm:col-start-3 max-sm:row-span-2 max-sm:row-start-1"><MemberActionsMenu member={member} onAction={openDialog} protectedAdmin={member.active && member.role.code === 'ADMIN' && activeAdmins === 1} /></TableCell>
               </TableRow>
             ))}</TableBody>
-          </Table> : <div className="rounded-lg border border-dashed px-5 py-12 text-center"><Users aria-hidden="true" className="mx-auto mb-3 size-8 text-muted-foreground" /><h3 className="font-semibold">{members.length ? 'No matching members' : 'No members yet'}</h3><p className="mt-2 text-sm text-muted-foreground">{members.length ? 'Try another name, email address or status.' : 'Members of your organization will appear here.'}</p>{query || status !== 'all' ? <Button className="mt-4 h-11" onClick={() => { const next = new URLSearchParams(params); ['q', 'status', 'page'].forEach((key) => next.delete(key)); setParams(next) }} variant="outline">Clear filters</Button> : null}</div>}
+          </Table> : <div className="rounded-lg border border-dashed px-5 py-12 text-center"><Users aria-hidden="true" className="mx-auto mb-3 size-8 text-muted-foreground" /><h3 className="font-semibold">{members.length ? 'No matching members' : 'No members yet'}</h3><p className="mt-2 text-sm text-muted-foreground">{members.length ? 'Try another name, email address, role or status.' : 'Members of your organization will appear here.'}</p>{query || roleFilter || status !== 'all' ? <Button className="mt-4 h-11" onClick={() => { const next = new URLSearchParams(params); ['q', 'role', 'status', 'page'].forEach((key) => next.delete(key)); setParams(next) }} variant="outline">Clear filters</Button> : null}</div>}
           <div className="[&_button]:min-h-11 [&_button]:min-w-11 [&_nav>div]:flex-wrap [&_nav>div]:gap-1 [&_nav]:px-0 sm:[&_nav>div]:gap-2"><SupplierPagination ariaLabel="Member pagination" currentPage={page} itemLabel="members" onPageChange={(page) => changeQuery('page', String(page))} pageSize={pageSize} totalElements={filtered.length} totalPages={totalPages} /></div>
           <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-muted-foreground">Inactive members remain listed. Last activity is not available.</p><Button className="h-11" onClick={() => setRetry((value) => value + 1)} variant="outline">Reload members</Button></div>
         </div>
