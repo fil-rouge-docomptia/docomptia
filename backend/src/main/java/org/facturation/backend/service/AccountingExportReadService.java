@@ -107,7 +107,7 @@ public class AccountingExportReadService {
                 selectionResponse(organization, request.startDate(), request.endDate(), checked));
     }
 
-    private List<Invoice> selectedInvoices(Organization organization, AccountingExportSelectionRequest request) {
+    public List<Invoice> selectedInvoices(Organization organization, AccountingExportSelectionRequest request) {
         validatePeriod(request.startDate(), request.endDate());
         if (request.invoiceIds() == null || request.invoiceIds().isEmpty()
                 || request.invoiceIds().stream().anyMatch(id -> id == null || id <= 0)

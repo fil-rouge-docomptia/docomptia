@@ -1,5 +1,6 @@
 package org.facturation.backend.service;
 
+import jakarta.persistence.EntityManager;
 import org.facturation.backend.model.AccountingEntry;
 import org.facturation.backend.model.Organization;
 import org.facturation.backend.repository.AccountingEntryRepository;
@@ -11,20 +12,26 @@ import java.util.List;
 @Service
 public class AccountingPieceNumberService {
 
+    private final EntityManager entityManager;
     private final OrganizationRepository organizationRepository;
     private final AccountingEntryRepository accountingEntryRepository;
 
     public AccountingPieceNumberService(
             OrganizationRepository organizationRepository,
-            AccountingEntryRepository accountingEntryRepository
+            AccountingEntryRepository accountingEntryRepository,
+            EntityManager entityManager
     ) {
+        this.entityManager = entityManager;
         this.organizationRepository = organizationRepository;
         this.accountingEntryRepository = accountingEntryRepository;
     }
 
     public Organization lockSequence(Long organizationId) {
-        return organizationRepository.findByIdForPieceNumberUpdate(organizationId)
+        Organization organization = organizationRepository.findByIdForPieceNumberUpdate(organizationId)
                 .orElseThrow(() -> new IllegalStateException("Organization not found while assigning piece numbers"));
+        // Authentication may have loaded this entity before waiting for another export's lock.
+        entityManager.refresh(organization);
+        return organization;
     }
 
     public void assign(Organization organization, List<AccountingEntry> accountingEntries) {

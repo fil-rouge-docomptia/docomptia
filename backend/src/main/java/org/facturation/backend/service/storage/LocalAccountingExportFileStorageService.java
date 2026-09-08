@@ -53,6 +53,15 @@ public class LocalAccountingExportFileStorageService implements AccountingExport
         }
     }
 
+    @Override
+    public void delete(StoredAccountingExportFile file) {
+        try {
+            Files.deleteIfExists(Path.of(file.filePath()));
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to remove rolled-back accounting export file", exception);
+        }
+    }
+
     private Path resolveDirectory() {
         if (localDirectory == null || localDirectory.isBlank()) {
             return Path.of(System.getProperty("java.io.tmpdir"), "facturation-files");

@@ -6,5 +6,7 @@ public interface AccountingExportFileStorageService {
 
     StoredAccountingExportFile store(byte[] content, String fileName, Long exportBatchId);
 
+    void delete(StoredAccountingExportFile file);
+
     byte[] load(ExportBatch exportBatch);
 }

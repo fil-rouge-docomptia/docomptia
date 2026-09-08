@@ -1,6 +1,9 @@
 package org.facturation.backend.service.impl;
 
 import jakarta.transaction.Transactional;
+import org.facturation.backend.dto.request.AccountingExportPreflightRequest;
+import org.facturation.backend.dto.request.AccountingExportSelectionRequest;
+import org.facturation.backend.dto.response.AccountingExportGenerationResponse;
 import org.facturation.backend.exception.AccountingExportArchiveNotAllowedException;
 import org.facturation.backend.exception.AccountingExportFileNotFoundException;
 import org.facturation.backend.model.AccountingEntry;
@@ -18,6 +21,7 @@ import org.facturation.backend.repository.ExportBatchRepository;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.service.AccountingExportFailureAuditService;
 import org.facturation.backend.service.AccountingExportService;
+import org.facturation.backend.service.AccountingExportReadService;
 import org.facturation.backend.service.AccountingExportValidator;
 import org.facturation.backend.service.AccountingExportValidator.ValidatedEntry;
 import org.facturation.backend.service.AccountingPieceNumberService;
@@ -25,6 +29,8 @@ import org.facturation.backend.service.CurrentUserService;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
 import org.facturation.backend.service.storage.AccountingExportFileStorageService;
 import org.facturation.backend.service.storage.StoredAccountingExportFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -41,6 +47,8 @@ import java.util.List;
 @Service
 public class AccountingExportServiceImpl implements AccountingExportService {
 
+    private static final Logger log = LoggerFactory.getLogger(AccountingExportServiceImpl.class);
+
     private static final int AMOUNT_SCALE = 2;
     private static final String CSV_HEADER =
             "entryNumber,entryDate,invoiceNumber,invoiceDate,supplierName,accountNumber,"
@@ -52,6 +60,7 @@ public class AccountingExportServiceImpl implements AccountingExportService {
     private static final String PURCHASE_JOURNAL_CODE = "AC";
     private static final String PURCHASE_JOURNAL_LABEL = "Achats";
 
+    private final AccountingExportReadService readService;
     private final InvoiceRepository invoiceRepository;
     private final AccountingExportValidator accountingExportValidator;
     private final AccountingPieceNumberService accountingPieceNumberService;
@@ -71,8 +80,10 @@ public class AccountingExportServiceImpl implements AccountingExportService {
             CurrentUserService currentUserService,
             InvoiceStatusWorkflowService invoiceStatusWorkflowService,
             AccountingExportFileStorageService accountingExportFileStorageService,
-            AccountingExportFailureAuditService accountingExportFailureAuditService
+            AccountingExportFailureAuditService accountingExportFailureAuditService,
+            AccountingExportReadService readService
     ) {
+        this.readService = readService;
         this.invoiceRepository = invoiceRepository;
         this.accountingExportValidator = accountingExportValidator;
         this.accountingPieceNumberService = accountingPieceNumberService;
@@ -87,19 +98,40 @@ public class AccountingExportServiceImpl implements AccountingExportService {
     @Override
     @Transactional
     public AccountingCsvExport exportCsv(LocalDate startDate, LocalDate endDate) {
-        return export(startDate, endDate, ExportBatchFormat.CSV);
+        return export(startDate, endDate, ExportBatchFormat.CSV, null).file();
     }
 
     @Override
     @Transactional
     public AccountingCsvExport exportFec(LocalDate startDate, LocalDate endDate) {
-        return export(startDate, endDate, ExportBatchFormat.FEC);
+        return export(startDate, endDate, ExportBatchFormat.FEC, null).file();
     }
 
-    private AccountingCsvExport export(
+    @Override
+    @Transactional
+    public AccountingExportGenerationResponse generate(AccountingExportPreflightRequest request) {
+        if (request.format() == null) {
+            throw new IllegalArgumentException("Select an export format");
+        }
+        GeneratedExport generated = export(request.startDate(), request.endDate(), request.format(),
+                new AccountingExportSelectionRequest(request.startDate(), request.endDate(), request.invoiceIds()));
+        ExportBatch batch = generated.batch();
+        User author = batch.getCreatedByUser();
+        return new AccountingExportGenerationResponse(batch.getExportBatchId(),
+                batch.getOrganization().getOrganizationId(), request.format(), batch.getStatus(),
+                batch.getFileName(), batch.getFileSize(), batch.getGeneratedAt(),
+                author.getFirstName() + " " + author.getLastName(),
+                batch.getInvoices().stream().map(Invoice::getInvoiceId).toList());
+    }
+
+    private record GeneratedExport(ExportBatch batch, AccountingCsvExport file) {
+    }
+
+    private GeneratedExport export(
             LocalDate startDate,
             LocalDate endDate,
-            ExportBatchFormat format
+            ExportBatchFormat format,
+            AccountingExportSelectionRequest selection
     ) {
         User user = currentUserService.getCurrentUser();
         List<Invoice> invoices = List.of();
@@ -107,7 +139,8 @@ public class AccountingExportServiceImpl implements AccountingExportService {
             validatePeriod(startDate, endDate);
             Long organizationId = user.getOrganization().getOrganizationId();
             Organization organization = accountingPieceNumberService.lockSequence(organizationId);
-            invoices = invoiceRepository.findAccountingExportCandidates(
+            invoices = selection != null ? readService.selectedInvoices(organization, selection)
+                    : invoiceRepository.findAccountingExportCandidates(
                     organizationId,
                     startDate != null,
                     startDate,
@@ -143,10 +176,12 @@ public class AccountingExportServiceImpl implements AccountingExportService {
                     filename,
                     exportBatch.getExportBatchId()
             );
+            removeFileOnRollback(storedFile);
             markInvoicesExported(exportedEntries, user, format);
             markBatchGenerated(exportBatch, storedFile);
             recordSuccessfulExport(exportedEntries, user, startDate, endDate, filename, exportBatch, format);
-            return new AccountingCsvExport(filename, content);
+            exportBatchRepository.flush();
+            return new GeneratedExport(exportBatch, new AccountingCsvExport(filename, content));
         } catch (RuntimeException exception) {
             recordFailedExportAfterRollback(user, startDate, endDate, invoices, format, exception);
             throw exception;
@@ -345,6 +380,23 @@ public class AccountingExportServiceImpl implements AccountingExportService {
             public void afterCompletion(int status) {
                 if (status == STATUS_ROLLED_BACK) {
                     accountingExportFailureAuditService.record(user, startDate, endDate, invoices, format, exception);
+                }
+            }
+        });
+    }
+
+    private void removeFileOnRollback(StoredAccountingExportFile storedFile) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) return;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    try {
+                        accountingExportFileStorageService.delete(storedFile);
+                    } catch (RuntimeException exception) {
+                        log.error("Unable to remove rolled-back accounting export file {}",
+                                storedFile.storedFileName(), exception);
+                    }
                 }
             }
         });
