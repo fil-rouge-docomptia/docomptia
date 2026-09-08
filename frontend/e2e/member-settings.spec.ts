@@ -54,7 +54,7 @@ test('member settings loads all organization pages before showing the list', asy
   await expect(row(page, inactive.email).getByText('Inactive', { exact: true })).toBeVisible()
   expect(requested).toEqual([0, 1])
   await expect(page.getByText('1–4 of 4 members', { exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Invite member', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Invite member', exact: true })).toBeEnabled()
   await expect(page.getByText(/yesterday|pending|suspended/i)).toHaveCount(0)
 })
 

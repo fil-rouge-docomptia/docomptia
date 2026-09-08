@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 
 import { MemberActionsMenu, type MemberAction, type MemberActionHandler } from '@/components/settings/MemberActionsMenu'
 import { MemberDialog } from '@/components/settings/MemberDialog'
+import { InviteMemberDialog } from '@/components/settings/InviteMemberDialog'
 import { SettingsLayout } from '@/components/settings/SettingsLayout'
 import { SupplierPagination } from '@/components/supplier/SupplierPagination'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -15,7 +16,6 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAuth } from '@/hooks/use-auth'
 import { ApiError } from '@/services/api'
 import { getOrganizationMembers } from '@/services/members'
@@ -24,6 +24,7 @@ import type { OrganizationUser } from '@/types/onboarding'
 const description = 'Manage who has access to your workspace.'
 const pageSize = 5
 const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+type MemberSettingsDialog = { action: 'invite' } | { action: MemberAction, member: OrganizationUser }
 
 function MemberSettings() {
   const { user, updateCurrentUser, signOut } = useAuth()
@@ -35,7 +36,7 @@ function MemberSettings() {
   const [result, setResult] = useState<{ retry: number, members: OrganizationUser[] | null, error: unknown } | null>(null)
   const current = result?.retry === retry ? result : null
   const members = current?.members
-  const [dialog, setDialog] = useState<{ action: MemberAction, member: OrganizationUser } | null>(null)
+  const [dialog, setDialog] = useState<MemberSettingsDialog | null>(null)
   const trigger = useRef<HTMLElement | null>(null)
   const search = useRef<HTMLInputElement>(null)
 
@@ -63,6 +64,16 @@ function MemberSettings() {
     setParams(next, { replace: key === 'q' })
   }
   const openDialog: MemberActionHandler = (action, member, button) => { trigger.current = button; setDialog({ action, member }) }
+  function invited(member: OrganizationUser) {
+    setDialog(null)
+    setResult((value) => value?.members ? { ...value, members: [...value.members.filter(({ id }) => id !== member.id), member] } : value)
+    const next = new URLSearchParams(params)
+    next.set('q', member.email)
+    next.delete('status')
+    next.delete('page')
+    setParams(next)
+    toast.success(member.active ? 'Member added.' : 'Invitation created. The member is inactive.')
+  }
   function saved(member: OrganizationUser) {
     setDialog(null)
     setResult((value) => value?.members ? { ...value, members: value.members.map((item) => item.id === member.id ? member : item) } : value)
@@ -73,9 +84,13 @@ function MemberSettings() {
     }
   }
   const forbidden = current?.error instanceof ApiError && current.error.status === 403
+  const restoreFocus = () => {
+    const target = trigger.current?.isConnected && !trigger.current.hasAttribute('disabled') ? trigger.current : search.current
+    target?.focus()
+  }
 
   return (
-    <SettingsLayout actions={<Tooltip><TooltipTrigger asChild><span className="block" tabIndex={0}><Button className="h-11 w-full" disabled><UserPlus aria-hidden="true" />Invite member</Button></span></TooltipTrigger><TooltipContent>Invitations are not available from these settings yet.</TooltipContent></Tooltip>} description={description} section="members">
+    <SettingsLayout actions={<Button className="h-11" disabled={!members} onClick={(event) => { trigger.current = event.currentTarget; setDialog({ action: 'invite' }) }}><UserPlus aria-hidden="true" />Invite member</Button>} description={description} section="members">
       <div className="flex flex-wrap justify-between gap-3">
         <div className="relative min-w-0 flex-1 sm:max-w-xs"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted-foreground" /><Input aria-label="Search members" className="h-11 pl-9" maxLength={200} onChange={(event) => changeQuery('q', event.target.value)} placeholder="Search members…" ref={search} value={query} /></div>
         <Select onValueChange={(value) => changeQuery('status', value)} value={status}><SelectTrigger aria-label="Filter by status" className="h-11 w-[124px]"><SelectValue><span className="text-xs">{status === 'all' ? 'All statuses' : status === 'active' ? 'Active' : 'Inactive'}</span></SelectValue></SelectTrigger><SelectContent><SelectItem className="min-h-11" value="all">All statuses</SelectItem><SelectItem className="min-h-11" value="active">Active</SelectItem><SelectItem className="min-h-11" value="inactive">Inactive</SelectItem></SelectContent></Select>
@@ -101,7 +116,9 @@ function MemberSettings() {
           <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-muted-foreground">Inactive members remain listed. Last activity is not available.</p><Button className="h-11" onClick={() => setRetry((value) => value + 1)} variant="outline">Reload members</Button></div>
         </div>
       )}
-      {dialog ? <MemberDialog action={dialog.action} isSelf={dialog.member.id === user?.id} member={dialog.member} onClose={() => setDialog(null)} onRestoreFocus={() => { const target = trigger.current?.isConnected ? trigger.current : search.current; target?.focus() }} onSaved={saved} /> : null}
+      {dialog ? dialog.action === 'invite'
+        ? <InviteMemberDialog onClose={() => setDialog(null)} onCreated={invited} onRestoreFocus={restoreFocus} />
+        : <MemberDialog action={dialog.action} isSelf={dialog.member.id === user?.id} member={dialog.member} onClose={() => setDialog(null)} onRestoreFocus={restoreFocus} onSaved={saved} /> : null}
     </SettingsLayout>
   )
 }
