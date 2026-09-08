@@ -86,13 +86,14 @@ export async function getRoles(signal?: AbortSignal): Promise<ReferenceItem[]> {
   return (await response.json()) as ReferenceItem[]
 }
 
-export async function inviteUser(invitation: UserInvitation): Promise<OrganizationUser> {
+export async function inviteUser(invitation: UserInvitation, signal?: AbortSignal): Promise<OrganizationUser> {
   const response = await authenticatedFetch(`${apiBaseUrl}/v1/users`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(invitation),
+    signal,
   })
 
   return (await response.json()) as OrganizationUser
