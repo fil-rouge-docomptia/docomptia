@@ -8,10 +8,12 @@ import org.facturation.backend.model.AccountingEntryLine;
 import org.facturation.backend.model.AccountingEntryStatusCode;
 import org.facturation.backend.model.ChartOfAccount;
 import org.facturation.backend.model.Invoice;
+import org.facturation.backend.model.SupplierAccount;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.AccountingEntryLineRepository;
 import org.facturation.backend.repository.AccountingEntryRepository;
 import org.facturation.backend.repository.AccountingRuleRepository;
+import org.facturation.backend.repository.SupplierAccountRepository;
 import org.facturation.backend.service.AccountingEntryService;
 import org.springframework.stereotype.Service;
 
@@ -33,15 +35,18 @@ public class AccountingEntryServiceImpl implements AccountingEntryService {
     private final AccountingEntryRepository accountingEntryRepository;
     private final AccountingEntryLineRepository accountingEntryLineRepository;
     private final AccountingRuleRepository accountingRuleRepository;
+    private final SupplierAccountRepository supplierAccountRepository;
 
     public AccountingEntryServiceImpl(
             AccountingEntryRepository accountingEntryRepository,
             AccountingEntryLineRepository accountingEntryLineRepository,
-            AccountingRuleRepository accountingRuleRepository
+            AccountingRuleRepository accountingRuleRepository,
+            SupplierAccountRepository supplierAccountRepository
     ) {
         this.accountingEntryRepository = accountingEntryRepository;
         this.accountingEntryLineRepository = accountingEntryLineRepository;
         this.accountingRuleRepository = accountingRuleRepository;
+        this.supplierAccountRepository = supplierAccountRepository;
     }
 
     @Override
@@ -89,6 +94,7 @@ public class AccountingEntryServiceImpl implements AccountingEntryService {
         BigDecimal totalHt = prerequisites.totalHt();
         BigDecimal totalTva = prerequisites.totalTva();
         BigDecimal totalTtc = prerequisites.totalTtc();
+        SupplierAccount supplierAccount = prerequisites.supplierAccount();
 
         AccountingEntry accountingEntry = new AccountingEntry();
         accountingEntry.setInvoice(invoice);
@@ -101,7 +107,7 @@ public class AccountingEntryServiceImpl implements AccountingEntryService {
         accountingEntry.setUpdatedAt(LocalDateTime.now());
 
         AccountingEntry savedAccountingEntry = accountingEntryRepository.save(accountingEntry);
-        saveLines(savedAccountingEntry, invoice, accountingRule, totalHt, totalTva, totalTtc);
+        saveLines(savedAccountingEntry, invoice, accountingRule, supplierAccount, totalHt, totalTva, totalTtc);
         return savedAccountingEntry;
     }
 
@@ -146,6 +152,7 @@ public class AccountingEntryServiceImpl implements AccountingEntryService {
             AccountingEntry accountingEntry,
             Invoice invoice,
             AccountingRule accountingRule,
+            SupplierAccount supplierAccount,
             BigDecimal totalHt,
             BigDecimal totalTva,
             BigDecimal totalTtc
@@ -174,7 +181,8 @@ public class AccountingEntryServiceImpl implements AccountingEntryService {
         saveLine(
                 accountingEntry,
                 lineNumber,
-                accountingRule.getSupplierAccount(),
+                supplierAccount == null ? accountingRule.getSupplierAccount() : supplierAccount.getCollectiveAccount(),
+                supplierAccount,
                 buildLineLabel(invoice),
                 ZERO_AMOUNT,
                 totalTtc
@@ -189,15 +197,38 @@ public class AccountingEntryServiceImpl implements AccountingEntryService {
             BigDecimal debitAmount,
             BigDecimal creditAmount
     ) {
+        saveLine(accountingEntry, lineNumber, account, null, lineLabel, debitAmount, creditAmount);
+    }
+
+    private void saveLine(
+            AccountingEntry accountingEntry,
+            int lineNumber,
+            ChartOfAccount account,
+            SupplierAccount supplierAccount,
+            String lineLabel,
+            BigDecimal debitAmount,
+            BigDecimal creditAmount
+    ) {
         AccountingEntryLine line = new AccountingEntryLine();
         line.setAccountingEntry(accountingEntry);
         line.setAccount(account);
+        line.setSupplierAccount(supplierAccount);
         line.setLineNumber(lineNumber);
         line.setLineLabel(lineLabel);
         line.setDebitAmount(debitAmount);
         line.setCreditAmount(creditAmount);
         line.setCreatedAt(LocalDateTime.now());
         accountingEntryLineRepository.save(line);
+    }
+
+    private Optional<SupplierAccount> findActiveSupplierAccount(Invoice invoice) {
+        if (invoice.getSupplier() == null) {
+            return Optional.empty();
+        }
+        return supplierAccountRepository.findBySupplierSupplierIdAndOrganizationOrganizationIdAndActiveTrue(
+                invoice.getSupplier().getSupplierId(),
+                invoice.getOrganization().getOrganizationId()
+        );
     }
 
     private AccountingEntryPrerequisites validatePrerequisites(Invoice invoice) {
@@ -213,6 +244,7 @@ public class AccountingEntryServiceImpl implements AccountingEntryService {
         if (invoice.getSupplier() == null) {
             missingPrerequisites.add("supplier");
         }
+        SupplierAccount supplierAccount = findActiveSupplierAccount(invoice).orElse(null);
 
         Optional<AccountingRule> accountingRule = findAccountingRule(invoice);
         if (accountingRule.isEmpty()) {
@@ -220,13 +252,26 @@ public class AccountingEntryServiceImpl implements AccountingEntryService {
         } else {
             validateAccount(accountingRule.get().getExpenseAccount(), "expenseAccount", invoice, missingPrerequisites);
             validateAccount(accountingRule.get().getVatAccount(), "vatAccount", invoice, missingPrerequisites);
-            validateAccount(accountingRule.get().getSupplierAccount(), "supplierAccount", invoice, missingPrerequisites);
+            validateAccount(
+                    supplierAccount == null
+                            ? accountingRule.get().getSupplierAccount()
+                            : supplierAccount.getCollectiveAccount(),
+                    "supplierAccount",
+                    invoice,
+                    missingPrerequisites
+            );
         }
 
         if (!missingPrerequisites.isEmpty()) {
             throw new AccountingEntryPrerequisitesException(invoice.getInvoiceId(), missingPrerequisites);
         }
-        return new AccountingEntryPrerequisites(accountingRule.orElseThrow(), totalHt, totalTva, totalTtc);
+        return new AccountingEntryPrerequisites(
+                accountingRule.orElseThrow(),
+                supplierAccount,
+                totalHt,
+                totalTva,
+                totalTtc
+        );
     }
 
     private BigDecimal validateAmount(
@@ -290,6 +335,7 @@ public class AccountingEntryServiceImpl implements AccountingEntryService {
 
     private record AccountingEntryPrerequisites(
             AccountingRule accountingRule,
+            SupplierAccount supplierAccount,
             BigDecimal totalHt,
             BigDecimal totalTva,
             BigDecimal totalTtc

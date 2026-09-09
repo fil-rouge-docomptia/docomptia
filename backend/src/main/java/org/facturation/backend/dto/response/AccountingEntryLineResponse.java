@@ -6,6 +6,8 @@ public class AccountingEntryLineResponse {
     private Integer lineNumber;
     private String accountNumber;
     private String accountLabel;
+    private String supplierAccountCode;
+    private String supplierAccountLabel;
     private String lineLabel;
     private String debitAmount;
     private String creditAmount;
@@ -40,6 +42,22 @@ public class AccountingEntryLineResponse {
 
     public void setAccountLabel(String accountLabel) {
         this.accountLabel = accountLabel;
+    }
+
+    public String getSupplierAccountCode() {
+        return supplierAccountCode;
+    }
+
+    public void setSupplierAccountCode(String supplierAccountCode) {
+        this.supplierAccountCode = supplierAccountCode;
+    }
+
+    public String getSupplierAccountLabel() {
+        return supplierAccountLabel;
+    }
+
+    public void setSupplierAccountLabel(String supplierAccountLabel) {
+        this.supplierAccountLabel = supplierAccountLabel;
     }
 
     public String getLineLabel() {

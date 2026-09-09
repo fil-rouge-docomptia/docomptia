@@ -134,6 +134,7 @@ public class AccountingEntryCorrectionServiceImpl implements AccountingEntryCorr
                         account.getAccountId().toString()
                 ));
                 line.setAccount(account);
+                line.setSupplierAccount(null);
             }
         }
 

@@ -50,6 +50,10 @@ public class AccountingEntryMapper {
         response.setLineNumber(line.getLineNumber());
         response.setAccountNumber(line.getAccount().getAccountNumber());
         response.setAccountLabel(line.getAccount().getAccountLabel());
+        if (line.getSupplierAccount() != null) {
+            response.setSupplierAccountCode(line.getSupplierAccount().getCode());
+            response.setSupplierAccountLabel(line.getSupplierAccount().getLabel());
+        }
         response.setLineLabel(line.getLineLabel());
         response.setDebitAmount(formatAmount(line.getDebitAmount()));
         response.setCreditAmount(formatAmount(line.getCreditAmount()));
