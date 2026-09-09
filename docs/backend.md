@@ -98,6 +98,7 @@ http://ocr:8000/ocr/analyze
 | `POST` | `/api/v1/accounting-exports/generate` | Meme corps que `/preflight`. Sous verrou de sequence de l'organisation, revalide exactement les identifiants choisis et les controles CSV/FEC, genere et stocke le fichier puis passe les factures a `EXPORTEE`. Succes `200` apres commit : `{exportBatchId, organizationId, format, status: "GENERE", fileName, fileSize, generatedAt, createdByName, invoiceIds}` ; aucun chemin de stockage expose. Telechargement via `GET /{id}/file`. `400` requete invalide ; `409` selection perimee/deja exportee ou controles en echec ; `401/403` acces refuse. Les soumissions concurrentes sont serialisees : une selection deja exportee ne cree pas de nouveau lot. Rollback des statuts, liens et numeros en cas d'echec ; suppression compensatoire du fichier nouvellement stocke (erreur de suppression journalisee) et audit d'echec. Aucun pourcentage d'avancement ni rapport annexe ; une reponse reseau perdue doit etre reconciliee avec l'historique avant une nouvelle tentative. Permission `EXPORT_ACCOUNTING`. |
 | `POST` | `/api/v1/invoices/{id}/mark-paid` | Confirme le reglement d'une facture `EXPORTEE` avec une `paymentDate` obligatoire et une `paymentReference` facultative, enregistre l'utilisateur connecte, passe la facture au statut `PAYEE` et historise l'action. Une nouvelle demande sur une facture deja `PAYEE` reste sans effet et ne duplique pas l'historique. |
 | `POST` | `/api/v1/invoices/{id}/archive` | Archive une facture au statut `EXPORTEE`, enregistre `archivedAt`, passe la facture au statut `ARCHIVEE` et historise l'action. |
+| `DELETE` | `/api/v1/invoices/{id}` | Suppression administrative reservee au role `ADMIN`, avec un corps `{\"reason\": \"...\"}` obligatoire. Seuls les statuts anterieurs a la validation (`DEPOSEE`, `OCR_EN_COURS`, `ERREUR_OCR`, `EXTRAITE`, `A_VERIFIER`, `REJETEE`, `BROUILLON`) sont acceptes. |
 | `GET` | `/api/v1/invoices?status=EXTRAITE&status=VALIDEE&invoiceNumber=FAC-2026&supplier=Orange&client=Docomptia&dueDate=2026-08-31&startDate=2026-08-01&endDate=2026-08-31&minAmount=100.00&maxAmount=500.00&page=0&size=20&sortBy=invoiceDate&direction=DESC` | Recherche les factures de l'organisation courante, filtre par un ou plusieurs statuts connus (parametre repete ou codes separes par des virgules), le numero exact ou partiel, le fournisseur ou client par nom ou identifiant, la date de facture, la date d'echeance, une periode inclusive de dates de facture ou une plage inclusive de montants TTC, puis retourne une page triable par date, montant TTC ou statut. Un statut inconnu retourne `400`. Les bornes de periode et de montant peuvent etre omises individuellement; une borne minimum posterieure a la borne maximum correspondante retourne `400`. |
 | `GET` | `/api/v1/invoices/pending-validation?page=0&size=20&sortBy=invoiceDate&direction=DESC` | Retourne au responsable comptable une page triable des seules factures `A_VERIFIER` de son organisation. |
 | `GET` | `/api/v1/invoices/assigned-to-me?status=EXTRAITE&status=A_VERIFIER&page=0&size=20&sortBy=invoiceDate&direction=DESC` | Retourne une page triable des factures affectees a l'utilisateur connecte dans son organisation, avec un filtre optionnel sur un ou plusieurs statuts connus. |
@@ -354,6 +355,12 @@ email utilisateur ou un SIRET d'organisation deja utilise retourne `409`; une er
 de l'administrateur annule egalement la creation de l'organisation.
 
 ## Stockage Des Fichiers
+
+La suppression administrative est logique : la facture est exclue des lectures de factures,
+mais sa ligne, son fichier original et ses relations restent conserves. La date, l'administrateur
+et le motif sont enregistres sur la facture et dans le journal d'audit avec l'action
+`ADMINISTRATIVELY_DELETED`. Cette strategie evite toute rupture des pieces, ecritures et historiques
+associes ; une facture validee, comptabilisee, exportable, exportee, payee ou archivee est refusee.
 
 Deux implementations existent:
 
