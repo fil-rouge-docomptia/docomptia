@@ -285,6 +285,13 @@ permettre l'import avant rapprochement; lorsqu'il existe, le fournisseur apparti
 organisation. Les comptes de tiers desactives restent persistés pour l'historique mais sont exclus
 des recherches de comptes actifs utilisees pour proposer de nouvelles ecritures.
 
+Lors de la generation d'une ecriture fournisseur, la ligne de dette utilise le compte de tiers actif
+rattache au fournisseur et son compte collectif. En l'absence de compte de tiers actif, y compris si
+le compte rattache est desactive, le compte fournisseur de la regle comptable est utilise sans compte
+auxiliaire. Si ce compte de fallback est absent, inactif ou hors de l'organisation, la generation est
+bloquee avec le prerequis `supplierAccount`. Le CSV conserve ses colonnes existantes et le FEC renseigne
+`CompAuxNum` et `CompAuxLib` seulement lorsqu'un compte de tiers a ete retenu.
+
 L'[import CSV du plan comptable](account-import-api.md) propose trois POST multipart
 `/api/v1/chart-of-accounts/import/inspect`, `/preview` et `/confirm`, réservés à
 l'administrateur. L'inspection et la prévisualisation n'écrivent aucun compte ;
