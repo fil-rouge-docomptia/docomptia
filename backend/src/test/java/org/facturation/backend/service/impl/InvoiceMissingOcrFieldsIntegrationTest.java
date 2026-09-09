@@ -24,6 +24,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -111,13 +112,51 @@ class InvoiceMissingOcrFieldsIntegrationTest {
         assertEquals("USD", invoice.getCurrencyCode());
     }
 
+    @Test
+    void persistsNormalizedInternationalOcrDatesAsBackendDates() {
+        InvoiceUploadResponse uploadResponse = invoiceService.uploadAndAnalyze(
+                invoiceFile("international-dates.png"),
+                null
+        );
+
+        Invoice invoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+        OcrExtraction extraction = ocrExtractionRepository
+                .findTopByInvoiceInvoiceIdOrderByOcrExtractionIdDesc(invoice.getInvoiceId())
+                .orElseThrow();
+        List<OcrExtractionField> fields = ocrExtractionFieldRepository
+                .findByOcrExtractionOcrExtractionId(extraction.getOcrExtractionId());
+
+        assertEquals(LocalDate.of(2026, 6, 22), invoice.getInvoiceDate());
+        assertEquals(LocalDate.of(2026, 7, 31), invoice.getDueDate());
+        assertDateField(fields, "invoiceDate", "June 22, 2026", "2026-06-22");
+        assertDateField(fields, "dueDate", "07/31/2026", "2026-07-31");
+    }
+
     private MockMultipartFile invoiceFile() {
+        return invoiceFile("invoice.png");
+    }
+
+    private MockMultipartFile invoiceFile(String filename) {
         return new MockMultipartFile(
                 "file",
-                "invoice.png",
+                filename,
                 "image/png",
                 new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
         );
+    }
+
+    private void assertDateField(
+            List<OcrExtractionField> fields,
+            String fieldName,
+            String rawValue,
+            String normalizedValue
+    ) {
+        OcrExtractionField field = fields.stream()
+                .filter(candidate -> fieldName.equals(candidate.getFieldName()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(rawValue, field.getRawValue());
+        assertEquals(normalizedValue, field.getNormalizedValue());
     }
 
     static class MissingFieldsOcrClient implements OcrClient {
@@ -142,8 +181,28 @@ class InvoiceMissingOcrFieldsIntegrationTest {
             response.setEngineName("test-ocr");
             response.setEngineVersion("1.0");
             response.setRawText("Unstructured OCR text without extractable fields");
-            response.setFields(FIELD_NAMES.stream().map(this::missingField).toList());
+            response.setFields(FIELD_NAMES.stream()
+                    .map(fieldName -> internationalDateField(file, fieldName))
+                    .toList());
             return response;
+        }
+
+        private OcrFieldResponse internationalDateField(MultipartFile file, String fieldName) {
+            if (!"international-dates.png".equals(file.getOriginalFilename())) {
+                return missingField(fieldName);
+            }
+            return switch (fieldName) {
+                case "invoiceDate" -> dateField(fieldName, "June 22, 2026", "2026-06-22");
+                case "dueDate" -> dateField(fieldName, "07/31/2026", "2026-07-31");
+                default -> missingField(fieldName);
+            };
+        }
+
+        private OcrFieldResponse dateField(String fieldName, String rawValue, String normalizedValue) {
+            OcrFieldResponse field = missingField(fieldName);
+            field.setRawValue(rawValue);
+            field.setNormalizedValue(normalizedValue);
+            return field;
         }
 
         private OcrFieldResponse missingField(String fieldName) {
