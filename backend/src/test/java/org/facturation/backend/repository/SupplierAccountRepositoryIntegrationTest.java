@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -73,6 +74,25 @@ class SupplierAccountRepositoryIntegrationTest {
     }
 
     @Test
+    void excludesAccountWhenItsCollectiveAccountIsDeactivated() {
+        Organization organization = organizationRepository.findById(1L).orElseThrow();
+        ChartOfAccount collectiveAccount = chartOfAccountRepository.findById(1L).orElseThrow();
+        Supplier supplier = supplierRepository.findById(1L).orElseThrow();
+        saveAccount(organization, collectiveAccount, supplier, "TO_DEACTIVATE", "Compte fournisseur", true);
+
+        collectiveAccount.setActive(false);
+        chartOfAccountRepository.saveAndFlush(collectiveAccount);
+
+        assertTrue(supplierAccountRepository
+                .findByOrganizationOrganizationIdAndActiveTrue(organization.getOrganizationId())
+                .isEmpty());
+        assertTrue(supplierAccountRepository
+                .findBySupplierSupplierIdAndOrganizationOrganizationIdAndActiveTrue(
+                        supplier.getSupplierId(), organization.getOrganizationId())
+                .isEmpty());
+    }
+
+    @Test
     void allowsSameCodeInAnotherOrganizationAndKeepsQueriesIsolated() {
         Organization firstOrganization = organizationRepository.findById(1L).orElseThrow();
         ChartOfAccount firstCollectiveAccount = chartOfAccountRepository.findById(1L).orElseThrow();
@@ -89,6 +109,60 @@ class SupplierAccountRepositoryIntegrationTest {
                 .findByOrganizationOrganizationIdAndActiveTrue(secondOrganization.getOrganizationId());
         assertEquals(1, secondOrganizationAccounts.size());
         assertEquals(secondAccount.getSupplierAccountId(), secondOrganizationAccounts.getFirst().getSupplierAccountId());
+    }
+
+    @Test
+    void rejectsCollectiveAccountOutsideOrganization() {
+        Organization organization = organizationRepository.findById(1L).orElseThrow();
+        Organization otherOrganization = organizationRepository.save(organization("collective-account-owner"));
+        ChartOfAccount otherCollectiveAccount = chartOfAccountRepository.save(
+                collectiveAccount(otherOrganization, "401000"));
+
+        SupplierAccount account = account(
+                organization, otherCollectiveAccount, null, "INVALID_ORGANIZATION", "Compte invalide", true);
+
+        assertThrows(InvalidDataAccessApiUsageException.class,
+                () -> supplierAccountRepository.saveAndFlush(account));
+    }
+
+    @Test
+    void rejectsCollectiveAccountOutsideClassFour() {
+        Organization organization = organizationRepository.findById(1L).orElseThrow();
+        ChartOfAccount expenseAccount = chartOfAccountRepository.findById(2L).orElseThrow();
+
+        SupplierAccount wrongClass = account(
+                organization, expenseAccount, null, "WRONG_CLASS", "Compte hors classe 4", true);
+
+        assertThrows(InvalidDataAccessApiUsageException.class,
+                () -> supplierAccountRepository.saveAndFlush(wrongClass));
+    }
+
+    @Test
+    void rejectsInactiveCollectiveAccount() {
+        Organization organization = organizationRepository.findById(1L).orElseThrow();
+        ChartOfAccount inactiveCollectiveAccount = collectiveAccount(organization, "409000");
+        inactiveCollectiveAccount.setActive(false);
+        chartOfAccountRepository.saveAndFlush(inactiveCollectiveAccount);
+
+        SupplierAccount inactive = account(
+                organization, inactiveCollectiveAccount, null, "INACTIVE", "Compte collectif inactif", true);
+
+        assertThrows(InvalidDataAccessApiUsageException.class,
+                () -> supplierAccountRepository.saveAndFlush(inactive));
+    }
+
+    @Test
+    void rejectsSupplierOutsideOrganization() {
+        Organization organization = organizationRepository.findById(1L).orElseThrow();
+        ChartOfAccount collectiveAccount = chartOfAccountRepository.findById(1L).orElseThrow();
+        Organization otherOrganization = organizationRepository.save(organization("supplier-owner"));
+        Supplier otherSupplier = supplierRepository.save(supplier(otherOrganization));
+
+        SupplierAccount account = account(
+                organization, collectiveAccount, otherSupplier, "INVALID_SUPPLIER", "Compte invalide", true);
+
+        assertThrows(InvalidDataAccessApiUsageException.class,
+                () -> supplierAccountRepository.saveAndFlush(account));
     }
 
     private SupplierAccount saveAccount(
@@ -147,6 +221,17 @@ class SupplierAccountRepositoryIntegrationTest {
         account.setCreatedAt(now);
         account.setUpdatedAt(now);
         return account;
+    }
+
+    private Supplier supplier(Organization organization) {
+        LocalDateTime now = LocalDateTime.now();
+        Supplier supplier = new Supplier();
+        supplier.setOrganization(organization);
+        supplier.setName("Supplier");
+        supplier.setLegalName("Supplier SAS");
+        supplier.setCreatedAt(now);
+        supplier.setUpdatedAt(now);
+        return supplier;
     }
 
     private String uniqueDigits() {

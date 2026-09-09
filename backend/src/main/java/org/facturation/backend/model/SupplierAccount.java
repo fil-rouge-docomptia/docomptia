@@ -8,6 +8,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
@@ -51,6 +53,34 @@ public class SupplierAccount {
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    @PreUpdate
+    void validateAssociations() {
+        if (organization == null || collectiveAccount == null) {
+            return;
+        }
+
+        ChartOfAccount account = collectiveAccount;
+        if (!belongsToOrganization(account.getOrganization())) {
+            throw new IllegalArgumentException("Collective account must belong to the supplier account organization");
+        }
+        if (!account.isActive()
+                || account.getAccountNumber() == null
+                || !account.getAccountNumber().startsWith("4")) {
+            throw new IllegalArgumentException("Collective account must be an active class 4 account");
+        }
+        if (supplier != null && !belongsToOrganization(supplier.getOrganization())) {
+            throw new IllegalArgumentException("Supplier must belong to the supplier account organization");
+        }
+    }
+
+    private boolean belongsToOrganization(Organization associatedOrganization) {
+        return organization == associatedOrganization
+                || organization.getOrganizationId() != null
+                && associatedOrganization != null
+                && organization.getOrganizationId().equals(associatedOrganization.getOrganizationId());
+    }
 
     public Long getSupplierAccountId() {
         return supplierAccountId;
