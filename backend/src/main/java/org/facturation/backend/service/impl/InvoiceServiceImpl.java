@@ -40,6 +40,7 @@ import org.facturation.backend.service.ClassificationService;
 import org.facturation.backend.service.InvoiceDuplicateAlertService;
 import org.facturation.backend.service.InvoiceFileIntegrityService;
 import org.facturation.backend.service.InvoiceFileValidator;
+import org.facturation.backend.service.InvoiceAmountConsistencyService;
 import org.facturation.backend.service.InvoiceOcrService;
 import org.facturation.backend.service.InvoiceService;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
@@ -107,6 +108,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final ClassificationService classificationService;
     private final UserRepository userRepository;
     private final SubscriptionQuotaService subscriptionQuotaService;
+    private final InvoiceAmountConsistencyService invoiceAmountConsistencyService;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
@@ -127,7 +129,8 @@ public class InvoiceServiceImpl implements InvoiceService {
             InvoiceDuplicateAlertService duplicateAlertService,
             ClassificationService classificationService,
             UserRepository userRepository,
-            SubscriptionQuotaService subscriptionQuotaService
+            SubscriptionQuotaService subscriptionQuotaService,
+            InvoiceAmountConsistencyService invoiceAmountConsistencyService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.accountingEntryService = accountingEntryService;
@@ -148,6 +151,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.classificationService = classificationService;
         this.userRepository = userRepository;
         this.subscriptionQuotaService = subscriptionQuotaService;
+        this.invoiceAmountConsistencyService = invoiceAmountConsistencyService;
     }
 
     @Override
@@ -642,6 +646,7 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     private List<AppliedCorrection> applyInvoiceCorrections(Invoice invoice, InvoiceCorrectionRequest request) {
         List<AppliedCorrection> appliedCorrections = new ArrayList<>();
+        BigDecimal previousTotalTtc = invoice.getTotalTtc();
 
         if (request.getInvoiceNumber() != null) {
             String invoiceNumber = requireNotBlank(request.getInvoiceNumber(), "invoiceNumber");
@@ -702,6 +707,17 @@ public class InvoiceServiceImpl implements InvoiceService {
                     totalTva.toString()
             );
             invoice.setTotalTva(totalTva);
+        }
+
+        if (request.getTotalTtc() == null
+                && (request.getTotalHt() != null || request.getTotalTva() != null)) {
+            invoiceAmountConsistencyService.recalculateTtcAfterComponentCorrection(invoice);
+            registerCorrection(
+                    appliedCorrections,
+                    "totalTtc",
+                    toStringOrNull(previousTotalTtc),
+                    toStringOrNull(invoice.getTotalTtc())
+            );
         }
 
         if (request.getTotalTtc() != null) {
@@ -813,6 +829,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice.setTotalHt(invoiceOcrService.extractOptionalAmount(ocrAnalysis, "totalHt").orElse(null));
         invoice.setTotalTva(invoiceOcrService.extractOptionalAmount(ocrAnalysis, "totalTva").orElse(null));
         invoice.setTotalTtc(invoiceOcrService.extractOptionalAmount(ocrAnalysis, "totalTtc").orElse(null));
+        invoiceAmountConsistencyService.recalculateTtcWhenMissingOrWithinTolerance(invoice);
         invoice.setUpdatedAt(LocalDateTime.now());
     }
 

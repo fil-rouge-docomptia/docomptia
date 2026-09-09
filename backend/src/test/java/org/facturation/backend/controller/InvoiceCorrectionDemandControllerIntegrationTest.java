@@ -85,7 +85,7 @@ class InvoiceCorrectionDemandControllerIntegrationTest {
         assertEquals("The total amount must be checked", decisions.getFirst().getReason());
 
         InvoiceCorrectionRequest correction = new InvoiceCorrectionRequest();
-        correction.setTotalTtc("121.00");
+        correction.setTotalTtc("120.01");
         invoiceService.correctInvoice(uploadResponse.getInvoiceId(), correction).orElseThrow();
         assertEquals(
                 "A_VERIFIER",

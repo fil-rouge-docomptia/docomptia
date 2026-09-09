@@ -15,6 +15,7 @@ import org.facturation.backend.repository.AccountingEntryRepository;
 import org.facturation.backend.repository.AccountingRuleRepository;
 import org.facturation.backend.repository.SupplierAccountRepository;
 import org.facturation.backend.service.AccountingEntryService;
+import org.facturation.backend.service.InvoiceAmountConsistencyService;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -36,17 +37,20 @@ public class AccountingEntryServiceImpl implements AccountingEntryService {
     private final AccountingEntryLineRepository accountingEntryLineRepository;
     private final AccountingRuleRepository accountingRuleRepository;
     private final SupplierAccountRepository supplierAccountRepository;
+    private final InvoiceAmountConsistencyService invoiceAmountConsistencyService;
 
     public AccountingEntryServiceImpl(
             AccountingEntryRepository accountingEntryRepository,
             AccountingEntryLineRepository accountingEntryLineRepository,
             AccountingRuleRepository accountingRuleRepository,
-            SupplierAccountRepository supplierAccountRepository
+            SupplierAccountRepository supplierAccountRepository,
+            InvoiceAmountConsistencyService invoiceAmountConsistencyService
     ) {
         this.accountingEntryRepository = accountingEntryRepository;
         this.accountingEntryLineRepository = accountingEntryLineRepository;
         this.accountingRuleRepository = accountingRuleRepository;
         this.supplierAccountRepository = supplierAccountRepository;
+        this.invoiceAmountConsistencyService = invoiceAmountConsistencyService;
     }
 
     @Override
@@ -232,15 +236,13 @@ public class AccountingEntryServiceImpl implements AccountingEntryService {
     }
 
     private AccountingEntryPrerequisites validatePrerequisites(Invoice invoice) {
+        invoiceAmountConsistencyService.recalculateTtcWhenMissingOrWithinTolerance(invoice);
+        invoiceAmountConsistencyService.ensureConsistent(invoice);
         List<String> missingPrerequisites = new ArrayList<>();
         BigDecimal totalHt = validateAmount(invoice.getTotalHt(), "totalHt", false, missingPrerequisites);
         BigDecimal totalTva = validateAmount(invoice.getTotalTva(), "totalTva", false, missingPrerequisites);
         BigDecimal totalTtc = validateAmount(invoice.getTotalTtc(), "totalTtc", true, missingPrerequisites);
 
-        if (totalHt != null && totalTva != null && totalTtc != null
-                && totalHt.add(totalTva).compareTo(totalTtc) != 0) {
-            missingPrerequisites.add("amountsBalance");
-        }
         if (invoice.getSupplier() == null) {
             missingPrerequisites.add("supplier");
         }

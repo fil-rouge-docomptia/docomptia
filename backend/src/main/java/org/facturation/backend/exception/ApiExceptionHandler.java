@@ -4,6 +4,7 @@ import org.facturation.backend.dto.response.AccountingEntryPrerequisitesResponse
 import org.facturation.backend.dto.response.AccountingExportValidationResponse;
 import org.facturation.backend.dto.response.ApiErrorResponse;
 import org.facturation.backend.dto.response.InvoiceMissingRequiredFieldsResponse;
+import org.facturation.backend.dto.response.InvoiceAmountsInconsistentResponse;
 import org.facturation.backend.dto.response.InvoiceOcrFailureResponse;
 import org.facturation.backend.dto.response.SubscriptionLimitExceededResponse;
 import org.facturation.backend.dto.response.UnbalancedAccountingEntryResponse;
@@ -38,6 +39,7 @@ public class ApiExceptionHandler {
     private static final String ARCHIVED_INVOICE_NOT_MODIFIABLE_CODE = "ARCHIVED_INVOICE_NOT_MODIFIABLE";
     private static final String EXPORTED_INVOICE_NOT_MODIFIABLE_CODE = "EXPORTED_INVOICE_NOT_MODIFIABLE";
     private static final String INVOICE_REQUIRED_FIELDS_MISSING_CODE = "INVOICE_REQUIRED_FIELDS_MISSING";
+    private static final String INVOICE_AMOUNTS_INCONSISTENT_CODE = "INVOICE_AMOUNTS_INCONSISTENT";
     private static final String DUPLICATE_ALERT_NOT_FOUND_CODE = "DUPLICATE_ALERT_NOT_FOUND";
     private static final String DUPLICATE_ALERT_ACTION_NOT_ALLOWED_CODE = "DUPLICATE_ALERT_ACTION_NOT_ALLOWED";
     private static final String ACCOUNTING_RULE_NOT_FOUND_CODE = "ACCOUNTING_RULE_NOT_FOUND";
@@ -344,6 +346,21 @@ public class ApiExceptionHandler {
                 INVOICE_REQUIRED_FIELDS_MISSING_CODE,
                 exception.getMessage(),
                 exception.getMissingFields()
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    @ExceptionHandler(InvoiceAmountsInconsistentException.class)
+    public ResponseEntity<InvoiceAmountsInconsistentResponse> handleInvoiceAmountsInconsistent(
+            InvoiceAmountsInconsistentException exception
+    ) {
+        InvoiceAmountsInconsistentResponse response = new InvoiceAmountsInconsistentResponse(
+                INVOICE_AMOUNTS_INCONSISTENT_CODE,
+                exception.getMessage(),
+                exception.getExpectedTtc(),
+                exception.getActualTtc(),
+                exception.getDifference(),
+                exception.getTolerance()
         );
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
