@@ -36,6 +36,7 @@ public class ApiExceptionHandler {
     private static final String CHART_OF_ACCOUNT_VALIDATION_ERROR_CODE = "CHART_OF_ACCOUNT_VALIDATION_ERROR";
     private static final String CHART_OF_ACCOUNT_CONFLICT_CODE = "CHART_OF_ACCOUNT_CONFLICT";
     private static final String INVOICE_ACTION_NOT_ALLOWED_CODE = "INVOICE_ACTION_NOT_ALLOWED";
+    private static final String INVOICE_DELETION_NOT_ALLOWED_CODE = "INVOICE_DELETION_NOT_ALLOWED";
     private static final String ARCHIVED_INVOICE_NOT_MODIFIABLE_CODE = "ARCHIVED_INVOICE_NOT_MODIFIABLE";
     private static final String EXPORTED_INVOICE_NOT_MODIFIABLE_CODE = "EXPORTED_INVOICE_NOT_MODIFIABLE";
     private static final String INVOICE_REQUIRED_FIELDS_MISSING_CODE = "INVOICE_REQUIRED_FIELDS_MISSING";
@@ -322,6 +323,13 @@ public class ApiExceptionHandler {
             InvoiceStatusTransitionException exception
     ) {
         return errorResponse(HttpStatus.CONFLICT, INVOICE_ACTION_NOT_ALLOWED_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvoiceDeletionNotAllowedException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvoiceDeletionNotAllowed(
+            InvoiceDeletionNotAllowedException exception
+    ) {
+        return errorResponse(HttpStatus.CONFLICT, INVOICE_DELETION_NOT_ALLOWED_CODE, exception.getMessage());
     }
 
     @ExceptionHandler(ArchivedInvoiceNotModifiableException.class)
