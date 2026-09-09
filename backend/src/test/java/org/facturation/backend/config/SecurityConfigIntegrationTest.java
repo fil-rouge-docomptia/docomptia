@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 import java.time.Duration;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -257,6 +258,24 @@ class SecurityConfigIntegrationTest {
             mockMvc.perform(post("/api/v1/invoices/999999/archive")
                             .header("Authorization", "Bearer " + tokenFor(email)))
                     .andExpect(status().isNotFound());
+        }
+    }
+
+    @Test
+    void onlyAdministratorsCanAdministrativelyDeleteInvoices() throws Exception {
+        mockMvc.perform(delete("/api/v1/invoices/999999")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Created by mistake\"}")
+                        .header("Authorization", "Bearer " + loginAndGetToken()))
+                .andExpect(status().isNotFound());
+
+        for (String email : new String[]{
+                "operator-security@facturation-demo.fr",
+                "manager-security@facturation-demo.fr"
+        }) {
+            assertForbidden(delete("/api/v1/invoices/999999")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"reason\":\"Created by mistake\"}"), tokenFor(email));
         }
     }
 

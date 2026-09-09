@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -16,6 +17,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "invoices")
+@SQLRestriction("deleted_at IS NULL")
 public class Invoice {
 
     @Id
@@ -71,6 +73,15 @@ public class Invoice {
     private String paymentReference;
 
     private LocalDateTime archivedAt;
+
+    private LocalDateTime deletedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "deleted_by_user_id")
+    private User deletedByUser;
+
+    @Column(length = 1000)
+    private String deletionReason;
 
     @Column(nullable = false, length = 3)
     private String currencyCode;
@@ -225,6 +236,30 @@ public class Invoice {
 
     public void setArchivedAt(LocalDateTime archivedAt) {
         this.archivedAt = archivedAt;
+    }
+
+    public LocalDateTime getDeletedAt() {
+        return deletedAt;
+    }
+
+    public void setDeletedAt(LocalDateTime deletedAt) {
+        this.deletedAt = deletedAt;
+    }
+
+    public User getDeletedByUser() {
+        return deletedByUser;
+    }
+
+    public void setDeletedByUser(User deletedByUser) {
+        this.deletedByUser = deletedByUser;
+    }
+
+    public String getDeletionReason() {
+        return deletionReason;
+    }
+
+    public void setDeletionReason(String deletionReason) {
+        this.deletionReason = deletionReason;
     }
 
     public String getCurrencyCode() {

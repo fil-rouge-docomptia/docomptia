@@ -12,7 +12,9 @@ import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
+import org.facturation.backend.exception.InvoiceDeletionNotAllowedException;
 import org.facturation.backend.exception.InvoiceFileNotPreviewableException;
+import org.facturation.backend.exception.InvoiceNotFoundException;
 import org.facturation.backend.exception.InvoiceOcrFailureException;
 import org.facturation.backend.exception.InvalidUserException;
 import org.facturation.backend.exception.UnbalancedAccountingEntryException;
@@ -65,6 +67,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -79,6 +82,16 @@ public class InvoiceServiceImpl implements InvoiceService {
     private static final BigDecimal MAX_PERSISTED_AMOUNT = new BigDecimal("9999999999.99");
     private static final int AMOUNT_SCALE = 2;
     private static final String ASSIGNEE_CHANGED_ACTION = "ASSIGNEE_CHANGED";
+    private static final String ADMINISTRATIVELY_DELETED_ACTION = "ADMINISTRATIVELY_DELETED";
+    private static final Set<InvoiceStatusCode> ADMINISTRATIVELY_DELETABLE_STATUSES = EnumSet.of(
+            InvoiceStatusCode.DEPOSEE,
+            InvoiceStatusCode.OCR_EN_COURS,
+            InvoiceStatusCode.ERREUR_OCR,
+            InvoiceStatusCode.EXTRAITE,
+            InvoiceStatusCode.A_VERIFIER,
+            InvoiceStatusCode.REJETEE,
+            InvoiceStatusCode.BROUILLON
+    );
     private static final Set<String> KNOWN_STATUS_CODES = Stream.of(InvoiceStatusCode.values())
             .map(InvoiceStatusCode::getCode)
             .collect(Collectors.toUnmodifiableSet());
@@ -561,6 +574,56 @@ public class InvoiceServiceImpl implements InvoiceService {
             invoiceStatusWorkflowService.markArchived(invoice, user);
             return invoiceResponseMapper.toStatusResponse(invoice);
         });
+    }
+
+    @Override
+    @Transactional
+    public void administrativelyDelete(Long id, String reason) {
+        String normalizedReason = normalizeDeletionReason(reason);
+        User author = currentUserService.getCurrentUser();
+        Invoice invoice = findInvoiceForCurrentOrganization(id, author)
+                .orElseThrow(() -> new InvoiceNotFoundException(id));
+        InvoiceStatusCode status = InvoiceStatusCode.fromCode(invoice.getInvoiceStatus().getCode());
+        if (!ADMINISTRATIVELY_DELETABLE_STATUSES.contains(status)) {
+            throw new InvoiceDeletionNotAllowedException(status.getCode());
+        }
+
+        LocalDateTime deletedAt = LocalDateTime.now();
+        invoice.setDeletedAt(deletedAt);
+        invoice.setDeletedByUser(author);
+        invoice.setDeletionReason(normalizedReason);
+        invoice.setUpdatedAt(deletedAt);
+        invoiceRepository.save(invoice);
+        auditLogService.save(createAdministrativeDeletionAuditLog(invoice, author, normalizedReason, deletedAt));
+    }
+
+    private String normalizeDeletionReason(String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("Administrative deletion reason is required");
+        }
+        String normalizedReason = reason.trim();
+        if (normalizedReason.length() > 1000) {
+            throw new IllegalArgumentException("Administrative deletion reason must not exceed 1000 characters");
+        }
+        return normalizedReason;
+    }
+
+    private AuditLog createAdministrativeDeletionAuditLog(
+            Invoice invoice,
+            User author,
+            String reason,
+            LocalDateTime deletedAt
+    ) {
+        AuditLog auditLog = new AuditLog();
+        auditLog.setOrganization(invoice.getOrganization());
+        auditLog.setUser(author);
+        auditLog.setEntityName(Invoice.class.getSimpleName());
+        auditLog.setEntityId(invoice.getInvoiceId());
+        auditLog.setAction(ADMINISTRATIVELY_DELETED_ACTION);
+        auditLog.setOldValue("status=" + invoice.getInvoiceStatus().getCode());
+        auditLog.setNewValue("reason=" + reason);
+        auditLog.setCreatedAt(deletedAt);
+        return auditLog;
     }
 
     @Override
