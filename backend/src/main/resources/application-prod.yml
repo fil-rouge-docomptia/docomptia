@@ -6,8 +6,7 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD}
   jpa:
     hibernate:
-      ddl-auto: update
-    defer-datasource-initialization: true
+      ddl-auto: validate
   sql:
     init:
       mode: always
