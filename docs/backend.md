@@ -278,6 +278,13 @@ Un numero de compte est unique dans une organisation. Un compte absent ou rattac
 organisation retourne `404`; un numero deja utilise retourne `409`. La desactivation conserve les
 regles et lignes comptables qui referencent le compte.
 
+Les comptes de tiers fournisseurs sont distincts du plan comptable general. Chaque compte porte un
+code unique dans son organisation et reference un compte collectif actif de classe 4 du plan
+comptable de cette meme organisation. Le rattachement a un fournisseur est facultatif afin de
+permettre l'import avant rapprochement; lorsqu'il existe, le fournisseur appartient a la meme
+organisation. Les comptes de tiers desactives restent persistés pour l'historique mais sont exclus
+des recherches de comptes actifs utilisees pour proposer de nouvelles ecritures.
+
 L'[import CSV du plan comptable](account-import-api.md) propose trois POST multipart
 `/api/v1/chart-of-accounts/import/inspect`, `/preview` et `/confirm`, réservés à
 l'administrateur. L'inspection et la prévisualisation n'écrivent aucun compte ;
