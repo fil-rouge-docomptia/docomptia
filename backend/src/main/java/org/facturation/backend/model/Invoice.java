@@ -31,6 +31,10 @@ public class Invoice {
     private Supplier supplier;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "client_id")
+    private Client client;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "classification_id")
     private Classification classification;
 
@@ -113,6 +117,14 @@ public class Invoice {
 
     public void setSupplier(Supplier supplier) {
         this.supplier = supplier;
+    }
+
+    public Client getClient() {
+        return client;
+    }
+
+    public void setClient(Client client) {
+        this.client = client;
     }
 
     public Classification getClassification() { return classification; }

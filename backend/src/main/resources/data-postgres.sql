@@ -7,6 +7,53 @@ INSERT INTO organizations (organization_id, name, legal_name, siret, email, phon
 VALUES (1, 'Facturation Demo', 'Facturation Demo SARL', '55210055400013', 'contact@facturation-demo.fr', '0102030405', '10 rue de Paris, 75001 Paris', 'EUR', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT (organization_id) DO NOTHING;
 
+INSERT INTO subscription_plans (code, name, active)
+VALUES ('STARTER', 'Starter', true),
+       ('BUSINESS', 'Business', true),
+       ('PRO', 'Pro', true)
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO subscription_plan_limits (subscription_plan_id, valid_from, valid_to, max_active_users, monthly_invoice_limit)
+SELECT plan.subscription_plan_id, DATE '2026-09-01', null, limits.max_active_users, limits.monthly_invoice_limit
+FROM subscription_plans plan
+JOIN (VALUES
+    ('STARTER', 2, 100),
+    ('BUSINESS', 10, 1000),
+    ('PRO', null, null)
+) AS limits(plan_code, max_active_users, monthly_invoice_limit) ON limits.plan_code = plan.code
+ON CONFLICT (subscription_plan_id, valid_from) DO NOTHING;
+
+INSERT INTO subscription_plan_features (subscription_plan_id, feature_order, feature_code)
+SELECT plan.subscription_plan_id, feature.feature_order, feature.feature_code
+FROM subscription_plans plan
+JOIN (VALUES
+    ('STARTER', 0, 'INVOICE_MANAGEMENT'),
+    ('STARTER', 1, 'OCR'),
+    ('STARTER', 2, 'ACCOUNTING_EXPORT'),
+    ('BUSINESS', 0, 'INVOICE_MANAGEMENT'),
+    ('BUSINESS', 1, 'OCR'),
+    ('BUSINESS', 2, 'ACCOUNTING_EXPORT'),
+    ('BUSINESS', 3, 'APPROVAL_WORKFLOW'),
+    ('BUSINESS', 4, 'AUDIT_LOG'),
+    ('PRO', 0, 'INVOICE_MANAGEMENT'),
+    ('PRO', 1, 'OCR'),
+    ('PRO', 2, 'ACCOUNTING_EXPORT'),
+    ('PRO', 3, 'APPROVAL_WORKFLOW'),
+    ('PRO', 4, 'AUDIT_LOG'),
+    ('PRO', 5, 'API_ACCESS'),
+    ('PRO', 6, 'ADVANCED_CONNECTORS')
+) AS feature(plan_code, feature_order, feature_code) ON feature.plan_code = plan.code
+ON CONFLICT (subscription_plan_id, feature_order) DO NOTHING;
+
+INSERT INTO organization_subscriptions (organization_id, subscription_plan_id, status, start_date, end_date, next_billing_date)
+SELECT 1, subscription_plan_id, 'ACTIVE', DATE '2026-09-01', null, DATE '2026-10-01'
+FROM subscription_plans
+WHERE code = 'STARTER'
+  AND NOT EXISTS (
+      SELECT 1 FROM organization_subscriptions
+      WHERE organization_id = 1 AND end_date IS NULL
+  );
+
 INSERT INTO roles (role_id, code, label, description)
 VALUES (1, 'ADMIN', 'Administrateur', 'Administration generale de la plateforme')
 ON CONFLICT (role_id) DO NOTHING;
@@ -65,6 +112,10 @@ ON CONFLICT (invoice_status_id) DO NOTHING;
 
 INSERT INTO invoice_statuses (invoice_status_id, code, label, description)
 VALUES (12, 'PAYEE', 'Payee', 'Reglement de la facture confirme')
+ON CONFLICT (invoice_status_id) DO NOTHING;
+
+INSERT INTO invoice_statuses (invoice_status_id, code, label, description)
+VALUES (13, 'BROUILLON', 'Brouillon', 'Facture client en cours de preparation')
 ON CONFLICT (invoice_status_id) DO NOTHING;
 
 INSERT INTO users (user_id, organization_id, role_id, first_name, last_name, email, password_hash, is_active, created_at, updated_at)
@@ -128,6 +179,8 @@ VALUES (2, 1, null, 'Factures fournisseurs par defaut', null, 2, 3, 1, 100, true
 ON CONFLICT (accounting_rule_id) DO NOTHING;
 
 SELECT setval(pg_get_serial_sequence('organizations', 'organization_id'), COALESCE((SELECT MAX(organization_id) FROM organizations), 1), true);
+SELECT setval(pg_get_serial_sequence('subscription_plans', 'subscription_plan_id'), COALESCE((SELECT MAX(subscription_plan_id) FROM subscription_plans), 1), true);
+SELECT setval(pg_get_serial_sequence('subscription_plan_limits', 'subscription_plan_limit_id'), COALESCE((SELECT MAX(subscription_plan_limit_id) FROM subscription_plan_limits), 1), true);
 SELECT setval(pg_get_serial_sequence('roles', 'role_id'), COALESCE((SELECT MAX(role_id) FROM roles), 1), true);
 SELECT setval(pg_get_serial_sequence('invoice_statuses', 'invoice_status_id'), COALESCE((SELECT MAX(invoice_status_id) FROM invoice_statuses), 1), true);
 SELECT setval(pg_get_serial_sequence('users', 'user_id'), COALESCE((SELECT MAX(user_id) FROM users), 1), true);

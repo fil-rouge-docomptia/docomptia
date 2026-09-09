@@ -38,13 +38,16 @@ import org.facturation.backend.service.AuditLogService;
 import org.facturation.backend.service.CurrentUserService;
 import org.facturation.backend.service.ClassificationService;
 import org.facturation.backend.service.InvoiceDuplicateAlertService;
+import org.facturation.backend.service.InvoiceFileIntegrityService;
 import org.facturation.backend.service.InvoiceFileValidator;
 import org.facturation.backend.service.InvoiceOcrService;
 import org.facturation.backend.service.InvoiceService;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
 import org.facturation.backend.service.NotificationService;
 import org.facturation.backend.service.OcrErrorService;
+import org.facturation.backend.service.LegalRetentionService;
 import org.facturation.backend.service.SupplierService;
+import org.facturation.backend.service.SubscriptionQuotaService;
 import org.facturation.backend.service.storage.InvoiceFileStorageService;
 import org.facturation.backend.service.storage.StoredInvoiceFile;
 import jakarta.persistence.criteria.Predicate;
@@ -98,9 +101,12 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final CurrentUserService currentUserService;
     private final InvoiceFileRepository invoiceFileRepository;
     private final InvoiceFileStorageService invoiceFileStorageService;
+    private final InvoiceFileIntegrityService invoiceFileIntegrityService;
+    private final LegalRetentionService legalRetentionService;
     private final InvoiceDuplicateAlertService duplicateAlertService;
     private final ClassificationService classificationService;
     private final UserRepository userRepository;
+    private final SubscriptionQuotaService subscriptionQuotaService;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
@@ -116,9 +122,12 @@ public class InvoiceServiceImpl implements InvoiceService {
             CurrentUserService currentUserService,
             InvoiceFileRepository invoiceFileRepository,
             InvoiceFileStorageService invoiceFileStorageService,
+            InvoiceFileIntegrityService invoiceFileIntegrityService,
+            LegalRetentionService legalRetentionService,
             InvoiceDuplicateAlertService duplicateAlertService,
             ClassificationService classificationService,
-            UserRepository userRepository
+            UserRepository userRepository,
+            SubscriptionQuotaService subscriptionQuotaService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.accountingEntryService = accountingEntryService;
@@ -133,9 +142,12 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.currentUserService = currentUserService;
         this.invoiceFileRepository = invoiceFileRepository;
         this.invoiceFileStorageService = invoiceFileStorageService;
+        this.invoiceFileIntegrityService = invoiceFileIntegrityService;
+        this.legalRetentionService = legalRetentionService;
         this.duplicateAlertService = duplicateAlertService;
         this.classificationService = classificationService;
         this.userRepository = userRepository;
+        this.subscriptionQuotaService = subscriptionQuotaService;
     }
 
     @Override
@@ -162,6 +174,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         Supplier selectedSupplier = supplierId == null
                 ? null
                 : supplierService.findRequiredByIdForOrganization(supplierId, organization);
+        subscriptionQuotaService.ensureInvoiceCanBeCreated(organization.getOrganizationId());
         InvoiceStatus depositedStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.DEPOSEE);
 
         Invoice invoice = createDraftInvoice(organization, user, depositedStatus);
@@ -542,7 +555,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         User user = currentUserService.getCurrentUser();
         return findInvoiceForCurrentOrganization(id, user).map(invoice -> {
             invoiceStatusWorkflowService.ensureCanTransition(invoice, InvoiceStatusCode.ARCHIVEE);
-            invoice.setArchivedAt(LocalDateTime.now());
+            LocalDateTime archivedAt = LocalDateTime.now();
+            invoice.setArchivedAt(archivedAt);
+            legalRetentionService.record(invoice, archivedAt);
             invoiceStatusWorkflowService.markArchived(invoice, user);
             return invoiceResponseMapper.toStatusResponse(invoice);
         });
@@ -812,6 +827,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoiceFile.setMimeType(storedFile.mimeType());
         invoiceFile.setFileSize(storedFile.fileSize());
         invoiceFile.setUploadedAt(LocalDateTime.now());
+        invoiceFile.setSha256Checksum(invoiceFileIntegrityService.calculateSha256(file));
         return invoiceFileRepository.save(invoiceFile);
     }
 

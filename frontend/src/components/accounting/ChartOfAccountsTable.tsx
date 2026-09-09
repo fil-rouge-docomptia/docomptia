@@ -1,0 +1,55 @@
+import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
+
+import { AccountActionsMenu, type AccountActionHandler } from '@/components/accounting/AccountActionsMenu'
+import { accountColumns, type AccountSortColumn } from '@/components/accounting/chart-of-accounts-utils'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import type { ChartOfAccount } from '@/types/onboarding'
+
+type ChartOfAccountsTableProps = {
+  accounts: ChartOfAccount[]
+  sort: AccountSortColumn
+  descending: boolean
+  onSort: (column: AccountSortColumn) => void
+  onAction?: AccountActionHandler
+}
+
+export function ChartOfAccountsTable({ accounts, sort, descending, onSort, onAction }: ChartOfAccountsTableProps) {
+  return (
+    <div aria-label="Chart of accounts table" className="overflow-x-auto rounded-lg border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&>div]:overflow-visible" role="region" tabIndex={0}>
+      <Table aria-label="Organization accounts" className={`${onAction ? 'min-w-[800px]' : 'min-w-[680px]'} table-fixed text-xs`}>
+        <TableHeader className="bg-muted">
+          <TableRow>
+            {accountColumns.map(({ key, label }) => {
+              const Icon = sort === key ? descending ? ArrowDown : ArrowUp : ArrowUpDown
+              return (
+                <TableHead aria-sort={sort === key ? descending ? 'descending' : 'ascending' : 'none'} className={`h-10 px-2 ${key === 'accountLabel' ? onAction ? 'w-[36%]' : 'w-[40%]' : onAction ? 'w-[18%]' : 'w-1/5'}`} key={key} scope="col">
+                  <Button aria-label={`Sort by ${label.toLowerCase()}`} className="h-11 max-w-full gap-2 px-2 text-xs sm:h-10" onClick={() => onSort(key)} variant="ghost">
+                    {label}<Icon aria-hidden="true" className="size-3.5" />
+                  </Button>
+                </TableHead>
+              )
+            })}
+            {onAction ? <TableHead className="w-[10%] px-2 text-center" scope="col">Actions</TableHead> : null}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {accounts.map((account) => (
+            <TableRow className={account.active ? undefined : 'bg-muted/30 text-muted-foreground'} key={account.accountId}>
+              <TableCell className="h-11 break-words px-4 py-2 tabular-nums sm:h-10">{account.accountNumber}</TableCell>
+              <TableCell className="break-words px-4 py-2">{account.accountLabel}</TableCell>
+              <TableCell className="break-words px-4 py-2 text-muted-foreground">{account.accountType}</TableCell>
+              <TableCell className="px-4 py-2">
+                <Badge className={account.active ? 'bg-success-muted text-success' : 'bg-muted text-muted-foreground'} variant="secondary">
+                  {account.active ? 'Active' : 'Inactive'}
+                </Badge>
+              </TableCell>
+              {onAction ? <TableCell className="px-2 py-0 text-center"><AccountActionsMenu account={account} onAction={onAction} /></TableCell> : null}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}

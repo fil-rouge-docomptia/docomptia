@@ -1,9 +1,11 @@
 package org.facturation.backend.exception;
 
 import org.facturation.backend.dto.response.AccountingEntryPrerequisitesResponse;
+import org.facturation.backend.dto.response.AccountingExportValidationResponse;
 import org.facturation.backend.dto.response.ApiErrorResponse;
 import org.facturation.backend.dto.response.InvoiceMissingRequiredFieldsResponse;
 import org.facturation.backend.dto.response.InvoiceOcrFailureResponse;
+import org.facturation.backend.dto.response.SubscriptionLimitExceededResponse;
 import org.facturation.backend.dto.response.UnbalancedAccountingEntryResponse;
 import org.facturation.backend.mapper.OcrErrorMapper;
 import org.facturation.backend.model.InvoiceStatusCode;
@@ -24,6 +26,11 @@ public class ApiExceptionHandler {
     private static final String SUPPLIER_NOT_FOUND_CODE = "SUPPLIER_NOT_FOUND";
     private static final String SUPPLIER_VALIDATION_ERROR_CODE = "SUPPLIER_VALIDATION_ERROR";
     private static final String SUPPLIER_LEGAL_IDENTIFIER_CONFLICT_CODE = "SUPPLIER_LEGAL_IDENTIFIER_CONFLICT";
+    private static final String CUSTOMER_NOT_FOUND_CODE = "CUSTOMER_NOT_FOUND";
+    private static final String CUSTOMER_VALIDATION_ERROR_CODE = "CUSTOMER_VALIDATION_ERROR";
+    private static final String SUBSCRIPTION_CHANGE_VALIDATION_ERROR_CODE = "SUBSCRIPTION_CHANGE_VALIDATION_ERROR";
+    private static final String SUBSCRIPTION_CHANGE_NOT_ALLOWED_CODE = "SUBSCRIPTION_CHANGE_NOT_ALLOWED";
+    private static final String CUSTOMER_LEGAL_IDENTIFIER_CONFLICT_CODE = "CUSTOMER_LEGAL_IDENTIFIER_CONFLICT";
     private static final String CHART_OF_ACCOUNT_NOT_FOUND_CODE = "CHART_OF_ACCOUNT_NOT_FOUND";
     private static final String CHART_OF_ACCOUNT_VALIDATION_ERROR_CODE = "CHART_OF_ACCOUNT_VALIDATION_ERROR";
     private static final String CHART_OF_ACCOUNT_CONFLICT_CODE = "CHART_OF_ACCOUNT_CONFLICT";
@@ -45,6 +52,10 @@ public class ApiExceptionHandler {
             "ACCOUNTING_ENTRY_LINE_VALIDATION_ERROR";
     private static final String ACCOUNTING_ENTRY_NOT_MODIFIABLE_CODE = "ACCOUNTING_ENTRY_NOT_MODIFIABLE";
     private static final String ACCOUNTING_ENTRY_UNBALANCED_CODE = "ACCOUNTING_ENTRY_UNBALANCED";
+    private static final String ACCOUNTING_EXPORT_VALIDATION_FAILED_CODE = "ACCOUNTING_EXPORT_VALIDATION_FAILED";
+    private static final String ACCOUNTING_EXPORT_FILE_NOT_FOUND_CODE = "ACCOUNTING_EXPORT_FILE_NOT_FOUND";
+    private static final String ACCOUNTING_EXPORT_ARCHIVE_NOT_ALLOWED_CODE =
+            "ACCOUNTING_EXPORT_ARCHIVE_NOT_ALLOWED";
     private static final String INVALID_CREDENTIALS_CODE = "INVALID_CREDENTIALS";
     private static final String USER_VALIDATION_ERROR_CODE = "USER_VALIDATION_ERROR";
     private static final String USER_EMAIL_CONFLICT_CODE = "USER_EMAIL_CONFLICT";
@@ -57,11 +68,21 @@ public class ApiExceptionHandler {
     private static final String CLASSIFICATION_NOT_FOUND_CODE = "CLASSIFICATION_NOT_FOUND";
     private static final String CLASSIFICATION_VALIDATION_ERROR_CODE = "CLASSIFICATION_VALIDATION_ERROR";
     private static final String CLASSIFICATION_CONFLICT_CODE = "CLASSIFICATION_CONFLICT";
+    private static final String CLIENT_NOT_FOUND_CODE = "CLIENT_NOT_FOUND";
+    private static final String CUSTOMER_INVOICE_DRAFT_VALIDATION_ERROR_CODE =
+            "CUSTOMER_INVOICE_DRAFT_VALIDATION_ERROR";
+    private static final String SUBSCRIPTION_LIMIT_REACHED_CODE = "SUBSCRIPTION_LIMIT_REACHED";
 
     private final OcrErrorMapper ocrErrorMapper;
 
     public ApiExceptionHandler(OcrErrorMapper ocrErrorMapper) {
         this.ocrErrorMapper = ocrErrorMapper;
+    }
+
+    @ExceptionHandler(AccountImportException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountImport(AccountImportException exception) {
+        return errorResponse(exception.getStatus(), exception.getStatus() == HttpStatus.CONFLICT
+                ? "ACCOUNT_IMPORT_PREVIEW_CHANGED" : "ACCOUNT_IMPORT_INVALID", exception.getMessage());
     }
 
     @ExceptionHandler(InvalidInvoiceFileException.class)
@@ -72,6 +93,13 @@ public class ApiExceptionHandler {
     @ExceptionHandler(InvoiceFileNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleInvoiceFileNotFound(InvoiceFileNotFoundException exception) {
         return errorResponse(HttpStatus.NOT_FOUND, INVOICE_FILE_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(AccountingExportArchiveNotAllowedException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountingExportArchiveNotAllowed(
+            AccountingExportArchiveNotAllowedException exception
+    ) {
+        return errorResponse(HttpStatus.CONFLICT, ACCOUNTING_EXPORT_ARCHIVE_NOT_ALLOWED_CODE, exception.getMessage());
     }
 
     @ExceptionHandler(InvoiceFileNotPreviewableException.class)
@@ -148,6 +176,61 @@ public class ApiExceptionHandler {
         return errorResponse(HttpStatus.CONFLICT, CLASSIFICATION_CONFLICT_CODE, exception.getMessage());
     }
 
+    @ExceptionHandler(ClientNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleClientNotFound(ClientNotFoundException exception) {
+        return errorResponse(HttpStatus.NOT_FOUND, CLIENT_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidCustomerInvoiceDraftException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidCustomerInvoiceDraft(
+            InvalidCustomerInvoiceDraftException exception
+    ) {
+        return errorResponse(
+                HttpStatus.BAD_REQUEST,
+                CUSTOMER_INVOICE_DRAFT_VALIDATION_ERROR_CODE,
+                exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(CustomerInvoiceDraftNotModifiableException.class)
+    public ResponseEntity<ApiErrorResponse> handleCustomerInvoiceDraftNotModifiable(
+            CustomerInvoiceDraftNotModifiableException exception
+    ) {
+        return errorResponse(
+                HttpStatus.CONFLICT,
+                CUSTOMER_INVOICE_DRAFT_VALIDATION_ERROR_CODE,
+                exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(SubscriptionLimitExceededException.class)
+    public ResponseEntity<SubscriptionLimitExceededResponse> handleSubscriptionLimitExceeded(
+            SubscriptionLimitExceededException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new SubscriptionLimitExceededResponse(
+                SUBSCRIPTION_LIMIT_REACHED_CODE,
+                exception.getMessage(),
+                exception.getLimit(),
+                exception.getQuota(),
+                exception.getUsage(),
+                exception.getSuggestedPlans()
+        ));
+    }
+
+    @ExceptionHandler(InvalidSubscriptionChangeException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidSubscriptionChange(
+            InvalidSubscriptionChangeException exception
+    ) {
+        return errorResponse(HttpStatus.BAD_REQUEST, SUBSCRIPTION_CHANGE_VALIDATION_ERROR_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(SubscriptionChangeConflictException.class)
+    public ResponseEntity<ApiErrorResponse> handleSubscriptionChangeConflict(
+            SubscriptionChangeConflictException exception
+    ) {
+        return errorResponse(HttpStatus.CONFLICT, SUBSCRIPTION_CHANGE_NOT_ALLOWED_CODE, exception.getMessage());
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiErrorResponse> handleIllegalArgument(IllegalArgumentException exception) {
         return errorResponse(HttpStatus.BAD_REQUEST, INVOICE_VALIDATION_ERROR_CODE, exception.getMessage());
@@ -182,6 +265,23 @@ public class ApiExceptionHandler {
                 SUPPLIER_LEGAL_IDENTIFIER_CONFLICT_CODE,
                 exception.getMessage()
         );
+    }
+
+    @ExceptionHandler(CustomerNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleCustomerNotFound(CustomerNotFoundException exception) {
+        return errorResponse(HttpStatus.NOT_FOUND, CUSTOMER_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidCustomerException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidCustomer(InvalidCustomerException exception) {
+        return errorResponse(HttpStatus.BAD_REQUEST, CUSTOMER_VALIDATION_ERROR_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(CustomerLegalIdentifierConflictException.class)
+    public ResponseEntity<ApiErrorResponse> handleCustomerLegalIdentifierConflict(
+            CustomerLegalIdentifierConflictException exception
+    ) {
+        return errorResponse(HttpStatus.CONFLICT, CUSTOMER_LEGAL_IDENTIFIER_CONFLICT_CODE, exception.getMessage());
     }
 
     @ExceptionHandler(ChartOfAccountNotFoundException.class)
@@ -341,6 +441,25 @@ public class ApiExceptionHandler {
                 exception.getBalanceDifference()
         );
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    @ExceptionHandler(AccountingExportValidationException.class)
+    public ResponseEntity<AccountingExportValidationResponse> handleAccountingExportValidation(
+            AccountingExportValidationException exception
+    ) {
+        AccountingExportValidationResponse response = new AccountingExportValidationResponse(
+                ACCOUNTING_EXPORT_VALIDATION_FAILED_CODE,
+                exception.getMessage(),
+                exception.getInvoiceErrors()
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    @ExceptionHandler(AccountingExportFileNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountingExportFileNotFound(
+            AccountingExportFileNotFoundException exception
+    ) {
+        return errorResponse(HttpStatus.NOT_FOUND, ACCOUNTING_EXPORT_FILE_NOT_FOUND_CODE, exception.getMessage());
     }
 
     private ResponseEntity<ApiErrorResponse> errorResponse(HttpStatus status, String code, String message) {

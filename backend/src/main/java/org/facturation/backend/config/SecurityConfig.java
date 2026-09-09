@@ -71,6 +71,12 @@ public class SecurityConfig {
                         .hasAnyRole(BusinessPermission.VIEW_OWN_PROFILE.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/reference-data")
                         .hasAnyRole(BusinessPermission.VIEW_REFERENCE_DATA.roleCodes())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/subscription-plans")
+                        .hasAnyRole(BusinessPermission.VIEW_SUBSCRIPTION_PLANS.roleCodes())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/organizations/current/subscription")
+                        .hasAnyRole(BusinessPermission.VIEW_CURRENT_SUBSCRIPTION.roleCodes())
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/organizations/current/subscription")
+                        .hasAnyRole(BusinessPermission.MANAGE_SUBSCRIPTION.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/organizations/current")
                         .hasAnyRole(BusinessPermission.VIEW_ORGANIZATION.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/organizations/current/onboarding")
@@ -99,6 +105,8 @@ public class SecurityConfig {
                                 "/api/v1/invoices/*/reject"
                         )
                         .hasAnyRole(BusinessPermission.VALIDATE_INVOICES.roleCodes())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/accounting-entries", "/api/v1/accounting-entries/*")
+                        .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())
                         .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/accounting-entry")
                         .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())
                         .requestMatchers(HttpMethod.POST,
@@ -106,7 +114,18 @@ public class SecurityConfig {
                                 "/api/v1/accounting-entries/*/corrective-entry"
                         )
                         .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())
-                        .requestMatchers(HttpMethod.POST, "/api/v1/accounting-exports/csv")
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/accounting-exports/csv",
+                                "/api/v1/accounting-exports/fec",
+                                "/api/v1/accounting-exports/selection/confirm",
+                                "/api/v1/accounting-exports/preflight",
+                                "/api/v1/accounting-exports/generate",
+                                "/api/v1/accounting-exports/*/archive"
+                        )
+                        .hasAnyRole(BusinessPermission.EXPORT_ACCOUNTING.roleCodes())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/accounting-exports/*/file",
+                                "/api/v1/accounting-exports", "/api/v1/accounting-exports/summary",
+                                "/api/v1/accounting-exports/selection", "/api/v1/accounting-exports/formats")
                         .hasAnyRole(BusinessPermission.EXPORT_ACCOUNTING.roleCodes())
                         .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/mark-paid")
                         .hasAnyRole(BusinessPermission.CONFIRM_INVOICE_PAYMENTS.roleCodes())
@@ -116,10 +135,13 @@ public class SecurityConfig {
                         .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/invoices/upload",
+                                "/api/v1/customer-invoices",
                                 "/api/v1/invoices/*/ocr/retry",
                                 "/api/v1/invoices/*/submit-for-validation",
                                 "/api/v1/invoices/*/duplicate-alerts/*/decision"
                         )
+                        .hasAnyRole(BusinessPermission.PROCESS_INVOICES.roleCodes())
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/customer-invoices/*")
                         .hasAnyRole(BusinessPermission.PROCESS_INVOICES.roleCodes())
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/invoices/*")
                         .hasAnyRole(BusinessPermission.PROCESS_INVOICES.roleCodes())
@@ -131,11 +153,19 @@ public class SecurityConfig {
                         .hasAnyRole(BusinessPermission.VIEW_SUPPLIERS.roleCodes())
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/suppliers/*")
                         .hasAnyRole(BusinessPermission.MANAGE_SUPPLIERS.roleCodes())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/customers", "/api/v1/customers/**")
+                        .hasAnyRole(BusinessPermission.VIEW_CUSTOMERS.roleCodes())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/customers", "/api/v1/customers/*/deactivate")
+                        .hasAnyRole(BusinessPermission.MANAGE_CUSTOMERS.roleCodes())
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/customers/*")
+                        .hasAnyRole(BusinessPermission.MANAGE_CUSTOMERS.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/chart-of-accounts", "/api/v1/chart-of-accounts/**")
                         .hasAnyRole(BusinessPermission.VIEW_ACCOUNTING_CONFIGURATION.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/accounting-rules", "/api/v1/accounting-rules/**")
                         .hasAnyRole(BusinessPermission.VIEW_ACCOUNTING_CONFIGURATION.roleCodes())
-                        .requestMatchers(HttpMethod.POST, "/api/v1/chart-of-accounts", "/api/v1/chart-of-accounts/*/deactivate")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/chart-of-accounts", "/api/v1/chart-of-accounts/*/deactivate",
+                                "/api/v1/chart-of-accounts/import/inspect", "/api/v1/chart-of-accounts/import/preview",
+                                "/api/v1/chart-of-accounts/import/confirm")
                         .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_CONFIGURATION.roleCodes())
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/chart-of-accounts/**", "/api/v1/accounting-rules/**")
                         .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_CONFIGURATION.roleCodes())

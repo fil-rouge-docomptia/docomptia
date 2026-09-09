@@ -35,9 +35,12 @@ export type AccountingRuleAccount = {
   active: boolean
 }
 
+export type ChartOfAccountInput = Pick<ChartOfAccount, 'accountNumber' | 'accountLabel' | 'accountType'>
+
 export type AccountingRule = {
   accountingRuleId: number
   ruleName: string
+  priority?: number | null
   expenseAccount: AccountingRuleAccount | null
   vatAccount: AccountingRuleAccount | null
   supplierAccount: AccountingRuleAccount | null

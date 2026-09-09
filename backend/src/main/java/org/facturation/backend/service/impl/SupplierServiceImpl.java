@@ -437,9 +437,6 @@ public class SupplierServiceImpl implements SupplierService {
         if (vatNumber == null) {
             return null;
         }
-        if (isFrenchVatNumber(vatNumber) && !legalIdentifierValidator.isValidVatNumber(vatNumber)) {
-            throw new InvalidSupplierException("vatNumber must be a valid French VAT number");
-        }
         return vatNumber;
     }
 
@@ -577,9 +574,6 @@ public class SupplierServiceImpl implements SupplierService {
             String issuingCountryCode = extractVatCountryCode(normalizedValue);
             if (!countryCode.equals(issuingCountryCode)) {
                 throw new InvalidSupplierException("countryCode must match the VAT issuing country");
-            }
-            if (isFrenchVatNumber(normalizedValue) && !legalIdentifierValidator.isValidVatNumber(normalizedValue)) {
-                throw new InvalidSupplierException("vatNumber must be a valid French VAT number");
             }
             if ("FR".equals(countryCode)) {
                 findCurrentIdentifierValue(supplier.getSupplierId(), "FR_SIREN", "FR")

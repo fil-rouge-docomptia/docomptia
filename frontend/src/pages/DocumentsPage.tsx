@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 
+import { ArchivedDocumentNotice } from '@/components/document/ArchivedDocumentNotice'
 import {
   DocumentFilters,
   type DocumentView,
@@ -249,6 +250,9 @@ export default function DocumentsPage() {
             <DocumentEmptyState filtered={hasActiveFilters} onClear={handleFilterReset} />
           ) : documentPage ? (
             <section aria-label="Documents" className="space-y-4">
+              {documentPage.content.some((invoice) => invoice.status === 'ARCHIVEE') ? (
+                <ArchivedDocumentNotice collection />
+              ) : null}
               {view === 'table' ? (
                 <div className="overflow-hidden rounded-lg border border-border bg-card shadow-elevation-1">
                   <DocumentTable documents={documentPage.content} />

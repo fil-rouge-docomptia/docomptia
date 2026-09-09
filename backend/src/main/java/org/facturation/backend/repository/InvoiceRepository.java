@@ -11,10 +11,17 @@ import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpecificationExecutor<Invoice> {
+
+    long countByOrganizationOrganizationIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+            Long organizationId,
+            LocalDateTime periodStart,
+            LocalDateTime nextPeriodStart
+    );
 
     interface DashboardStatusAggregate {
         String getStatus();
@@ -49,9 +56,28 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
             @Param("endDate") LocalDate endDate
     );
 
+    @EntityGraph(attributePaths = {"invoiceStatus", "organization", "supplier"})
+    @Query("""
+            select invoice
+            from Invoice invoice
+            where invoice.organization.organizationId = :organizationId
+              and invoice.invoiceStatus.code = 'EXPORTABLE'
+              and invoice.exportBatch is null
+              and (:hasStartDate = false or invoice.invoiceDate >= :startDate)
+              and (:hasEndDate = false or invoice.invoiceDate <= :endDate)
+            order by invoice.invoiceDate, invoice.invoiceId
+            """)
+    List<Invoice> findAccountingExportCandidates(
+            @Param("organizationId") Long organizationId,
+            @Param("hasStartDate") boolean hasStartDate,
+            @Param("startDate") LocalDate startDate,
+            @Param("hasEndDate") boolean hasEndDate,
+            @Param("endDate") LocalDate endDate
+    );
+
     boolean existsByInvoiceIdAndOrganizationOrganizationId(Long invoiceId, Long organizationId);
 
-    @EntityGraph(attributePaths = {"invoiceStatus", "organization", "supplier", "assignedUser"})
+    @EntityGraph(attributePaths = {"invoiceStatus", "organization", "supplier", "client", "assignedUser"})
     Optional<Invoice> findByInvoiceIdAndOrganizationOrganizationId(Long invoiceId, Long organizationId);
 
     @EntityGraph(attributePaths = {"invoiceStatus", "organization", "supplier"})

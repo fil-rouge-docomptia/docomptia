@@ -48,9 +48,17 @@ Champs actuellement recherches:
 
 - `supplierName`
 - `invoiceNumber`
+- `invoiceDate`
+- `dueDate`
 - `totalHt`
 - `totalTva`
 - `totalTtc`
+
+Les dates de facture et d'echeance sont normalisees au format ISO `YYYY-MM-DD`.
+Les formats numeriques francais et americains non ambigus ainsi que les mois en
+francais et en anglais sont reconnus. Une date invalide ou numerique ambigue
+conserve sa valeur brute, mais sa valeur normalisee reste `null` pour permettre
+une verification humaine.
 
 ## Tesseract
 

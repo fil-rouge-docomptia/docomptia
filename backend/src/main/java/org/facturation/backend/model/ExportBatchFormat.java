@@ -1,7 +1,8 @@
 package org.facturation.backend.model;
 
 public enum ExportBatchFormat {
-    CSV("CSV");
+    CSV("CSV"),
+    FEC("FEC");
 
     private final String code;
 

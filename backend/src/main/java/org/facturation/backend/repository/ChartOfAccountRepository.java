@@ -4,10 +4,15 @@ import org.facturation.backend.model.ChartOfAccount;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 
 public interface ChartOfAccountRepository extends JpaRepository<ChartOfAccount, Long> {
+
+    @Query("select account.accountNumber from ChartOfAccount account where account.organization.organizationId = :organizationId")
+    java.util.List<String> findAccountNumbersByOrganizationId(@Param("organizationId") Long organizationId);
 
     Optional<ChartOfAccount> findByAccountIdAndOrganizationOrganizationIdAndIsActiveTrue(
             Long accountId,

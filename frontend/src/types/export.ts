@@ -1,0 +1,81 @@
+export type ExportStatus = 'PREPARATION' | 'GENERE' | 'ARCHIVE'
+export type ExportFormat = 'CSV' | 'FEC'
+
+export type ExportPreflight = { format: ExportFormat; selection: ExportSelection }
+
+export type ExportGenerationReceipt = {
+  exportBatchId: number
+  organizationId: number
+  format: ExportFormat
+  status: 'GENERE'
+  fileName: string
+  fileSize: number
+  generatedAt: string
+  createdByName: string
+  invoiceIds: number[]
+}
+
+export type ExportInvoiceErrors = {
+  invoiceId: number | null
+  invoiceNumber: string | null
+  errors: { code: string; message: string }[]
+}
+
+export type ExportBatch = {
+  exportBatchId: number
+  createdAt: string | null
+  periodStartDate: string | null
+  periodEndDate: string | null
+  format: ExportFormat
+  status: ExportStatus
+  fileName: string | null
+  createdByName: string
+  invoiceCount: number
+  amounts: { currencyCode: string | null; amount: number }[]
+  downloadable: boolean
+}
+
+export type ExportHistory = {
+  content: ExportBatch[]
+  number: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
+export type ExportSummary = {
+  readyToExport: number
+  blockedInvoices: number
+  exportedThisMonth: number
+  monthStart: string
+  monthEnd: string
+}
+
+export type ExportCandidate = {
+  invoiceId: number
+  invoiceNumber: string | null
+  invoiceDate: string | null
+  supplierName: string | null
+  currencyCode: string | null
+  invoiceAmount: number | null
+  eligible: boolean
+  totalDebit: number | null
+  totalCredit: number | null
+  errors: { code: string; message: string }[]
+}
+
+export type ExportTotals = {
+  currencyCode: string | null
+  totalDebit: number
+  totalCredit: number
+  invoiceAmount: number
+}
+
+export type ExportSelection = {
+  organizationId: number
+  organizationName: string
+  startDate: string | null
+  endDate: string | null
+  invoices: ExportCandidate[]
+  totals: ExportTotals[]
+}

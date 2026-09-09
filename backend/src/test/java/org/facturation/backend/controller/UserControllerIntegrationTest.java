@@ -2,6 +2,7 @@ package org.facturation.backend.controller;
 
 import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.repository.AuditLogRepository;
+import org.facturation.backend.repository.OrganizationSubscriptionRepository;
 import org.facturation.backend.service.JwtTokenService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,6 +52,9 @@ class UserControllerIntegrationTest {
 
     @Autowired
     private AuditLogRepository auditLogRepository;
+
+    @Autowired
+    private OrganizationSubscriptionRepository organizationSubscriptionRepository;
 
     @Value("${app.jwt.secret}")
     private String jwtSecret;
@@ -218,6 +222,12 @@ class UserControllerIntegrationTest {
 
     @Test
     void adminActivatesUserInCurrentOrganizationAndAuditsChange() throws Exception {
+        var activeUser = userRepository.findById(9633L).orElseThrow();
+        activeUser.setActive(false);
+        userRepository.saveAndFlush(activeUser);
+        long activeUsers = userRepository.countByOrganizationOrganizationIdAndIsActiveTrue(1L);
+        setActiveUserLimit(Math.toIntExact(activeUsers + 1));
+
         mockMvc.perform(patch("/api/v1/users/9631/status")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"active\":true}")
@@ -238,6 +248,37 @@ class UserControllerIntegrationTest {
         assertThat(auditLog.getOldValue()).isEqualTo("active=false");
         assertThat(auditLog.getNewValue()).isEqualTo("active=true");
         assertThat(auditLog.getCreatedAt()).isNotNull();
+    }
+
+    @Test
+    void rejectsActivationWhenActiveUserLimitIsReachedWithoutChangingUserOrAuditLog() throws Exception {
+        long auditCount = auditLogRepository.count();
+        int activeUsers = Math.toIntExact(userRepository.countByOrganizationOrganizationIdAndIsActiveTrue(1L));
+        setActiveUserLimit(activeUsers);
+
+        mockMvc.perform(patch("/api/v1/users/9631/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"active\":true}")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SUBSCRIPTION_LIMIT_REACHED"))
+                .andExpect(jsonPath("$.limit").value("MAX_ACTIVE_USERS"))
+                .andExpect(jsonPath("$.quota").value(activeUsers))
+                .andExpect(jsonPath("$.usage").value(activeUsers))
+                .andExpect(jsonPath("$.suggestedPlans.length()").value(2))
+                .andExpect(jsonPath("$.suggestedPlans[0].plan.code").value("BUSINESS"))
+                .andExpect(jsonPath("$.suggestedPlans[0].limitDifferences[0].limit")
+                        .value("MAX_ACTIVE_USERS"))
+                .andExpect(jsonPath("$.suggestedPlans[0].limitDifferences[0].currentValue").value(activeUsers))
+                .andExpect(jsonPath("$.suggestedPlans[0].limitDifferences[0].suggestedValue").value(10))
+                .andExpect(jsonPath("$.suggestedPlans[0].addedFeatures[0]").value("APPROVAL_WORKFLOW"))
+                .andExpect(jsonPath("$.suggestedPlans[1].plan.code").value("PRO"))
+                .andExpect(jsonPath("$.suggestedPlans[?(@.plan.code == 'STARTER')]").isEmpty());
+
+        assertThat(userRepository.findById(9631L).orElseThrow().isActive()).isFalse();
+        assertThat(auditLogRepository.count()).isEqualTo(auditCount);
+        assertThat(organizationSubscriptionRepository.findByOrganizationOrganizationId(1L).orElseThrow()
+                .getPlan().getCode()).isEqualTo("STARTER");
     }
 
     @Test
@@ -400,6 +441,11 @@ class UserControllerIntegrationTest {
 
     private String adminToken() {
         return tokenFor("admin@facturation-demo.fr");
+    }
+
+    private void setActiveUserLimit(int limit) {
+        var subscription = organizationSubscriptionRepository.findByOrganizationOrganizationId(1L).orElseThrow();
+        subscription.getPlan().findLimitsAt(java.time.LocalDate.now()).orElseThrow().setMaxActiveUsers(limit);
     }
 
     private String tokenFor(String email) {

@@ -1,4 +1,55 @@
 ALTER TABLE invoices ALTER COLUMN supplier_id DROP NOT NULL;
+CREATE TABLE IF NOT EXISTS subscription_plans (
+    subscription_plan_id BIGSERIAL PRIMARY KEY,
+    code VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    max_active_users INTEGER,
+    monthly_invoice_limit INTEGER,
+    active BOOLEAN NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS subscription_plan_limits (
+    subscription_plan_limit_id BIGSERIAL PRIMARY KEY,
+    subscription_plan_id BIGINT NOT NULL REFERENCES subscription_plans(subscription_plan_id),
+    valid_from DATE NOT NULL,
+    valid_to DATE,
+    max_active_users INTEGER,
+    monthly_invoice_limit INTEGER,
+    CONSTRAINT uk_subscription_plan_limits_period UNIQUE (subscription_plan_id, valid_from)
+);
+
+CREATE TABLE IF NOT EXISTS subscription_plan_features (
+    subscription_plan_id BIGINT NOT NULL REFERENCES subscription_plans(subscription_plan_id),
+    feature_order INTEGER NOT NULL,
+    feature_code VARCHAR(255) NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_subscription_plan_feature_order
+    ON subscription_plan_features (subscription_plan_id, feature_order);
+
+CREATE TABLE IF NOT EXISTS organization_subscriptions (
+    organization_subscription_id BIGSERIAL PRIMARY KEY,
+    organization_id BIGINT NOT NULL REFERENCES organizations(organization_id),
+    subscription_plan_id BIGINT NOT NULL REFERENCES subscription_plans(subscription_plan_id),
+    status VARCHAR(255) NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE,
+    next_billing_date DATE
+);
+
+ALTER TABLE organization_subscriptions
+    DROP CONSTRAINT IF EXISTS organization_subscriptions_organization_id_key;
+ALTER TABLE organization_subscriptions ADD COLUMN IF NOT EXISTS start_date DATE;
+ALTER TABLE organization_subscriptions ADD COLUMN IF NOT EXISTS end_date DATE;
+UPDATE organization_subscriptions
+SET start_date = COALESCE(start_date, (next_billing_date - INTERVAL '1 month')::date, CURRENT_DATE)
+WHERE start_date IS NULL;
+ALTER TABLE organization_subscriptions ALTER COLUMN start_date SET NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_organization_subscription_open_period
+    ON organization_subscriptions (organization_id)
+    WHERE end_date IS NULL;
+
 ALTER TABLE invoices ALTER COLUMN invoice_number DROP NOT NULL;
 ALTER TABLE invoices ALTER COLUMN invoice_date DROP NOT NULL;
 ALTER TABLE invoices ALTER COLUMN total_ht DROP NOT NULL;
@@ -20,6 +71,26 @@ ALTER TABLE suppliers DROP CONSTRAINT IF EXISTS uk_suppliers_organization_vat_nu
 ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS country_code VARCHAR(2);
 ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS search_name VARCHAR(511);
 UPDATE suppliers SET search_name = lower(concat_ws(' ', legal_name, name)) WHERE search_name IS NULL;
+
+CREATE TABLE IF NOT EXISTS customers (
+    customer_id BIGSERIAL PRIMARY KEY,
+    organization_id BIGINT NOT NULL REFERENCES organizations(organization_id),
+    name VARCHAR(255) NOT NULL,
+    legal_name VARCHAR(255) NOT NULL,
+    siret VARCHAR(255),
+    vat_number VARCHAR(255),
+    email VARCHAR(255),
+    phone VARCHAR(255),
+    address VARCHAR(255),
+    is_active BOOLEAN NOT NULL,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_customers_organization_siret
+    ON customers (organization_id, siret) WHERE siret IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uk_customers_organization_vat_number
+    ON customers (organization_id, vat_number) WHERE vat_number IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS supplier_legal_identifiers (
     supplier_legal_identifier_id BIGSERIAL PRIMARY KEY,
@@ -110,6 +181,24 @@ ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS payment_date DATE;
 ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(255);
 ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS paid_by_user_id BIGINT REFERENCES users(user_id);
 ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP;
+ALTER TABLE IF EXISTS invoice_files ADD COLUMN IF NOT EXISTS sha256_checksum VARCHAR(64);
+ALTER TABLE IF EXISTS invoice_files ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP;
+ALTER TABLE IF EXISTS invoice_files ADD COLUMN IF NOT EXISTS retention_duration_years INTEGER;
+ALTER TABLE IF EXISTS invoice_files ADD COLUMN IF NOT EXISTS integrity_status VARCHAR(255);
+
+ALTER TABLE organizations
+    ADD COLUMN IF NOT EXISTS next_accounting_piece_number BIGINT NOT NULL DEFAULT 1;
+UPDATE organizations organization
+SET next_accounting_piece_number = GREATEST(
+        organization.next_accounting_piece_number,
+        COALESCE((
+            SELECT MAX(accounting_entry.entry_number::BIGINT) + 1
+            FROM accounting_entries accounting_entry
+            JOIN invoices invoice ON invoice.invoice_id = accounting_entry.invoice_id
+            WHERE invoice.organization_id = organization.organization_id
+              AND accounting_entry.entry_number ~ '^[0-9]+$'
+        ), 1)
+    );
 
 ALTER TABLE IF EXISTS accounting_entries
     ADD COLUMN IF NOT EXISTS reversed_accounting_entry_id BIGINT REFERENCES accounting_entries(accounting_entry_id);
@@ -128,9 +217,19 @@ CREATE TABLE IF NOT EXISTS export_batches (
     period_end_date DATE,
     format VARCHAR(255) NOT NULL,
     status VARCHAR(255) NOT NULL,
+    file_name VARCHAR(255),
+    stored_file_name VARCHAR(255),
+    file_path VARCHAR(255),
+    file_size BIGINT,
     created_at TIMESTAMP,
-    generated_at TIMESTAMP
+    generated_at TIMESTAMP,
+    archived_at TIMESTAMP
 );
+ALTER TABLE IF EXISTS export_batches ADD COLUMN IF NOT EXISTS file_name VARCHAR(255);
+ALTER TABLE IF EXISTS export_batches ADD COLUMN IF NOT EXISTS stored_file_name VARCHAR(255);
+ALTER TABLE IF EXISTS export_batches ADD COLUMN IF NOT EXISTS file_path VARCHAR(255);
+ALTER TABLE IF EXISTS export_batches ADD COLUMN IF NOT EXISTS file_size BIGINT;
+ALTER TABLE IF EXISTS export_batches ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP;
 ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS export_batch_id BIGINT REFERENCES export_batches(export_batch_id);
 
 ALTER TABLE IF EXISTS invoice_duplicate_alerts ALTER COLUMN invoice_date DROP NOT NULL;

@@ -19,6 +19,8 @@ export type ComboboxOption = {
 }
 
 type SearchableComboboxProps = {
+  ariaDescribedBy?: string
+  ariaInvalid?: boolean
   ariaLabel?: string
   disabled?: boolean
   emptyMessage: string
@@ -31,6 +33,8 @@ type SearchableComboboxProps = {
 }
 
 export function SearchableCombobox({
+  ariaDescribedBy,
+  ariaInvalid,
   ariaLabel,
   disabled,
   emptyMessage,
@@ -48,6 +52,8 @@ export function SearchableCombobox({
     <Popover onOpenChange={setOpen} open={open}>
       <PopoverTrigger asChild>
         <Button
+          aria-describedby={ariaDescribedBy}
+          aria-invalid={ariaInvalid}
           aria-label={ariaLabel}
           aria-expanded={open}
           className="h-11 w-full justify-between font-normal md:h-9"

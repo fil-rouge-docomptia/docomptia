@@ -66,10 +66,18 @@ En Docker, `APP_OCR_MOCK=false` et le backend appelle:
 http://ocr:8000/ocr/analyze
 ```
 
+## Endpoint Plans D'Abonnement
+
+| Methode | Endpoint | Role |
+| --- | --- | --- |
+| `GET` | `/api/v1/subscription-plans` | Retourne aux utilisateurs authentifies les plans SaaS actifs avec leurs limites et leurs fonctionnalites. Une limite `null` signifie que l'usage est illimite. |
+
 ## Endpoints Factures MVP
 
 | Methode | Endpoint | Role |
 | --- | --- | --- |
+| `POST` | `/api/v1/customer-invoices` | Cree une facture client au statut `BROUILLON` pour un client de l'organisation courante. La devise est obligatoire et validee comme code ISO 4217; les dates, la reference de commande et la description sont facultatives. Aucun numero de facture n'est attribue. |
+| `PATCH` | `/api/v1/customer-invoices/{id}` | Modifie le client, la devise ou les informations principales tant que la facture client reste au statut `BROUILLON`, sans lui attribuer de numero. |
 | `POST` | `/api/v1/invoices/upload` | Upload, OCR et sauvegarde de la facture |
 | `PATCH` | `/api/v1/invoices/{id}` | Corrige les donnees extraites, conserve les valeurs OCR brutes, marque les champs OCR corriges manuellement et journalise chaque valeur avant/apres. Une facture `REJETEE` redevient `EXTRAITE` et doit etre soumise explicitement. |
 | `PATCH` | `/api/v1/invoices/{id}/assignee` | Affecte ou reaffecte la facture a un utilisateur actif de l'organisation courante, ou retire l'affectation avec `userId: null`, puis journalise l'ancien affectataire, le nouveau et l'auteur. |
@@ -79,7 +87,15 @@ http://ocr:8000/ocr/analyze
 | `POST` | `/api/v1/invoices/{id}/reject` | Refuse une facture eligible avec un motif obligatoire et historise la decision, son auteur et sa date |
 | `POST` | `/api/v1/invoices/{invoiceId}/duplicate-alerts/{alertId}/decision` | Ignore une alerte en attente, confirme le doublon ou rejette la facture, puis met a jour son workflow |
 | `POST` | `/api/v1/invoices/{id}/accounting-entry` | Genere ou controle l'ecriture comptable apres validation. Une ecriture desequilibree retourne `409` avec les totaux et l'ecart, et la facture reste `VALIDEE`. |
-| `POST` | `/api/v1/accounting-exports/csv?startDate=2026-08-01&endDate=2026-08-31` | Genere un CSV comptable telechargeable pour les factures `EXPORTABLE` de l'organisation courante et de la periode optionnelle. Un lot d'export `CSV` est cree avec l'organisation, la periode, l'auteur, le statut `PREPARATION`, les factures retenues, puis passe `GENERE` apres generation. Les ecritures sont recontrolees equilibrees, les dates sont au format ISO, les montants a deux decimales, puis les factures incluses passent `EXPORTEE` et l'action est journalisee avec l'identifiant du lot. |
+| `POST` | `/api/v1/accounting-exports/csv?startDate=2026-08-01&endDate=2026-08-31` | Controle toutes les factures de l'organisation courante et de la periode optionnelle avant de generer le CSV. Si une ou plusieurs regles echouent, la reponse `409` regroupe toutes les erreurs par facture (`invoiceId`, `invoiceNumber`, code et message) sans creer de lot ni modifier les statuts. Chaque tentative est journalisee avec son auteur, sa date, le format, le perimetre, les factures concernees et son resultat. Apres succes, les ecritures recoivent des numeros de piece numeriques ordonnes selon la sequence de l'organisation, un lot `CSV` passe de `PREPARATION` a `GENERE` et les factures passent `EXPORTEE`. |
+| `POST` | `/api/v1/accounting-exports/fec?startDate=2026-08-01&endDate=2026-08-31` | Applique les controles d'export et les controles propres au FEC, puis genere un fichier texte UTF-8 a 18 colonnes separees par des tabulations. Les dates utilisent `yyyyMMdd`, les montants ont deux decimales et le nom suit `{SIREN}FEC{dateFin}.txt`. Chaque tentative est journalisee avec son auteur, sa date, le format, le perimetre, les factures concernees et son resultat. Un controle invalide retourne le meme rapport `409` sans creer de lot ni modifier les factures. |
+| `GET` | `/api/v1/accounting-exports` | Historique de l'organisation : `query` (nom du fichier ou identifiant exact), `status` (`PREPARATION`, `GENERE`, `ARCHIVE`), `format` (`CSV`, `FEC`), `startDate`/`endDate` (dates inclusives de creation), `page` (base zero), `size` (1-100, defaut 8). Tri date de creation puis identifiant decroissants. Metadonnees publiques, auteur, nombre de factures et montants TTC par devise ; aucun chemin de stockage. |
+| `GET` | `/api/v1/accounting-exports/summary` | Factures pretes et factures bloquees par les controles comptables, toutes periodes confondues ; nombre de lots generes dans le mois courant du serveur, y compris ceux archives ensuite. `monthStart`/`monthEnd` explicitent ce mois. Les factures bloquees ne sont pas un historique des tentatives de generation echouees. |
+| `GET` | `/api/v1/accounting-exports/selection?startDate=2026-08-01&endDate=2026-08-31` | Candidats `EXPORTABLE` sans lot, dans l'organisation courante et la periode inclusive optionnelle. Reutilise les controles comptables communs ; retourne eligibilite et erreurs par facture, montants debit/credit des seules lignes eligibles et totaux separes par devise. La liste complete est retournee pour le MVP et peut etre paginee dans l'interface. |
+| `POST` | `/api/v1/accounting-exports/selection/confirm` | Corps JSON : `startDate`, `endDate` optionnelles et `invoiceIds` non vide, positifs et uniques. Recontrole uniquement cette selection dans l'organisation et la periode courantes. Retourne les factures et totaux verifies ; `400` pour une requete invalide, `409` si une facture est indisponible ou echoue aux controles. Ne cree aucun lot, numero de piece, fichier ni evenement metier et ne change aucun statut. Cette preparation non persistante ne reserve pas les factures : la generation revalide exactement ces identifiants et applique les controles du format choisi. |
+| `GET` | `/api/v1/accounting-exports/formats` | Liste des formats implementes par les generateurs : `["CSV", "FEC"]`. Aucun modele de logiciel comptable ou preference d'organisation n'est simule. Permission `EXPORT_ACCOUNTING`. |
+| `POST` | `/api/v1/accounting-exports/preflight` | Corps JSON : `invoiceIds` non vide, positifs et uniques, `format` obligatoire (`CSV` ou `FEC`), `startDate`/`endDate` facultatives et inclusives. Recontrole uniquement les factures selectionnees de l'organisation courante, encore `EXPORTABLE` et sans lot, avec les controles communs et ceux propres au FEC si choisi. Succes : `{format, selection}` ; `selection` contient organisation, periode, factures et totaux par devise, comme `/selection/confirm`. `400` si la requete est invalide ; `409 ACCOUNTING_EXPORT_VALIDATION_FAILED` avec `invoices[].invoiceId`, `invoiceNumber`, `errors[].code/message` si un controle echoue. Une facture indisponible produit `SELECTION_CHANGED` sans reveler son identite. Lecture seule : aucun fichier, lot, numero de piece, statut ou audit modifie. La selection n'est ni persistee ni reservee ; la generation doit refaire les controles sur ces memes identifiants. Permission `EXPORT_ACCOUNTING`. |
+| `POST` | `/api/v1/accounting-exports/generate` | Meme corps que `/preflight`. Sous verrou de sequence de l'organisation, revalide exactement les identifiants choisis et les controles CSV/FEC, genere et stocke le fichier puis passe les factures a `EXPORTEE`. Succes `200` apres commit : `{exportBatchId, organizationId, format, status: "GENERE", fileName, fileSize, generatedAt, createdByName, invoiceIds}` ; aucun chemin de stockage expose. Telechargement via `GET /{id}/file`. `400` requete invalide ; `409` selection perimee/deja exportee ou controles en echec ; `401/403` acces refuse. Les soumissions concurrentes sont serialisees : une selection deja exportee ne cree pas de nouveau lot. Rollback des statuts, liens et numeros en cas d'echec ; suppression compensatoire du fichier nouvellement stocke (erreur de suppression journalisee) et audit d'echec. Aucun pourcentage d'avancement ni rapport annexe ; une reponse reseau perdue doit etre reconciliee avec l'historique avant une nouvelle tentative. Permission `EXPORT_ACCOUNTING`. |
 | `POST` | `/api/v1/invoices/{id}/mark-paid` | Confirme le reglement d'une facture `EXPORTEE` avec une `paymentDate` obligatoire et une `paymentReference` facultative, enregistre l'utilisateur connecte, passe la facture au statut `PAYEE` et historise l'action. Une nouvelle demande sur une facture deja `PAYEE` reste sans effet et ne duplique pas l'historique. |
 | `POST` | `/api/v1/invoices/{id}/archive` | Archive une facture au statut `EXPORTEE`, enregistre `archivedAt`, passe la facture au statut `ARCHIVEE` et historise l'action. |
 | `GET` | `/api/v1/invoices?status=EXTRAITE&status=VALIDEE&invoiceNumber=FAC-2026&supplier=Orange&client=Docomptia&dueDate=2026-08-31&startDate=2026-08-01&endDate=2026-08-31&minAmount=100.00&maxAmount=500.00&page=0&size=20&sortBy=invoiceDate&direction=DESC` | Recherche les factures de l'organisation courante, filtre par un ou plusieurs statuts connus (parametre repete ou codes separes par des virgules), le numero exact ou partiel, le fournisseur ou client par nom ou identifiant, la date de facture, la date d'echeance, une periode inclusive de dates de facture ou une plage inclusive de montants TTC, puis retourne une page triable par date, montant TTC ou statut. Un statut inconnu retourne `400`. Les bornes de periode et de montant peuvent etre omises individuellement; une borne minimum posterieure a la borne maximum correspondante retourne `400`. |
@@ -121,6 +137,10 @@ valeur normalisee provient d'une correction manuelle.
 
 La fiche d'une facture expose `paymentDate`, `paymentReference` et `paidByUserId`
 lorsqu'un reglement a ete confirme, ainsi que `archivedAt` lorsqu'elle a ete archivee.
+Pour un document archive, `legalRetentionMetadata` expose en lecture seule le fichier lie,
+la date d'archivage, la duree de conservation en annees, l'emplacement et l'etat d'integrite
+`VERIFIED`, `ANOMALY_DETECTED` ou `NOT_VERIFIED`. La duree vaut 10 ans par defaut et se configure
+avec `app.legal-retention.duration-years`.
 
 L'historique en lecture seule d'une facture expose les changements de statut `PAYEE` et
 `ARCHIVEE`, ainsi que l'action comptable `ACCOUNTING_ENTRY_REVERSED`. Ces traces indiquent
@@ -142,6 +162,7 @@ par defaut.
 | --- | --- | --- | --- | --- |
 | `VIEW_OWN_PROFILE` | Consulter son profil | Oui | Oui | Oui |
 | `VIEW_REFERENCE_DATA` | Consulter les referentiels frontend | Oui | Oui | Oui |
+| `VIEW_SUBSCRIPTION_PLANS` | Consulter les offres SaaS actives | Oui | Oui | Oui |
 | `VIEW_ORGANIZATION` | Consulter l'organisation courante | Oui | Oui | Oui |
 | `MANAGE_ORGANIZATION` | Modifier les informations legales de l'organisation | Oui | Non | Non |
 | `VIEW_INVOICES` | Rechercher, consulter, telecharger une facture et son historique | Oui | Oui | Oui |
@@ -151,11 +172,13 @@ par defaut.
 | `PROCESS_INVOICES` | Deposer, corriger, relancer l'OCR, soumettre et traiter un doublon | Oui | Oui | Non |
 | `VALIDATE_INVOICES` | Valider, refuser ou demander une correction | Non | Non | Oui |
 | `MANAGE_ACCOUNTING_ENTRIES` | Generer une ecriture et corriger ses lignes | Oui | Oui | Oui |
-| `EXPORT_ACCOUNTING` | Generer et telecharger l'export CSV comptable | Oui | Oui | Oui |
+| `EXPORT_ACCOUNTING` | Consulter les exports, preparer une selection, generer et telecharger les exports comptables | Oui | Oui | Oui |
 | `CONFIRM_INVOICE_PAYMENTS` | Confirmer le reglement d'une facture exportee | Oui | Oui | Oui |
 | `ARCHIVE_INVOICES` | Archiver une facture exportee | Oui | Oui | Oui |
 | `VIEW_SUPPLIERS` | Lister et consulter les fournisseurs | Oui | Oui | Oui |
 | `MANAGE_SUPPLIERS` | Modifier un fournisseur | Oui | Oui | Non |
+| `VIEW_CUSTOMERS` | Lister et consulter les clients | Oui | Oui | Oui |
+| `MANAGE_CUSTOMERS` | Creer, modifier ou desactiver un client | Oui | Oui | Non |
 | `VIEW_ACCOUNTING_CONFIGURATION` | Consulter le plan et les regles comptables | Oui | Oui | Oui |
 | `MANAGE_ACCOUNTING_CONFIGURATION` | Creer, modifier ou desactiver un compte et modifier une regle | Oui | Non | Non |
 | `MANAGE_USERS` | Inviter ou modifier un utilisateur dans l'organisation | Oui | Non | Non |
@@ -188,6 +211,8 @@ l'upload d'une facture.
 | Methode | Endpoint | Role |
 | --- | --- | --- |
 | `GET` | `/api/v1/organizations/current` | Retourne les informations legales, de contact et la devise par defaut de l'organisation de l'utilisateur connecte |
+| `GET` | `/api/v1/organizations/current/subscription` | Retourne a l'administrateur le statut, la prochaine echeance, le plan courant, ses limites, ses fonctionnalites et la consommation de l'organisation. `subscribed=false` et les autres champs `null` indiquent l'absence d'abonnement. |
+| `PATCH` | `/api/v1/organizations/current/subscription` | Change l'offre de l'organisation. Corps: `{\"planCode\": \"BUSINESS\"}`. Un upgrade est immediat; un downgrade compatible avec la consommation courante est planifie a la prochaine echeance. |
 | `PATCH` | `/api/v1/organizations/current` | Modifie les informations legales, de contact et la devise par defaut de l'organisation de l'administrateur connecte |
 | `GET` | `/api/v1/organizations/current/onboarding` | Retourne a l'administrateur la progression de la configuration initiale, les etapes terminees et les actions restantes |
 | `GET` | `/api/v1/organizations/current/validation-preferences` | Retourne si le circuit de validation est actif et son seuil TTC optionnel |
@@ -200,6 +225,22 @@ utilisee par les nouvelles factures de l'organisation. La modification
 retourne `400` si une valeur est invalide ou inchangee et `409` si le SIRET est deja utilise par
 une autre organisation. Chaque champ modifie est journalise avec sa valeur avant/apres et
 l'administrateur responsable.
+
+La consommation expose le nombre courant d'utilisateurs actifs et le nombre de factures creees
+pendant le mois calendaire courant. Les bornes `periodStart` et `periodEnd` rendent la periode
+explicite; le calcul recommence automatiquement au changement de mois.
+
+La creation d'une facture fournisseur ou client est refusee lorsque la consommation mensuelle
+atteint la limite du plan. L'activation d'un utilisateur est refusee lorsque le nombre
+d'utilisateurs actifs atteint sa limite. Ces refus retournent `409` avec le code
+`SUBSCRIPTION_LIMIT_REACHED`, la limite concernee, le quota et la consommation, sans creer de
+donnee partielle. La reponse propose aussi les plans actifs compatibles autres que le plan courant,
+avec leurs limites ameliorees et leurs fonctionnalites ajoutees. Une proposition permet l'action
+bloquee et ne diminue aucune limite ni fonctionnalite actuelle; elle ne modifie jamais l'abonnement.
+Une limite `null` reste illimitee.
+
+Chaque changement d'offre clot la periode du plan precedent et cree une nouvelle periode datee.
+Un downgrade qui depasse une limite du plan cible retourne `409` sans modifier l'abonnement.
 
 L'avancement de l'onboarding est recalcule a chaque consultation a partir des informations de
 l'organisation, de la devise par defaut et de la presence d'au moins un compte comptable actif.
@@ -236,6 +277,32 @@ les schemas et pays francais et retourne `409` lorsqu'un identifiant actif est d
 Un numero de compte est unique dans une organisation. Un compte absent ou rattache a une autre
 organisation retourne `404`; un numero deja utilise retourne `409`. La desactivation conserve les
 regles et lignes comptables qui referencent le compte.
+
+Les comptes de tiers fournisseurs sont distincts du plan comptable general. Chaque compte porte un
+code unique dans son organisation et reference un compte collectif actif de classe 4 du plan
+comptable de cette meme organisation. Le rattachement a un fournisseur est facultatif afin de
+permettre l'import avant rapprochement; lorsqu'il existe, le fournisseur appartient a la meme
+organisation. Les comptes de tiers desactives restent persistés pour l'historique mais sont exclus
+des recherches de comptes actifs utilisees pour proposer de nouvelles ecritures.
+
+L'[import CSV du plan comptable](account-import-api.md) propose trois POST multipart
+`/api/v1/chart-of-accounts/import/inspect`, `/preview` et `/confirm`, réservés à
+l'administrateur. L'inspection et la prévisualisation n'écrivent aucun compte ;
+la confirmation crée uniquement les nouveaux comptes valides sans écraser les existants.
+
+## Endpoints Clients MVP
+
+| Methode | Endpoint | Role |
+| --- | --- | --- |
+| `POST` | `/api/v1/customers` | Cree un client actif dans l'organisation courante |
+| `GET` | `/api/v1/customers?page=0&size=20` | Retourne une page des clients de l'organisation courante |
+| `GET` | `/api/v1/customers/{id}` | Retourne le detail d'un client de l'organisation courante |
+| `PATCH` | `/api/v1/customers/{id}` | Modifie les informations legales et de contact d'un client de l'organisation courante |
+| `POST` | `/api/v1/customers/{id}/deactivate` | Desactive un client sans le supprimer |
+
+Le SIRET et le numero de TVA sont normalises et uniques dans l'organisation. Les identifiants
+francais sont controles et doivent correspondre lorsqu'ils sont renseignes ensemble. Un client
+d'une autre organisation retourne `404`; la desactivation conserve la ligne pour l'historique.
 
 ## Endpoints Classement MVP
 

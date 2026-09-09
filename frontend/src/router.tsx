@@ -2,27 +2,42 @@ import { Navigate, createBrowserRouter } from 'react-router-dom'
 
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth/RouteGuard'
 import { AppShell } from '@/components/layout/AppShell'
+import AccountingPage from '@/pages/AccountingPage'
+import AccountImportPage from '@/pages/AccountImportPage'
+import AccountingRulesPage from '@/pages/AccountingRulesPage'
 import AccountingOnboardingPage from '@/pages/AccountingOnboardingPage'
+import AccountingSettingsPage from '@/pages/AccountingSettingsPage'
 import ApprovalReviewPage from '@/pages/ApprovalReviewPage'
 import ApprovalsPage from '@/pages/ApprovalsPage'
+import ClientDetailsPage from '@/pages/ClientDetailsPage'
+import ClientsPage from '@/pages/ClientsPage'
+import ChartOfAccountsPage from '@/pages/ChartOfAccountsPage'
+import ClassificationSettingsPage from '@/pages/ClassificationSettingsPage'
 import DashboardPage from '@/pages/DashboardPage'
 import DocumentsPage from '@/pages/DocumentsPage'
 import InvoiceUploadPage from '@/pages/InvoiceUploadPage'
 import InvoiceDetailsPage from '@/pages/InvoiceDetailsPage'
 import InvoicesPage from '@/pages/InvoicesPage'
 import EmailVerificationPage from '@/pages/EmailVerificationPage'
+import ExportsPage from '@/pages/ExportsPage'
+import CreateExportPage from '@/pages/CreateExportPage'
 import LoginRoutePage from '@/pages/LoginRoutePage'
 import ModulePlaceholderPage from '@/pages/ModulePlaceholderPage'
+import MemberSettingsPage from '@/pages/MemberSettingsPage'
 import NotFoundPage from '@/pages/NotFoundPage'
+import NotificationSettingsPage from '@/pages/NotificationSettingsPage'
 import OrganizationOnboardingPage from '@/pages/OrganizationOnboardingPage'
+import OrganizationSettingsPage from '@/pages/OrganizationSettingsPage'
 import ProjectDetailsPage from '@/pages/ProjectDetailsPage'
 import ProjectsPage from '@/pages/ProjectsPage'
 import RegisterPage from '@/pages/RegisterPage'
 import ReportsPage from '@/pages/ReportsPage'
+import RoleSettingsPage from '@/pages/RoleSettingsPage'
 import SupplierDetailsPage from '@/pages/SupplierDetailsPage'
 import SuppliersPage from '@/pages/SuppliersPage'
 import TeamOnboardingPage from '@/pages/TeamOnboardingPage'
 import WorkflowOnboardingPage from '@/pages/WorkflowOnboardingPage'
+import WorkflowSettingsPage from '@/pages/WorkflowSettingsPage'
 import WorkspaceReadyOnboardingPage from '@/pages/WorkspaceReadyOnboardingPage'
 
 export const publicRoutes = [
@@ -71,21 +86,27 @@ export const privateRoutes = [
   },
   {
     path: '/accounting',
-    element: (
-      <ModulePlaceholderPage
-        description="Manage entries and accounting configuration."
-        title="Accounting"
-      />
-    ),
+    element: <AccountingPage />,
+  },
+  {
+    path: '/accounting/rules',
+    element: <AccountingRulesPage />,
+  },
+  {
+    path: '/accounting/accounts',
+    element: <ChartOfAccountsPage />,
+  },
+  {
+    path: '/accounting/accounts/import',
+    element: <AccountImportPage />,
   },
   {
     path: '/exports',
-    element: (
-      <ModulePlaceholderPage
-        description="Prepare and retrieve accounting exports."
-        title="Exports"
-      />
-    ),
+    element: <ExportsPage />,
+  },
+  {
+    path: '/exports/new',
+    element: <CreateExportPage />,
   },
   {
     path: '/documents',
@@ -101,12 +122,11 @@ export const privateRoutes = [
   },
   {
     path: '/clients',
-    element: (
-      <ModulePlaceholderPage
-        description="Manage client records for the current organization."
-        title="Clients"
-      />
-    ),
+    element: <ClientsPage />,
+  },
+  {
+    path: '/clients/:customerId',
+    element: <ClientDetailsPage />,
   },
   {
     path: '/projects',
@@ -131,12 +151,35 @@ export const privateRoutes = [
   },
   {
     path: '/settings',
-    element: (
-      <ModulePlaceholderPage
-        description="Configure your organization and workspace."
-        title="Settings"
-      />
-    ),
+    element: <OrganizationSettingsPage />,
+  },
+  {
+    path: '/settings/general',
+    element: <OrganizationSettingsPage general />,
+  },
+  {
+    path: '/settings/categories',
+    element: <ClassificationSettingsPage />,
+  },
+  {
+    path: '/settings/members',
+    element: <MemberSettingsPage />,
+  },
+  {
+    path: '/settings/roles',
+    element: <RoleSettingsPage />,
+  },
+  {
+    path: '/settings/workflow',
+    element: <WorkflowSettingsPage />,
+  },
+  {
+    path: '/settings/accounting',
+    element: <AccountingSettingsPage />,
+  },
+  {
+    path: '/settings/notifications',
+    element: <NotificationSettingsPage />,
   },
 ]
 

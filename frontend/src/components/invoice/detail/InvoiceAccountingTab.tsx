@@ -17,13 +17,12 @@ import type {
 
 import { AccountingEntryLineEditor } from './AccountingEntryLineEditor'
 import { formatInvoiceDate, formatInvoiceMoney } from './invoice-detail-utils'
+import { isInvoiceReadOnlyStatus } from './invoice-lifecycle'
 
 type AccountingBalanceSummaryProps = {
   currencyCode: string | null
   entry: AccountingEntry
 }
-
-const lockedInvoiceStatuses = new Set(['EXPORTEE', 'ARCHIVEE'])
 
 function getInvoiceStatusAfterCorrection(
   currentStatus: string,
@@ -219,7 +218,7 @@ export function InvoiceAccountingTab({
   }
 
   const canEdit = entry.status === 'GENERATED'
-    && !lockedInvoiceStatuses.has(invoice.status)
+    && !isInvoiceReadOnlyStatus(invoice.status)
 
   const handleEditLine = (line: AccountingEntryLine) => {
     setEditingLineId(line.accountingEntryLineId)
@@ -246,11 +245,11 @@ export function InvoiceAccountingTab({
         </div>
       </header>
 
-      {lockedInvoiceStatuses.has(invoice.status) ? (
+      {isInvoiceReadOnlyStatus(invoice.status) ? (
         <Alert>
           <AlertTitle>Accounting entry is read-only</AlertTitle>
           <AlertDescription>
-            Exported and archived invoices cannot be corrected directly.
+            Exported, paid and archived invoices cannot be corrected directly.
           </AlertDescription>
         </Alert>
       ) : null}

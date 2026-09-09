@@ -135,7 +135,7 @@ test.describe('responsive breakpoints', () => {
       )
 
       await page.goto('/inbox')
-      await expect(page.getByRole('heading', { name: 'Inbox' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Inbox', exact: true })).toBeVisible()
       await expectNoHorizontalOverflow(page, 'Private workspace')
 
       await page.getByRole('button', { name: 'Upload invoices' }).click()
