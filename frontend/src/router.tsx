@@ -35,6 +35,7 @@ import SupplierDetailsPage from '@/pages/SupplierDetailsPage'
 import SuppliersPage from '@/pages/SuppliersPage'
 import TeamOnboardingPage from '@/pages/TeamOnboardingPage'
 import WorkflowOnboardingPage from '@/pages/WorkflowOnboardingPage'
+import WorkflowSettingsPage from '@/pages/WorkflowSettingsPage'
 import WorkspaceReadyOnboardingPage from '@/pages/WorkspaceReadyOnboardingPage'
 
 export const publicRoutes = [
@@ -165,6 +166,10 @@ export const privateRoutes = [
   {
     path: '/settings/roles',
     element: <RoleSettingsPage />,
+  },
+  {
+    path: '/settings/workflow',
+    element: <WorkflowSettingsPage />,
   },
 ]
 
