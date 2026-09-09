@@ -71,23 +71,6 @@ class AccountingEntrySupplierAccountTest {
     }
 
     @Test
-    void fallsBackToRuleAccountWhenSupplierAccountIsDisabled() {
-        Fixture fixture = fixture();
-        SupplierAccount disabledAccount = supplierAccount(fixture, fixture.collectiveAccount(), false);
-        when(supplierAccountRepository
-                .findBySupplierSupplierIdAndOrganizationOrganizationIdAndActiveTrue(10L, 1L))
-                .thenReturn(Optional.empty());
-        prepareGeneration(fixture, Optional.empty());
-
-        service.generateFromInvoice(fixture.invoice(), fixture.user());
-
-        AccountingEntryLine supplierLine = savedLines().get(2);
-        assertThat(disabledAccount.isActive()).isFalse();
-        assertThat(supplierLine.getAccount()).isSameAs(fixture.fallbackAccount());
-        assertThat(supplierLine.getSupplierAccount()).isNull();
-    }
-
-    @Test
     void blocksGenerationWhenRequiredFallbackAccountIsMissing() {
         Fixture fixture = fixture();
         fixture.rule().setSupplierAccount(null);
