@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ArrowLeft, ChevronRight, FolderTree, GitBranch, Settings, ShieldCheck, Users } from 'lucide-react'
+import { ArrowLeft, Bell, Calculator, ChevronRight, FolderTree, GitBranch, Settings, ShieldCheck, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -13,6 +13,8 @@ const sections = [
   { id: 'members', title: 'Members', icon: Users },
   { id: 'roles', title: 'Roles & permissions', icon: ShieldCheck },
   { id: 'workflow', title: 'Approval workflow', icon: GitBranch },
+  { id: 'accounting', title: 'Accounting', icon: Calculator },
+  { id: 'notifications', title: 'Notifications', icon: Bell },
 ] as const
 
 type SettingsLayoutProps = {

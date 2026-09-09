@@ -6,6 +6,7 @@ import AccountingPage from '@/pages/AccountingPage'
 import AccountImportPage from '@/pages/AccountImportPage'
 import AccountingRulesPage from '@/pages/AccountingRulesPage'
 import AccountingOnboardingPage from '@/pages/AccountingOnboardingPage'
+import AccountingSettingsPage from '@/pages/AccountingSettingsPage'
 import ApprovalReviewPage from '@/pages/ApprovalReviewPage'
 import ApprovalsPage from '@/pages/ApprovalsPage'
 import ClientDetailsPage from '@/pages/ClientDetailsPage'
@@ -24,6 +25,7 @@ import LoginRoutePage from '@/pages/LoginRoutePage'
 import ModulePlaceholderPage from '@/pages/ModulePlaceholderPage'
 import MemberSettingsPage from '@/pages/MemberSettingsPage'
 import NotFoundPage from '@/pages/NotFoundPage'
+import NotificationSettingsPage from '@/pages/NotificationSettingsPage'
 import OrganizationOnboardingPage from '@/pages/OrganizationOnboardingPage'
 import OrganizationSettingsPage from '@/pages/OrganizationSettingsPage'
 import ProjectDetailsPage from '@/pages/ProjectDetailsPage'
@@ -170,6 +172,14 @@ export const privateRoutes = [
   {
     path: '/settings/workflow',
     element: <WorkflowSettingsPage />,
+  },
+  {
+    path: '/settings/accounting',
+    element: <AccountingSettingsPage />,
+  },
+  {
+    path: '/settings/notifications',
+    element: <NotificationSettingsPage />,
   },
 ]
 
