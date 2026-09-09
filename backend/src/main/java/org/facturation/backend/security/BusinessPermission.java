@@ -31,7 +31,8 @@ public enum BusinessPermission {
     MANAGE_ACCOUNTING_CONFIGURATION(RoleCode.ADMIN),
     VIEW_CLASSIFICATIONS(RoleCode.ADMIN, RoleCode.OPERATEUR_COMPTABLE, RoleCode.RESPONSABLE_COMPTABLE),
     MANAGE_CLASSIFICATIONS(RoleCode.ADMIN),
-    MANAGE_USERS(RoleCode.ADMIN);
+    MANAGE_USERS(RoleCode.ADMIN),
+    VIEW_AUDIT_LOGS(RoleCode.ADMIN);
 
     private final Set<RoleCode> roles;
 

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ArrowLeft, Bell, Calculator, ChevronRight, FolderTree, GitBranch, Settings, ShieldCheck, Users } from 'lucide-react'
+import { ArrowLeft, Bell, Calculator, ChevronRight, FolderTree, GitBranch, Settings, ShieldCheck, Shield, ScrollText, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -15,6 +15,8 @@ const sections = [
   { id: 'workflow', title: 'Approval workflow', icon: GitBranch },
   { id: 'accounting', title: 'Accounting', icon: Calculator },
   { id: 'notifications', title: 'Notifications', icon: Bell },
+  { id: 'security', title: 'Security', icon: Shield },
+  { id: 'audit-logs', title: 'Audit logs', icon: ScrollText },
 ] as const
 
 type SettingsLayoutProps = {
@@ -37,7 +39,7 @@ export function SettingsLayout({ section, description, overview = false, actions
             <p className="text-xs text-muted-foreground">Workspace preferences and administration.</p>
           </div>
           <div className="space-y-1">
-            {sections.filter(({ id }) => !['members', 'roles'].includes(id) || user?.role.code === 'ADMIN').map(({ id, title, icon: Icon }) => (
+            {sections.filter(({ id }) => !['members', 'roles', 'audit-logs'].includes(id) || user?.role.code === 'ADMIN').map(({ id, title, icon: Icon }) => (
               <Link aria-current={!overview && section === id ? 'page' : undefined} className={cn('flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring lg:min-h-10', section === id && 'bg-accent text-accent-foreground')} key={id} to={`/settings/${id}`}>
                 <Icon aria-hidden="true" className="size-5 shrink-0" />{title}
                 <ChevronRight aria-hidden="true" className="ml-auto size-4 lg:hidden" />

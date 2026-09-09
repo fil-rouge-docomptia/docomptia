@@ -69,6 +69,8 @@ public class SecurityConfig {
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/users/me")
                         .hasAnyRole(BusinessPermission.VIEW_OWN_PROFILE.roleCodes())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/audit-logs", "/api/v1/audit-logs/*")
+                        .hasAnyRole(BusinessPermission.VIEW_AUDIT_LOGS.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/reference-data")
                         .hasAnyRole(BusinessPermission.VIEW_REFERENCE_DATA.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/subscription-plans")

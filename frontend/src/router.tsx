@@ -3,6 +3,8 @@ import { Navigate, createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth/RouteGuard'
 import { AppShell } from '@/components/layout/AppShell'
 import AccountingPage from '@/pages/AccountingPage'
+import AuditSettingsPage from '@/pages/AuditSettingsPage'
+import SecuritySettingsPage from '@/pages/SecuritySettingsPage'
 import AccountImportPage from '@/pages/AccountImportPage'
 import AccountingRulesPage from '@/pages/AccountingRulesPage'
 import AccountingOnboardingPage from '@/pages/AccountingOnboardingPage'
@@ -176,6 +178,14 @@ export const privateRoutes = [
   {
     path: '/settings/accounting',
     element: <AccountingSettingsPage />,
+  },
+  {
+    path: '/settings/audit-logs',
+    element: <AuditSettingsPage />,
+  },
+  {
+    path: '/settings/security',
+    element: <SecuritySettingsPage />,
   },
   {
     path: '/settings/notifications',
