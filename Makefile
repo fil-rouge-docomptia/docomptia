@@ -9,7 +9,7 @@ AGENT_USER = KAN_AGENT_UID=$(shell id -u) KAN_AGENT_GID=$(shell id -g)
 .PHONY: dev dev-down staging staging-down prod prod-down logs ps agent-init agent agent-down agent-logs
 
 dev:
-	$(COMPOSE) $(DEV) up --build
+	$(COMPOSE) $(DEV) up -d --build
 
 dev-down:
 	$(COMPOSE) $(DEV) down
