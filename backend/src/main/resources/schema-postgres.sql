@@ -280,3 +280,16 @@ CREATE TABLE IF NOT EXISTS notifications (
     email_body TEXT,
     created_at TIMESTAMP NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS processing_anomalies (
+    processing_anomaly_id BIGSERIAL PRIMARY KEY,
+    invoice_id BIGINT NOT NULL REFERENCES invoices(invoice_id),
+    organization_id BIGINT NOT NULL REFERENCES organizations(organization_id),
+    code VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    resolved_at TIMESTAMP,
+    resolved_by_user_id BIGINT REFERENCES users(user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_processing_anomalies_dashboard
+    ON processing_anomalies (organization_id, resolved_at, created_at DESC);

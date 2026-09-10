@@ -42,6 +42,7 @@ public class ApiExceptionHandler {
     private static final String INVOICE_REQUIRED_FIELDS_MISSING_CODE = "INVOICE_REQUIRED_FIELDS_MISSING";
     private static final String INVOICE_AMOUNTS_INCONSISTENT_CODE = "INVOICE_AMOUNTS_INCONSISTENT";
     private static final String DUPLICATE_ALERT_NOT_FOUND_CODE = "DUPLICATE_ALERT_NOT_FOUND";
+    private static final String PROCESSING_ANOMALY_NOT_FOUND_CODE = "PROCESSING_ANOMALY_NOT_FOUND";
     private static final String DUPLICATE_ALERT_ACTION_NOT_ALLOWED_CODE = "DUPLICATE_ALERT_ACTION_NOT_ALLOWED";
     private static final String ACCOUNTING_RULE_NOT_FOUND_CODE = "ACCOUNTING_RULE_NOT_FOUND";
     private static final String ACCOUNTING_RULE_VALIDATION_ERROR_CODE = "ACCOUNTING_RULE_VALIDATION_ERROR";
@@ -376,6 +377,13 @@ public class ApiExceptionHandler {
     @ExceptionHandler(DuplicateAlertNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleDuplicateAlertNotFound(DuplicateAlertNotFoundException exception) {
         return errorResponse(HttpStatus.NOT_FOUND, DUPLICATE_ALERT_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(ProcessingAnomalyNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleProcessingAnomalyNotFound(
+            ProcessingAnomalyNotFoundException exception
+    ) {
+        return errorResponse(HttpStatus.NOT_FOUND, PROCESSING_ANOMALY_NOT_FOUND_CODE, exception.getMessage());
     }
 
     @ExceptionHandler(DuplicateAlertDecisionException.class)
