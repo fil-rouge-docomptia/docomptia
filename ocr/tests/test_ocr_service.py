@@ -3,7 +3,10 @@ import unittest
 from app.services.ocr_service import (
     build_date_field,
     build_field,
+    build_invoice_date_field,
     extract_amount,
+    extract_command_reference,
+    extract_invoice_number,
     extract_labeled_date,
     extract_supplier,
     extract_total_ttc,
@@ -36,6 +39,18 @@ class OcrServiceTest(unittest.TestCase):
         raw_text = "FACTURE\nN° de facture : FAC-2026-001\n22/06/2026"
 
         self.assertIsNone(extract_supplier(raw_text))
+
+    def test_distinguishes_invoice_number_from_command_reference(self) -> None:
+        raw_text = (
+            "Référence de la facture acquittée : FR66515554\n"
+            "Date d'émission : 07/09/2024\n"
+            "Facture n°FR66515554 du 07 Septembre 2024\n"
+            "Commande : BC214839684"
+        )
+
+        self.assertEqual("FR66515554", extract_invoice_number(raw_text))
+        self.assertEqual("BC214839684", extract_command_reference(raw_text))
+        self.assertEqual("2024-09-07", build_invoice_date_field(raw_text)["normalizedValue"])
 
     def test_extract_vat_number_does_not_consume_the_next_line(self) -> None:
         raw_text = "N° TVA : FR 40 123 456 789\nFACTURE CLASSIQUE SAS"
