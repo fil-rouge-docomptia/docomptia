@@ -33,6 +33,7 @@ import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.OcrError;
 import org.facturation.backend.model.OcrErrorStep;
 import org.facturation.backend.model.Organization;
+import org.facturation.backend.model.ProcessingAnomalyCode;
 import org.facturation.backend.model.Supplier;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.InvoiceFileRepository;
@@ -277,7 +278,15 @@ public class InvoiceServiceImpl implements InvoiceService {
             applyOcrAnalysis(invoice, supplierResolution.supplier(), ocrAnalysis);
             Invoice savedInvoice = invoiceRepository.save(invoice);
             invoiceOcrService.saveExtraction(savedInvoice, ocrAnalysis);
-            var warnings = supplierResolution.anomalies().stream()
+            EnumSet<ProcessingAnomalyCode> anomalyCodes = EnumSet.noneOf(ProcessingAnomalyCode.class);
+            anomalyCodes.addAll(supplierResolution.anomalies());
+            if (hasMissingRequiredFields(savedInvoice)) {
+                anomalyCodes.add(ProcessingAnomalyCode.OCR_INCOMPLETE);
+            }
+            if (hasInconsistentAmounts(savedInvoice)) {
+                anomalyCodes.add(ProcessingAnomalyCode.INCONSISTENT_AMOUNTS);
+            }
+            var warnings = anomalyCodes.stream()
                     .map(code -> processingAnomalyService.create(savedInvoice.getInvoiceId(), code))
                     .toList();
 
@@ -290,6 +299,22 @@ public class InvoiceServiceImpl implements InvoiceService {
             );
             throw new InvoicePostOcrFailureException(invoice.getInvoiceId(), error, exception);
         }
+    }
+
+    private boolean hasMissingRequiredFields(Invoice invoice) {
+        return invoice.getSupplier() == null
+                || isBlank(invoice.getInvoiceNumber())
+                || invoice.getInvoiceDate() == null
+                || invoice.getTotalHt() == null
+                || invoice.getTotalTva() == null
+                || invoice.getTotalTtc() == null;
+    }
+
+    private boolean hasInconsistentAmounts(Invoice invoice) {
+        return invoice.getTotalHt() != null
+                && invoice.getTotalTva() != null
+                && invoice.getTotalTtc() != null
+                && !invoiceAmountConsistencyService.isConsistent(invoice);
     }
 
     private record PostOcrProcessingResult(

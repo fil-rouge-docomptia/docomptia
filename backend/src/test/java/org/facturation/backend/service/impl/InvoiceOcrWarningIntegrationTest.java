@@ -16,6 +16,8 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -61,7 +63,13 @@ class InvoiceOcrWarningIntegrationTest {
         assertEquals("EXTRAITE", response.getStatus());
         assertEquals("EXTRAITE", invoice.getStatus());
         assertNull(invoice.getSupplier());
-        assertEquals(ProcessingAnomalyCode.INVALID_VAT.getCode(), response.getWarnings().getFirst().code());
+        assertEquals(
+                Set.of(
+                        ProcessingAnomalyCode.INVALID_VAT.getCode(),
+                        ProcessingAnomalyCode.OCR_INCOMPLETE.getCode()
+                ),
+                response.getWarnings().stream().map(warning -> warning.code()).collect(Collectors.toSet())
+        );
         assertTrue(processingAnomalyRepository
                 .findByInvoiceInvoiceIdAndCodeAndResolvedAtIsNull(
                         response.getInvoiceId(), ProcessingAnomalyCode.INVALID_VAT

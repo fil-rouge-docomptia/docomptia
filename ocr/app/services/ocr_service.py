@@ -46,9 +46,7 @@ def analyze_document(filename: str, content: bytes) -> dict:
         build_field("siret", extract_siret(raw_text)),
         build_field("vatNumber", extract_vat_number(raw_text)),
         build_field("invoiceNumber", extract_invoice_number(raw_text)),
-        build_date_field(raw_text, "invoiceDate", [
-            "date de facture", "date d'emission", "date d'émission", "invoice date", "issue date",
-        ]),
+        build_invoice_date_field(raw_text),
         build_date_field(raw_text, "dueDate", [
             "date d'echeance", "date d'échéance", "echeance", "échéance", "due date", "payment due",
         ]),
@@ -98,6 +96,35 @@ def build_date_field(raw_text: str, field_name: str, labels: list[str]) -> dict[
         "fieldName": field_name,
         "rawValue": raw_value,
         "normalizedValue": normalize_date(raw_value) if raw_value else None,
+        "confidenceScore": None,
+    }
+
+
+def build_invoice_date_field(raw_text: str) -> dict[str, str | None]:
+    field = build_date_field(raw_text, "invoiceDate", [
+        "date de facture", "date d'emission", "date d'émission", "invoice date", "issue date",
+    ])
+    if field["normalizedValue"] is not None:
+        return field
+
+    match = re.search(r"\bfacture\b[^\n\r]{0,80}?\bdu\b([^\n\r]{0,40})", raw_text, flags=re.IGNORECASE)
+    if not match:
+        return field
+
+    context = match.group(1)
+    date_match = DATE_CANDIDATE_PATTERN.search(normalize_accents(context))
+    if not date_match:
+        return field
+
+    raw_value = context[date_match.start():date_match.end()]
+    normalized_value = normalize_date(raw_value)
+    if normalized_value is None:
+        return field
+
+    return {
+        "fieldName": "invoiceDate",
+        "rawValue": raw_value,
+        "normalizedValue": normalized_value,
         "confidenceScore": None,
     }
 
@@ -157,6 +184,7 @@ def looks_like_receipt_supplier_name(value: str) -> bool:
 
 def extract_invoice_number(raw_text: str) -> str | None:
     patterns = [
+        r"(?:référence\s+de\s+la\s+facture(?:\s+acquittée)?|facture\s*n[°o.]?)[ \t]*[:#-]?[ \t]*([A-Z0-9][A-Z0-9._/-]{2,})",
         r"(?:n[°o.]?\s*de\s*facture|numero\s*de\s*facture|numéro\s*de\s*facture|invoice\s*(?:number|no.?))[ \t]*[:#-]?[ \t]*([A-Z0-9][A-Z0-9._/-]{2,})",
         r"\b(?:INV|FAC)[-_]?[0-9][A-Z0-9._/-]*\b",
     ]
@@ -189,7 +217,7 @@ def find_labeled_date(raw_text: str, labels: list[str]) -> str | None:
 
 def extract_command_reference(raw_text: str) -> str | None:
     patterns = [
-        r"(?:commande|reference|référence)[^\n\r]{0,40}?([A-Z]{2,5}[-_/]?\d{4}[-_/]?\d{2,})",
+        r"(?:commande|r[ée]f[ée]rence\s+(?:de\s+)?commande)[^\n\r]{0,40}?([A-Z]{2,5}[-_/]?\d{4}[-_/]?\d{2,})",
         r"\bCMD[-_/]?\d{4}[-_/]?\d{2,}\b",
     ]
 
