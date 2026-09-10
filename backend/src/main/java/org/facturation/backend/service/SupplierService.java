@@ -36,6 +36,12 @@ public interface SupplierService {
 
     Supplier resolveForInvoiceUpload(Long supplierId, Organization organization, OcrAnalysisResponse ocrAnalysis);
 
+    OcrSupplierResolution resolveForInvoiceUploadWithWarnings(
+            Supplier selectedSupplier,
+            Organization organization,
+            OcrAnalysisResponse ocrAnalysis
+    );
+
     SupplierDetailsResponse replaceLegalIdentifier(Long supplierId, Long identifierId,
                                                     SupplierLegalIdentifierReplacementRequest request);
 }

@@ -47,7 +47,9 @@ import org.facturation.backend.service.InvoiceOcrService;
 import org.facturation.backend.service.InvoiceService;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
 import org.facturation.backend.service.NotificationService;
+import org.facturation.backend.service.OcrSupplierResolution;
 import org.facturation.backend.service.OcrErrorService;
+import org.facturation.backend.service.ProcessingAnomalyService;
 import org.facturation.backend.service.LegalRetentionService;
 import org.facturation.backend.service.SupplierService;
 import org.facturation.backend.service.SubscriptionQuotaService;
@@ -122,6 +124,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final UserRepository userRepository;
     private final SubscriptionQuotaService subscriptionQuotaService;
     private final InvoiceAmountConsistencyService invoiceAmountConsistencyService;
+    private final ProcessingAnomalyService processingAnomalyService;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
@@ -143,7 +146,8 @@ public class InvoiceServiceImpl implements InvoiceService {
             ClassificationService classificationService,
             UserRepository userRepository,
             SubscriptionQuotaService subscriptionQuotaService,
-            InvoiceAmountConsistencyService invoiceAmountConsistencyService
+            InvoiceAmountConsistencyService invoiceAmountConsistencyService,
+            ProcessingAnomalyService processingAnomalyService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.accountingEntryService = accountingEntryService;
@@ -165,6 +169,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.userRepository = userRepository;
         this.subscriptionQuotaService = subscriptionQuotaService;
         this.invoiceAmountConsistencyService = invoiceAmountConsistencyService;
+        this.processingAnomalyService = processingAnomalyService;
     }
 
     @Override
@@ -200,12 +205,18 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoiceStatusWorkflowService.startOcrAnalysis(invoice, user);
 
         OcrAnalysisResponse ocrAnalysis = analyzeInvoice(invoice, user, file);
-        Supplier supplier = selectedSupplier == null
-                ? supplierService.resolveForInvoiceUpload(null, organization, ocrAnalysis)
-                : selectedSupplier;
-        invoice = completeOcrAnalysis(invoice, supplier, user, ocrAnalysis);
+        OcrSupplierResolution supplierResolution = supplierService.resolveForInvoiceUploadWithWarnings(
+                selectedSupplier, organization, ocrAnalysis
+        );
+        invoice = completeOcrAnalysis(invoice, supplierResolution.supplier(), user, ocrAnalysis);
+        Long completedInvoiceId = invoice.getInvoiceId();
+        var warnings = supplierResolution.anomalies().stream()
+                .map(code -> processingAnomalyService.create(completedInvoiceId, code))
+                .toList();
 
-        return invoiceResponseMapper.toUploadResponse(invoice, ocrAnalysis);
+        InvoiceUploadResponse response = invoiceResponseMapper.toUploadResponse(invoice, ocrAnalysis);
+        response.setWarnings(warnings);
+        return response;
     }
 
     @Override
@@ -222,10 +233,13 @@ public class InvoiceServiceImpl implements InvoiceService {
             invoiceStatusWorkflowService.restartOcrAnalysis(invoice, user);
 
             OcrAnalysisResponse ocrAnalysis = analyzeInvoice(invoice, user, file);
-            Supplier supplier = invoice.getSupplier() == null
-                    ? supplierService.resolveForInvoiceUpload(null, invoice.getOrganization(), ocrAnalysis)
-                    : invoice.getSupplier();
-            completeOcrAnalysis(invoice, supplier, user, ocrAnalysis);
+            OcrSupplierResolution supplierResolution = supplierService.resolveForInvoiceUploadWithWarnings(
+                    invoice.getSupplier(), invoice.getOrganization(), ocrAnalysis
+            );
+            completeOcrAnalysis(invoice, supplierResolution.supplier(), user, ocrAnalysis);
+            supplierResolution.anomalies().forEach(
+                    code -> processingAnomalyService.create(invoice.getInvoiceId(), code)
+            );
             Invoice responseInvoice = invoiceRepository
                     .findForOcrRetryByInvoiceIdAndOrganizationOrganizationId(invoiceId, organizationId)
                     .orElseThrow();
