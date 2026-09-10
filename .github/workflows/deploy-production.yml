@@ -55,7 +55,7 @@ jobs:
             docker compose --env-file env/.env.prod \
               -f docker-compose.yml \
               -f docker-compose.prod.yml \
-              up --build -d"
+              up --build -d --remove-orphans"
 
       - name: Check production health
         env:

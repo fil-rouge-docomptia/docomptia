@@ -11,7 +11,7 @@ Application MVP de facturation electronique composee d'un frontend React, d'un b
 | Database | PostgreSQL |
 | Stockage fichiers | MinIO, API S3 |
 | OCR | FastAPI, Tesseract |
-| Reverse proxy | Nginx |
+| Reverse proxy | Traefik global (staging/prod), Nginx pour les fichiers React |
 | Orchestration locale | Docker Compose |
 | Agent de developpement | Node.js, React, Codex CLI, Jira |
 
@@ -31,6 +31,7 @@ Documentation detaillee:
 
 - [Architecture complete](docs/architecture.md)
 - [Environnements Docker](docs/docker-environments.md)
+- [Domaines et proxy Traefik du VPS](docs/vps-traefik.md)
 - [Backend et configuration Spring](docs/backend.md)
 - [Service OCR](docs/ocr.md)
 - [Stockage et base de donnees](docs/storage-and-database.md)
@@ -114,8 +115,9 @@ cp env/.env.staging.example env/.env.staging
 cp env/.env.prod.example env/.env.prod
 ```
 
-Puis remplacer toutes les valeurs `change-me` et les domaines d'exemple avant
-de lancer l'environnement concerne:
+Puis remplacer toutes les valeurs `change-me` et verifier les domaines.
+Configurer le reseau externe `proxy` et le routage du VPS en suivant
+[la procedure Traefik](docs/vps-traefik.md) avant de lancer l'environnement concerne:
 
 ```bash
 make staging

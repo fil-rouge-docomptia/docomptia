@@ -48,7 +48,7 @@ jobs:
             docker compose --env-file env/.env.staging \
               -f docker-compose.yml \
               -f docker-compose.staging.yml \
-              up --build -d"
+              up --build -d --remove-orphans"
 
       - name: Check staging health
         env:
