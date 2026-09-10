@@ -30,6 +30,9 @@ public class OcrError {
     @Column(nullable = false, length = 1000)
     private String errorMessage;
 
+    @Column(length = 50)
+    private String errorStep;
+
     @Column(nullable = false)
     private LocalDateTime occurredAt;
 
@@ -63,6 +66,14 @@ public class OcrError {
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public String getErrorStep() {
+        return errorStep;
+    }
+
+    public void setErrorStep(String errorStep) {
+        this.errorStep = errorStep;
     }
 
     public LocalDateTime getOccurredAt() {

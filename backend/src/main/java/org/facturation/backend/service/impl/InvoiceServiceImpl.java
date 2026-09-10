@@ -12,10 +12,12 @@ import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
+import org.facturation.backend.dto.response.ProcessingAnomalyResponse;
 import org.facturation.backend.exception.InvoiceDeletionNotAllowedException;
 import org.facturation.backend.exception.InvoiceFileNotPreviewableException;
 import org.facturation.backend.exception.InvoiceNotFoundException;
 import org.facturation.backend.exception.InvoiceOcrFailureException;
+import org.facturation.backend.exception.InvoicePostOcrFailureException;
 import org.facturation.backend.exception.InvalidUserException;
 import org.facturation.backend.exception.UnbalancedAccountingEntryException;
 import org.facturation.backend.exception.UserNotFoundException;
@@ -29,6 +31,7 @@ import org.facturation.backend.model.InvoiceFileFormat;
 import org.facturation.backend.model.InvoiceStatus;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.OcrError;
+import org.facturation.backend.model.OcrErrorStep;
 import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.Supplier;
 import org.facturation.backend.model.User;
@@ -44,6 +47,7 @@ import org.facturation.backend.service.InvoiceFileIntegrityService;
 import org.facturation.backend.service.InvoiceFileValidator;
 import org.facturation.backend.service.InvoiceAmountConsistencyService;
 import org.facturation.backend.service.InvoiceOcrService;
+import org.facturation.backend.service.InvoicePostOcrFailureService;
 import org.facturation.backend.service.InvoiceService;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
 import org.facturation.backend.service.NotificationService;
@@ -90,6 +94,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             InvoiceStatusCode.DEPOSEE,
             InvoiceStatusCode.OCR_EN_COURS,
             InvoiceStatusCode.ERREUR_OCR,
+            InvoiceStatusCode.ERREUR_TRAITEMENT,
             InvoiceStatusCode.EXTRAITE,
             InvoiceStatusCode.A_VERIFIER,
             InvoiceStatusCode.REJETEE,
@@ -125,6 +130,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final SubscriptionQuotaService subscriptionQuotaService;
     private final InvoiceAmountConsistencyService invoiceAmountConsistencyService;
     private final ProcessingAnomalyService processingAnomalyService;
+    private final InvoicePostOcrFailureService invoicePostOcrFailureService;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
@@ -147,7 +153,8 @@ public class InvoiceServiceImpl implements InvoiceService {
             UserRepository userRepository,
             SubscriptionQuotaService subscriptionQuotaService,
             InvoiceAmountConsistencyService invoiceAmountConsistencyService,
-            ProcessingAnomalyService processingAnomalyService
+            ProcessingAnomalyService processingAnomalyService,
+            InvoicePostOcrFailureService invoicePostOcrFailureService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.accountingEntryService = accountingEntryService;
@@ -170,6 +177,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.subscriptionQuotaService = subscriptionQuotaService;
         this.invoiceAmountConsistencyService = invoiceAmountConsistencyService;
         this.processingAnomalyService = processingAnomalyService;
+        this.invoicePostOcrFailureService = invoicePostOcrFailureService;
     }
 
     @Override
@@ -205,17 +213,14 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoiceStatusWorkflowService.startOcrAnalysis(invoice, user);
 
         OcrAnalysisResponse ocrAnalysis = analyzeInvoice(invoice, user, file);
-        OcrSupplierResolution supplierResolution = supplierService.resolveForInvoiceUploadWithWarnings(
-                selectedSupplier, organization, ocrAnalysis
+        PostOcrProcessingResult processingResult = processValidOcrResponse(
+                invoice, selectedSupplier, organization, user, ocrAnalysis
         );
-        invoice = completeOcrAnalysis(invoice, supplierResolution.supplier(), user, ocrAnalysis);
-        Long completedInvoiceId = invoice.getInvoiceId();
-        var warnings = supplierResolution.anomalies().stream()
-                .map(code -> processingAnomalyService.create(completedInvoiceId, code))
-                .toList();
+        invoice = processingResult.invoice();
+        duplicateAlertService.detectDuplicates(invoice);
 
         InvoiceUploadResponse response = invoiceResponseMapper.toUploadResponse(invoice, ocrAnalysis);
-        response.setWarnings(warnings);
+        response.setWarnings(processingResult.warnings());
         return response;
     }
 
@@ -233,13 +238,10 @@ public class InvoiceServiceImpl implements InvoiceService {
             invoiceStatusWorkflowService.restartOcrAnalysis(invoice, user);
 
             OcrAnalysisResponse ocrAnalysis = analyzeInvoice(invoice, user, file);
-            OcrSupplierResolution supplierResolution = supplierService.resolveForInvoiceUploadWithWarnings(
-                    invoice.getSupplier(), invoice.getOrganization(), ocrAnalysis
+            PostOcrProcessingResult processingResult = processValidOcrResponse(
+                    invoice, invoice.getSupplier(), invoice.getOrganization(), user, ocrAnalysis
             );
-            completeOcrAnalysis(invoice, supplierResolution.supplier(), user, ocrAnalysis);
-            supplierResolution.anomalies().forEach(
-                    code -> processingAnomalyService.create(invoice.getInvoiceId(), code)
-            );
+            duplicateAlertService.detectDuplicates(processingResult.invoice());
             Invoice responseInvoice = invoiceRepository
                     .findForOcrRetryByInvoiceIdAndOrganizationOrganizationId(invoiceId, organizationId)
                     .orElseThrow();
@@ -258,19 +260,42 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
     }
 
-    private Invoice completeOcrAnalysis(
+    private PostOcrProcessingResult processValidOcrResponse(
             Invoice invoice,
-            Supplier supplier,
+            Supplier selectedSupplier,
+            Organization organization,
             User user,
             OcrAnalysisResponse ocrAnalysis
     ) {
-        applyOcrAnalysis(invoice, supplier, ocrAnalysis);
-        Invoice savedInvoice = invoiceRepository.save(invoice);
-        invoiceOcrService.saveExtraction(savedInvoice, ocrAnalysis);
+        OcrErrorStep step = OcrErrorStep.SUPPLIER_RESOLUTION;
+        try {
+            OcrSupplierResolution supplierResolution = supplierService.resolveForInvoiceUploadWithWarnings(
+                    selectedSupplier, organization, ocrAnalysis
+            );
 
-        invoiceStatusWorkflowService.completeOcrAnalysis(savedInvoice, user);
-        duplicateAlertService.detectDuplicates(savedInvoice);
-        return savedInvoice;
+            step = OcrErrorStep.EXTRACTION_PERSISTENCE;
+            applyOcrAnalysis(invoice, supplierResolution.supplier(), ocrAnalysis);
+            Invoice savedInvoice = invoiceRepository.save(invoice);
+            invoiceOcrService.saveExtraction(savedInvoice, ocrAnalysis);
+            var warnings = supplierResolution.anomalies().stream()
+                    .map(code -> processingAnomalyService.create(savedInvoice.getInvoiceId(), code))
+                    .toList();
+
+            step = OcrErrorStep.STATUS_UPDATE;
+            invoiceStatusWorkflowService.completeOcrAnalysis(savedInvoice, user);
+            return new PostOcrProcessingResult(savedInvoice, warnings);
+        } catch (RuntimeException exception) {
+            OcrError error = invoicePostOcrFailureService.recordFailure(
+                    invoice.getInvoiceId(), user, exception, step
+            );
+            throw new InvoicePostOcrFailureException(invoice.getInvoiceId(), error, exception);
+        }
+    }
+
+    private record PostOcrProcessingResult(
+            Invoice invoice,
+            List<ProcessingAnomalyResponse> warnings
+    ) {
     }
 
     @Override

@@ -157,7 +157,9 @@ public class InvoiceResponseMapper {
         invoiceOcrService.findLatestAnalysisResponse(invoice.getInvoiceId())
                 .ifPresent(response::setOcrAnalysis);
 
-        if (InvoiceStatusCode.ERREUR_OCR.getCode().equals(invoice.getInvoiceStatus().getCode())) {
+        String status = invoice.getInvoiceStatus().getCode();
+        if (InvoiceStatusCode.ERREUR_OCR.getCode().equals(status)
+                || InvoiceStatusCode.ERREUR_TRAITEMENT.getCode().equals(status)) {
             ocrErrorService.findLatestByInvoiceId(invoice.getInvoiceId())
                     .map(ocrErrorMapper::toResponse)
                     .ifPresent(response::setOcrError);
