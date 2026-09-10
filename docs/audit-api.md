@@ -22,7 +22,7 @@ est décroissant par `createdAt` puis `auditLogId`.
 
 Actions : `ROLE_CHANGED`, `STATUS_CHANGED`, `UPDATED`, `CSV_IMPORT`,
 `FIELD_CORRECTION`, `LINE_CORRECTION`, `ASSIGNEE_CHANGED`,
-`ACCOUNTING_ENTRY_REVERSED`, `CSV_EXPORT`, `FEC_EXPORT`, `OTHER`.
+`ACCOUNTING_ENTRY_REVERSED`, `CSV_EXPORT`, `FEC_EXPORT`, `ADMINISTRATIVELY_DELETED`, `OTHER`.
 
 Ressources : `User`, `Organization`, `Invoice`, `AccountingEntryLine`,
 `ChartOfAccount`, `AccountingCsvExport`, `AccountingFecExport`, `OTHER`.

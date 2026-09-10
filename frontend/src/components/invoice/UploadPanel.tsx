@@ -1,7 +1,9 @@
 import type { ChangeEvent, FormEvent } from 'react'
-import { Plus, RotateCcw, Upload, X } from 'lucide-react'
+import { Plus, RotateCcw, TriangleAlert, Upload, X } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 import { UploadFileCard } from '@/components/invoice/UploadFileCard'
+import { isRetryableOcrError } from '@/components/invoice/detail/invoice-detail-utils'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,7 +18,11 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
-import type { InvoiceUploadPhase } from '@/types/invoice'
+import type {
+  InvoiceOcrError,
+  InvoiceUploadPhase,
+  ProcessingAnomaly,
+} from '@/types/invoice'
 
 type UploadPanelProps = {
   createdInvoiceId: number | null
@@ -27,7 +33,9 @@ type UploadPanelProps = {
   onRemoveFile: () => void
   onRetryOcr: () => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  ocrError: InvoiceOcrError | null
   phase: InvoiceUploadPhase
+  processingWarnings: ProcessingAnomaly[]
   selectedFile: File | null
   uploadProgress: number
 }
@@ -41,11 +49,16 @@ export function UploadPanel({
   onRemoveFile,
   onRetryOcr,
   onSubmit,
+  ocrError,
   phase,
+  processingWarnings,
   selectedFile,
   uploadProgress,
 }: UploadPanelProps) {
   const isBusy = phase === 'uploading' || phase === 'ocr-processing'
+  const isPostOcrFailure = Boolean(ocrError?.step && ocrError.step !== 'OCR_ANALYSIS')
+  const canRetryOcr = isRetryableOcrError(ocrError)
+  const hasProcessingWarnings = phase === 'completed' && processingWarnings.length > 0
   const sheetState = {
     empty: 'Empty',
     queued: 'Queued',
@@ -53,7 +66,7 @@ export function UploadPanel({
     'ocr-processing': 'OCR processing',
     completed: 'Completed',
     'upload-error': 'Upload error',
-    'ocr-error': 'OCR processing failed',
+    'ocr-error': isPostOcrFailure ? 'Invoice processing failed' : 'OCR processing failed',
   }[phase]
   const isError = phase === 'upload-error' || phase === 'ocr-error'
 
@@ -152,12 +165,32 @@ export function UploadPanel({
                 variant="destructive"
               >
                 <AlertTitle className="text-xs leading-4 tracking-[0.1px]">
-                  {phase === 'ocr-error' ? 'OCR processing failed' : 'Upload failed'}
+                  {phase === 'ocr-error'
+                    ? isPostOcrFailure ? 'Invoice processing failed' : 'OCR processing failed'
+                    : 'Upload failed'}
                 </AlertTitle>
                 <AlertDescription className="text-xs leading-4" id="invoice-upload-error">
                   {phase === 'ocr-error'
-                    ? `The original file is safe${createdInvoiceId ? ` as invoice #${createdInvoiceId}` : ''}. Retry OCR or review it manually.`
+                    ? `${ocrError?.message ?? 'The document could not be processed.'} The original file is safe${createdInvoiceId ? ` as invoice #${createdInvoiceId}` : ''}. ${canRetryOcr ? 'Retry processing or review it manually.' : 'Open the invoice to correct it manually.'}`
                     : errorMessage}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
+            {hasProcessingWarnings ? (
+              <Alert className="border-warning/30 bg-warning-muted text-warning-foreground">
+                <TriangleAlert aria-hidden="true" />
+                <AlertTitle>Invoice saved — verification required</AlertTitle>
+                <AlertDescription>
+                  <ul className="mt-2 list-disc space-y-2 pl-4">
+                    {processingWarnings.map((warning) => (
+                      <li key={warning.code}>
+                        <span className="font-medium">{warning.label}</span>
+                        {' — '}
+                        {warning.description}
+                      </li>
+                    ))}
+                  </ul>
                 </AlertDescription>
               </Alert>
             ) : null}
@@ -172,6 +205,7 @@ export function UploadPanel({
                   file={selectedFile}
                   onRemove={onRemoveFile}
                   onRetryOcr={onRetryOcr}
+                  canRetryOcr={canRetryOcr}
                   onRetryUpload={() => {
                     const form = document.getElementById('invoiceFile')?.closest('form')
                     form?.requestSubmit()
@@ -194,14 +228,22 @@ export function UploadPanel({
               <SheetClose>Cancel</SheetClose>
             </Button>
 
-            {phase === 'completed' ? (
+            {hasProcessingWarnings && createdInvoiceId ? (
+              <Button asChild type="button">
+                <Link to={`/invoices/${createdInvoiceId}`}>Correct invoice</Link>
+              </Button>
+            ) : phase === 'completed' ? (
               <Button asChild type="button">
                 <SheetClose>View in inbox</SheetClose>
               </Button>
-            ) : phase === 'ocr-error' ? (
+            ) : phase === 'ocr-error' && canRetryOcr ? (
               <Button onClick={onRetryOcr} type="button">
                 <RotateCcw aria-hidden="true" />
                 Retry OCR
+              </Button>
+            ) : phase === 'ocr-error' && createdInvoiceId ? (
+              <Button asChild type="button">
+                <Link to={`/invoices/${createdInvoiceId}`}>Correct manually</Link>
               </Button>
             ) : isBusy ? (
               <Button aria-disabled="true" className="pointer-events-none" type="button">

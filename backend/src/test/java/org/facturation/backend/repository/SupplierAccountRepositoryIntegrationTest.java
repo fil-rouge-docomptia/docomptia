@@ -93,6 +93,19 @@ class SupplierAccountRepositoryIntegrationTest {
     }
 
     @Test
+    void excludesInactiveAccountFromSupplierLookup() {
+        Organization organization = organizationRepository.findById(1L).orElseThrow();
+        ChartOfAccount collectiveAccount = chartOfAccountRepository.findById(1L).orElseThrow();
+        Supplier supplier = supplierRepository.findById(1L).orElseThrow();
+        saveAccount(organization, collectiveAccount, supplier, "INACTIVE_SUPPLIER", "Compte désactivé", false);
+
+        assertTrue(supplierAccountRepository
+                .findBySupplierSupplierIdAndOrganizationOrganizationIdAndActiveTrue(
+                        supplier.getSupplierId(), organization.getOrganizationId())
+                .isEmpty());
+    }
+
+    @Test
     void allowsSameCodeInAnotherOrganizationAndKeepsQueriesIsolated() {
         Organization firstOrganization = organizationRepository.findById(1L).orElseThrow();
         ChartOfAccount firstCollectiveAccount = chartOfAccountRepository.findById(1L).orElseThrow();

@@ -27,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -102,6 +103,25 @@ class InvoiceCorrectionControllerIntegrationTest {
                 .andExpect(jsonPath("$.ocrAnalysis.fields[?(@.fieldName=='invoiceDate')].corrected", contains(true)))
                 .andExpect(jsonPath("$.ocrAnalysis.fields[?(@.fieldName=='totalTtc')].corrected", contains(true)))
                 .andExpect(jsonPath("$.ocrAnalysis.fields[?(@.fieldName=='supplierName')].corrected", contains(false)));
+    }
+
+    @Test
+    void recalculatesTtcWhenHtOrTvaIsCorrectedWithoutTtc() throws Exception {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+
+        mockMvc.perform(patch("/api/v1/invoices/{id}", uploadResponse.getInvoiceId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "totalHt": "101.00"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalHt").value(101.00))
+                .andExpect(jsonPath("$.totalTtc").value(121.00));
+
+        Invoice invoice = invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow();
+        assertEquals(new BigDecimal("121.00"), invoice.getTotalTtc());
     }
 
     @Test

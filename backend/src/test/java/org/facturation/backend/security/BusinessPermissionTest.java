@@ -27,6 +27,7 @@ class BusinessPermissionTest {
         assertThat(BusinessPermission.VIEW_NOTIFICATIONS.getRoles()).isEqualTo(ALL_ROLES);
         assertThat(BusinessPermission.PROCESS_INVOICES.getRoles())
                 .containsExactlyInAnyOrder(RoleCode.ADMIN, RoleCode.OPERATEUR_COMPTABLE);
+        assertThat(BusinessPermission.DELETE_INVOICES.getRoles()).containsExactly(RoleCode.ADMIN);
         assertThat(BusinessPermission.VALIDATE_INVOICES.getRoles())
                 .containsExactly(RoleCode.RESPONSABLE_COMPTABLE);
         assertThat(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.getRoles()).isEqualTo(ALL_ROLES);

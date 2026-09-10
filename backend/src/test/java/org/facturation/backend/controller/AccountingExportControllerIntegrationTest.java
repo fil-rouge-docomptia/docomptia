@@ -10,6 +10,7 @@ import org.facturation.backend.model.ExportBatchStatusCode;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.Organization;
+import org.facturation.backend.model.SupplierAccount;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.AccountingEntryLineRepository;
 import org.facturation.backend.repository.AccountingEntryRepository;
@@ -22,6 +23,7 @@ import org.facturation.backend.repository.InvoiceStatusRepository;
 import org.facturation.backend.repository.OrganizationRepository;
 import org.facturation.backend.repository.RoleRepository;
 import org.facturation.backend.repository.SupplierRepository;
+import org.facturation.backend.repository.SupplierAccountRepository;
 import org.facturation.backend.repository.UserRepository;
 import org.facturation.backend.service.JwtTokenService;
 import org.junit.jupiter.api.Test;
@@ -101,6 +103,9 @@ class AccountingExportControllerIntegrationTest {
 
     @Autowired
     private SupplierRepository supplierRepository;
+
+    @Autowired
+    private SupplierAccountRepository supplierAccountRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -230,6 +235,7 @@ class AccountingExportControllerIntegrationTest {
         User user = userRepository.findById(1L).orElseThrow();
         Invoice invoice = createInvoice(user, InvoiceStatusCode.EXPORTABLE, "FEC-2026-001", "EUR");
         createBalancedEntry(invoice, user, "TEMP-FEC");
+        attachSupplierAccount(invoice, true);
 
         String fec = mockMvc.perform(post("/api/v1/accounting-exports/fec")
                         .param("startDate", "2026-08-01")
@@ -252,7 +258,11 @@ class AccountingExportControllerIntegrationTest {
                 "20260815", "", ""
         );
         assertThat(records[2].split("\\t", -1)).hasSize(18);
-        assertThat(records[3].split("\\t", -1)).hasSize(18);
+        assertThat(records[3].split("\\t", -1)).containsExactly(
+                "AC", "Achats", "1", "20260815", "401000", "Fournisseurs", "ORANGE", "Orange SA",
+                "FEC-2026-001", "20260815", "Ecriture FEC-2026-001", "0.00", "120.00", "", "",
+                "20260815", "", ""
+        );
 
         ExportBatch batch = exportBatchRepository.findAll().getFirst();
         assertThat(batch.getFormat()).isEqualTo(ExportBatchFormat.FEC.getCode());
@@ -269,6 +279,20 @@ class AccountingExportControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(new MediaType("text", "plain")))
                 .andExpect(content().bytes(fec.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void rejectsExportWhenAttachedSupplierAccountIsInactive() throws Exception {
+        User user = userRepository.findById(1L).orElseThrow();
+        Invoice invoice = createInvoice(user, InvoiceStatusCode.EXPORTABLE, "INACTIVE-AUX", "EUR");
+        createBalancedEntry(invoice, user, "INACTIVE-AUX-ENTRY");
+        attachSupplierAccount(invoice, false);
+
+        mockMvc.perform(post("/api/v1/accounting-exports/csv")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ACCOUNTING_EXPORT_VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.invoices[0].errors[0].code").value("SUPPLIER_ACCOUNT_INACTIVE"));
     }
 
     @Test
@@ -694,6 +718,25 @@ class AccountingExportControllerIntegrationTest {
         createLine(entry, 1, 2L, "Achat " + invoice.getInvoiceNumber(), "100.00", "0.00");
         createLine(entry, 2, 3L, "TVA " + invoice.getInvoiceNumber(), "20.00", "0.00");
         createLine(entry, 3, 1L, "Fournisseur " + invoice.getInvoiceNumber(), "0.00", "120.00");
+    }
+
+    private void attachSupplierAccount(Invoice invoice, boolean active) {
+        AccountingEntry entry = accountingEntryRepository
+                .findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(invoice.getInvoiceId())
+                .orElseThrow();
+        AccountingEntryLine supplierLine = accountingEntryLineRepository
+                .findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(entry.getAccountingEntryId())
+                .get(2);
+        SupplierAccount supplierAccount = new SupplierAccount();
+        supplierAccount.setOrganization(invoice.getOrganization());
+        supplierAccount.setSupplier(invoice.getSupplier());
+        supplierAccount.setCollectiveAccount(supplierLine.getAccount());
+        supplierAccount.setCode("ORANGE");
+        supplierAccount.setLabel("Orange SA");
+        supplierAccount.setActive(active);
+        supplierAccount = supplierAccountRepository.saveAndFlush(supplierAccount);
+        supplierLine.setSupplierAccount(supplierAccount);
+        accountingEntryLineRepository.saveAndFlush(supplierLine);
     }
 
     private AccountingEntry createEntry(Invoice invoice, User user, String entryNumber) {

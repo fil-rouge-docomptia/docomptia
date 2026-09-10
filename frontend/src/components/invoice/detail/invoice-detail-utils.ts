@@ -5,11 +5,18 @@ import type {
   OcrFieldResponse,
 } from '@/types/invoice'
 
-const correctionStatuses = ['A_VERIFIER', 'ERREUR_OCR', 'EXTRAITE', 'REJETEE']
+const correctionStatuses = [
+  'A_VERIFIER',
+  'ERREUR_OCR',
+  'ERREUR_TRAITEMENT',
+  'EXTRAITE',
+  'REJETEE',
+]
 const correctionRoles: RoleCode[] = ['ADMIN', 'OPERATEUR_COMPTABLE']
 const nonRetryableOcrErrorCodes = new Set([
   'OCR_FILE_READ_FAILED',
   'OCR_SERVICE_REJECTED',
+  'OCR_SUPPLIER_RESOLUTION_FAILED',
 ])
 
 export function canCorrectInvoice(status: string, role?: RoleCode) {

@@ -23,7 +23,7 @@ import java.util.Set;
 public class AuditLogQueryService {
     private static final Set<String> ACTIONS = Set.of("STATUS_CHANGED", "ROLE_CHANGED", "UPDATED",
             "CSV_IMPORT", "FIELD_CORRECTION", "LINE_CORRECTION", "ASSIGNEE_CHANGED",
-            "ACCOUNTING_ENTRY_REVERSED", "CSV_EXPORT", "FEC_EXPORT");
+            "ACCOUNTING_ENTRY_REVERSED", "CSV_EXPORT", "FEC_EXPORT", "ADMINISTRATIVELY_DELETED");
     private static final Set<String> RESOURCES = Set.of("User", "Organization", "Invoice",
             "AccountingEntryLine", "ChartOfAccount", "AccountingCsvExport", "AccountingFecExport");
     private static final Set<String> ROLES = Set.of("role=ADMIN", "role=OPERATEUR_COMPTABLE",

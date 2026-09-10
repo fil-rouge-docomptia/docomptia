@@ -15,6 +15,7 @@ import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.InvoiceStatusHistoryRepository;
 import org.facturation.backend.repository.InvoiceStatusRepository;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
+import org.facturation.backend.service.InvoiceAmountConsistencyService;
 import org.facturation.backend.service.InvoiceValidationDecisionService;
 import org.springframework.stereotype.Service;
 
@@ -36,17 +37,20 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     private final InvoiceStatusRepository invoiceStatusRepository;
     private final InvoiceStatusHistoryRepository invoiceStatusHistoryRepository;
     private final InvoiceValidationDecisionService validationDecisionService;
+    private final InvoiceAmountConsistencyService invoiceAmountConsistencyService;
 
     public InvoiceStatusWorkflowServiceImpl(
             InvoiceRepository invoiceRepository,
             InvoiceStatusRepository invoiceStatusRepository,
             InvoiceStatusHistoryRepository invoiceStatusHistoryRepository,
-            InvoiceValidationDecisionService validationDecisionService
+            InvoiceValidationDecisionService validationDecisionService,
+            InvoiceAmountConsistencyService invoiceAmountConsistencyService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.invoiceStatusRepository = invoiceStatusRepository;
         this.invoiceStatusHistoryRepository = invoiceStatusHistoryRepository;
         this.validationDecisionService = validationDecisionService;
+        this.invoiceAmountConsistencyService = invoiceAmountConsistencyService;
     }
 
     @Override
@@ -72,7 +76,9 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
 
     @Override
     public void ensureCanRetryOcr(Invoice invoice) {
-        if (getCurrentStatusCode(invoice) != InvoiceStatusCode.ERREUR_OCR) {
+        InvoiceStatusCode currentStatus = getCurrentStatusCode(invoice);
+        if (currentStatus != InvoiceStatusCode.ERREUR_OCR
+                && currentStatus != InvoiceStatusCode.ERREUR_TRAITEMENT) {
             throw new OcrRetryNotAllowedException(invoice.getInvoiceId());
         }
     }
@@ -89,6 +95,11 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     }
 
     @Override
+    public void markProcessingFailure(Invoice invoice, User user) {
+        transitionTo(invoice, InvoiceStatusCode.ERREUR_TRAITEMENT, user, "Post-OCR processing failed");
+    }
+
+    @Override
     public void completeOcrAnalysis(Invoice invoice, User user) {
         transitionTo(invoice, InvoiceStatusCode.EXTRAITE, user, "OCR analysis completed");
     }
@@ -102,7 +113,7 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
         ensureDirectlyModifiable(invoice);
         InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);
         switch (currentCode) {
-            case EXTRAITE, A_VERIFIER, ERREUR_OCR, REJETEE -> {
+            case EXTRAITE, A_VERIFIER, ERREUR_OCR, ERREUR_TRAITEMENT, REJETEE -> {
                 return;
             }
             default -> throw InvoiceStatusTransitionException.forAction(
@@ -135,7 +146,8 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
         }
 
         InvoiceStatusCode currentCode = getCurrentStatusCode(invoice);
-        if (currentCode == InvoiceStatusCode.ERREUR_OCR) {
+        if (currentCode == InvoiceStatusCode.ERREUR_OCR
+                || currentCode == InvoiceStatusCode.ERREUR_TRAITEMENT) {
             transitionTo(invoice, InvoiceStatusCode.A_VERIFIER, user, "Invoice corrected and ready for review");
         } else if (currentCode == InvoiceStatusCode.REJETEE) {
             transitionTo(invoice, InvoiceStatusCode.EXTRAITE, user, "Rejected invoice corrected and ready for submission");
@@ -145,7 +157,9 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     @Override
     public void submitForValidation(Invoice invoice, User user) {
         ensureCurrentStatus(invoice, InvoiceStatusCode.EXTRAITE, "be submitted for validation");
+        invoiceAmountConsistencyService.recalculateTtcWhenMissingOrWithinTolerance(invoice);
         ensureRequiredFields(invoice, "be submitted for validation");
+        invoiceAmountConsistencyService.ensureConsistent(invoice);
         if (requiresValidation(invoice)) {
             transitionTo(invoice, InvoiceStatusCode.A_VERIFIER, user, "Invoice submitted for validation");
         } else {
@@ -161,7 +175,9 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     @Override
     public void validateInvoice(Invoice invoice, User user) {
         ensureCurrentStatus(invoice, InvoiceStatusCode.A_VERIFIER, "be validated");
+        invoiceAmountConsistencyService.recalculateTtcWhenMissingOrWithinTolerance(invoice);
         ensureRequiredFields(invoice, "be validated");
+        invoiceAmountConsistencyService.ensureConsistent(invoice);
         transitionTo(invoice, InvoiceStatusCode.VALIDEE, user, "Invoice validated");
         validationDecisionService.record(invoice, InvoiceValidationDecisionType.VALIDATION, user, null);
     }
@@ -368,8 +384,19 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
     private static Map<InvoiceStatusCode, Set<InvoiceStatusCode>> buildAllowedPreviousStatuses() {
         Map<InvoiceStatusCode, Set<InvoiceStatusCode>> allowedPreviousStatuses =
                 new EnumMap<>(InvoiceStatusCode.class);
-        allowedPreviousStatuses.put(InvoiceStatusCode.OCR_EN_COURS, EnumSet.of(InvoiceStatusCode.DEPOSEE));
+        allowedPreviousStatuses.put(
+                InvoiceStatusCode.OCR_EN_COURS,
+                EnumSet.of(
+                        InvoiceStatusCode.DEPOSEE,
+                        InvoiceStatusCode.ERREUR_OCR,
+                        InvoiceStatusCode.ERREUR_TRAITEMENT
+                )
+        );
         allowedPreviousStatuses.put(InvoiceStatusCode.ERREUR_OCR, EnumSet.of(InvoiceStatusCode.OCR_EN_COURS));
+        allowedPreviousStatuses.put(
+                InvoiceStatusCode.ERREUR_TRAITEMENT,
+                EnumSet.of(InvoiceStatusCode.OCR_EN_COURS, InvoiceStatusCode.EXTRAITE)
+        );
         allowedPreviousStatuses.put(
                 InvoiceStatusCode.EXTRAITE,
                 EnumSet.of(InvoiceStatusCode.OCR_EN_COURS, InvoiceStatusCode.A_VERIFIER, InvoiceStatusCode.REJETEE)
@@ -377,7 +404,11 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
 
         allowedPreviousStatuses.put(
                 InvoiceStatusCode.A_VERIFIER,
-                EnumSet.of(InvoiceStatusCode.EXTRAITE, InvoiceStatusCode.ERREUR_OCR)
+                EnumSet.of(
+                        InvoiceStatusCode.EXTRAITE,
+                        InvoiceStatusCode.ERREUR_OCR,
+                        InvoiceStatusCode.ERREUR_TRAITEMENT
+                )
         );
         allowedPreviousStatuses.put(
                 InvoiceStatusCode.VALIDEE,

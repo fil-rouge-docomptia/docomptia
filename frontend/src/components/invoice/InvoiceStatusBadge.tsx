@@ -10,6 +10,7 @@ const statusClasses: Record<string, string> = {
   DEPOSEE: 'border-border bg-secondary text-secondary-foreground',
   DUPLICATE_SUSPECTED: 'border-warning/20 bg-warning-muted text-warning-muted-foreground',
   ERREUR_OCR: 'border-destructive/20 bg-destructive/10 text-destructive',
+  ERREUR_TRAITEMENT: 'border-destructive/20 bg-destructive/10 text-destructive',
   EXPORTEE: 'border-border bg-background text-foreground',
   EXPORTABLE: 'border-primary bg-primary text-primary-foreground',
   EXTRAITE: 'border-warning/20 bg-warning-muted text-warning-muted-foreground',

@@ -9,6 +9,7 @@ public class InvoiceUploadResponse {
     private String status;
     private OcrAnalysisResponse ocrAnalysis;
     private List<InvoiceDuplicateAlertResponse> duplicateAlerts;
+    private List<ProcessingAnomalyResponse> warnings;
 
     public Long getInvoiceId() {
         return invoiceId;
@@ -48,5 +49,13 @@ public class InvoiceUploadResponse {
 
     public void setDuplicateAlerts(List<InvoiceDuplicateAlertResponse> duplicateAlerts) {
         this.duplicateAlerts = duplicateAlerts;
+    }
+
+    public List<ProcessingAnomalyResponse> getWarnings() {
+        return warnings;
+    }
+
+    public void setWarnings(List<ProcessingAnomalyResponse> warnings) {
+        this.warnings = warnings;
     }
 }

@@ -21,6 +21,8 @@ public interface InvoiceStatusWorkflowService {
 
     void markOcrFailure(Invoice invoice, User user);
 
+    void markProcessingFailure(Invoice invoice, User user);
+
     void completeOcrAnalysis(Invoice invoice, User user);
 
     void ensureCanCorrect(Invoice invoice, boolean hasCorrections);

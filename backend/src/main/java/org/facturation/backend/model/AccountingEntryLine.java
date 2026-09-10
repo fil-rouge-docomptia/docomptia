@@ -29,6 +29,10 @@ public class AccountingEntryLine {
     @JoinColumn(name = "account_id", nullable = false)
     private ChartOfAccount account;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "supplier_account_id")
+    private SupplierAccount supplierAccount;
+
     @Column(nullable = false)
     private Integer lineNumber;
 
@@ -64,6 +68,14 @@ public class AccountingEntryLine {
 
     public void setAccount(ChartOfAccount account) {
         this.account = account;
+    }
+
+    public SupplierAccount getSupplierAccount() {
+        return supplierAccount;
+    }
+
+    public void setSupplierAccount(SupplierAccount supplierAccount) {
+        this.supplierAccount = supplierAccount;
     }
 
     public Integer getLineNumber() {

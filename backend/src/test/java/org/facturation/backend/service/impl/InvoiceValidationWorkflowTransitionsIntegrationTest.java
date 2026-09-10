@@ -68,7 +68,7 @@ class InvoiceValidationWorkflowTransitionsIntegrationTest {
 
         invoiceService.submitForValidation(invoiceId).orElseThrow();
         invoiceService.requestInvoiceCorrection(invoiceId, CORRECTION_REASON).orElseThrow();
-        correctTotal(invoiceId, "121.00");
+        correctTotal(invoiceId, "120.01");
         invoiceService.submitForValidation(invoiceId).orElseThrow();
         invoiceService.rejectInvoice(invoiceId, REJECTION_REASON).orElseThrow();
         correctInvoiceNumber(invoiceId, "INV-RETURN-001");

@@ -53,7 +53,7 @@ export function InvoiceDetailHeader({
   const accountingUnbalanced = isInvoiceAccountingUnbalanced(invoice)
   const canRequestApproval =
     invoice.status === 'EXTRAITE' && canProcess && !hasPendingDuplicate
-  const canRetryOcr = invoice.status === 'ERREUR_OCR'
+  const canRetryOcr = ['ERREUR_OCR', 'ERREUR_TRAITEMENT'].includes(invoice.status)
     && canProcess
     && isRetryableOcrError(invoice.ocrError)
   const canSaveCorrections = showCorrectionAction

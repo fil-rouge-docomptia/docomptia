@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.DuplicateAlertDecisionRequest;
+import org.facturation.backend.dto.request.InvoiceAdministrativeDeletionRequest;
 import org.facturation.backend.dto.request.InvoiceAssigneeRequest;
 import org.facturation.backend.dto.request.InvoiceClassificationRequest;
 import org.facturation.backend.dto.request.InvoiceCorrectionDemandRequest;
@@ -32,6 +33,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -484,6 +486,26 @@ public class InvoiceController {
     })
     public ResponseEntity<InvoiceStatusResponse> archiveInvoice(@PathVariable Long id) {
         return ResponseEntity.ok(requireInvoiceResponse(invoiceService.archiveInvoice(id), id));
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(
+            summary = "Supprimer administrativement une facture",
+            description = "Masque une facture pre-validation tout en conservant ses relations, son fichier et la trace de la suppression"
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Facture supprimee administrativement"),
+            @ApiResponse(responseCode = "400", description = "Motif obligatoire absent ou invalide"),
+            @ApiResponse(responseCode = "403", description = "Role administrateur requis"),
+            @ApiResponse(responseCode = "404", description = "Facture introuvable dans l'organisation de l'utilisateur"),
+            @ApiResponse(responseCode = "409", description = "Statut incompatible avec la suppression")
+    })
+    public ResponseEntity<Void> administrativelyDeleteInvoice(
+            @PathVariable Long id,
+            @RequestBody InvoiceAdministrativeDeletionRequest request
+    ) {
+        invoiceService.administrativelyDelete(id, request == null ? null : request.getReason());
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{invoiceId}/duplicate-alerts/{alertId}/decision")

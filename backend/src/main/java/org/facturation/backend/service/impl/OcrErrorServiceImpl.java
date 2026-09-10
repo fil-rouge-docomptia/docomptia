@@ -4,6 +4,7 @@ import org.facturation.backend.exception.OcrClientException;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.OcrError;
 import org.facturation.backend.model.OcrErrorCode;
+import org.facturation.backend.model.OcrErrorStep;
 import org.facturation.backend.repository.OcrErrorRepository;
 import org.facturation.backend.service.OcrErrorService;
 import org.springframework.stereotype.Service;
@@ -25,10 +26,16 @@ public class OcrErrorServiceImpl implements OcrErrorService {
 
     @Override
     public OcrError recordFailure(Invoice invoice, RuntimeException exception) {
+        return recordFailure(invoice, exception, OcrErrorStep.OCR_ANALYSIS);
+    }
+
+    @Override
+    public OcrError recordFailure(Invoice invoice, RuntimeException exception, OcrErrorStep step) {
         OcrError error = new OcrError();
         error.setInvoice(invoice);
-        error.setErrorCode(resolveErrorCode(exception));
-        error.setErrorMessage(resolveErrorMessage(exception));
+        error.setErrorCode(resolveErrorCode(exception, step));
+        error.setErrorMessage(resolveErrorMessage(exception, step));
+        error.setErrorStep(step.name());
         error.setOccurredAt(LocalDateTime.now());
         return ocrErrorRepository.save(error);
     }
@@ -38,15 +45,22 @@ public class OcrErrorServiceImpl implements OcrErrorService {
         return ocrErrorRepository.findTopByInvoiceInvoiceIdOrderByOcrErrorIdDesc(invoiceId);
     }
 
-    private String resolveErrorCode(RuntimeException exception) {
-        if (exception instanceof OcrClientException ocrException) {
+    private String resolveErrorCode(RuntimeException exception, OcrErrorStep step) {
+        if (step == OcrErrorStep.OCR_ANALYSIS && exception instanceof OcrClientException ocrException) {
             return ocrException.getErrorCode().getCode();
         }
-        return OcrErrorCode.PROCESSING_FAILED.getCode();
+        return switch (step) {
+            case OCR_ANALYSIS -> OcrErrorCode.PROCESSING_FAILED.getCode();
+            case SUPPLIER_RESOLUTION -> OcrErrorCode.SUPPLIER_RESOLUTION_FAILED.getCode();
+            case EXTRACTION_PERSISTENCE -> OcrErrorCode.EXTRACTION_PERSISTENCE_FAILED.getCode();
+            case STATUS_UPDATE -> OcrErrorCode.STATUS_UPDATE_FAILED.getCode();
+        };
     }
 
-    private String resolveErrorMessage(RuntimeException exception) {
-        if (!(exception instanceof OcrClientException) || exception.getMessage() == null) {
+    private String resolveErrorMessage(RuntimeException exception, OcrErrorStep step) {
+        if (step != OcrErrorStep.OCR_ANALYSIS
+                || !(exception instanceof OcrClientException)
+                || exception.getMessage() == null) {
             return DEFAULT_ERROR_MESSAGE;
         }
 
