@@ -5,6 +5,7 @@ export const invoiceStatusLabels: Record<string, string> = {
   DEPOSEE: 'To process',
   DUPLICATE_SUSPECTED: 'Duplicate suspected',
   ERREUR_OCR: 'OCR error',
+  ERREUR_TRAITEMENT: 'Processing error',
   EXPORTEE: 'Exported',
   EXPORTABLE: 'Ready to export',
   EXTRAITE: 'Needs review',

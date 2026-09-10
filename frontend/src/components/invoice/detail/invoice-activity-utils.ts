@@ -20,6 +20,7 @@ const processingLabels: Record<string, string> = {
   DEPOSEE: 'Invoice uploaded',
   OCR_EN_COURS: 'OCR processing started',
   ERREUR_OCR: 'OCR processing failed',
+  ERREUR_TRAITEMENT: 'Invoice processing failed',
   EXTRAITE: 'OCR extraction completed',
 }
 

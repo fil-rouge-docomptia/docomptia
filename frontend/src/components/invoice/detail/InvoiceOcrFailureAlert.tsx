@@ -18,6 +18,7 @@ export function InvoiceOcrFailureAlert({
   onStartManualCorrection,
 }: InvoiceOcrFailureAlertProps) {
   const retryable = isRetryableOcrError(error)
+  const isPostOcrFailure = error?.step && error.step !== 'OCR_ANALYSIS'
 
   return (
     <Alert
@@ -25,7 +26,7 @@ export function InvoiceOcrFailureAlert({
       variant="destructive"
     >
       <AlertCircle aria-hidden="true" />
-      <AlertTitle>OCR processing failed</AlertTitle>
+      <AlertTitle>{isPostOcrFailure ? 'Invoice processing failed' : 'OCR processing failed'}</AlertTitle>
       <AlertDescription className="space-y-3 text-destructive-foreground/90">
         <p>{error?.message ?? 'The document could not be processed.'}</p>
         <p>
@@ -36,6 +37,11 @@ export function InvoiceOcrFailureAlert({
         {error?.code ? (
           <p className="font-mono text-[11px] text-destructive-foreground/75">
             Error code: {error.code}
+          </p>
+        ) : null}
+        {error?.step ? (
+          <p className="font-mono text-[11px] text-destructive-foreground/75">
+            Step: {error.step}
           </p>
         ) : null}
         {!retryable && canCorrect ? (

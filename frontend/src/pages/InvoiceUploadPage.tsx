@@ -22,6 +22,7 @@ import {
   uploadInvoice,
 } from '@/services/invoice'
 import type {
+  InvoiceOcrError,
   InvoicePage,
   InvoiceSortField,
   InvoiceUploadPhase,
@@ -122,6 +123,7 @@ export default function InvoiceUploadPage() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [errorMessage, setErrorMessage] = useState('')
   const [createdInvoiceId, setCreatedInvoiceId] = useState<number | null>(null)
+  const [ocrError, setOcrError] = useState<InvoiceOcrError | null>(null)
   const [isForbidden, setIsForbidden] = useState(false)
   const [listRetryCount, setListRetryCount] = useState(0)
   const [inboxState, setInboxState] = useState<InboxRequestState>({
@@ -230,6 +232,7 @@ export default function InvoiceUploadPage() {
       setPhase('empty')
       setUploadProgress(0)
       setErrorMessage('')
+      setOcrError(null)
       return
     }
 
@@ -238,6 +241,7 @@ export default function InvoiceUploadPage() {
     setCreatedInvoiceId(null)
     setUploadProgress(0)
     setErrorMessage(validationError)
+    setOcrError(null)
     setPhase(validationError ? 'upload-error' : 'queued')
   }
 
@@ -260,6 +264,7 @@ export default function InvoiceUploadPage() {
     setPhase('uploading')
     setUploadProgress(0)
     setErrorMessage('')
+    setOcrError(null)
 
     try {
       const data = await uploadInvoice(selectedFile, {
@@ -277,6 +282,7 @@ export default function InvoiceUploadPage() {
         isInvoiceOcrFailureResponse(error.details)
       ) {
         setCreatedInvoiceId(error.details.invoiceId)
+        setOcrError(error.details.ocrError)
         setPhase('ocr-error')
       } else {
         setErrorMessage(getUploadErrorMessage(error))
@@ -291,6 +297,7 @@ export default function InvoiceUploadPage() {
     setPhase('empty')
     setUploadProgress(0)
     setErrorMessage('')
+    setOcrError(null)
   }
 
   const handleRetryOcr = async () => {
@@ -303,11 +310,18 @@ export default function InvoiceUploadPage() {
 
     try {
       await retryInvoiceOcr(createdInvoiceId)
+      setOcrError(null)
       setPhase('completed')
       setListRetryCount((count) => count + 1)
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) {
         setIsForbidden(true)
+      } else if (
+        error instanceof ApiError
+        && isInvoiceOcrFailureResponse(error.details)
+      ) {
+        setOcrError(error.details.ocrError)
+        setPhase('ocr-error')
       } else {
         setPhase('ocr-error')
       }
@@ -376,6 +390,7 @@ export default function InvoiceUploadPage() {
         onRemoveFile={handleRemoveFile}
         onRetryOcr={handleRetryOcr}
         onSubmit={handleSubmit}
+        ocrError={ocrError}
         phase={phase}
         selectedFile={selectedFile}
         uploadProgress={uploadProgress}
