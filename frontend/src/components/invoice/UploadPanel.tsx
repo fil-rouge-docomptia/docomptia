@@ -1,5 +1,5 @@
 import type { ChangeEvent, FormEvent } from 'react'
-import { Plus, RotateCcw, Upload, X } from 'lucide-react'
+import { Plus, RotateCcw, TriangleAlert, Upload, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { UploadFileCard } from '@/components/invoice/UploadFileCard'
@@ -18,7 +18,11 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
-import type { InvoiceOcrError, InvoiceUploadPhase } from '@/types/invoice'
+import type {
+  InvoiceOcrError,
+  InvoiceUploadPhase,
+  ProcessingAnomaly,
+} from '@/types/invoice'
 
 type UploadPanelProps = {
   createdInvoiceId: number | null
@@ -31,6 +35,7 @@ type UploadPanelProps = {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   ocrError: InvoiceOcrError | null
   phase: InvoiceUploadPhase
+  processingWarnings: ProcessingAnomaly[]
   selectedFile: File | null
   uploadProgress: number
 }
@@ -46,12 +51,14 @@ export function UploadPanel({
   onSubmit,
   ocrError,
   phase,
+  processingWarnings,
   selectedFile,
   uploadProgress,
 }: UploadPanelProps) {
   const isBusy = phase === 'uploading' || phase === 'ocr-processing'
   const isPostOcrFailure = Boolean(ocrError?.step && ocrError.step !== 'OCR_ANALYSIS')
   const canRetryOcr = isRetryableOcrError(ocrError)
+  const hasProcessingWarnings = phase === 'completed' && processingWarnings.length > 0
   const sheetState = {
     empty: 'Empty',
     queued: 'Queued',
@@ -170,6 +177,24 @@ export function UploadPanel({
               </Alert>
             ) : null}
 
+            {hasProcessingWarnings ? (
+              <Alert className="border-warning/30 bg-warning-muted text-warning-foreground">
+                <TriangleAlert aria-hidden="true" />
+                <AlertTitle>Invoice saved — verification required</AlertTitle>
+                <AlertDescription>
+                  <ul className="mt-2 list-disc space-y-2 pl-4">
+                    {processingWarnings.map((warning) => (
+                      <li key={warning.code}>
+                        <span className="font-medium">{warning.label}</span>
+                        {' — '}
+                        {warning.description}
+                      </li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
             {selectedFile ? (
               <div className="space-y-4">
                 <p className="text-xs font-medium leading-4 tracking-[0.1px] text-foreground">
@@ -203,7 +228,11 @@ export function UploadPanel({
               <SheetClose>Cancel</SheetClose>
             </Button>
 
-            {phase === 'completed' ? (
+            {hasProcessingWarnings && createdInvoiceId ? (
+              <Button asChild type="button">
+                <Link to={`/invoices/${createdInvoiceId}`}>Correct invoice</Link>
+              </Button>
+            ) : phase === 'completed' ? (
               <Button asChild type="button">
                 <SheetClose>View in inbox</SheetClose>
               </Button>

@@ -26,6 +26,7 @@ import type {
   InvoicePage,
   InvoiceSortField,
   InvoiceUploadPhase,
+  ProcessingAnomaly,
   SortDirection,
 } from '@/types/invoice'
 
@@ -124,6 +125,7 @@ export default function InvoiceUploadPage() {
   const [errorMessage, setErrorMessage] = useState('')
   const [createdInvoiceId, setCreatedInvoiceId] = useState<number | null>(null)
   const [ocrError, setOcrError] = useState<InvoiceOcrError | null>(null)
+  const [processingWarnings, setProcessingWarnings] = useState<ProcessingAnomaly[]>([])
   const [isForbidden, setIsForbidden] = useState(false)
   const [listRetryCount, setListRetryCount] = useState(0)
   const [inboxState, setInboxState] = useState<InboxRequestState>({
@@ -233,6 +235,7 @@ export default function InvoiceUploadPage() {
       setUploadProgress(0)
       setErrorMessage('')
       setOcrError(null)
+      setProcessingWarnings([])
       return
     }
 
@@ -242,6 +245,7 @@ export default function InvoiceUploadPage() {
     setUploadProgress(0)
     setErrorMessage(validationError)
     setOcrError(null)
+    setProcessingWarnings([])
     setPhase(validationError ? 'upload-error' : 'queued')
   }
 
@@ -265,6 +269,7 @@ export default function InvoiceUploadPage() {
     setUploadProgress(0)
     setErrorMessage('')
     setOcrError(null)
+    setProcessingWarnings([])
 
     try {
       const data = await uploadInvoice(selectedFile, {
@@ -272,6 +277,7 @@ export default function InvoiceUploadPage() {
         onUploadProgress: setUploadProgress,
       })
       setCreatedInvoiceId(data.invoiceId)
+      setProcessingWarnings(data.warnings ?? [])
       setPhase('completed')
       setListRetryCount((count) => count + 1)
     } catch (error) {
@@ -298,6 +304,7 @@ export default function InvoiceUploadPage() {
     setUploadProgress(0)
     setErrorMessage('')
     setOcrError(null)
+    setProcessingWarnings([])
   }
 
   const handleRetryOcr = async () => {
@@ -392,6 +399,7 @@ export default function InvoiceUploadPage() {
         onSubmit={handleSubmit}
         ocrError={ocrError}
         phase={phase}
+        processingWarnings={processingWarnings}
         selectedFile={selectedFile}
         uploadProgress={uploadProgress}
       />
