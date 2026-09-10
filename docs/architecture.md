@@ -8,12 +8,12 @@ Ce document decrit l'architecture applicative et l'infrastructure Docker actuell
 flowchart TB
     browser[Utilisateur / Navigateur]
 
-    subgraph edge[Entree HTTP]
-        proxy[Nginx reverse-proxy staging/prod]
+    subgraph edge[Entree HTTPS]
+        proxy[Traefik global du VPS]
     end
 
     subgraph app[Application]
-        frontend[Frontend React + Vite]
+        frontend[Frontend React servi par Nginx]
         backend[Backend Spring Boot Java 25]
         ocr[OCR FastAPI]
         tesseract[Tesseract OCR]
@@ -39,7 +39,7 @@ flowchart TB
     ocr --> tesseract
 ```
 
-En developpement, les ports des services sont exposes directement. En staging et prod, l'entree recommandee est le reverse proxy Nginx.
+En developpement, les ports des services sont exposes directement. En staging et prod, l'entree est le Traefik global du VPS, qui termine HTTPS.
 
 ## Services
 
@@ -51,7 +51,7 @@ En developpement, les ports des services sont exposes directement. En staging et
 | `minio` | Stockage objet S3-compatible | `minio/minio:latest` |
 | `minio-init` | Creation du bucket | `minio/mc:latest` |
 | `ocr` | Extraction OCR | `ocr/Dockerfile` ou `ocr/Dockerfile.dev` |
-| `reverse-proxy` | Routage HTTP staging/prod | `nginx:1.27-alpine` |
+| Traefik (projet externe) | Domaines, HTTPS et routage staging/prod | Gere dans `proxy-traefik` |
 
 ## Reseau Docker
 
@@ -64,11 +64,10 @@ flowchart LR
         minio
         minioInit[minio-init]
         ocr
-        reverseProxy[reverse-proxy]
     end
 
-    reverseProxy --> frontend
-    reverseProxy --> backend
+    traefik[Traefik global] -->|reseau proxy| frontend
+    traefik -->|reseau proxy| backend
     backend --> postgres
     backend --> minio
     backend --> ocr
@@ -137,14 +136,19 @@ sequenceDiagram
 
 ## Routage HTTP
 
-En staging/prod, `docker/nginx/reverse-proxy.conf` route:
+En staging/prod, les fichiers dynamiques du projet externe `proxy-traefik` routent
+les domaines `docomptia.com` et `staging.docomptia.com` :
 
 | Route | Destination |
 | --- | --- |
-| `/` | `frontend:80` |
-| `/api/*` | `backend:8080` |
+| `/` | `docomptia-{prod,staging}-frontend:80` |
+| `/api` et `/api/*` | `docomptia-{prod,staging}-backend:8080` |
 
 Le frontend de production est servi par Nginx depuis les fichiers statiques generes par Vite.
+Seuls frontend et backend rejoignent le reseau externe `proxy`, avec des alias
+distincts pour les deux environnements. Le prefixe `/api` est conserve et
+Spring prend deja en compte les en-tetes transmis par Traefik.
+Voir [la configuration et la migration VPS](vps-traefik.md).
 
 ## Profils Spring
 

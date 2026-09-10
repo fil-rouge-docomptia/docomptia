@@ -22,10 +22,17 @@ docker-compose.prod.yml
 
 Il definit aussi:
 
+- le nom du projet via `COMPOSE_PROJECT_NAME`, obligatoire dans le fichier d'environnement
 - le reseau Docker `facturation`
 - les volumes `postgres_data` et `minio_data`
 - les healthchecks de PostgreSQL, MinIO et OCR
 - les variables communes de connexion entre services
+
+Les noms de projet sont `docomptia-dev`, `docomptia-staging` et `docomptia-prod`.
+Ils sont definis respectivement dans `env/.env.dev`, `env/.env.staging.example`
+et `env/.env.prod.example`. Sur le VPS, reporter les nouveaux noms dans les
+fichiers `.env.staging` et `.env.prod` existants apres avoir prepare
+[la migration des volumes](vps-traefik.md#renommer-un-projet-compose-existant).
 
 ## Developpement
 
@@ -73,7 +80,9 @@ Preparer les variables:
 cp env/.env.staging.example env/.env.staging
 ```
 
-Remplacer les secrets et le domaine d'exemple avant le demarrage.
+Remplacer les secrets et verifier le domaine avant le demarrage.
+Le reseau externe `proxy` et le Traefik global doivent etre prepares selon
+[la procedure VPS](vps-traefik.md).
 
 Commande:
 
@@ -87,15 +96,17 @@ Equivalent:
 docker compose --env-file env/.env.staging \
   -f docker-compose.yml \
   -f docker-compose.staging.yml \
-  up --build -d
+  up --build -d --remove-orphans
 ```
 
 Caracteristiques:
 
 - Images optimisees.
-- Reverse proxy Nginx.
+- Routage HTTPS via le Traefik global du VPS.
+- Frontend Nginx conserve pour servir les fichiers React.
 - `restart: unless-stopped`.
-- Entree HTTP via `HTTP_PORT`, par defaut `8080`.
+- Entree publique: `https://staging.docomptia.com`, API sous `/api`.
+- Aucun port hote publie par le projet.
 
 ## Production
 
@@ -112,7 +123,6 @@ POSTGRES_PASSWORD
 MINIO_ROOT_PASSWORD
 APP_JWT_SECRET
 APP_CORS_ALLOWED_ORIGINS
-HTTP_PORT
 ```
 
 Demarrer:
@@ -127,15 +137,24 @@ Equivalent:
 docker compose --env-file env/.env.prod \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
-  up --build -d
+  up --build -d --remove-orphans
 ```
 
 Caracteristiques:
 
 - Images optimisees.
-- Reverse proxy Nginx.
+- Routage HTTPS via le Traefik global du VPS.
+- Frontend Nginx conserve pour servir les fichiers React.
 - `restart: always`.
-- Seul le reverse proxy est expose.
+- Entree publique: `https://docomptia.com`, API sous `/api`.
+- Aucun port hote publie par le projet ; Traefik publie 80/443.
+
+Seuls `frontend` et `backend` rejoignent le reseau externe `proxy`, avec des
+alias propres a chaque environnement. Les autres services restent sur leur
+reseau `facturation`. `--remove-orphans` retire les anciens conteneurs absents
+du Compose, dont `reverse-proxy`, uniquement dans le projet Compose concerne.
+Preparer la reprise des volumes si le nom du projet change ; voir
+[les etapes de bascule et de verification](vps-traefik.md).
 
 ## Arret
 

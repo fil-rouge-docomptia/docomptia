@@ -15,13 +15,13 @@ dev-down:
 	$(COMPOSE) $(DEV) down
 
 staging:
-	$(COMPOSE) $(STAGING) up --build -d
+	$(COMPOSE) $(STAGING) up --build -d --remove-orphans
 
 staging-down:
 	$(COMPOSE) $(STAGING) down
 
 prod:
-	$(COMPOSE) $(PROD) up --build -d
+	$(COMPOSE) $(PROD) up --build -d --remove-orphans
 
 prod-down:
 	$(COMPOSE) $(PROD) down
