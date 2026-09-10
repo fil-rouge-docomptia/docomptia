@@ -6,7 +6,6 @@ import org.facturation.backend.exception.ApiExceptionHandler;
 import org.facturation.backend.exception.InvoicePostOcrFailureException;
 import org.facturation.backend.model.OcrErrorCode;
 import org.facturation.backend.model.OcrErrorStep;
-import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.OcrErrorRepository;
 import org.facturation.backend.service.InvoiceService;
 import org.facturation.backend.service.OcrSupplierResolution;
@@ -28,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.reset;
 
 @SpringBootTest
 @Import(InvoiceOcrRetryIntegrationTest.RetryOcrConfiguration.class)
@@ -36,9 +36,6 @@ class InvoicePostOcrFailureIntegrationTest {
 
     @Autowired
     private InvoiceService invoiceService;
-
-    @Autowired
-    private InvoiceRepository invoiceRepository;
 
     @Autowired
     private OcrErrorRepository ocrErrorRepository;
@@ -86,7 +83,7 @@ class InvoicePostOcrFailureIntegrationTest {
         assertFalse(failureResponse.getBody().getOcrError().getMessage().contains("password"));
         assertEquals(
                 "ERREUR_TRAITEMENT",
-                invoiceRepository.findById(failure.getInvoiceId()).orElseThrow().getInvoiceStatus().getCode()
+                invoiceService.findDetailsById(failure.getInvoiceId()).orElseThrow().getStatus()
         );
         assertEquals(
                 OcrErrorStep.SUPPLIER_RESOLUTION.name(),
@@ -95,6 +92,7 @@ class InvoicePostOcrFailureIntegrationTest {
                         .getErrorStep()
         );
 
+        reset(supplierService);
         when(supplierService.resolveForInvoiceUploadWithWarnings(any(), any(), any()))
                 .thenReturn(new OcrSupplierResolution(null, List.of()));
         InvoiceDetailsResponse retriedInvoice = invoiceService.retryOcr(failure.getInvoiceId()).orElseThrow();
