@@ -4,6 +4,7 @@ Documents disponibles:
 
 - [Architecture complete](architecture.md)
 - [Environnements Docker](docker-environments.md)
+- [Domaines et proxy Traefik du VPS](vps-traefik.md)
 - [Backend Spring Boot](backend.md)
 - [Service OCR](ocr.md)
 - [Stockage et base de donnees](storage-and-database.md)

@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import type { InvoiceUploadPhase } from '@/types/invoice'
 
 type UploadFileCardProps = {
+  canRetryOcr: boolean
   errorMessage: string
   file: File
   phase: InvoiceUploadPhase
@@ -30,6 +31,7 @@ function formatFileSize(size: number) {
 }
 
 export function UploadFileCard({
+  canRetryOcr,
   errorMessage,
   file,
   phase,
@@ -89,7 +91,7 @@ export function UploadFileCard({
             {state.label}
           </Badge>
 
-          {isOcrError ? (
+          {isOcrError && canRetryOcr ? (
             <Button
               className="bg-accent text-accent-foreground hover:bg-accent/80"
               onClick={onRetryOcr}
@@ -99,7 +101,7 @@ export function UploadFileCard({
               <RotateCcw aria-hidden="true" />
               Retry
             </Button>
-          ) : isUploadError ? (
+          ) : isOcrError ? null : isUploadError ? (
             <Button
               className="bg-accent text-accent-foreground hover:bg-accent/80"
               onClick={onRetryUpload}

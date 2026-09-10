@@ -12,6 +12,10 @@ public enum ProcessingAnomalyCode {
             "TVA invalide",
             "Les informations de TVA de la facture ne respectent pas les règles attendues."
     ),
+    INVALID_SIRET(
+            "SIRET invalide",
+            "Le SIRET extrait de la facture ne respecte pas les règles attendues."
+    ),
     INCONSISTENT_AMOUNTS(
             "Incohérence HT/TVA/TTC",
             "Le montant TTC ne correspond pas à la somme des montants HT et TVA."

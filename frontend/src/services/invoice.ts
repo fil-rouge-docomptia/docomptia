@@ -50,7 +50,7 @@ export function isInvoiceOcrFailureResponse(
   const response = value as Partial<InvoiceOcrFailureResponse>
   return (
     typeof response.invoiceId === 'number' &&
-    response.status === 'ERREUR_OCR' &&
+    (response.status === 'ERREUR_OCR' || response.status === 'ERREUR_TRAITEMENT') &&
     Boolean(response.ocrError)
   )
 }

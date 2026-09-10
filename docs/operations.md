@@ -24,6 +24,9 @@ cp env/.env.prod.example env/.env.prod
 make prod
 ```
 
+Avant le premier demarrage staging/prod, suivre [la procedure Traefik du VPS](vps-traefik.md)
+pour le reseau, les domaines et la migration de l'ancien reverse proxy.
+
 ## Deploiement Production
 
 Le deploiement production est gere par le workflow GitHub Actions
@@ -41,7 +44,7 @@ Le workflow production deploie la branche `main` sur le VPS de production avec:
 docker compose --env-file env/.env.prod \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
-  up --build -d
+  up --build -d --remove-orphans
 ```
 
 Les secrets de production doivent etre configures dans l'environnement GitHub

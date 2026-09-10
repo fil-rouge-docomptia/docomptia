@@ -314,6 +314,17 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(response);
     }
 
+    @ExceptionHandler(InvoicePostOcrFailureException.class)
+    public ResponseEntity<InvoiceOcrFailureResponse> handleInvoicePostOcrFailure(
+            InvoicePostOcrFailureException exception
+    ) {
+        InvoiceOcrFailureResponse response = new InvoiceOcrFailureResponse();
+        response.setInvoiceId(exception.getInvoiceId());
+        response.setStatus(InvoiceStatusCode.ERREUR_TRAITEMENT.getCode());
+        response.setOcrError(ocrErrorMapper.toResponse(exception.getOcrError()));
+        return ResponseEntity.unprocessableEntity().body(response);
+    }
+
     @ExceptionHandler(OcrRetryNotAllowedException.class)
     public ResponseEntity<ApiErrorResponse> handleOcrRetryNotAllowed(OcrRetryNotAllowedException exception) {
         return errorResponse(HttpStatus.CONFLICT, INVOICE_ACTION_NOT_ALLOWED_CODE, exception.getMessage());

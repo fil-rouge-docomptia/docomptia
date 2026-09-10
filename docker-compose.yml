@@ -1,4 +1,4 @@
-name: facturation-electronique
+name: ${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME must be defined}
 
 services:
   postgres:

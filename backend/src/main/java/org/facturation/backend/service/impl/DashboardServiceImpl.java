@@ -36,6 +36,7 @@ public class DashboardServiceImpl implements DashboardService {
     private static final int MAX_ACTION_INVOICE_LIMIT = 100;
     private static final Set<InvoiceStatusCode> ACTION_REQUIRED_STATUSES = Set.of(
             InvoiceStatusCode.ERREUR_OCR,
+            InvoiceStatusCode.ERREUR_TRAITEMENT,
             InvoiceStatusCode.EXTRAITE,
             InvoiceStatusCode.A_VERIFIER,
             InvoiceStatusCode.REJETEE
@@ -88,7 +89,8 @@ public class DashboardServiceImpl implements DashboardService {
                 count(countsByStatus, InvoiceStatusCode.EXPORTABLE)
         );
         DashboardAlertsResponse alerts = new DashboardAlertsResponse(
-                count(countsByStatus, InvoiceStatusCode.ERREUR_OCR),
+                count(countsByStatus, InvoiceStatusCode.ERREUR_OCR)
+                        + count(countsByStatus, InvoiceStatusCode.ERREUR_TRAITEMENT),
                 duplicateAlertRepository.countDistinctInvoicesForDashboard(
                         organizationId,
                         DuplicateAlertDecision.PENDING,
@@ -167,7 +169,7 @@ public class DashboardServiceImpl implements DashboardService {
             case REJETEE -> "CORRIGER";
             case EXTRAITE -> "VERIFIER";
             case A_VERIFIER -> "VALIDER";
-            case ERREUR_OCR -> "DEBLOQUER";
+            case ERREUR_OCR, ERREUR_TRAITEMENT -> "DEBLOQUER";
             default -> throw new IllegalStateException("Invoice status does not require an action: " + status);
         };
     }

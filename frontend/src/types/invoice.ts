@@ -18,7 +18,15 @@ export type OcrAnalysisResponse = {
 export type InvoiceOcrError = {
   code: string
   message: string
+  step?: string
   occurredAt: string
+}
+
+export type ProcessingAnomaly = {
+  code: string
+  label: string
+  description: string
+  blocking: boolean
 }
 
 export type InvoiceUploadResponse = {
@@ -26,6 +34,7 @@ export type InvoiceUploadResponse = {
   invoiceNumber: string
   status: string
   ocrAnalysis: OcrAnalysisResponse
+  warnings: ProcessingAnomaly[]
 }
 
 export type InvoiceOcrFailureResponse = {

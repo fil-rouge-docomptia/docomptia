@@ -293,3 +293,5 @@ CREATE TABLE IF NOT EXISTS processing_anomalies (
 
 CREATE INDEX IF NOT EXISTS idx_processing_anomalies_dashboard
     ON processing_anomalies (organization_id, resolved_at, created_at DESC);
+
+ALTER TABLE IF EXISTS ocr_errors ADD COLUMN IF NOT EXISTS error_step VARCHAR(50);

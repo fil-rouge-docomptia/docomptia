@@ -2,12 +2,13 @@ package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
 import org.facturation.backend.dto.response.OcrFieldResponse;
-import org.facturation.backend.exception.InvalidSupplierException;
 import org.facturation.backend.exception.SupplierLegalIdentifierConflictException;
 import org.facturation.backend.model.Organization;
+import org.facturation.backend.model.ProcessingAnomalyCode;
 import org.facturation.backend.model.Supplier;
 import org.facturation.backend.repository.OrganizationRepository;
 import org.facturation.backend.repository.SupplierRepository;
+import org.facturation.backend.service.OcrSupplierResolution;
 import org.facturation.backend.service.SupplierService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -161,39 +162,60 @@ class SupplierServiceIntegrationTest {
     }
 
     @Test
-    void createsFrenchSupplierFromVatNumberWithoutLocalChecksumValidation() {
+    void createsFrenchSupplierFromValidVatNumber() {
         Organization organization = createOrganization("french-automatic-creation");
         OcrAnalysisResponse ocrAnalysis = new OcrAnalysisResponse();
         ocrAnalysis.setFields(List.of(
                 ocrField("supplierName", "French supplier"),
-                ocrField("vatNumber", "FR88380129866")
+                ocrField("vatNumber", "FR89380129866")
         ));
 
         Supplier result = supplierService.resolveForInvoiceUpload(null, organization, ocrAnalysis);
 
         assertNotNull(result);
-        assertEquals("FR88380129866", result.getVatNumber());
+        assertEquals("FR89380129866", result.getVatNumber());
     }
 
     @Test
-    void rejectsAutomaticCreationWithInvalidSiret() {
+    void ignoresInvalidOcrVatNumberAndReturnsWarning() {
+        Organization organization = createOrganization("invalid-vat-automatic-creation");
+        long supplierCountBefore = supplierRepository.count();
+        OcrAnalysisResponse ocrAnalysis = new OcrAnalysisResponse();
+        ocrAnalysis.setFields(List.of(
+                ocrField("supplierName", "Invalid VAT supplier"),
+                ocrField("vatNumber", "FR88380129866")
+        ));
+
+        OcrSupplierResolution result = supplierService.resolveForInvoiceUploadWithWarnings(
+                null, organization, ocrAnalysis
+        );
+
+        assertNull(result.supplier());
+        assertEquals(List.of(ProcessingAnomalyCode.INVALID_VAT), result.anomalies());
+        assertEquals(supplierCountBefore, supplierRepository.count());
+    }
+
+    @Test
+    void ignoresInvalidOcrSiretAndReturnsWarning() {
         Organization organization = createOrganization("invalid-automatic-creation");
+        long supplierCountBefore = supplierRepository.count();
         OcrAnalysisResponse ocrAnalysis = new OcrAnalysisResponse();
         ocrAnalysis.setFields(List.of(
                 ocrField("supplierName", "Invalid supplier"),
                 ocrField("siret", "38012986600015")
         ));
 
-        InvalidSupplierException exception = assertThrows(
-                InvalidSupplierException.class,
-                () -> supplierService.resolveForInvoiceUpload(null, organization, ocrAnalysis)
+        OcrSupplierResolution result = supplierService.resolveForInvoiceUploadWithWarnings(
+                null, organization, ocrAnalysis
         );
 
-        assertEquals("siret must be a valid French SIRET", exception.getMessage());
+        assertNull(result.supplier());
+        assertEquals(List.of(ProcessingAnomalyCode.INVALID_SIRET), result.anomalies());
+        assertEquals(supplierCountBefore, supplierRepository.count());
     }
 
     @Test
-    void rejectsAutomaticCreationWithInconsistentLegalIdentifiers() {
+    void keepsValidSiretWhenOcrVatNumberIsInconsistent() {
         Organization organization = createOrganization("inconsistent-automatic-creation");
         OcrAnalysisResponse ocrAnalysis = new OcrAnalysisResponse();
         ocrAnalysis.setFields(List.of(
@@ -202,15 +224,14 @@ class SupplierServiceIntegrationTest {
                 ocrField("vatNumber", "FR89380129866")
         ));
 
-        InvalidSupplierException exception = assertThrows(
-                InvalidSupplierException.class,
-                () -> supplierService.resolveForInvoiceUpload(null, organization, ocrAnalysis)
+        OcrSupplierResolution result = supplierService.resolveForInvoiceUploadWithWarnings(
+                null, organization, ocrAnalysis
         );
 
-        assertEquals(
-                "vatNumber must refer to the same company as the other legal identifier",
-                exception.getMessage()
-        );
+        assertNotNull(result.supplier());
+        assertEquals("73282932000074", result.supplier().getSiret());
+        assertNull(result.supplier().getVatNumber());
+        assertEquals(List.of(ProcessingAnomalyCode.INVALID_VAT), result.anomalies());
     }
 
     @Test

@@ -16,6 +16,7 @@ class ProcessingAnomalyCodeTest {
         Set<String> expectedCodes = Set.of(
                 "OCR_INCOMPLETE",
                 "INVALID_VAT",
+                "INVALID_SIRET",
                 "INCONSISTENT_AMOUNTS",
                 "SUSPECTED_DUPLICATE",
                 "MISSING_THIRD_PARTY_ACCOUNT",
