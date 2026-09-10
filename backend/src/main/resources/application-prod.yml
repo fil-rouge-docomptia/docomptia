@@ -10,7 +10,7 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:schema-postgres.sql,classpath:db/migration/V344__create_supplier_accounts.sql
+      schema-locations: classpath:schema-postgres.sql,classpath:db/migration/V344__create_supplier_accounts.sql,classpath:db/migration/V347__link_supplier_accounts_to_accounting_entry_lines.sql
       data-locations: classpath:data-postgres.sql
 
 app:
