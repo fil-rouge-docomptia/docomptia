@@ -55,7 +55,7 @@ def analyze_document(filename: str, content: bytes) -> dict:
         build_field("commandReference", extract_command_reference(raw_text)),
         build_field("totalHt", extract_amount(raw_text, ["HT", "hors taxe"])),
         build_field("totalTva", extract_amount(raw_text, ["TVA", "taxe"])),
-        build_field("totalTtc", extract_amount(raw_text, ["TTC", "total"])),
+        build_field("totalTtc", extract_total_ttc(raw_text)),
     ]
 
     return {
@@ -109,6 +109,12 @@ def extract_supplier(raw_text: str) -> str | None:
         if candidate and looks_like_supplier_name(candidate):
             return candidate
 
+    if looks_like_receipt(raw_text):
+        for line in lines[:15]:
+            candidate = clean_supplier_candidate(line)
+            if candidate and looks_like_receipt_supplier_name(candidate):
+                return candidate
+
     return None
 
 
@@ -126,6 +132,27 @@ def clean_supplier_candidate(line: str) -> str | None:
 
 def looks_like_supplier_name(value: str) -> bool:
     return bool(re.search(r"\b(?:SA|SAS|SARL|EURL|SNC|SCA|ASSOCIATION)\b", value, flags=re.IGNORECASE))
+
+
+def looks_like_receipt(raw_text: str) -> bool:
+    return bool(re.search(
+        r"(?:^\s*ticket(?:\s+(?:de\s+caisse|restaurant|client))?\s*$"
+        r"|\breçu\s+client\b|\breceipt\b|\bmerci\s+de\s+votre\s+(?:visite|achat)\b)",
+        raw_text,
+        flags=re.IGNORECASE | re.MULTILINE,
+    ))
+
+
+def looks_like_receipt_supplier_name(value: str) -> bool:
+    if len(value) > 60 or re.search(r"\d", value):
+        return False
+    if re.search(
+        r"\b(?:ticket|reçu|receipt|merci|facture|date|total|caisse|siret|tva)\b",
+        value,
+        flags=re.IGNORECASE,
+    ):
+        return False
+    return bool(re.search(r"[A-ZÀ-ÖØ-öø-ÿ]{2}", value, flags=re.IGNORECASE))
 
 
 def extract_invoice_number(raw_text: str) -> str | None:
@@ -185,14 +212,14 @@ def extract_siret(raw_text: str) -> str | None:
 
 def extract_vat_number(raw_text: str) -> str | None:
     match = re.search(
-        r"(?:TVA\s+intracommunautaire|N[°o.]?\s*TVA|VAT)[^\n\r:]*:?[ \t]*([A-Z]{2}[A-Z0-9\s]{8,})",
+        r"(?:TVA[ \t]+intracommunautaire|N[°o.]?[ \t]*TVA|VAT)[^\n\r:]*:?[ \t]*([A-Z]{2}[A-Z0-9 \t]{8,})",
         raw_text,
         flags=re.IGNORECASE,
     )
     if not match:
         return None
 
-    return re.sub(r"\s", "", match.group(1)).upper()
+    return re.sub(r"[ \t]", "", match.group(1)).upper()
 
 
 def extract_amount(raw_text: str, labels: list[str]) -> str | None:
@@ -205,6 +232,21 @@ def extract_amount(raw_text: str, labels: list[str]) -> str | None:
         match = re.search(pattern, raw_text, flags=re.IGNORECASE)
         if match:
             return normalize_amount(match.group(1) or match.group(2))
+
+    return None
+
+
+def extract_total_ttc(raw_text: str) -> str | None:
+    explicit_total = extract_amount(raw_text, ["TTC"])
+    if explicit_total:
+        return explicit_total
+
+    for line in raw_text.splitlines():
+        if re.search(r"\b(?:HT|TVA|taxe)\b", line, flags=re.IGNORECASE):
+            continue
+        generic_total = extract_amount(line, ["total"])
+        if generic_total:
+            return generic_total
 
     return None
 
