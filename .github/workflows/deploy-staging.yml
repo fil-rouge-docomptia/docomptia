@@ -1,9 +1,6 @@
 name: Deploy staging
 
 on:
-  push:
-    branches:
-      - staging
   workflow_dispatch:
 
 permissions:
