@@ -199,6 +199,10 @@ class SecurityConfigIntegrationTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound());
 
+        mockMvc.perform(patch("/api/v1/invoices/999999/anomalies/999999/resolve")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+
         assertInvoiceValidationRoutesAreForbidden(token);
     }
 
@@ -437,6 +441,7 @@ class SecurityConfigIntegrationTest {
         assertForbidden(post("/api/v1/invoices/999999/submit-for-validation"), token);
         assertForbidden(post("/api/v1/invoices/999999/duplicate-alerts/999999/decision")
                 .contentType(MediaType.APPLICATION_JSON).content("{}"), token);
+        assertForbidden(patch("/api/v1/invoices/999999/anomalies/999999/resolve"), token);
         assertForbidden(patch("/api/v1/invoices/999999")
                 .contentType(MediaType.APPLICATION_JSON).content("{}"), token);
     }
