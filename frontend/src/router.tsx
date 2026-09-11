@@ -4,6 +4,8 @@ import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth/RouteGuard'
 import { AppShell } from '@/components/layout/AppShell'
 import AccountingPage from '@/pages/AccountingPage'
 import AuditSettingsPage from '@/pages/AuditSettingsPage'
+import BillingSettingsPage from '@/pages/BillingSettingsPage'
+import UserProfilePage from '@/pages/UserProfilePage'
 import SecuritySettingsPage from '@/pages/SecuritySettingsPage'
 import AccountImportPage from '@/pages/AccountImportPage'
 import AccountingRulesPage from '@/pages/AccountingRulesPage'
@@ -58,6 +60,14 @@ export const publicRoutes = [
 ]
 
 export const privateRoutes = [
+  {
+    path: '/profile',
+    element: <UserProfilePage />,
+  },
+  {
+    path: '/settings/billing',
+    element: <BillingSettingsPage />,
+  },
   {
     path: '/dashboard',
     element: <DashboardPage />,

@@ -186,14 +186,18 @@ export function AppSidebar({
                   className="h-14 px-2 group-data-[collapsible=icon]:!size-10 group-data-[collapsible=icon]:!p-1.5"
                   size="lg"
                   tooltip={identity.name}
+                  asChild
+                  isActive={location.pathname === '/profile'}
                 >
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
-                    {identity.initials}
-                  </span>
-                  <span className="flex min-w-0 flex-col">
-                    <span className="truncate font-medium">{identity.name}</span>
-                    <span className="truncate text-xs text-muted-foreground">{identity.email}</span>
-                  </span>
+                  <Link aria-label="User profile" onClick={() => setOpenMobile(false)} to="/profile">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+                      {identity.initials}
+                    </span>
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate font-medium">{identity.name}</span>
+                      <span className="truncate text-xs text-muted-foreground">{identity.email}</span>
+                    </span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
