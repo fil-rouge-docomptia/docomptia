@@ -56,6 +56,7 @@ class InvoiceSearchControllerTest {
     void returnsPaginationInformationAndRequestedSort() throws Exception {
         InvoiceListItemResponse invoice = new InvoiceListItemResponse();
         invoice.setInvoiceId(112L);
+        invoice.setOrigin("MANUAL_UPLOAD");
         when(invoiceService.searchInvoices(
                 eq(List.of("EXTRAITE", "VALIDEE")), eq("Orange"), eq("Docomptia"), eq("fac-2026"),
                 isNull(), eq("2026-08-21"),
@@ -78,6 +79,7 @@ class InvoiceSearchControllerTest {
                         .param("direction", "asc"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].invoiceId").value(112))
+                .andExpect(jsonPath("$.content[0].origin").value("MANUAL_UPLOAD"))
                 .andExpect(jsonPath("$.totalElements").value(3))
                 .andExpect(jsonPath("$.totalPages").value(3))
                 .andExpect(jsonPath("$.number").value(1))
@@ -99,6 +101,7 @@ class InvoiceSearchControllerTest {
         InvoiceListItemResponse invoice = new InvoiceListItemResponse();
         invoice.setInvoiceId(144L);
         invoice.setStatus("A_VERIFIER");
+        invoice.setOrigin("EMAIL");
         when(invoiceService.findPendingValidationInvoices(any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(invoice), PageRequest.of(1, 1), 3));
 
@@ -110,6 +113,7 @@ class InvoiceSearchControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].invoiceId").value(144))
                 .andExpect(jsonPath("$.content[0].status").value("A_VERIFIER"))
+                .andExpect(jsonPath("$.content[0].origin").value("EMAIL"))
                 .andExpect(jsonPath("$.totalElements").value(3));
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
@@ -134,6 +138,7 @@ class InvoiceSearchControllerTest {
     void returnsInvoicesAssignedToCurrentUserWithStatusFilterAndPagination() throws Exception {
         InvoiceListItemResponse invoice = new InvoiceListItemResponse();
         invoice.setInvoiceId(189L);
+        invoice.setOrigin("APPROVED_PLATFORM");
         when(invoiceService.findInvoicesAssignedToCurrentUser(
                 eq(List.of("EXTRAITE,A_VERIFIER")), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(invoice), PageRequest.of(1, 1), 2));
@@ -146,6 +151,7 @@ class InvoiceSearchControllerTest {
                         .param("direction", "ASC"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].invoiceId").value(189))
+                .andExpect(jsonPath("$.content[0].origin").value("APPROVED_PLATFORM"))
                 .andExpect(jsonPath("$.totalElements").value(2));
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);

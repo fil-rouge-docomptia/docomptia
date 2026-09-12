@@ -14,6 +14,7 @@ public class InvoiceDetailsResponse {
     private Long paidByUserId;
     private String archivedAt;
     private String status;
+    private String origin;
     private String supplierName;
     private InvoiceSupplierResponse supplier;
     private ClassificationResponse classification;
@@ -109,6 +110,14 @@ public class InvoiceDetailsResponse {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getOrigin() {
+        return origin;
+    }
+
+    public void setOrigin(String origin) {
+        this.origin = origin;
     }
 
     public String getSupplierName() {

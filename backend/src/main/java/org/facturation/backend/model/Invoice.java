@@ -2,6 +2,8 @@ package org.facturation.backend.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -9,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
@@ -59,6 +62,11 @@ public class Invoice {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "export_batch_id")
     private ExportBatch exportBatch;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    @ColumnDefault("'MANUAL_UPLOAD'")
+    private InvoiceOrigin origin = InvoiceOrigin.MANUAL_UPLOAD;
 
     private String invoiceNumber;
 
@@ -180,6 +188,14 @@ public class Invoice {
 
     public void setExportBatch(ExportBatch exportBatch) {
         this.exportBatch = exportBatch;
+    }
+
+    public InvoiceOrigin getOrigin() {
+        return origin;
+    }
+
+    public void setOrigin(InvoiceOrigin origin) {
+        this.origin = origin;
     }
 
     public String getInvoiceNumber() {
