@@ -8,6 +8,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
+//Mock
 @Component
 @ConditionalOnProperty(name = "app.ocr.mock", havingValue = "true", matchIfMissing = true)
 public class MockOcrClient implements OcrClient {

@@ -28,6 +28,7 @@ import org.facturation.backend.model.DuplicateAlertDecision;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceFile;
 import org.facturation.backend.model.InvoiceFileFormat;
+import org.facturation.backend.model.InvoiceOrigin;
 import org.facturation.backend.model.InvoiceStatus;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.OcrError;
@@ -929,6 +930,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice.setOrganization(organization);
         invoice.setCreatedByUser(user);
         invoice.setInvoiceStatus(invoiceStatus);
+        invoice.setOrigin(InvoiceOrigin.MANUAL_UPLOAD);
         invoice.setCurrencyCode(organization.getDefaultCurrencyCode());
         invoice.setDescription("Invoice uploaded for OCR analysis");
         invoice.setCreatedAt(LocalDateTime.now());

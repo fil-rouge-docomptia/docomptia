@@ -8,6 +8,7 @@ import org.facturation.backend.exception.InvalidCustomerInvoiceDraftException;
 import org.facturation.backend.exception.InvoiceNotFoundException;
 import org.facturation.backend.model.Client;
 import org.facturation.backend.model.Invoice;
+import org.facturation.backend.model.InvoiceOrigin;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.User;
@@ -67,6 +68,7 @@ public class CustomerInvoiceDraftServiceImpl implements CustomerInvoiceDraftServ
         invoice.setClient(client);
         invoice.setInvoiceStatus(invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.BROUILLON));
         invoice.setCreatedByUser(user);
+        invoice.setOrigin(InvoiceOrigin.MANUAL_UPLOAD);
         invoice.setCurrencyCode(currencyCode);
         invoice.setInvoiceDate(request.getInvoiceDate());
         invoice.setDueDate(request.getDueDate());

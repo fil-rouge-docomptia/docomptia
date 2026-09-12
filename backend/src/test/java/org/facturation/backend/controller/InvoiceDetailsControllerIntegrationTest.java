@@ -66,6 +66,7 @@ class InvoiceDetailsControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/invoices/{id}", uploadResponse.getInvoiceId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.invoiceId").value(uploadResponse.getInvoiceId()))
+                .andExpect(jsonPath("$.origin").value("MANUAL_UPLOAD"))
                 .andExpect(jsonPath("$.ocrAnalysis.status").value("SUCCESS"))
                 .andExpect(jsonPath("$.ocrAnalysis.engineName").value("mock-ocr"))
                 .andExpect(jsonPath("$.ocrAnalysis.rawText").value("Mock OCR result for file invoice-with-ocr.png"))
