@@ -395,7 +395,7 @@ public class InvoiceStatusWorkflowServiceImpl implements InvoiceStatusWorkflowSe
         allowedPreviousStatuses.put(InvoiceStatusCode.ERREUR_OCR, EnumSet.of(InvoiceStatusCode.OCR_EN_COURS));
         allowedPreviousStatuses.put(
                 InvoiceStatusCode.ERREUR_TRAITEMENT,
-                EnumSet.of(InvoiceStatusCode.OCR_EN_COURS, InvoiceStatusCode.EXTRAITE)
+                EnumSet.of(InvoiceStatusCode.DEPOSEE, InvoiceStatusCode.OCR_EN_COURS, InvoiceStatusCode.EXTRAITE)
         );
         allowedPreviousStatuses.put(
                 InvoiceStatusCode.EXTRAITE,

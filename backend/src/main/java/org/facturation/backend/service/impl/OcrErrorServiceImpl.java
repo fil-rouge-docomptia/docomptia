@@ -50,6 +50,7 @@ public class OcrErrorServiceImpl implements OcrErrorService {
             return ocrException.getErrorCode().getCode();
         }
         return switch (step) {
+            case FILE_STORAGE -> OcrErrorCode.FILE_STORAGE_FAILED.getCode();
             case OCR_ANALYSIS -> OcrErrorCode.PROCESSING_FAILED.getCode();
             case SUPPLIER_RESOLUTION -> OcrErrorCode.SUPPLIER_RESOLUTION_FAILED.getCode();
             case EXTRACTION_PERSISTENCE -> OcrErrorCode.EXTRACTION_PERSISTENCE_FAILED.getCode();

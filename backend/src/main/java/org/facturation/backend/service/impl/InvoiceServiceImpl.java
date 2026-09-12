@@ -29,6 +29,7 @@ import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceFile;
 import org.facturation.backend.model.InvoiceFileFormat;
 import org.facturation.backend.model.InvoiceOrigin;
+import org.facturation.backend.model.InvoiceOrigin;
 import org.facturation.backend.model.InvoiceStatus;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.OcrError;
@@ -45,8 +46,10 @@ import org.facturation.backend.service.AuditLogService;
 import org.facturation.backend.service.CurrentUserService;
 import org.facturation.backend.service.ClassificationService;
 import org.facturation.backend.service.InvoiceDuplicateAlertService;
-import org.facturation.backend.service.InvoiceFileIntegrityService;
 import org.facturation.backend.service.InvoiceFileValidator;
+import org.facturation.backend.service.InvoiceIngestionRequest;
+import org.facturation.backend.service.InvoiceIngestionResult;
+import org.facturation.backend.service.InvoiceIngestionService;
 import org.facturation.backend.service.InvoiceAmountConsistencyService;
 import org.facturation.backend.service.InvoiceOcrService;
 import org.facturation.backend.service.InvoicePostOcrFailureService;
@@ -58,9 +61,7 @@ import org.facturation.backend.service.OcrErrorService;
 import org.facturation.backend.service.ProcessingAnomalyService;
 import org.facturation.backend.service.LegalRetentionService;
 import org.facturation.backend.service.SupplierService;
-import org.facturation.backend.service.SubscriptionQuotaService;
 import org.facturation.backend.service.storage.InvoiceFileStorageService;
-import org.facturation.backend.service.storage.StoredInvoiceFile;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
@@ -124,15 +125,14 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final CurrentUserService currentUserService;
     private final InvoiceFileRepository invoiceFileRepository;
     private final InvoiceFileStorageService invoiceFileStorageService;
-    private final InvoiceFileIntegrityService invoiceFileIntegrityService;
     private final LegalRetentionService legalRetentionService;
     private final InvoiceDuplicateAlertService duplicateAlertService;
     private final ClassificationService classificationService;
     private final UserRepository userRepository;
-    private final SubscriptionQuotaService subscriptionQuotaService;
     private final InvoiceAmountConsistencyService invoiceAmountConsistencyService;
     private final ProcessingAnomalyService processingAnomalyService;
     private final InvoicePostOcrFailureService invoicePostOcrFailureService;
+    private final InvoiceIngestionService invoiceIngestionService;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
@@ -148,15 +148,14 @@ public class InvoiceServiceImpl implements InvoiceService {
             CurrentUserService currentUserService,
             InvoiceFileRepository invoiceFileRepository,
             InvoiceFileStorageService invoiceFileStorageService,
-            InvoiceFileIntegrityService invoiceFileIntegrityService,
             LegalRetentionService legalRetentionService,
             InvoiceDuplicateAlertService duplicateAlertService,
             ClassificationService classificationService,
             UserRepository userRepository,
-            SubscriptionQuotaService subscriptionQuotaService,
             InvoiceAmountConsistencyService invoiceAmountConsistencyService,
             ProcessingAnomalyService processingAnomalyService,
-            InvoicePostOcrFailureService invoicePostOcrFailureService
+            InvoicePostOcrFailureService invoicePostOcrFailureService,
+            InvoiceIngestionService invoiceIngestionService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.accountingEntryService = accountingEntryService;
@@ -171,15 +170,14 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.currentUserService = currentUserService;
         this.invoiceFileRepository = invoiceFileRepository;
         this.invoiceFileStorageService = invoiceFileStorageService;
-        this.invoiceFileIntegrityService = invoiceFileIntegrityService;
         this.legalRetentionService = legalRetentionService;
         this.duplicateAlertService = duplicateAlertService;
         this.classificationService = classificationService;
         this.userRepository = userRepository;
-        this.subscriptionQuotaService = subscriptionQuotaService;
         this.invoiceAmountConsistencyService = invoiceAmountConsistencyService;
         this.processingAnomalyService = processingAnomalyService;
         this.invoicePostOcrFailureService = invoicePostOcrFailureService;
+        this.invoiceIngestionService = invoiceIngestionService;
     }
 
     @Override
@@ -200,29 +198,18 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     public InvoiceUploadResponse uploadAndAnalyze(MultipartFile file, Long supplierId) {
         invoiceFileValidator.validate(file);
-
         User user = currentUserService.getCurrentUser();
-        Organization organization = user.getOrganization();
-        Supplier selectedSupplier = supplierId == null
-                ? null
-                : supplierService.findRequiredByIdForOrganization(supplierId, organization);
-        subscriptionQuotaService.ensureInvoiceCanBeCreated(organization.getOrganizationId());
-        InvoiceStatus depositedStatus = invoiceStatusWorkflowService.findByCode(InvoiceStatusCode.DEPOSEE);
-
-        Invoice invoice = createDraftInvoice(organization, user, depositedStatus);
-        invoiceStatusWorkflowService.recordUpload(invoice, user);
-        saveInvoiceFile(invoice, file);
-        invoiceStatusWorkflowService.startOcrAnalysis(invoice, user);
-
-        OcrAnalysisResponse ocrAnalysis = analyzeInvoice(invoice, user, file);
-        PostOcrProcessingResult processingResult = processValidOcrResponse(
-                invoice, selectedSupplier, organization, user, ocrAnalysis
+        InvoiceIngestionResult ingestionResult = invoiceIngestionService.ingest(new InvoiceIngestionRequest(
+                file,
+                supplierId,
+                user.getOrganization(),
+                InvoiceOrigin.MANUAL_UPLOAD,
+                user
+        ));
+        InvoiceUploadResponse response = invoiceResponseMapper.toUploadResponse(
+                ingestionResult.invoice(), ingestionResult.ocrAnalysis()
         );
-        invoice = processingResult.invoice();
-        duplicateAlertService.detectDuplicates(invoice);
-
-        InvoiceUploadResponse response = invoiceResponseMapper.toUploadResponse(invoice, ocrAnalysis);
-        response.setWarnings(processingResult.warnings());
+        response.setWarnings(ingestionResult.warnings());
         return response;
     }
 
@@ -960,21 +947,6 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice.setTotalTtc(invoiceOcrService.extractOptionalAmount(ocrAnalysis, "totalTtc").orElse(null));
         invoiceAmountConsistencyService.recalculateTtcWhenMissingOrWithinTolerance(invoice);
         invoice.setUpdatedAt(LocalDateTime.now());
-    }
-
-    private InvoiceFile saveInvoiceFile(Invoice invoice, MultipartFile file) {
-        StoredInvoiceFile storedFile = invoiceFileStorageService.store(file, invoice.getInvoiceId());
-
-        InvoiceFile invoiceFile = new InvoiceFile();
-        invoiceFile.setInvoice(invoice);
-        invoiceFile.setOriginalFileName(storedFile.originalFileName());
-        invoiceFile.setStoredFileName(storedFile.storedFileName());
-        invoiceFile.setFilePath(storedFile.filePath());
-        invoiceFile.setMimeType(storedFile.mimeType());
-        invoiceFile.setFileSize(storedFile.fileSize());
-        invoiceFile.setUploadedAt(LocalDateTime.now());
-        invoiceFile.setSha256Checksum(invoiceFileIntegrityService.calculateSha256(file));
-        return invoiceFileRepository.save(invoiceFile);
     }
 
     private boolean hasRequestedCorrections(InvoiceCorrectionRequest request) {
