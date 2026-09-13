@@ -26,7 +26,8 @@ import EmailVerificationPage from '@/pages/EmailVerificationPage'
 import ExportsPage from '@/pages/ExportsPage'
 import CreateExportPage from '@/pages/CreateExportPage'
 import LoginRoutePage from '@/pages/LoginRoutePage'
-import ModulePlaceholderPage from '@/pages/ModulePlaceholderPage'
+import IntegrationsPage from '@/pages/IntegrationsPage'
+import IntegrationDetailsPage from '@/pages/IntegrationDetailsPage'
 import MemberSettingsPage from '@/pages/MemberSettingsPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import NotificationSettingsPage from '@/pages/NotificationSettingsPage'
@@ -154,12 +155,11 @@ export const privateRoutes = [
   },
   {
     path: '/integrations',
-    element: (
-      <ModulePlaceholderPage
-        description="Connect Docomptia to the tools used by your organization."
-        title="Integrations"
-      />
-    ),
+    element: <IntegrationsPage />,
+  },
+  {
+    path: '/integrations/:integrationId',
+    element: <IntegrationDetailsPage />,
   },
   {
     path: '/settings',
