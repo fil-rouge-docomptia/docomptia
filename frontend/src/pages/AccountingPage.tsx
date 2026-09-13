@@ -3,6 +3,7 @@ import { Download, FileSpreadsheet, Plus, Search, Columns3, X } from 'lucide-rea
 import { useSearchParams } from 'react-router-dom'
 
 import { entryTypeLabels, entryColumns, entrySortFields, type EntryColumn } from '@/components/accounting/accounting-utils'
+import { AccountingEntryCreateSheet } from '@/components/accounting/AccountingEntryCreateSheet'
 import { AccountingEntryDetails } from '@/components/accounting/AccountingEntryDetails'
 import { AccountingEntryTable } from '@/components/accounting/AccountingEntryTable'
 import { AccountingLoadError } from '@/components/accounting/AccountingLoadError'
@@ -31,6 +32,7 @@ export default function AccountingPage() {
   const [params, setParams] = useSearchParams()
   const [retry, setRetry] = useState(0)
   const [compact, setCompact] = useState(true)
+  const [creationIdentity, setCreationIdentity] = useState<string | null>(null)
   const query = (params.get('query') ?? '').trim().slice(0, 200)
   const rawBalance = params.get('balanced') ?? ''
   const balanced = ['true', 'false'].includes(rawBalance) ? rawBalance : ''
@@ -119,6 +121,7 @@ export default function AccountingPage() {
             : hasFilters ? 'Try another search or clear your filters.'
               : 'Entries generated for your organization will appear here.'}
         </p>
+        {!hasFilters && page === 1 ? <Button className="mt-4" onClick={() => setCreationIdentity(identity)}>Create entry</Button> : null}
         {page > 1 ? (
           <Button className="mt-4" onClick={() => update({ page: null })} variant="outline">Back to first page</Button>
         ) : null}
@@ -156,7 +159,7 @@ export default function AccountingPage() {
             <Button disabled title="Entry export will be available in the export workflow.">
               <Download aria-hidden="true" />Export entries
             </Button>
-            <Button disabled variant="secondary" title="Entries are generated from validated invoices.">
+            <Button id="create-entry" onClick={() => setCreationIdentity(identity)} variant="secondary">
               <Plus aria-hidden="true" />Create entry
             </Button>
           </>
@@ -245,6 +248,9 @@ export default function AccountingPage() {
         </div> : null}
         {content}
       </section>
+      {creationIdentity === identity ? <AccountingEntryCreateSheet key={identity} onClose={() => setCreationIdentity(null)}
+        onCreated={(record) => { setCreationIdentity(null); setRetry((value) => value + 1); update({ entry: String(record.entry.accountingEntryId) }, false) }}
+        onOpenExisting={(id) => { setCreationIdentity(null); update({ entry: String(id) }, false) }} /> : null}
       {entryId !== null ? (
         <AccountingEntryDetails id={entryId} key={`${identity}:${entryId}`} onClose={() => update({ entry: null }, false)} />
       ) : null}

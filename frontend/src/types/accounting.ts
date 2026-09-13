@@ -30,3 +30,15 @@ export type AccountingJournal = {
   label: string
   active: boolean
 }
+
+export type AccountingCandidate = {
+  invoiceId: number; invoiceNumber: string | null; supplierName: string
+  currencyCode: string | null; invoiceDate: string | null
+}
+export type AccountingCandidatePage = {
+  content: AccountingCandidate[]; number: number; size: number; totalElements: number; totalPages: number
+}
+export type AccountingCreationRequest = {
+  invoiceId: number; journalId: number; entryDate: string; label: string
+  lines: import('./invoice').AccountingEntryLineCorrectionRequest[]
+}

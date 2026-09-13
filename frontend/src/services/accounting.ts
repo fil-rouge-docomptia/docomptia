@@ -61,3 +61,15 @@ export async function mutateAccountingLine(
   })
   return response.json()
 }
+
+export async function getAccountingCandidates(query: string, page: number, signal?: AbortSignal): Promise<import('@/types/accounting').AccountingCandidatePage> {
+  const params = new URLSearchParams({ query, page: String(page), size: '20' })
+  const response = await authenticatedFetch(`${apiBaseUrl}/v1/accounting-entries/creation-candidates?${params}`, { signal })
+  return response.json()
+}
+export async function createAccountingEntry(body: import('@/types/accounting').AccountingCreationRequest, signal?: AbortSignal): Promise<AccountingEntryRecord> {
+  const response = await authenticatedFetch(`${apiBaseUrl}/v1/accounting-entries`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal,
+  })
+  return response.json()
+}

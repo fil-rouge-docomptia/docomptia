@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 import type { AccountingEntryRecord } from '../src/types/accounting'
 import { currentUser, fulfillJson, mockApiRoute, mockCurrentUser, seedAuthSession } from './support/api'
@@ -85,7 +85,7 @@ test('accounting sends authenticated read-only requests and combined server filt
   await page.getByRole('button', { name: 'Clear all' }).click()
   await expect.poll(() => requests.at(-1)?.searchParams.toString()).toBe('page=0&size=8&sortBy=entryDate&direction=DESC')
   await expect(page.getByRole('button', { name: 'Export entries' })).toBeDisabled()
-  await expect(page.getByRole('button', { name: 'Create entry' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Create entry' })).toBeEnabled()
 })
 
 test('accounting paginates and ignores a late response after browser back', async ({ page }) => {
@@ -251,3 +251,86 @@ test('KAN-398 stores optional columns per organization and keeps entry actions',
   await page.reload()
   await expect(page.getByRole('columnheader', { name: 'Debit', exact: true })).toBeVisible()
 })
+
+async function openCreationDraft(page: Page) {
+  await mockApiRoute(page, '/v1/accounting-entries/creation-candidates?*', (route) => fulfillJson(route, 200, {
+    content: [{ invoiceId: 31, invoiceNumber: 'INV-2026-0912', supplierName: 'Bouygues Construction', currencyCode: 'EUR', invoiceDate: '2026-09-01' }], number: 0, size: 20, totalPages: 1, totalElements: 1,
+  }))
+  await mockApiRoute(page, '/v1/chart-of-accounts?*', (route) => fulfillJson(route, 200, { content: [{ accountId: 1, accountNumber: '607000', accountLabel: 'Purchases', active: true, type: 'CHARGE' }], totalPages: 1 }))
+  await mockApiRoute(page, '/v1/classifications*', (route) => fulfillJson(route, 200, { content: [], totalPages: 1 }))
+  await page.goto('/accounting')
+  await page.getByRole('button', { name: 'Create entry', exact: true }).first().click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('combobox', { name: 'Invoice', exact: true }).click()
+  await page.getByRole('option', { name: 'INV-2026-0912 — Bouygues Construction' }).click()
+  await dialog.getByLabel('Entry date').fill('2026-09-13')
+  await dialog.getByRole('combobox', { name: 'Journal', exact: true }).click()
+  await page.getByRole('option', { name: 'ACH — Purchases' }).click()
+  await dialog.getByLabel('Entry label').fill('Manual supplies')
+  await dialog.getByRole('combobox', { name: 'Account', exact: true }).click()
+  await page.getByRole('option', { name: '607000 — Purchases' }).click()
+  await dialog.getByLabel('Line label').fill('Office supplies')
+  await dialog.getByLabel('Debit amount').fill('10.00')
+  return dialog
+}
+
+test('KAN-399 persists the complete draft once and opens confirmed server totals', async ({ page }) => {
+  let release!: () => void
+  const pending = new Promise<void>((resolve) => { release = resolve })
+  let calls = 0
+  const created = { ...original, needsAttention: true, exportEligible: false, invoiceStatus: 'VALIDEE', entry: { ...original.entry, accountingEntryId: 54, entryNumber: 'MANUAL-54', label: 'Manual supplies', balanced: false, totalDebit: '10.00', totalCredit: '0.00', balanceDifference: '10.00' } }
+  await mockApiRoute(page, '/v1/accounting-entries', async (route) => {
+    calls += 1
+    expect(route.request().method()).toBe('POST')
+    expect(route.request().postDataJSON()).toEqual({ invoiceId: 31, journalId: 1, entryDate: '2026-09-13', label: 'Manual supplies', lines: [{ accountId: 1, lineLabel: 'Office supplies', debitAmount: '10.00', creditAmount: '0', vatRate: null, classificationId: null }] })
+    await pending
+    await fulfillJson(route, 201, created)
+  })
+  await mockApiRoute(page, '/v1/accounting-entries/54', (route) => fulfillJson(route, 200, created))
+  const dialog = await openCreationDraft(page)
+  await dialog.getByRole('button', { name: 'Save entry', exact: true }).click()
+  await expect(dialog.getByRole('button', { name: 'Creating entry…' })).toBeDisabled()
+  await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled()
+  expect(calls).toBe(1)
+  release()
+  await expect(page).toHaveURL(/entry=54/)
+  await expect(page.getByRole('dialog').getByRole('heading', { name: 'MANUAL-54' })).toBeVisible()
+  await expect(page.getByRole('dialog').getByLabel('Entry totals')).toContainText('€10.00')
+  expect(calls).toBe(1)
+})
+
+for (const status of [403, 409, 503]) {
+  test(`KAN-399 preserves the draft after ${status} and confirms dismissal`, async ({ page }) => {
+    await mockApiRoute(page, '/v1/accounting-entries', (route) => fulfillJson(route, status, { code: status === 409 ? 'ACCOUNTING_ENTRY_ALREADY_EXISTS' : 'FAILED', message: 'Unable to save this proposal', accountingEntryId: 51 }))
+    const dialog = await openCreationDraft(page)
+    await dialog.getByRole('button', { name: 'Save entry', exact: true }).click()
+    await expect(dialog.getByRole('alert')).toBeVisible()
+    await expect(dialog.getByLabel('Entry label')).toHaveValue('Manual supplies')
+    await expect(dialog.getByLabel('Debit amount')).toHaveValue('10.00')
+    page.once('dialog', (confirmation) => confirmation.dismiss())
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(dialog.getByRole('heading', { name: 'Create accounting entry', exact: true })).toBeVisible()
+    if (status === 409) {
+      page.once('dialog', (confirmation) => confirmation.accept())
+      await dialog.getByRole('button', { name: 'Open existing entry' }).click()
+      await expect(page).toHaveURL(/entry=51/)
+    }
+  })
+}
+
+for (const width of [1440, 768, 390]) {
+  test(`KAN-399 validates dynamic lines and stays readable at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1024 })
+    const dialog = await openCreationDraft(page)
+    await dialog.getByRole('button', { name: 'Add draft line' }).click()
+    await expect(dialog.getByRole('button', { name: 'Save entry', exact: true })).toBeDisabled()
+    await dialog.getByRole('button', { name: 'Remove draft line 2' }).click()
+    await expect(dialog.getByRole('button', { name: 'Save entry', exact: true })).toBeEnabled()
+    await dialog.getByLabel('Credit amount').fill('10.00')
+    await expect(dialog.getByRole('button', { name: 'Save entry', exact: true })).toBeDisabled()
+    await dialog.getByLabel('Credit amount').fill('0.00')
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+    await dialog.evaluate((element) => { element.scrollTop = 0 })
+    await page.screenshot({ path: `/private/tmp/accounting-front-tools/kan399-${width}.png` })
+  })
+}
