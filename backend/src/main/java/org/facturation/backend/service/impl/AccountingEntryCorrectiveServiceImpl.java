@@ -126,6 +126,8 @@ public class AccountingEntryCorrectiveServiceImpl implements AccountingEntryCorr
         correctiveLine.setAccountingEntry(correctiveEntry);
         correctiveLine.setAccount(originalLine.getAccount());
         correctiveLine.setSupplierAccount(originalLine.getSupplierAccount());
+        correctiveLine.setVatRate(originalLine.getVatRate());
+        correctiveLine.setClassification(originalLine.getClassification());
         correctiveLine.setLineNumber(originalLine.getLineNumber());
         correctiveLine.setLineLabel(originalLine.getLineLabel());
         correctiveLine.setDebitAmount(originalLine.getDebitAmount());

@@ -16,6 +16,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.facturation.backend.dto.response.AccountingEntryReadResponse;
 import org.facturation.backend.model.AccountingEntryStatusCode;
@@ -108,9 +110,26 @@ public class AccountingEntryController {
     public ResponseEntity<AccountingEntryResponse> correctLine(
             @PathVariable Long entryId,
             @PathVariable Long lineId,
-            @RequestBody AccountingEntryLineCorrectionRequest request
+            @RequestBody AccountingEntryLineCorrectionRequest request,
+            @RequestHeader(value = "If-Match", required = false) String ifMatch,
+            @RequestHeader(value = "Idempotency-Key", required = false) String key
     ) {
-        return ResponseEntity.ok(accountingEntryCorrectionService.correctLine(entryId, lineId, request));
+        return ResponseEntity.ok(accountingEntryCorrectionService.correctLine(entryId, lineId, request, ifMatch, key));
+    }
+
+    @PostMapping("/{entryId}/lines")
+    @Operation(summary = "Ajouter une ligne comptable avec version et cle d'idempotence")
+    public ResponseEntity<AccountingEntryResponse> addLine(@PathVariable Long entryId,
+            @RequestBody AccountingEntryLineCorrectionRequest request,
+            @RequestHeader("If-Match") String ifMatch, @RequestHeader("Idempotency-Key") String key) {
+        return ResponseEntity.status(201).body(accountingEntryCorrectionService.addLine(entryId, request, ifMatch, key));
+    }
+
+    @DeleteMapping("/{entryId}/lines/{lineId}")
+    @Operation(summary = "Retirer une ligne comptable non exportee avec version et cle d'idempotence")
+    public ResponseEntity<AccountingEntryResponse> removeLine(@PathVariable Long entryId, @PathVariable Long lineId,
+            @RequestHeader("If-Match") String ifMatch, @RequestHeader("Idempotency-Key") String key) {
+        return ResponseEntity.ok(accountingEntryCorrectionService.removeLine(entryId, lineId, ifMatch, key));
     }
 
     @PostMapping("/{entryId}/reversal")

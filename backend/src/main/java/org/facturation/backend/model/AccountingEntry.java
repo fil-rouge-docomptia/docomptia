@@ -24,6 +24,13 @@ public class AccountingEntry {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long accountingEntryId;
 
+    @jakarta.persistence.Version
+    @Column(nullable = false, columnDefinition = "bigint default 0")
+    private long version;
+
+    public Long getVersion() { return version; }
+
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "invoice_id", nullable = false)
     private Invoice invoice;

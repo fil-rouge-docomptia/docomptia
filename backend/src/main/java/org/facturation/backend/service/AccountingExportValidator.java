@@ -241,6 +241,28 @@ public class AccountingExportValidator {
                 );
             }
             validateSupplierAccount(invoice, line, errors);
+            validateLineMetadata(invoice, line, errors);
+        }
+    }
+
+    private void validateLineMetadata(Invoice invoice, AccountingEntryLine line,
+            List<AccountingExportControlErrorResponse> errors) {
+        BigDecimal debit = line.getDebitAmount();
+        BigDecimal credit = line.getCreditAmount();
+        if (debit == null || credit == null || debit.signum() < 0 || credit.signum() < 0
+                || debit.signum() > 0 && credit.signum() > 0) {
+            addError(errors, "ACCOUNTING_LINE_AMOUNTS_INVALID", "A line requires non-negative amounts with only one positive side");
+        } else if (debit.signum() == 0 && credit.signum() == 0) {
+            addError(errors, "ACCOUNTING_LINE_AMOUNT_MISSING", "A draft line with zero debit and credit must be completed or removed");
+        }
+        if (line.getVatRate() != null && (line.getVatRate().signum() < 0
+                || line.getVatRate().compareTo(new BigDecimal("100")) > 0)) {
+            addError(errors, "ACCOUNTING_LINE_VAT_INVALID", "The explicitly recorded VAT rate must be between 0 and 100");
+        }
+        var classification = line.getClassification();
+        if (classification != null && (!classification.isActive() || !classification.getOrganization().getOrganizationId()
+                .equals(invoice.getOrganization().getOrganizationId()))) {
+            addError(errors, "ACCOUNTING_LINE_CLASSIFICATION_INVALID", "The classification must be active and belong to the organization");
         }
     }
 
