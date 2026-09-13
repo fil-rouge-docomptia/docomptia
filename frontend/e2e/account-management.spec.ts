@@ -7,7 +7,7 @@ const active: ChartOfAccount = { accountId: 1, accountNumber: '401000', accountL
 const inactive: ChartOfAccount = { accountId: 2, accountNumber: '625100', accountLabel: 'Old travel expenses', accountType: 'CHARGE', active: false }
 const plan = (content = [active, inactive]) => ({ content, number: 0, size: 100, totalElements: content.length, totalPages: content.length ? 1 : 0 })
 
-async function openAction(page: Page, action: 'Edit account' | 'Deactivate account', accountNumber = active.accountNumber) {
+async function openAction(page: Page, action: 'Edit account' | 'Deactivate account' | 'Duplicate account', accountNumber = active.accountNumber) {
   await page.getByRole('button', { name: `Actions for account ${accountNumber}`, exact: true }).click()
   await page.getByRole('menuitem', { name: action, exact: true }).click()
   return page.getByRole('dialog')
@@ -244,5 +244,53 @@ for (const width of [1440, 768, 390]) {
     await page.screenshot({ path: testInfo.outputPath(`account-confirm-${width}.png`), fullPage: true })
     await page.keyboard.press('Escape')
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  })
+}
+
+for (const status of [201, 409, 403]) {
+  test(`KAN-405 duplicates into a new account and handles ${status} without changing the source`, async ({ page }) => {
+    let writes = 0
+    const saved = { ...inactive, accountId: 3, accountNumber: '625101', active: true }
+    await mockApiRoute(page, '/v1/chart-of-accounts', async (route) => {
+      writes += 1
+      expect(route.request().method()).toBe('POST')
+      expect(route.request().postDataJSON()).toEqual({ accountNumber: '625101', accountLabel: inactive.accountLabel, accountType: inactive.accountType })
+      await fulfillJson(route, status, status === 201 ? saved : { code: status === 409 ? 'CHART_OF_ACCOUNT_CONFLICT' : 'FORBIDDEN' })
+    })
+    await page.goto('/accounting/accounts')
+    const dialog = await openAction(page, 'Duplicate account', inactive.accountNumber)
+    await expect(dialog.getByRole('heading', { name: 'Duplicate account' })).toBeVisible()
+    await expect(dialog.getByLabel('Account number')).toHaveValue('')
+    await expect(dialog.getByLabel('Label', { exact: false })).toHaveValue(inactive.accountLabel)
+    await expect(dialog.getByLabel('Type', { exact: false })).toHaveValue(inactive.accountType)
+    await expect(dialog.getByText('Active', { exact: true })).toBeVisible()
+    await dialog.getByLabel('Account number').fill('625101')
+    await dialog.getByRole('button', { name: 'Add account', exact: true }).click()
+    if (status === 201) {
+      await expect(dialog).toHaveCount(0)
+      await expect(page.getByRole('table')).toContainText('625101')
+      await page.getByRole('searchbox').fill('62510')
+      await expect(page.getByRole('table').getByRole('row')).toHaveCount(3)
+      await expect(page.getByRole('table').getByRole('row').filter({ hasText: '625100' })).toContainText('Inactive')
+    } else {
+      await expect(dialog.getByRole('alert')).toBeVisible()
+      await expect(dialog.getByLabel('Account number')).toHaveValue('625101')
+      await expect(dialog.getByLabel('Label', { exact: false })).toHaveValue(inactive.accountLabel)
+    }
+    expect(writes).toBe(1)
+  })
+}
+
+for (const width of [1440, 768, 390]) {
+  test(`KAN-405 exposes CSV export and duplication at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1024 })
+    await page.goto('/accounting/accounts')
+    await expect(page.getByRole('button', { name: 'Export CSV', exact: true })).toBeVisible()
+    await page.screenshot({ path: `/private/tmp/accounting-front-tools/kan405-page-${width}.png` })
+    const dialog = await openAction(page, 'Duplicate account')
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+    await page.screenshot({ path: `/private/tmp/accounting-front-tools/kan405-duplicate-${width}.png` })
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('button', { name: 'Actions for account 401000', exact: true })).toBeFocused()
   })
 }

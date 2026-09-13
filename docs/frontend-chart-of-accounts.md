@@ -54,8 +54,8 @@ Les catégories et compteurs d'usage Figma ne figurent pas dans le DTO et sont o
 La sélection en lot n'est pas proposée sans action associée.
 [Création, modification et désactivation](frontend-account-management.md) sont disponibles
 via KAN-289. L'[assistant d'import](frontend-account-import.md) est disponible via KAN-290 ;
-les résultats détaillés relèvent de KAN-291. L'export du plan est
-hors périmètre. Les trois onglets Entries, Rules (KAN-287) et Chart of accounts sont
+les résultats détaillés relèvent de KAN-291. La duplication et l’export CSV sont disponibles
+via le lot frontend KAN-405. Les trois onglets Entries, Rules (KAN-287) et Chart of accounts sont
 disponibles et permettent de naviguer entre les écrans comptables, y compris au clavier.
 
 ## Vérifications
@@ -67,3 +67,25 @@ partielles, nouvelle tentative, erreurs, expiration de session, changement d'org
 réponses obsolètes et rendus à 1440, 768 et 390 px pour les rôles existants.
 L'isolation côté serveur est vérifiée par lecture du contrat et des tests backend existants ;
 les tests frontend utilisent des réponses API contrôlées et ne remplacent pas ces tests backend.
+
+## Duplication et export — KAN-405 (partiel)
+
+Le menu Duplicate account ouvre le formulaire existant avec libellé et type copiés, numéro
+vide. Le POST de création reçoit seulement ces trois champs : aucun ID, historique,
+référence ou statut inactif n’est copié. Le serveur confirme le nouvel objet actif ;
+un conflit de numéro garde le formulaire et place le focus sur ce numéro.
+Les contrôles de gestion ADMIN déjà présents sont conservés ; le nouveau RBAC reste phase 2.
+
+Export CSV télécharge les comptes de la vue filtrée dans l’ordre de tri courant, sur toutes
+les pages, depuis les données authentifiées complètement chargées. Le périmètre et le nombre
+de comptes sont annoncés près des filtres. Le bouton reste visible sur mobile et indisponible
+pendant un chargement, après une erreur de page ou lorsque le résultat filtré est vide.
+
+Fichier `chart-of-accounts-YYYY-MM-DD.csv` (date UTC), encodage UTF-8 avec BOM, séparateur
+virgule et fins de lignes CRLF. Colonnes : Account number, Label, Type, Active (booléen).
+Les cellules sont citées, leurs guillemets doublés et les préfixes de formule neutralisés
+par une apostrophe. La fonction d’échappement est partagée avec le rapport d’import existant.
+
+Category, Description et Usage restent indisponibles tant que KAN-394 n’expose pas ces
+métadonnées : aucun zéro d’usage ni catégorie n’est déduit. Le ticket KAN-405 reste en cours
+pour ce reliquat. Référence Figma : 312:850 et formulaire réutilisé 317:11322.

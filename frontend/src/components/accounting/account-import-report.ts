@@ -1,14 +1,8 @@
+import { csvCell } from './account-csv'
 import type { AccountImportResult, AccountImportRow } from '@/types/account-import'
 
 export const importRowLabels: Record<AccountImportRow['status'], string> = {
   NEW: 'New', EXISTING: 'Skipped (existing)', DUPLICATE: 'Skipped (duplicate)', INVALID: 'Rejected', IMPORTED: 'Imported',
-}
-
-function csvCell(value: string | number | boolean) {
-  const text = String(value)
-  // Treat user-provided values as text when opened by spreadsheet applications.
-  const safe = /^[\s]*[=+@-]|^[\t\r\n]/.test(text) ? `'${text}` : text
-  return `"${safe.replaceAll('"', '""')}"`
 }
 
 export function downloadImportReport(fileName: string, result: AccountImportResult) {

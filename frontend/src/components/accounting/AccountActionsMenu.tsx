@@ -6,13 +6,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ChartOfAccount } from '@/types/onboarding'
 
-export type AccountActionHandler = (kind: 'edit' | 'deactivate', account: ChartOfAccount, trigger: HTMLElement | null) => void
+export type AccountActionHandler = (kind: 'edit' | 'deactivate' | 'duplicate', account: ChartOfAccount, trigger: HTMLElement | null) => void
 
 export function AccountActionsMenu({ account, onAction }: { account: ChartOfAccount, onAction: AccountActionHandler }) {
   const trigger = useRef<HTMLButtonElement>(null)
   const openingDialog = useRef(false)
 
-  function select(kind: 'edit' | 'deactivate') {
+  function select(kind: 'edit' | 'deactivate' | 'duplicate') {
     openingDialog.current = true
     onAction(kind, account, trigger.current)
   }
@@ -29,6 +29,7 @@ export function AccountActionsMenu({ account, onAction }: { account: ChartOfAcco
       </Tooltip>
       <DropdownMenuContent align="end" className="w-60" onCloseAutoFocus={(event) => { if (openingDialog.current) event.preventDefault() }}>
         <DropdownMenuItem className="min-h-11 text-xs sm:min-h-8" onSelect={() => select('edit')}>Edit account</DropdownMenuItem>
+        <DropdownMenuItem className="min-h-11 text-xs sm:min-h-8" onSelect={() => select('duplicate')}>Duplicate account</DropdownMenuItem>
         <DropdownMenuItem className="min-h-11 text-xs text-destructive focus:text-destructive sm:min-h-8" disabled={!account.active} onSelect={() => select('deactivate')}>Deactivate account</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

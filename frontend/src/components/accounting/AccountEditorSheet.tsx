@@ -13,6 +13,7 @@ import type { ChartOfAccount, ChartOfAccountInput } from '@/types/onboarding'
 
 type AccountEditorSheetProps = {
   account?: ChartOfAccount
+  duplicateOf?: ChartOfAccount
   accountTypes: string[]
   onClose: () => void
   onSaved: (account: ChartOfAccount) => void
@@ -25,9 +26,9 @@ const fields = [
   { key: 'accountType', label: 'Type', placeholder: 'Enter an account type' },
 ] as const
 
-export function AccountEditorSheet({ account, accountTypes, onClose, onSaved, onRestoreFocus }: AccountEditorSheetProps) {
+export function AccountEditorSheet({ account, duplicateOf, accountTypes, onClose, onSaved, onRestoreFocus }: AccountEditorSheetProps) {
   const id = useId()
-  const [input, setInput] = useState<ChartOfAccountInput>({ accountNumber: account?.accountNumber ?? '', accountLabel: account?.accountLabel ?? '', accountType: account?.accountType ?? '' })
+  const [input, setInput] = useState<ChartOfAccountInput>({ accountNumber: account?.accountNumber ?? '', accountLabel: account?.accountLabel ?? duplicateOf?.accountLabel ?? '', accountType: account?.accountType ?? duplicateOf?.accountType ?? '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const request = useRef<AbortController | null>(null)
@@ -70,10 +71,10 @@ export function AccountEditorSheet({ account, accountTypes, onClose, onSaved, on
         onCloseAutoFocus={(event) => { event.preventDefault(); onRestoreFocus() }}
       >
         <SheetHeader className="text-left">
-          <SheetTitle className="pr-8 text-xl tracking-[-0.25px]">{account ? 'Edit account' : 'Add account'}</SheetTitle>
-          <SheetDescription className="text-xs">{account ? 'Update the account information while keeping its existing references.' : 'Create an account used to generate accounting entries.'}</SheetDescription>
+          <SheetTitle className="pr-8 text-xl tracking-[-0.25px]">{account ? 'Edit account' : duplicateOf ? 'Duplicate account' : 'Add account'}</SheetTitle>
+          <SheetDescription className="text-xs">{account ? 'Update the account information while keeping its existing references.' : duplicateOf ? `Create a new active account from ${duplicateOf.accountNumber}. Choose a unique number; history and references remain with the original.` : 'Create an account used to generate accounting entries.'}</SheetDescription>
         </SheetHeader>
-        <form aria-label={account ? 'Edit account' : 'Add account'} aria-busy={saving} className="flex flex-1 flex-col gap-6" onSubmit={(event) => void save(event)}>
+        <form aria-label={account ? 'Edit account' : duplicateOf ? 'Duplicate account' : 'Add account'} aria-busy={saving} className="flex flex-1 flex-col gap-6" onSubmit={(event) => void save(event)}>
           <div className="space-y-4">
             {fields.map(({ key, label, placeholder }) => (
               <div className="space-y-2" key={key}>
