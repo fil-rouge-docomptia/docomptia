@@ -173,12 +173,16 @@ test('opens the invoice list with the selected dashboard status', async ({ page 
     name: 'View filtered list',
   })
 
-  await expect(statusLinks).toHaveCount(2)
+  await expect(statusLinks).toHaveCount(3)
   await expect(statusLinks.nth(0)).toHaveAttribute(
     'href',
     '/invoices?status=DEPOSEE&startDate=2026-08-04&endDate=2026-09-02',
   )
   await expect(statusLinks.nth(1)).toHaveAttribute(
+    'href',
+    '/invoices?status=A_VERIFIER&startDate=2026-08-04&endDate=2026-09-02',
+  )
+  await expect(statusLinks.nth(2)).toHaveAttribute(
     'href',
     '/invoices?status=EXPORTABLE&startDate=2026-08-04&endDate=2026-09-02',
   )
