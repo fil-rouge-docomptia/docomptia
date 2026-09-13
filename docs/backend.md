@@ -126,6 +126,8 @@ La [lecture des écritures et journaux](accounting-entry-read-api.md) documente 
 le tri, les diagnostics structurés et la preuve d'export propre à chaque écriture (KAN-386).
 La [saisie des lignes comptables](accounting-entry-line-api.md) décrit les ajouts/retraits,
 la TVA, les affectations analytiques et les protections de concurrence (KAN-387).
+La [création manuelle d’une écriture](accounting-entry-create-api.md) décrit les factures
+éligibles, l’enregistrement atomique et les conflits avec une originale existante (KAN-388).
 Une correction desequilibree retire le statut `EXPORTABLE`; le statut est retabli lorsque
 l'equilibre est corrige.
 
