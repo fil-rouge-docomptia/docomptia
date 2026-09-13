@@ -3,6 +3,7 @@ import { authenticatedFetch } from '@/services/api'
 import type { InvoicePage, InvoiceSortField, SortDirection } from '@/types/invoice'
 import type {
   SupplierDetails,
+  SupplierCreate,
   SupplierLegalIdentifierReplacement,
   SupplierListQuery,
   SupplierPage,
@@ -37,6 +38,21 @@ export async function getSupplierDetails(
   const response = await authenticatedFetch(
     `${apiBaseUrl}/v1/suppliers/${supplierId}`,
     { signal },
+  )
+
+  return response.json() as Promise<SupplierDetails>
+}
+
+export async function createSupplier(
+  supplier: SupplierCreate,
+): Promise<SupplierDetails> {
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/v1/suppliers`,
+    {
+      body: JSON.stringify(supplier),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+    },
   )
 
   return response.json() as Promise<SupplierDetails>

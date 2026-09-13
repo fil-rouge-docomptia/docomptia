@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react'
 import { AlertCircle, Building2, Plus, Search, Upload } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { PageHeader } from '@/components/layout/PageHeader'
+import { SupplierCreateDialog } from '@/components/supplier/SupplierCreateDialog'
+import { canManageSupplier } from '@/components/supplier/detail/supplier-detail-utils'
 import { SupplierPagination } from '@/components/supplier/SupplierPagination'
 import { SupplierTable } from '@/components/supplier/SupplierTable'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useAuth } from '@/hooks/use-auth'
 import { listSuppliers } from '@/services/supplier'
 import type { SupplierPage } from '@/types/supplier'
 
@@ -44,6 +47,8 @@ function SupplierTableSkeleton() {
 }
 
 export default function SuppliersPage() {
+  const { user } = useAuth()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [requestState, setRequestState] = useState<SupplierRequestState>({
     error: false,
@@ -51,6 +56,7 @@ export default function SuppliersPage() {
     supplierPage: null,
   })
   const [retryCount, setRetryCount] = useState(0)
+  const [createOpen, setCreateOpen] = useState(false)
   const currentPage = parsePage(searchParams.get('page'))
   const query = searchParams.get('query')?.trim() ?? ''
   const requestKey = `${currentPage}:${query}:${retryCount}`
@@ -121,10 +127,12 @@ export default function SuppliersPage() {
               <Upload aria-hidden="true" />
               Import suppliers
             </Button>
-            <Button disabled title="Supplier creation is not available yet">
-              <Plus aria-hidden="true" />
-              Add supplier
-            </Button>
+            {canManageSupplier(user?.role.code) ? (
+              <Button onClick={() => setCreateOpen(true)}>
+                <Plus aria-hidden="true" />
+                Add supplier
+              </Button>
+            ) : null}
           </>
         }
         description="Manage suppliers and their legal identification details."
@@ -203,6 +211,12 @@ export default function SuppliersPage() {
           />
         </section>
       )}
+
+      <SupplierCreateDialog
+        onCreated={(supplier) => navigate(`/suppliers/${supplier.supplierId}`)}
+        onOpenChange={setCreateOpen}
+        open={createOpen}
+      />
     </div>
   )
 }

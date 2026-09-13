@@ -32,6 +32,11 @@ export type SupplierUpdate = {
   phone?: string
 }
 
+export type SupplierCreate = SupplierUpdate & {
+  siret?: string
+  vatNumber?: string
+}
+
 export type SupplierLegalIdentifierReplacement = {
   countryCode: string
   reason: string
