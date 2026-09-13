@@ -25,7 +25,7 @@ export function AccountingEntryTable({ records, compact, onOpen, hidden = [], so
     {onSort ? <button className="inline-flex items-center gap-1 rounded-sm py-2 focus-visible:outline-2 focus-visible:outline-ring" onClick={() => onSort(field)}>{label}{sortBy === field ? direction === 'ASC' ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" /> : null}</button> : label}
   </TableHead>
   return <div className="min-w-0 overflow-hidden rounded-lg border border-border">
-    <Table aria-label="Accounting entries" className={`min-w-[1000px] text-xs [&_td]:px-3 ${compact ? '[&_td]:py-2' : '[&_td]:py-4'}`}>
+    <Table aria-label="Accounting entries" className={`min-w-[1000px] text-xs [&_td]:px-3 [&_td]:whitespace-nowrap ${compact ? '[&_td]:py-2' : '[&_td]:py-4'}`}>
       <TableHeader className="bg-muted [&_th]:h-10 [&_th]:px-3"><TableRow>
         {heading('Entry', 'entryNumber')}{shown('supplier') ? heading('Supplier', 'supplierName') : null}{shown('date') ? heading('Entry date', 'entryDate') : null}
         {shown('journal') ? heading('Journal', 'journalCode') : null}{shown('type') ? <TableHead>Type</TableHead> : null}

@@ -21,7 +21,7 @@ import type { AccountingEntryPage, AccountingJournal } from '@/types/accounting'
 
 function readColumns(identity: string): EntryColumn[] {
   try {
-    const value: unknown = JSON.parse(localStorage.getItem(`docomptia.accounting.columns.${identity}`) ?? '[]')
+    const value: unknown = JSON.parse(localStorage.getItem(`docomptia.accounting.columns.${identity}`) ?? '["type","invoiceStatus","invoice"]')
     return Array.isArray(value) ? value.filter((item): item is EntryColumn => entryColumns.some(([key]) => key === item)) : []
   } catch { return [] }
 }
