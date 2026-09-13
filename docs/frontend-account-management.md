@@ -36,7 +36,8 @@ Le type est libre dans le contrat actuel. Le champ permet de saisir un type ou d
 les suggestions provenant des comptes de l'organisation. Aucun catalogue ni traduction
 Supplier/Expense vers PASSIF/CHARGE n'est inventé.
 La description Figma est omise, faute de champ persistant. Un compte est toujours créé actif.
-Le statut est informatif : aucune réactivation ou duplication n'est ajoutée.
+Le statut est informatif : aucune réactivation n’est ajoutée. KAN-405 permet la duplication
+vers un nouvel objet actif (voir frontend-chart-of-accounts.md).
 
 Les routes réutilisent le client authentifié. L'organisation n'est jamais fournie dans
 le payload. Le contrôle ADMIN suit `MANAGE_ACCOUNTING_CONFIGURATION`, avec l'exception
@@ -80,4 +81,4 @@ Les tests frontend contrôlent les réponses API ; la conservation des référen
 est aussi vérifiée par lecture de `ChartOfAccountServiceImpl` et des tests backend existants.
 Aucun backend, contrat, schéma ou service en cours n'est modifié.
 L'[assistant d'import](frontend-account-import.md) est disponible via KAN-290 et son backend
-KAN-356 ; les résultats détaillés relèvent de KAN-291. L'export du plan reste hors périmètre.
+KAN-356 ; les résultats détaillés relèvent de KAN-291. L’export du plan est disponible via KAN-405.

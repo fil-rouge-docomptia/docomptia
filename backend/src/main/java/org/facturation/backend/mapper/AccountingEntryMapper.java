@@ -18,6 +18,7 @@ public class AccountingEntryMapper {
     public AccountingEntryResponse toResponse(AccountingEntry accountingEntry, List<AccountingEntryLine> lines) {
         AccountingEntryResponse response = new AccountingEntryResponse();
         response.setAccountingEntryId(accountingEntry.getAccountingEntryId());
+        response.setVersion(accountingEntry.getVersion());
         if (accountingEntry.getReversedAccountingEntry() != null) {
             response.setReversedAccountingEntryId(
                     accountingEntry.getReversedAccountingEntry().getAccountingEntryId()
@@ -48,6 +49,14 @@ public class AccountingEntryMapper {
         AccountingEntryLineResponse response = new AccountingEntryLineResponse();
         response.setAccountingEntryLineId(line.getAccountingEntryLineId());
         response.setLineNumber(line.getLineNumber());
+        response.setAccountId(line.getAccount().getAccountId());
+        response.setVatRate(line.getVatRate() == null ? null : line.getVatRate().toPlainString());
+        if (line.getClassification() != null && line.getClassification().getOrganization().getOrganizationId()
+                .equals(line.getAccountingEntry().getInvoice().getOrganization().getOrganizationId())) {
+            response.setClassificationId(line.getClassification().getClassificationId());
+            response.setClassificationName(line.getClassification().getName());
+            response.setClassificationType(line.getClassification().getType().name());
+        }
         response.setAccountNumber(line.getAccount().getAccountNumber());
         response.setAccountLabel(line.getAccount().getAccountLabel());
         if (line.getSupplierAccount() != null) {

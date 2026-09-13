@@ -131,6 +131,7 @@ const invoiceDetails = {
 }
 
 const balancedAccountingEntry = {
+  version: 0,
   accountingEntryId: 15,
   balanceDifference: '0.00',
   balanced: true,
@@ -499,6 +500,7 @@ async function fulfillOriginalInvoicePdf(route: Route) {
 }
 
 test.beforeEach(async ({ page }) => {
+  await mockApiRoute(page, '/v1/classifications*', (route) => fulfillJson(route, 200, { content: [], totalPages: 1, number: 0, size: 100, totalElements: 0 }))
   await seedAuthSession(page)
   await mockCurrentUser(page)
   await mockApiRoute(page, '/v1/invoices/42/file', fulfillOriginalInvoicePdf)
@@ -683,14 +685,16 @@ test('renders an unbalanced accounting entry with API totals and lines to review
 test('corrects only the selected accounting line and refreshes its balance', async ({ page }) => {
   let correctionPayload: unknown
   let correctionUrl = ''
+  let saved = false
 
   await mockApiRoute(page, '/v1/invoices/42', (route) => (
-    fulfillJson(route, 200, unbalancedInvoiceDetails)
+    fulfillJson(route, 200, saved ? { ...balancedInvoiceDetails, status: 'EXPORTABLE' } : unbalancedInvoiceDetails)
   ))
   await mockApiRoute(page, '/v1/chart-of-accounts*', (route) => (
     fulfillJson(route, 200, chartOfAccountsPage)
   ))
   await mockApiRoute(page, '/v1/accounting-entries/15/lines/153', async (route) => {
+    saved = true
     correctionPayload = route.request().postDataJSON()
     correctionUrl = route.request().url()
     await fulfillJson(route, 200, balancedAccountingEntry)
@@ -1768,4 +1772,141 @@ test('keeps the invoice table contained on mobile', async ({ page }) => {
     scroll: document.documentElement.scrollWidth,
   }))
   expect(documentWidth.scroll).toBeLessThanOrEqual(documentWidth.client)
+})
+
+test('KAN-395 generates once and displays only the server confirmed entry', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, { ...invoiceDetails, status: 'VALIDEE' }))
+  let pending: Route | undefined
+  let calls = 0
+  await mockApiRoute(page, '/v1/invoices/42/accounting-entry', async (route) => {
+    calls += 1
+    expect(route.request().method()).toBe('POST')
+    expect(route.request().postData()).toBeNull()
+    expect(route.request().headers().authorization).toBe('Bearer e2e-token')
+    pending = route
+  })
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Accounting' }).click()
+  await page.getByRole('button', { name: 'Generate accounting entry' }).click()
+  await expect(page.getByRole('button', { name: 'Generating entry…' })).toBeDisabled()
+  await expect(page.getByRole('heading', { name: 'No accounting entry yet' })).toBeVisible()
+  await expect.poll(() => Boolean(pending)).toBe(true)
+  await fulfillJson(pending!, 200, { invoiceId: 42, status: 'EXPORTABLE', accountingEntry: balancedAccountingEntry })
+  await expect(page.getByText('ACC-2026-0421', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Generate accounting entry' })).toHaveCount(0)
+  expect(calls).toBe(1)
+  for (const width of [1440, 768, 390]) {
+    await page.setViewportSize({ width, height: 1000 })
+    await expect(page.getByLabel('Accounting balance summary')).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    await page.screenshot({ path: `/private/tmp/accounting-front-tools/kan395-${width}.png`, fullPage: true })
+  }
+})
+
+for (const status of [403, 404, 409, 500]) {
+  test(`KAN-395 preserves empty entry after generation error ${status}`, async ({ page }) => {
+    await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, { ...invoiceDetails, status: 'VALIDEE' }))
+    await mockApiRoute(page, '/v1/invoices/42/accounting-entry', (route) => fulfillJson(route, status, { message: 'Configure accounting rules first' }))
+    await page.goto('/invoices/42')
+    await page.getByRole('tab', { name: 'Accounting' }).click()
+    await page.getByRole('button', { name: 'Generate accounting entry' }).click()
+    await expect(page.getByText('Unable to generate accounting entry', { exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'No accounting entry yet' })).toBeVisible()
+  })
+}
+
+test('KAN-395 reloads a persisted unbalanced proposal after conflict', async ({ page }) => {
+  let generated = false
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200,
+    generated ? unbalancedInvoiceDetails : { ...invoiceDetails, status: 'VALIDEE' }))
+  await mockApiRoute(page, '/v1/invoices/42/accounting-entry', (route) => {
+    generated = true
+    return fulfillJson(route, 409, { code: 'ACCOUNTING_ENTRY_UNBALANCED', accountingEntryId: 15 })
+  })
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Accounting' }).click()
+  await page.getByRole('button', { name: 'Generate accounting entry' }).click()
+  await expect(page.getByText('ACC-2026-0421', { exact: true })).toBeVisible()
+  await expect(page.getByLabel('Accounting balance summary').getByText('Needs attention')).toBeVisible()
+})
+
+test('KAN-395 explains validation prerequisite', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, invoiceDetails))
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Accounting' }).click()
+  await expect(page.getByRole('button', { name: 'Generate accounting entry' })).toBeDisabled()
+  await expect(page.getByText('Validate this invoice before generating its accounting entry.')).toBeVisible()
+})
+
+test('KAN-396 adds VAT and analytics then removes only confirmed selected lines', async ({ page }) => {
+  let entry = { ...balancedAccountingEntry, version: 3 }
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, { ...balancedInvoiceDetails, accountingEntry: entry, status: 'VALIDEE' }))
+  await mockApiRoute(page, '/v1/chart-of-accounts*', (route) => fulfillJson(route, 200, chartOfAccountsPage))
+  await mockApiRoute(page, '/v1/classifications*', (route) => fulfillJson(route, 200, { content: [{ classificationId: 7, name: 'Site Alpha', type: 'CHANTIER', active: true }], totalPages: 1 }))
+  let pending: Route | undefined
+  await mockApiRoute(page, '/v1/accounting-entries/15/lines', async (route) => {
+    expect(route.request().method()).toBe('POST')
+    expect(route.request().headers()['if-match']).toBe('"3"')
+    expect(route.request().headers()['idempotency-key']).toMatch(/^[0-9a-f-]{36}$/)
+    expect(route.request().postDataJSON()).toMatchObject({ lineLabel: 'Site purchase', debitAmount: '10', creditAmount: '0', vatRate: '20', classificationId: 7 })
+    pending = route
+  })
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Accounting' }).click()
+  await page.getByRole('button', { name: 'Add line', exact: true }).click()
+  await page.getByRole('combobox', { name: 'Account', exact: true }).click()
+  await page.getByRole('option', { name: /607000 — Purchases/ }).click()
+  await page.getByLabel('Line label').fill('Site purchase')
+  await page.getByLabel('Debit amount').fill('10')
+  await page.getByLabel('VAT rate (%)').fill('20')
+  await page.getByRole('combobox', { name: 'Analytic allocation' }).click()
+  await page.getByRole('option', { name: /Site Alpha/ }).click()
+  for (const width of [1440, 768, 390]) {
+    await page.setViewportSize({ width, height: 1000 })
+    await page.getByRole('form', { name: 'Add accounting line' }).scrollIntoViewIfNeeded()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    await page.screenshot({ path: `/private/tmp/accounting-front-tools/kan396-${width}.png`, fullPage: true })
+  }
+
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+  await expect.poll(() => Boolean(pending)).toBe(true)
+  entry = { ...entry, version: 4, balanced: false, totalDebit: '1270.00', balanceDifference: '10.00', lines: [...entry.lines, {
+    ...entry.lines[0], accountingEntryLineId: 154, lineNumber: 4, lineLabel: 'Site purchase', debitAmount: '10.00',
+    ...{ accountId: 2, vatRate: '20.00', classificationId: 7, classificationName: 'Site Alpha' },
+  }] }
+  await fulfillJson(pending!, 201, entry)
+  await expect(page.getByRole('row', { name: /Site purchase/ })).toContainText('20.00% · Site Alpha')
+  await expect(page.getByText('Ready to export', { exact: true })).toHaveCount(0)
+  let removed = false
+  await mockApiRoute(page, '/v1/accounting-entries/15/lines/154', async (route) => {
+    expect(route.request().method()).toBe('DELETE')
+    expect(route.request().headers()['if-match']).toBe('"4"')
+    removed = true
+    entry = { ...balancedAccountingEntry, version: 5 }
+    await fulfillJson(route, 200, entry)
+  })
+  await page.getByRole('checkbox', { name: 'Select accounting line 4', exact: true }).check()
+  await page.getByRole('button', { name: 'Remove 1 selected' }).click()
+  expect(removed).toBe(false)
+  await expect(page.getByRole('dialog')).toContainText('Site purchase')
+  await page.getByRole('button', { name: 'Confirm removal' }).click()
+  await expect(page.getByRole('row', { name: /Site purchase/ })).toHaveCount(0)
+})
+
+test('KAN-396 retains draft and requires reload on version conflict', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, balancedInvoiceDetails))
+  await mockApiRoute(page, '/v1/chart-of-accounts*', (route) => fulfillJson(route, 200, chartOfAccountsPage))
+  await mockApiRoute(page, '/v1/accounting-entries/15/lines/151', (route) => fulfillJson(route, 409, { code: 'ACCOUNTING_ENTRY_MUTATION_CONFLICT', message: 'Another user changed this entry.' }))
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Accounting' }).click()
+  await page.getByRole('button', { name: 'Edit accounting line 1' }).click()
+  await page.getByLabel('Line label').fill('Retained draft')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByLabel('Line label')).toHaveValue('Retained draft')
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Reload entry' })).toBeVisible()
+  page.once('dialog', (dialog) => dialog.dismiss())
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(page.getByLabel('Line label')).toHaveValue('Retained draft')
 })

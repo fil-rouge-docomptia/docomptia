@@ -320,6 +320,7 @@ public class AccountingExportServiceImpl implements AccountingExportService {
         exportBatch.setCreatedAt(LocalDateTime.now());
         for (ValidatedEntry exportedEntry : exportedEntries) {
             exportBatch.addInvoice(exportedEntry.entry().getInvoice());
+            exportedEntry.entry().setExportBatch(exportBatch);
         }
         return exportBatchRepository.save(exportBatch);
     }

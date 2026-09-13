@@ -46,6 +46,19 @@ public class AccountingEntryLine {
 
     private LocalDateTime createdAt;
 
+    @Column(precision = 5, scale = 2)
+    private BigDecimal vatRate;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "classification_id")
+    private Classification classification;
+
+    public BigDecimal getVatRate() { return vatRate; }
+    public void setVatRate(BigDecimal vatRate) { this.vatRate = vatRate; }
+    public Classification getClassification() { return classification; }
+    public void setClassification(Classification classification) { this.classification = classification; }
+
+
     public Long getAccountingEntryLineId() {
         return accountingEntryLineId;
     }

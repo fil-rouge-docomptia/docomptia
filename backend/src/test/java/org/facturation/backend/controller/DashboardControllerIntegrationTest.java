@@ -333,6 +333,8 @@ class DashboardControllerIntegrationTest {
                                 """)
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalDebit").value(10.00))
+                .andExpect(jsonPath("$.totalCredit").value(10.00))
                 .andExpect(jsonPath("$.balanced").value(true));
 
         mockMvc.perform(get("/api/v1/dashboard/summary")
@@ -441,15 +443,25 @@ class DashboardControllerIntegrationTest {
         ChartOfAccount account = createDashboardAccount(
                 invoice.getOrganization(), entry.getAccountingEntryId()
         );
-        AccountingEntryLine line = new AccountingEntryLine();
-        line.setAccountingEntry(entry);
-        line.setAccount(account);
-        line.setLineNumber(1);
-        line.setLineLabel("Unbalanced line");
-        line.setDebitAmount(new BigDecimal("10.00"));
-        line.setCreditAmount(BigDecimal.ZERO.setScale(2));
-        line.setCreatedAt(LocalDateTime.now());
-        return accountingEntryLineRepository.save(line);
+        AccountingEntryLine debitLine = new AccountingEntryLine();
+        debitLine.setAccountingEntry(entry);
+        debitLine.setAccount(account);
+        debitLine.setLineNumber(1);
+        debitLine.setLineLabel("Debit line");
+        debitLine.setDebitAmount(new BigDecimal("10.00"));
+        debitLine.setCreditAmount(BigDecimal.ZERO.setScale(2));
+        debitLine.setCreatedAt(LocalDateTime.now());
+        accountingEntryLineRepository.save(debitLine);
+
+        AccountingEntryLine creditLine = new AccountingEntryLine();
+        creditLine.setAccountingEntry(entry);
+        creditLine.setAccount(account);
+        creditLine.setLineNumber(2);
+        creditLine.setLineLabel("Credit line to correct");
+        creditLine.setDebitAmount(BigDecimal.ZERO.setScale(2));
+        creditLine.setCreditAmount(new BigDecimal("5.00"));
+        creditLine.setCreatedAt(LocalDateTime.now());
+        return accountingEntryLineRepository.save(creditLine);
     }
 
     private Supplier getOrCreateSupplier(Organization organization) {

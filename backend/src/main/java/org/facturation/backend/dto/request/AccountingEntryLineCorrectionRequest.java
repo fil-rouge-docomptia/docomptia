@@ -4,6 +4,18 @@ import java.math.BigDecimal;
 
 public class AccountingEntryLineCorrectionRequest {
 
+    private BigDecimal vatRate;
+    private Long classificationId;
+    private boolean vatRateProvided;
+    private boolean classificationProvided;
+
+    public BigDecimal getVatRate() { return vatRate; }
+    public void setVatRate(BigDecimal vatRate) { this.vatRate = vatRate; this.vatRateProvided = true; }
+    public Long getClassificationId() { return classificationId; }
+    public void setClassificationId(Long classificationId) { this.classificationId = classificationId; this.classificationProvided = true; }
+    public boolean hasVatRate() { return vatRateProvided; }
+    public boolean hasClassification() { return classificationProvided; }
+
     private Long accountId;
     private String lineLabel;
     private BigDecimal debitAmount;

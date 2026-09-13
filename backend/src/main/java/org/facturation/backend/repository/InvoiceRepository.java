@@ -17,6 +17,24 @@ import java.util.Optional;
 
 public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpecificationExecutor<Invoice> {
 
+    @EntityGraph(attributePaths = {"supplier"})
+    @Query("""
+            select invoice from Invoice invoice join invoice.supplier supplier
+            where invoice.organization.organizationId = :organizationId
+              and supplier.organization.organizationId = :organizationId
+              and invoice.client is null and invoice.exportBatch is null
+              and invoice.invoiceStatus.code = 'VALIDEE'
+              and (:query = '' or locate(:query, lower(invoice.invoiceNumber)) > 0
+                   or locate(:query, lower(supplier.legalName)) > 0)
+              and not exists (select entry.accountingEntryId from AccountingEntry entry
+                   where entry.invoice = invoice and entry.reversedAccountingEntry is null)
+              and not exists (select alert.duplicateAlertId from InvoiceDuplicateAlert alert
+                   where alert.invoice = invoice and alert.decision = org.facturation.backend.model.DuplicateAlertDecision.PENDING)
+            """)
+    org.springframework.data.domain.Page<Invoice> findManualAccountingCandidates(
+            @Param("organizationId") Long organizationId, @Param("query") String query,
+            org.springframework.data.domain.Pageable pageable);
+
     long countByOrganizationOrganizationIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
             Long organizationId,
             LocalDateTime periodStart,

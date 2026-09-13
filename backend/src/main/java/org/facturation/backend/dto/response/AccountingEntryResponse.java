@@ -4,6 +4,20 @@ import java.util.List;
 
 public class AccountingEntryResponse {
 
+    private Long version;
+    private List<AccountingEntryDiagnosticResponse> diagnostics;
+    private Boolean exportEligible;
+    private Boolean needsAttention;
+
+    public Long getVersion() { return version; }
+    public void setVersion(Long version) { this.version = version; }
+    public List<AccountingEntryDiagnosticResponse> getDiagnostics() { return diagnostics; }
+    public void setDiagnostics(List<AccountingEntryDiagnosticResponse> diagnostics) { this.diagnostics = diagnostics; }
+    public Boolean getExportEligible() { return exportEligible; }
+    public void setExportEligible(Boolean exportEligible) { this.exportEligible = exportEligible; }
+    public Boolean getNeedsAttention() { return needsAttention; }
+    public void setNeedsAttention(Boolean needsAttention) { this.needsAttention = needsAttention; }
+
     private Long accountingEntryId;
     private Long reversedAccountingEntryId;
     private String entryNumber;

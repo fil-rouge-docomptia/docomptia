@@ -113,7 +113,19 @@ export type InvoiceClassification = {
   updatedAt: string
 }
 
+export type AccountingDiagnostic = {
+  code: string
+  message: string
+  blocking: boolean
+  accountingEntryLineId: number | null
+}
+
 export type AccountingEntryLine = {
+  accountId?: number
+  vatRate?: string | null
+  classificationId?: number | null
+  classificationName?: string | null
+  classificationType?: string | null
   accountingEntryLineId: number
   lineNumber: number
   accountNumber: string
@@ -124,6 +136,11 @@ export type AccountingEntryLine = {
 }
 
 export type AccountingEntry = {
+  version?: number
+  diagnostics?: AccountingDiagnostic[] | null
+  exportEligible?: boolean
+  needsAttention?: boolean
+  reversedAccountingEntryId?: number | null
   accountingEntryId: number
   entryNumber: string
   entryDate: string
@@ -137,6 +154,8 @@ export type AccountingEntry = {
 }
 
 export type AccountingEntryLineCorrectionRequest = {
+  vatRate?: string | null
+  classificationId?: number | null
   accountId?: number
   creditAmount?: string
   debitAmount?: string
