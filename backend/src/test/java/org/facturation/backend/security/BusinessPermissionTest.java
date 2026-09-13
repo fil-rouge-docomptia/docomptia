@@ -29,7 +29,7 @@ class BusinessPermissionTest {
                 .containsExactlyInAnyOrder(RoleCode.ADMIN, RoleCode.OPERATEUR_COMPTABLE);
         assertThat(BusinessPermission.DELETE_INVOICES.getRoles()).containsExactly(RoleCode.ADMIN);
         assertThat(BusinessPermission.VALIDATE_INVOICES.getRoles())
-                .containsExactly(RoleCode.RESPONSABLE_COMPTABLE);
+                .containsExactlyInAnyOrder(RoleCode.ADMIN, RoleCode.RESPONSABLE_COMPTABLE);
         assertThat(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.getRoles()).isEqualTo(ALL_ROLES);
         assertThat(BusinessPermission.EXPORT_ACCOUNTING.getRoles()).isEqualTo(ALL_ROLES);
         assertThat(BusinessPermission.CONFIRM_INVOICE_PAYMENTS.getRoles()).isEqualTo(ALL_ROLES);
@@ -51,6 +51,6 @@ class BusinessPermissionTest {
     @Test
     void exposesRoleCodesExpectedBySpringSecurity() {
         assertThat(BusinessPermission.VALIDATE_INVOICES.roleCodes())
-                .containsExactly("RESPONSABLE_COMPTABLE");
+                .containsExactlyInAnyOrder("ADMIN", "RESPONSABLE_COMPTABLE");
     }
 }
