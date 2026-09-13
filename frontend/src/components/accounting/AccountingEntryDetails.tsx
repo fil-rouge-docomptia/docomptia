@@ -8,12 +8,13 @@ import { formatInvoiceDate, formatInvoiceMoney } from '@/components/invoice/deta
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { AccountingEntryLines } from './AccountingEntryLines'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { getAccountingEntry } from '@/services/accounting'
 import { ApiError } from '@/services/api'
 import type { AccountingEntryRecord } from '@/types/accounting'
 
-function EntryContent({ record }: { record: AccountingEntryRecord }) {
+function EntryContent({ record, onReload }: { record: AccountingEntryRecord; onReload: () => Promise<void> }) {
   const { entry, currencyCode } = record
   const totals = [
     ['Debit', entry.totalDebit],
@@ -43,35 +44,11 @@ function EntryContent({ record }: { record: AccountingEntryRecord }) {
           </div>
         ))}
       </dl>
-      <div className="min-w-0 overflow-hidden rounded-lg border border-border">
-        <Table aria-label="Entry lines" className="min-w-[560px] [&_td]:px-3 [&_td]:py-3 [&_th]:px-3">
-          <TableHeader className="bg-muted">
-            <TableRow>
-              <TableHead>Account</TableHead>
-              <TableHead>Label</TableHead>
-              <TableHead className="text-right">Debit</TableHead>
-              <TableHead className="text-right">Credit</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {entry.lines.map((line) => (
-              <TableRow key={line.accountingEntryLineId}>
-                <TableCell>{line.accountNumber}</TableCell>
-                <TableCell>{line.lineLabel || line.accountLabel}</TableCell>
-                <TableCell className="whitespace-nowrap text-right tabular-nums">
-                  {formatInvoiceMoney(line.debitAmount, currencyCode)}
-                </TableCell>
-                <TableCell className="whitespace-nowrap text-right tabular-nums">
-                  {formatInvoiceMoney(line.creditAmount, currencyCode)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        {entry.lines.length === 0 ? (
-          <p className="p-4 text-sm text-muted-foreground">No entry lines are available.</p>
-        ) : null}
-      </div>
+      {record.diagnostics?.length ? <Alert><AlertTitle>Entry checks</AlertTitle><AlertDescription><ul>{record.diagnostics.map((item, index) => <li key={`${item.code}:${index}`}>{item.message}</li>)}</ul></AlertDescription></Alert> : null}
+      <AccountingEntryLines entry={entry} currency={currencyCode} diagnostics={record.diagnostics}
+        canEdit={record.invoiceStatus !== 'ARCHIVEE' && record.exportStatus === 'NOT_EXPORTED' && !record.exportBatchId
+          && (entry.status === 'CORRECTIVE' || entry.status === 'GENERATED' && !['EXPORTEE', 'PAYEE'].includes(record.invoiceStatus))}
+        onSaved={onReload} onReload={onReload} />
       <Button asChild variant="outline">
         <Link to={`/invoices/${record.invoiceId}`}>Open invoice {record.invoiceNumber}</Link>
       </Button>
@@ -128,7 +105,7 @@ export function AccountingEntryDetails({ id, onClose }: { id: string; onClose: (
               <span className="sr-only">Loading accounting entry</span>
               <Skeleton className="h-64 w-full" />
             </div>
-          ) : <EntryContent record={record} />}
+          ) : <EntryContent record={record} onReload={async () => { const updated = await getAccountingEntry(Number(id)); setResult({ record: updated, error: null, retry }) }} />}
         </div>
       </SheetContent>
     </Sheet>

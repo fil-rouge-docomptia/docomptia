@@ -1,42 +1,24 @@
-import { useState } from 'react'
 import {
   CheckCircle2,
-  Pencil,
   TriangleAlert,
 } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { AccountingEntryLines } from '@/components/accounting/AccountingEntryLines'
+import { getInvoiceDetails } from '@/services/invoice'
 import type {
   AccountingEntry,
-  AccountingEntryLine,
   InvoiceDetails,
 } from '@/types/invoice'
 
 import { GenerateAccountingEntry } from './GenerateAccountingEntry'
-import { AccountingEntryLineEditor } from './AccountingEntryLineEditor'
 import { formatInvoiceDate, formatInvoiceMoney } from './invoice-detail-utils'
 import { isInvoiceReadOnlyStatus } from './invoice-lifecycle'
 
 type AccountingBalanceSummaryProps = {
   currencyCode: string | null
   entry: AccountingEntry
-}
-
-function getInvoiceStatusAfterCorrection(
-  currentStatus: string,
-  entry: AccountingEntry,
-) {
-  if (entry.balanced && currentStatus === 'VALIDEE') {
-    return 'EXPORTABLE'
-  }
-
-  if (!entry.balanced && currentStatus === 'EXPORTABLE') {
-    return 'VALIDEE'
-  }
-
-  return currentStatus
 }
 
 function AccountingBalanceSummary({
@@ -88,109 +70,6 @@ function AccountingBalanceSummary({
   )
 }
 
-type AccountingEntryLinesProps = {
-  canEdit: boolean
-  editingLineId: number | null
-  invoice: InvoiceDetails
-  onCancelEdit: () => void
-  onEditLine: (line: AccountingEntryLine) => void
-  onEntryUpdated: (entry: AccountingEntry) => void
-}
-
-function AccountingEntryLines({
-  canEdit,
-  editingLineId,
-  invoice,
-  onCancelEdit,
-  onEditLine,
-  onEntryUpdated,
-}: AccountingEntryLinesProps) {
-  const entry = invoice.accountingEntry
-
-  if (!entry) {
-    return null
-  }
-
-  return (
-    <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border bg-card">
-      <div className="w-full min-w-0 max-w-full overflow-x-auto">
-        <table className="w-full min-w-[42rem] text-left text-sm">
-          <thead className="bg-muted text-xs text-muted-foreground">
-            <tr>
-              <th className="px-3 py-3 font-medium">Account</th>
-              <th className="px-3 py-3 font-medium">Label</th>
-              <th className="px-3 py-3 text-right font-medium">Debit</th>
-              <th className="px-3 py-3 text-right font-medium">Credit</th>
-              {canEdit ? (
-                <th aria-label="Actions" className="px-3 py-3 text-right font-medium" />
-              ) : null}
-            </tr>
-          </thead>
-          <tbody>
-            {entry.lines.map((line) => {
-              const editing = editingLineId === line.accountingEntryLineId
-
-              if (editing) {
-                return (
-                  <AccountingEntryLineEditor
-                    entryId={entry.accountingEntryId}
-                    key={line.accountingEntryLineId}
-                    line={line}
-                    onCancel={onCancelEdit}
-                    onEntryUpdated={onEntryUpdated}
-                  />
-                )
-              }
-
-              return (
-                <tr className="border-t border-border" key={line.accountingEntryLineId}>
-                  <td className="px-3 py-3 font-medium text-foreground">
-                    {line.accountNumber}
-                  </td>
-                  <td className="px-3 py-3 text-muted-foreground">
-                    {line.lineLabel || line.accountLabel}
-                  </td>
-                  <td className="px-3 py-3 text-right tabular-nums text-foreground">
-                    {formatInvoiceMoney(line.debitAmount, invoice.currencyCode)}
-                  </td>
-                  <td className="px-3 py-3 text-right tabular-nums text-foreground">
-                    {formatInvoiceMoney(line.creditAmount, invoice.currencyCode)}
-                  </td>
-                  {canEdit ? (
-                    <td className="px-3 py-3 text-right">
-                      <Button
-                        aria-label={`Edit accounting line ${line.lineNumber}`}
-                        disabled={editingLineId !== null}
-                        onClick={() => onEditLine(line)}
-                        size="sm"
-                        type="button"
-                        variant="ghost"
-                      >
-                        <Pencil aria-hidden="true" />
-                        Edit
-                      </Button>
-                    </td>
-                  ) : null}
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {entry.lines.length === 0 ? (
-        <p className="border-t border-border px-4 py-6 text-center text-sm text-muted-foreground">
-          No entry lines are available.
-        </p>
-      ) : null}
-
-      <div className="border-t border-border p-4">
-        <AccountingBalanceSummary currencyCode={invoice.currencyCode} entry={entry} />
-      </div>
-    </section>
-  )
-}
-
 type InvoiceAccountingTabProps = {
   invoice: InvoiceDetails
   onInvoiceUpdated: (invoice: InvoiceDetails) => void
@@ -201,7 +80,6 @@ export function InvoiceAccountingTab({
   onInvoiceUpdated,
 }: InvoiceAccountingTabProps) {
   const entry = invoice.accountingEntry
-  const [editingLineId, setEditingLineId] = useState<number | null>(null)
 
   if (!entry) {
     return <GenerateAccountingEntry invoice={invoice} onInvoiceUpdated={onInvoiceUpdated} />
@@ -210,9 +88,6 @@ export function InvoiceAccountingTab({
   const canEdit = entry.status === 'GENERATED'
     && !isInvoiceReadOnlyStatus(invoice.status)
 
-  const handleEditLine = (line: AccountingEntryLine) => {
-    setEditingLineId(line.accountingEntryLineId)
-  }
 
   return (
     <div className="min-w-0 space-y-4 p-4 sm:p-6">
@@ -244,21 +119,16 @@ export function InvoiceAccountingTab({
         </Alert>
       ) : null}
 
+      {entry.diagnostics?.length ? <Alert><AlertTitle>Entry checks</AlertTitle><AlertDescription><ul>{entry.diagnostics.map((item, index) => <li key={`${item.code}:${index}`}>{item.message}</li>)}</ul></AlertDescription></Alert> : null}
       <AccountingEntryLines
-        canEdit={canEdit}
-        editingLineId={editingLineId}
-        invoice={invoice}
-        onCancelEdit={() => setEditingLineId(null)}
-        onEditLine={handleEditLine}
-        onEntryUpdated={(updatedEntry) => {
-          setEditingLineId(null)
-          onInvoiceUpdated({
-            ...invoice,
-            accountingEntry: updatedEntry,
-            status: getInvoiceStatusAfterCorrection(invoice.status, updatedEntry),
-          })
+        entry={entry} currency={invoice.currencyCode} canEdit={canEdit} diagnostics={entry.diagnostics ?? []}
+        onReload={async () => onInvoiceUpdated(await getInvoiceDetails(invoice.invoiceId))}
+        onSaved={async (updatedEntry) => {
+          const refreshed = await getInvoiceDetails(invoice.invoiceId)
+          onInvoiceUpdated({ ...refreshed, accountingEntry: updatedEntry })
         }}
       />
+      <AccountingBalanceSummary currencyCode={invoice.currencyCode} entry={entry} />
     </div>
   )
 }

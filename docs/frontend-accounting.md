@@ -93,3 +93,22 @@ Décision utilisateur : le RBAC frontend est reporté à la phase 2 (KAN-335), s
 de listes de rôles dans ce parcours. Les contrôles backend et la fin de session 401
 restent actifs. Référence visuelle : Figma 235:1526, état sans écriture adapté aux
 composants existants. Aucun changement backend.
+
+## Saisie partagée — KAN-396
+
+La fiche facture et le détail Accounting réutilisent le même éditeur : ajout de ligne,
+modification, TVA explicite et affectation DOSSIER/CLASSEUR/CHANTIER. Le plan et les
+classifications actifs sont chargés sur toutes leurs pages. Les montants sont transmis
+comme chaînes décimales ; les PATCH envoient uniquement les champs modifiés.
+`If-Match` et `Idempotency-Key` protègent chaque mutation ; un rejeu après erreur réseau
+conserve la clé tant que le contenu et la version restent identiques. Un conflit impose
+une relecture explicite. Le brouillon reste visible sur erreur ; son annulation demande
+confirmation et le rechargement du navigateur est protégé.
+
+Les cases sélectionnent les lignes à retirer. La confirmation liste leurs identités et
+explique les suppressions séquentielles, chaque appel prenant la version retournée par le
+précédent. Une erreur interrompt la série et impose une relecture avant une autre tentative.
+Aucun endpoint de masse n'est simulé. Une corrective non exportée reste éditable même si
+sa facture est exportée ; l'originale exportée, l'extourne et la facture archivée sont protégées.
+Les diagnostics désignent les seules lignes surlignées. La facture est relue après sauvegarde :
+aucune transition de statut n'est calculée à partir du seul équilibre côté client.

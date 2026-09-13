@@ -18,3 +18,15 @@ export async function getAccountingEntry(id: number, signal?: AbortSignal): Prom
   const response = await authenticatedFetch(`${apiBaseUrl}/v1/accounting-entries/${id}`, { signal })
   return response.json() as Promise<AccountingEntryRecord>
 }
+
+export async function mutateAccountingLine(
+  entryId: number, lineId: number | null, method: 'POST' | 'PATCH' | 'DELETE',
+  body: import('@/types/invoice').AccountingEntryLineCorrectionRequest | undefined,
+  version: number, key: string, signal?: AbortSignal,
+): Promise<import('@/types/invoice').AccountingEntry> {
+  const response = await authenticatedFetch(`${apiBaseUrl}/v1/accounting-entries/${entryId}/lines${lineId === null ? '' : `/${lineId}`}`, {
+    method, signal, headers: { 'Content-Type': 'application/json', 'If-Match': `"${version}"`, 'Idempotency-Key': key },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  return response.json()
+}
