@@ -5,6 +5,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.AccountingEntryLineCorrectionRequest;
+import org.facturation.backend.dto.request.AccountingEntryCreationRequest;
+import org.facturation.backend.dto.response.AccountingEntryCreationCandidateResponse;
+import org.facturation.backend.service.AccountingEntryManualCreationService;
 import org.facturation.backend.dto.response.AccountingEntryResponse;
 import org.facturation.backend.service.AccountingEntryCorrectiveService;
 import org.facturation.backend.service.AccountingEntryCorrectionService;
@@ -43,6 +46,7 @@ public class AccountingEntryController {
             "supplierName", "invoice.supplier.legalName", "journalCode", "journal.code");
 
     private final AccountingEntryReadService accountingEntryReadService;
+    private final AccountingEntryManualCreationService manualCreationService;
     private final AccountingEntryCorrectionService accountingEntryCorrectionService;
     private final AccountingEntryReversalService accountingEntryReversalService;
     private final AccountingEntryCorrectiveService accountingEntryCorrectiveService;
@@ -51,9 +55,11 @@ public class AccountingEntryController {
             AccountingEntryReadService accountingEntryReadService,
             AccountingEntryCorrectionService accountingEntryCorrectionService,
             AccountingEntryReversalService accountingEntryReversalService,
-            AccountingEntryCorrectiveService accountingEntryCorrectiveService
+            AccountingEntryCorrectiveService accountingEntryCorrectiveService,
+            AccountingEntryManualCreationService manualCreationService
     ) {
         this.accountingEntryReadService = accountingEntryReadService;
+        this.manualCreationService = manualCreationService;
         this.accountingEntryCorrectionService = accountingEntryCorrectionService;
         this.accountingEntryReversalService = accountingEntryReversalService;
         this.accountingEntryCorrectiveService = accountingEntryCorrectiveService;
@@ -87,6 +93,29 @@ public class AccountingEntryController {
                 Sort.by(direction, SORT_FIELDS.get(sortBy), "accountingEntryId"));
         return ResponseEntity.ok(accountingEntryReadService.findPage(query, balanced, status,
                 startDate, endDate, journalId, exportStatus, pageable));
+    }
+
+    @GetMapping("/creation-candidates")
+    @Operation(summary = "Rechercher les factures fournisseurs validees sans ecriture originale")
+    public Page<AccountingEntryCreationCandidateResponse> creationCandidates(
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "") String query) {
+        if (page < 0 || size < 1 || size > 100 || query.length() > 200) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid pagination or search query");
+        }
+        return manualCreationService.findCandidates(query,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "invoiceDate", "invoiceId")));
+    }
+
+    @PostMapping
+    @Operation(summary = "Saisir atomiquement une ecriture pour une facture fournisseur validee",
+            description = "Facture et journal actifs dans l'organisation, entete et lignes obligatoires. "
+                    + "Une proposition desequilibree reste enregistrable mais non exportable. "
+                    + "409 si une originale existe deja, avec accountingEntryId et entryUrl autorises.")
+    public ResponseEntity<AccountingEntryReadResponse> createEntry(@RequestBody AccountingEntryCreationRequest request) {
+        AccountingEntryReadResponse response = manualCreationService.create(request);
+        return ResponseEntity.created(java.net.URI.create("/api/v1/accounting-entries/" + response.entry().getAccountingEntryId()))
+                .body(response);
     }
 
     @GetMapping("/{id}")

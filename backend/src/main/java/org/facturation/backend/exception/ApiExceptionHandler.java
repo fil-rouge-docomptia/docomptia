@@ -473,6 +473,19 @@ public class ApiExceptionHandler {
                 "The entry changed or the idempotency key was reused with another request; reload the entry");
     }
 
+    @ExceptionHandler(AccountingEntryAlreadyExistsException.class)
+    public ResponseEntity<java.util.Map<String, Object>> handleAccountingEntryAlreadyExists(AccountingEntryAlreadyExistsException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(java.util.Map.of(
+                "code", "ACCOUNTING_ENTRY_ALREADY_EXISTS", "message", exception.getMessage(),
+                "accountingEntryId", exception.getAccountingEntryId(),
+                "entryUrl", "/api/v1/accounting-entries/" + exception.getAccountingEntryId()));
+    }
+
+    @ExceptionHandler(AccountingEntryCreationNotAllowedException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountingEntryCreationNotAllowed(AccountingEntryCreationNotAllowedException exception) {
+        return errorResponse(HttpStatus.CONFLICT, "ACCOUNTING_ENTRY_CREATION_NOT_ALLOWED", exception.getMessage());
+    }
+
     @ExceptionHandler(AccountingEntryNotModifiableException.class)
     public ResponseEntity<ApiErrorResponse> handleAccountingEntryNotModifiable(
             AccountingEntryNotModifiableException exception

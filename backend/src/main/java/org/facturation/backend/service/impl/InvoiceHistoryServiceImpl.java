@@ -114,6 +114,12 @@ public class InvoiceHistoryServiceImpl implements InvoiceHistoryService {
                 .stream()
                 .map(auditLog -> toAuditHistoryItem(auditLog, ACCOUNTING_ACTION_TYPE))
                 .forEach(history::add);
+        auditLogRepository
+                .findByOrganizationOrganizationIdAndEntityNameAndEntityIdAndActionOrderByCreatedAtAscAuditLogIdAsc(
+                        organizationId, Invoice.class.getSimpleName(), invoiceId, "ACCOUNTING_ENTRY_CREATED")
+                .stream()
+                .map(auditLog -> toAuditHistoryItem(auditLog, ACCOUNTING_ACTION_TYPE))
+                .forEach(history::add);
         duplicateAlertRepository
                 .findByInvoiceInvoiceIdAndInvoiceOrganizationOrganizationIdAndDecidedAtIsNotNullOrderByDecidedAtAscDuplicateAlertIdAsc(
                         invoiceId,

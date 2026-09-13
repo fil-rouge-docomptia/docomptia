@@ -117,6 +117,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/accounting-entry")
                         .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())
                         .requestMatchers(HttpMethod.POST,
+                                "/api/v1/accounting-entries",
                                 "/api/v1/accounting-entries/*/lines",
                                 "/api/v1/accounting-entries/*/reversal",
                                 "/api/v1/accounting-entries/*/corrective-entry"
