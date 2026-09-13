@@ -109,7 +109,8 @@ public class SecurityConfig {
                                 "/api/v1/invoices/*/reject"
                         )
                         .hasAnyRole(BusinessPermission.VALIDATE_INVOICES.roleCodes())
-                        .requestMatchers(HttpMethod.GET, "/api/v1/accounting-entries", "/api/v1/accounting-entries/*")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/accounting-entries", "/api/v1/accounting-entries/*",
+                                "/api/v1/accounting-journals")
                         .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())
                         .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/accounting-entry")
                         .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())

@@ -9,6 +9,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 import java.time.LocalDate;
@@ -25,6 +27,14 @@ public class AccountingEntry {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "invoice_id", nullable = false)
     private Invoice invoice;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "accounting_journal_id")
+    private AccountingJournal journal;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "export_batch_id")
+    private ExportBatch exportBatch;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reversed_accounting_entry_id", unique = true)
@@ -49,6 +59,28 @@ public class AccountingEntry {
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    @PreUpdate
+    void validateOrganizationReferences() {
+        if (invoice == null || invoice.getOrganization() == null) {
+            return;
+        }
+        Long organizationId = invoice.getOrganization().getOrganizationId();
+        if (journal != null && (journal.getOrganization() == null
+                || !java.util.Objects.equals(organizationId, journal.getOrganization().getOrganizationId()))) {
+            throw new IllegalArgumentException("Journal must belong to the accounting entry organization");
+        }
+        if (exportBatch != null && (exportBatch.getOrganization() == null
+                || !java.util.Objects.equals(organizationId, exportBatch.getOrganization().getOrganizationId()))) {
+            throw new IllegalArgumentException("Export batch must belong to the accounting entry organization");
+        }
+    }
+
+    public AccountingJournal getJournal() { return journal; }
+    public void setJournal(AccountingJournal journal) { this.journal = journal; }
+    public ExportBatch getExportBatch() { return exportBatch; }
+    public void setExportBatch(ExportBatch exportBatch) { this.exportBatch = exportBatch; }
 
     public Long getAccountingEntryId() {
         return accountingEntryId;

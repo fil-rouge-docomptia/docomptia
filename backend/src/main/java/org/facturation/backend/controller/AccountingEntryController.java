@@ -19,6 +19,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.facturation.backend.dto.response.AccountingEntryReadResponse;
 import org.facturation.backend.model.AccountingEntryStatusCode;
+import org.facturation.backend.model.AccountingEntryExportStatus;
+import org.springframework.format.annotation.DateTimeFormat;
+import java.time.LocalDate;
+import java.util.Map;
 import org.facturation.backend.service.AccountingEntryReadService;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,6 +35,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/accounting-entries")
 @Tag(name = "Ecritures comptables", description = "Consultation et correction des ecritures comptables")
 public class AccountingEntryController {
+
+    private static final Map<String, String> SORT_FIELDS = Map.of(
+            "entryDate", "entryDate", "entryNumber", "entryNumber", "invoiceNumber", "invoice.invoiceNumber",
+            "supplierName", "invoice.supplier.legalName", "journalCode", "journal.code");
 
     private final AccountingEntryReadService accountingEntryReadService;
     private final AccountingEntryCorrectionService accountingEntryCorrectionService;
@@ -50,21 +58,33 @@ public class AccountingEntryController {
     }
 
     @GetMapping
-    @Operation(summary = "Lister les ecritures de l'organisation, de la plus recente a la plus ancienne")
+    @Operation(summary = "Lister les ecritures de l'organisation avec filtres et tri avant pagination",
+            description = "Periode inclusive sur entryDate. exportStatus concerne uniquement l'ecriture. "
+                    + "sortBy: entryDate (defaut), entryNumber, invoiceNumber, supplierName, journalCode. "
+                    + "direction: ASC ou DESC (defaut).")
     @ApiResponse(responseCode = "400", description = "Pagination ou filtre invalide")
     public ResponseEntity<Page<AccountingEntryReadResponse>> listEntries(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "") String query,
             @RequestParam(required = false) Boolean balanced,
-            @RequestParam(required = false) AccountingEntryStatusCode status
+            @RequestParam(required = false) AccountingEntryStatusCode status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) Long journalId,
+            @RequestParam(required = false) AccountingEntryExportStatus exportStatus,
+            @RequestParam(defaultValue = "entryDate") String sortBy,
+            @RequestParam(defaultValue = "DESC") Sort.Direction direction
     ) {
-        if (page < 0 || size < 1 || size > 100 || query.length() > 200) {
+        if (page < 0 || size < 1 || size > 100 || query.length() > 200 || !SORT_FIELDS.containsKey(sortBy)
+                || journalId != null && journalId <= 0
+                || startDate != null && endDate != null && startDate.isAfter(endDate)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid pagination or search query");
         }
         PageRequest pageable = PageRequest.of(page, size,
-                Sort.by(Sort.Direction.DESC, "entryDate", "accountingEntryId"));
-        return ResponseEntity.ok(accountingEntryReadService.findPage(query, balanced, status, pageable));
+                Sort.by(direction, SORT_FIELDS.get(sortBy), "accountingEntryId"));
+        return ResponseEntity.ok(accountingEntryReadService.findPage(query, balanced, status,
+                startDate, endDate, journalId, exportStatus, pageable));
     }
 
     @GetMapping("/{id}")
