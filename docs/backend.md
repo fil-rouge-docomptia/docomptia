@@ -122,6 +122,8 @@ adresse. Cette preparation ne realise aucun envoi: la notification interne est c
 si les donnees email ne peuvent pas etre preparees.
 
 Les reponses d'ecriture exposent `totalDebit`, `totalCredit`, `balanceDifference` et `balanced`.
+La [lecture des écritures et journaux](accounting-entry-read-api.md) documente les filtres,
+le tri, les diagnostics structurés et la preuve d'export propre à chaque écriture (KAN-386).
 Une correction desequilibree retire le statut `EXPORTABLE`; le statut est retabli lorsque
 l'equilibre est corrige.
 

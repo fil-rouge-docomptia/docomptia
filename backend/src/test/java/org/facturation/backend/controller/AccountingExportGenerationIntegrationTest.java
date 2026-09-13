@@ -167,6 +167,10 @@ class AccountingExportGenerationIntegrationTest {
         assertThat(result.getResponse().getContentAsString()).contains("\"fileSize\":" + downloaded.length);
         tx.executeWithoutResult(ignored -> {
             assertThat(state(first)).isEqualTo("EXPORTEE");
+            assertThat(entries.findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(first).orElseThrow()
+                    .getExportBatch().getExportBatchId()).isEqualTo(batchId);
+            assertThat(entries.findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(second).orElseThrow()
+                    .getExportBatch()).isNull();
             assertThat(state(second)).isEqualTo("EXPORTABLE");
             assertThat(state(invalid)).isEqualTo("EXPORTABLE");
             assertThat(organizations.findById(owner.getOrganization().getOrganizationId()).orElseThrow()
@@ -287,6 +291,8 @@ class AccountingExportGenerationIntegrationTest {
             Invoice invoice = invoices.findById(id).orElseThrow();
             assertThat(state(id)).isEqualTo("EXPORTABLE");
             assertThat(invoice.getExportBatch()).isNull();
+            assertThat(entries.findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(id).orElseThrow()
+                    .getExportBatch()).isNull();
             assertThat(entries.findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(id).orElseThrow().getEntryNumber())
                     .isEqualTo("TEMP-" + invoice.getInvoiceNumber());
             assertThat(organizations.findById(owner.getOrganization().getOrganizationId()).orElseThrow()
