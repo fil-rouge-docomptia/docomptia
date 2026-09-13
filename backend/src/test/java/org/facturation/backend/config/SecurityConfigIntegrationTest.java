@@ -231,10 +231,10 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void administratorCannotMakeInvoiceValidationDecisions() throws Exception {
+    void administratorCanMakeInvoiceValidationDecisions() throws Exception {
         String token = loginAndGetToken();
 
-        assertInvoiceValidationRoutesAreForbidden(token);
+        assertInvoiceValidationRoutesAreAccessible(token);
     }
 
     @Test
@@ -471,6 +471,22 @@ class SecurityConfigIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON).content("{}"), token);
         assertForbidden(post("/api/v1/invoices/999999/reject")
                 .contentType(MediaType.APPLICATION_JSON).content("{}"), token);
+    }
+
+    private void assertInvoiceValidationRoutesAreAccessible(String token) throws Exception {
+        mockMvc.perform(post("/api/v1/invoices/999999/validate")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/v1/invoices/999999/request-correction")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"The amount must be checked\"}")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/v1/invoices/999999/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"The invoice is invalid\"}")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
     }
 
     private void assertForbidden(
