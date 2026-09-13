@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { entryTypeLabels, entryExportLabel } from '@/components/accounting/accounting-utils'
@@ -9,12 +9,13 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AccountingEntryLines } from './AccountingEntryLines'
+import { AccountingEntryAdjustments } from './AccountingEntryAdjustments'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { getAccountingEntry } from '@/services/accounting'
 import { ApiError } from '@/services/api'
 import type { AccountingEntryRecord } from '@/types/accounting'
 
-function EntryContent({ record, onReload }: { record: AccountingEntryRecord; onReload: () => Promise<void> }) {
+function EntryContent({ record, onReload, onOpenEntry, onCloseGuardChange }: { record: AccountingEntryRecord; onReload: () => Promise<void>; onOpenEntry: (id: number) => void; onCloseGuardChange: (guard: (() => boolean) | null) => void }) {
   const { entry, currencyCode } = record
   const totals = [
     ['Debit', entry.totalDebit],
@@ -48,8 +49,10 @@ function EntryContent({ record, onReload }: { record: AccountingEntryRecord; onR
       {record.diagnostics?.length ? <Alert><AlertTitle>Entry checks</AlertTitle><AlertDescription><ul>{record.diagnostics.map((item, index) => <li key={`${item.code}:${index}`}>{item.message}</li>)}</ul></AlertDescription></Alert> : null}
       <AccountingEntryLines entry={entry} currency={currencyCode} diagnostics={record.diagnostics}
         canEdit={record.invoiceStatus !== 'ARCHIVEE' && record.exportStatus === 'NOT_EXPORTED' && !record.exportBatchId
+          && !record.diagnostics?.some((item) => item.code === 'EXPORT_BATCH_NOT_FINALIZED')
           && (entry.status === 'CORRECTIVE' || entry.status === 'GENERATED' && !['EXPORTEE', 'PAYEE'].includes(record.invoiceStatus))}
-        onSaved={onReload} onReload={onReload} />
+        onSaved={onReload} onReload={onReload} onCloseGuardChange={onCloseGuardChange} />
+      <AccountingEntryAdjustments record={record} onOpenEntry={onOpenEntry} onReload={onReload} />
       <Button asChild variant="outline">
         <Link to={`/invoices/${record.invoiceId}`}>Open invoice {record.invoiceNumber}</Link>
       </Button>
@@ -57,7 +60,9 @@ function EntryContent({ record, onReload }: { record: AccountingEntryRecord; onR
   )
 }
 
-export function AccountingEntryDetails({ id, onClose }: { id: string; onClose: () => void }) {
+export function AccountingEntryDetails({ id, onClose, onOpenEntry }: { id: string; onClose: () => void; onOpenEntry: (id: number) => void }) {
+  const closeGuard = useRef<(() => boolean) | null>(null)
+  const registerCloseGuard = useCallback((guard: (() => boolean) | null) => { closeGuard.current = guard }, [])
   const [retry, setRetry] = useState(0)
   const [result, setResult] = useState<{
     record: AccountingEntryRecord | null
@@ -83,7 +88,7 @@ export function AccountingEntryDetails({ id, onClose }: { id: string; onClose: (
   }, [id, retry, validId])
 
   return (
-    <Sheet open onOpenChange={(open) => { if (!open) onClose() }}>
+    <Sheet open onOpenChange={(open) => { if (!open && (!closeGuard.current || closeGuard.current())) onClose() }}>
       <SheetContent
         className="w-full overflow-y-auto sm:max-w-3xl"
         onCloseAutoFocus={(event) => {
@@ -106,7 +111,7 @@ export function AccountingEntryDetails({ id, onClose }: { id: string; onClose: (
               <span className="sr-only">Loading accounting entry</span>
               <Skeleton className="h-64 w-full" />
             </div>
-          ) : <EntryContent record={record} onReload={async () => { const updated = await getAccountingEntry(Number(id)); setResult({ record: updated, error: null, retry }) }} />}
+          ) : <EntryContent record={record} onOpenEntry={onOpenEntry} onCloseGuardChange={registerCloseGuard} onReload={async () => { const updated = await getAccountingEntry(Number(id)); setResult({ record: updated, error: null, retry }) }} />}
         </div>
       </SheetContent>
     </Sheet>

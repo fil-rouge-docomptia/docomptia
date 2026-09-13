@@ -10,7 +10,8 @@ import { ApiError } from '@/services/api'
 import { mutateAccountingLine } from '@/services/accounting'
 import type { AccountingEntry, AccountingEntryLine } from '@/types/invoice'
 
-export function AccountingEntryLineEditor({ entryId, version, line, onCancel, onEntryUpdated, onReload }: {
+export function AccountingEntryLineEditor({ entryId, version, line, onCancel, onEntryUpdated, onReload, onCloseGuardChange }: {
+  onCloseGuardChange?: (guard: (() => boolean) | null) => void
   entryId: number; version?: number; line?: AccountingEntryLine
   onCancel: () => void; onEntryUpdated: (entry: AccountingEntry) => Promise<void>; onReload: () => Promise<void>
 }) {
@@ -25,6 +26,10 @@ export function AccountingEntryLineEditor({ entryId, version, line, onCancel, on
   const dirty = JSON.stringify(draft) !== JSON.stringify(lineDraft(line))
   const blocked = error instanceof ApiError && [403, 404, 409].includes(error.status)
   useEffect(() => () => request.current?.abort(), [])
+  useEffect(() => {
+    onCloseGuardChange?.(() => !saving && (!dirty || window.confirm('Discard unsaved changes?')))
+    return () => onCloseGuardChange?.(null)
+  }, [dirty, saving, onCloseGuardChange])
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => { if (dirty || saving) event.preventDefault() }
     const guardNavigation = (event: MouseEvent) => {

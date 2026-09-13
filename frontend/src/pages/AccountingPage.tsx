@@ -252,7 +252,7 @@ export default function AccountingPage() {
         onCreated={(record) => { setCreationIdentity(null); setRetry((value) => value + 1); update({ entry: String(record.entry.accountingEntryId) }, false) }}
         onOpenExisting={(id) => { setCreationIdentity(null); update({ entry: String(id) }, false) }} /> : null}
       {entryId !== null ? (
-        <AccountingEntryDetails id={entryId} key={`${identity}:${entryId}`} onClose={() => update({ entry: null }, false)} />
+        <AccountingEntryDetails onOpenEntry={(id) => { setRetry((value) => value + 1); update({ entry: String(id) }, false) }} id={entryId} key={`${identity}:${entryId}`} onClose={() => update({ entry: null }, false)} />
       ) : null}
     </div>
   )

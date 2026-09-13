@@ -334,3 +334,101 @@ for (const width of [1440, 768, 390]) {
     await page.screenshot({ path: `/private/tmp/accounting-front-tools/kan399-${width}.png` })
   })
 }
+
+const exportedOriginal: AccountingEntryRecord = { ...original, invoiceStatus: 'EXPORTEE', exportStatus: 'EXPORTED', exportBatchId: 20, exportEligible: false }
+const linkedCorrection: AccountingEntryRecord = { ...original, invoiceStatus: 'EXPORTEE', exportEligible: false, entry: { ...correction.entry, reversedAccountingEntryId: 53 } }
+
+for (const kind of ['reversal', 'corrective-entry'] as const) {
+  test(`KAN-402 creates ${kind} once and opens its own confirmed export state`, async ({ page }) => {
+    const created = kind === 'reversal' ? reversal : linkedCorrection
+    let release!: () => void
+    const pending = new Promise<void>((resolve) => { release = resolve })
+    let calls = 0
+    await mockApiRoute(page, '/v1/accounting-entries/51', (route) => fulfillJson(route, 200, exportedOriginal))
+    await mockApiRoute(page, `/v1/accounting-entries/${created.entry.accountingEntryId}`, (route) => fulfillJson(route, 200, created))
+    await mockApiRoute(page, `/v1/accounting-entries/51/${kind}`, async (route) => {
+      calls += 1
+      expect(route.request().method()).toBe('POST')
+      expect(route.request().postData()).toBeNull()
+      await pending
+      await fulfillJson(route, 201, created.entry)
+    })
+    await page.goto('/accounting?entry=51')
+    await expect(page.getByRole('button', { name: 'Add line', exact: true })).toHaveCount(0)
+    await page.getByRole('button', { name: kind === 'reversal' ? 'Create reversal' : 'Create corrective entry', exact: true }).click()
+    const confirmation = page.getByRole('dialog', { name: kind === 'reversal' ? 'Create a reversal?' : 'Create a corrective entry?' })
+    await confirmation.getByRole('button', { name: 'Confirm creation' }).click()
+    await expect(confirmation.getByRole('button', { name: 'Creating…' })).toBeDisabled()
+    expect(calls).toBe(1)
+    release()
+    await expect(page).toHaveURL(new RegExp(`entry=${created.entry.accountingEntryId}`))
+    await expect(page.getByRole('dialog').getByRole('heading', { name: created.entry.entryNumber })).toBeVisible()
+    await expect(page.getByRole('dialog')).not.toContainText('Journal: ACH — Purchases · Exported')
+    if (kind === 'corrective-entry') {
+      await expect(page.getByRole('button', { name: 'Add line', exact: true })).toBeEnabled()
+      await page.getByRole('link', { name: 'Open linked reversal #53' }).click()
+      await expect(page).toHaveURL(/entry=53/)
+    }
+    await page.getByRole('link', { name: 'Open linked original #51' }).click()
+    await expect(page).toHaveURL(/entry=51/)
+    expect(calls).toBe(1)
+  })
+}
+
+for (const status of [403, 404, 409, 503]) {
+  test(`KAN-402 requires reconciliation after ${status} and discovers existing adjustments`, async ({ page }) => {
+    let calls = 0
+    await mockApiRoute(page, '/v1/accounting-entries/51', (route) => fulfillJson(route, 200, exportedOriginal))
+    await mockApiRoute(page, '/v1/accounting-entries/51/reversal', async (route) => { calls += 1; await fulfillJson(route, status, { message: 'Creation could not be confirmed' }) })
+    await page.goto('/accounting?entry=51')
+    await page.getByRole('button', { name: 'Create reversal', exact: true }).click()
+    const confirmation = page.getByRole('dialog', { name: 'Create a reversal?' })
+    await confirmation.getByRole('button', { name: 'Confirm creation' }).click()
+    await expect(confirmation.getByRole('alert')).toContainText('Reload the entry')
+    await expect(confirmation.getByRole('button', { name: 'Confirm creation' })).toHaveCount(0)
+    await confirmation.getByRole('button', { name: 'Reload entry and related entries' }).click()
+    await expect(confirmation).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Create reversal', exact: true })).toBeDisabled()
+    await page.getByRole('list', { name: 'Related entries' }).getByRole('link', { name: 'REV-2026-0912' }).click()
+    await expect(page).toHaveURL(/entry=53/)
+    expect(calls).toBe(1)
+  })
+}
+
+test('KAN-402 saves corrective lines on an exported invoice and protects the draft on close', async ({ page }) => {
+  let record = linkedCorrection
+  await mockApiRoute(page, '/v1/accounting-entries/52', (route) => fulfillJson(route, 200, record))
+  await mockApiRoute(page, '/v1/chart-of-accounts?*', (route) => fulfillJson(route, 200, { content: [{ accountId: 1, accountNumber: '607000', accountLabel: 'Purchases', active: true }], totalPages: 1 }))
+  await mockApiRoute(page, '/v1/classifications*', (route) => fulfillJson(route, 200, { content: [], totalPages: 1 }))
+  await mockApiRoute(page, '/v1/accounting-entries/52/lines/1', async (route) => {
+    expect(route.request().method()).toBe('PATCH')
+    expect(route.request().headers()['if-match']).toBe('"0"')
+    expect(route.request().postDataJSON()).toEqual({ lineLabel: 'Corrected supplies' })
+    record = { ...record, entry: { ...record.entry, version: 1, lines: record.entry.lines.map((line) => line.accountingEntryLineId === 1 ? { ...line, lineLabel: 'Corrected supplies' } : line) } }
+    await fulfillJson(route, 200, record.entry)
+  })
+  await page.goto('/accounting?entry=52')
+  await page.getByRole('button', { name: 'Edit accounting line 1', exact: true }).click()
+  await page.getByLabel('Line label', { exact: true }).fill('Corrected supplies')
+  page.once('dialog', (dialog) => dialog.dismiss())
+  await page.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(page.getByLabel('Line label', { exact: true })).toHaveValue('Corrected supplies')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByRole('table', { name: 'Entry lines' })).toContainText('Corrected supplies')
+  await expect(page.getByRole('form', { name: 'Edit accounting line' })).toHaveCount(0)
+})
+
+for (const width of [1440, 768, 390]) {
+  test(`KAN-402 confirmation is accessible at ${width}px`, async ({ page }) => {
+    await mockApiRoute(page, '/v1/accounting-entries/51', (route) => fulfillJson(route, 200, exportedOriginal))
+    await page.setViewportSize({ width, height: 1024 })
+    await page.goto('/accounting?entry=51')
+    await page.getByRole('button', { name: 'Create corrective entry', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Create a corrective entry?' })
+    await expect(dialog.getByRole('button', { name: 'Confirm creation' })).toBeEnabled()
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+    await page.screenshot({ path: `/private/tmp/accounting-front-tools/kan402-${width}.png` })
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('button', { name: 'Create corrective entry', exact: true })).toBeFocused()
+  })
+}

@@ -73,3 +73,24 @@ export async function createAccountingEntry(body: import('@/types/accounting').A
   })
   return response.json()
 }
+
+export async function createAccountingAdjustment(id: number, kind: 'reversal' | 'corrective-entry', signal?: AbortSignal): Promise<import('@/types/invoice').AccountingEntry> {
+  const response = await authenticatedFetch(`${apiBaseUrl}/v1/accounting-entries/${id}/${kind}`, { method: 'POST', signal })
+  return response.json()
+}
+
+export async function getRelatedAccountingEntries(invoiceId: number, invoiceNumber: string | null, signal?: AbortSignal): Promise<AccountingEntryRecord[]> {
+  const params = new URLSearchParams({ page: '0', size: '100', query: invoiceNumber ?? '' })
+  const all: AccountingEntryRecord[] = []
+  let page = 0
+  let total = 1
+  while (page < total) {
+    params.set('page', String(page))
+    const response = await authenticatedFetch(`${apiBaseUrl}/v1/accounting-entries?${params}`, { signal })
+    const result = await response.json() as AccountingEntryPage
+    all.push(...result.content.filter((record) => record.invoiceId === invoiceId))
+    total = result.totalPages
+    page += 1
+  }
+  return all
+}

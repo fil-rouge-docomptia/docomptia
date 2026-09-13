@@ -9,8 +9,9 @@ import { mutateAccountingLine } from '@/services/accounting'
 import { ApiError } from '@/services/api'
 import type { AccountingEntry, AccountingDiagnostic } from '@/types/invoice'
 
-export function AccountingEntryLines({ entry, currency, canEdit, diagnostics = [], onSaved, onReload }: {
+export function AccountingEntryLines({ entry, currency, canEdit, diagnostics = [], onSaved, onReload, onCloseGuardChange }: {
   entry: AccountingEntry; currency: string | null; canEdit: boolean; diagnostics?: AccountingDiagnostic[]
+  onCloseGuardChange?: (guard: (() => boolean) | null) => void
   onSaved: (entry: AccountingEntry) => Promise<void>; onReload: () => Promise<void>
 }) {
   const [editing, setEditing] = useState<number | 'new' | null>(null)
@@ -72,7 +73,7 @@ export function AccountingEntryLines({ entry, currency, canEdit, diagnostics = [
     </div>
     {editing !== null ? <AccountingEntryLineEditor key={editing} entryId={entry.accountingEntryId} version={entry.version}
       line={entry.lines.find((line) => line.accountingEntryLineId === editing)} onCancel={() => setEditing(null)}
-      onEntryUpdated={saved} onReload={async () => { await onReload(); setEditing(null) }} /> : null}
+      onCloseGuardChange={onCloseGuardChange} onEntryUpdated={saved} onReload={async () => { await onReload(); setEditing(null) }} /> : null}
     <Dialog open={confirm} onOpenChange={(open) => { if (!pending) setConfirm(open) }}>
       <DialogContent><DialogHeader><DialogTitle>Remove selected lines?</DialogTitle><DialogDescription>Each selected line is removed separately. If one removal fails, reload to review the lines already removed.</DialogDescription></DialogHeader>
         <ul className="max-h-48 overflow-auto text-sm">{targeted.map((line) => <li key={line.accountingEntryLineId}>Line {line.lineNumber}: {line.accountNumber} — {line.lineLabel}</li>)}</ul>
