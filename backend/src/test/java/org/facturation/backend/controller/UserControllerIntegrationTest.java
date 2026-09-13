@@ -93,7 +93,7 @@ class UserControllerIntegrationTest {
     }
 
     @Test
-    void adminInvitesInactiveUserInCurrentOrganization() throws Exception {
+    void adminInvitesActiveUserInCurrentOrganization() throws Exception {
         mockMvc.perform(post("/api/v1/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -110,12 +110,13 @@ class UserControllerIntegrationTest {
                 .andExpect(jsonPath("$.lastName").value("Martin"))
                 .andExpect(jsonPath("$.email").value("marie.martin@example.com"))
                 .andExpect(jsonPath("$.role.code").value("OPERATEUR_COMPTABLE"))
-                .andExpect(jsonPath("$.active").value(false))
+                .andExpect(jsonPath("$.active").value(true))
                 .andExpect(jsonPath("$.passwordHash").doesNotExist())
                 .andExpect(jsonPath("$.organization").doesNotExist());
 
         var invitedUser = userRepository.findByEmailIgnoreCase("marie.martin@example.com").orElseThrow();
         assertThat(invitedUser.getOrganization().getOrganizationId()).isEqualTo(1L);
+        assertThat(invitedUser.isActive()).isTrue();
         assertThat(invitedUser.getPasswordHash()).startsWith("$2");
     }
 
