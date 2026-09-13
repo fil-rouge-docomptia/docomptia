@@ -79,3 +79,17 @@ seule ; les corrections existantes restent accessibles depuis la fiche facture.
   pagination, filtres combinés, montants, extourne, erreur 404 et validation des paramètres.
 - Les tests backend sont exécutés sur H2 en mémoire dans une copie temporaire du projet,
   sans compilation dans le répertoire de l'application en cours ni redémarrage de service.
+
+## Démonstration frontend — KAN-395
+
+Depuis une facture VALIDEE sans écriture, **Generate accounting entry** appelle
+`POST /api/v1/invoices/{id}/accounting-entry` sans corps. L'attente bloque les doubles
+soumissions. Le statut et l'écriture viennent de la réponse ; l'activité est invalidée.
+Une réponse `ACCOUNTING_ENTRY_UNBALANCED` recharge la proposition persistée pour correction.
+Les prérequis de validation/doublon et les erreurs 403/404/409/réseau restent explicites.
+La page réinitialise ses données quand l'identité ou l'organisation change.
+
+Décision utilisateur : le RBAC frontend est reporté à la phase 2 (KAN-335), sans ajout
+de listes de rôles dans ce parcours. Les contrôles backend et la fin de session 401
+restent actifs. Référence visuelle : Figma 235:1526, état sans écriture adapté aux
+composants existants. Aucun changement backend.

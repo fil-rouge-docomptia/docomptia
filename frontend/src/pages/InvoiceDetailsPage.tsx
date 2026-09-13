@@ -84,7 +84,7 @@ export default function InvoiceDetailsPage() {
   }>({ error: false, pending: null })
   const invoiceId = Number(invoiceIdParam)
   const validInvoiceId = Number.isInteger(invoiceId) && invoiceId > 0
-  const requestKey = `${invoiceIdParam}:${retryCount}`
+  const requestKey = `${user?.id}:${user?.organization.id}:${invoiceIdParam}:${retryCount}`
   const currentRequest = requestState.requestKey === requestKey
   const error = !validInvoiceId || (currentRequest && requestState.error)
   const invoice = currentRequest ? requestState.invoice : null

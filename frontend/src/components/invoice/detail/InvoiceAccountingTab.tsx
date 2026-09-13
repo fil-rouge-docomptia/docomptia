@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import {
   CheckCircle2,
-  FileSpreadsheet,
   Pencil,
   TriangleAlert,
 } from 'lucide-react'
@@ -15,6 +14,7 @@ import type {
   InvoiceDetails,
 } from '@/types/invoice'
 
+import { GenerateAccountingEntry } from './GenerateAccountingEntry'
 import { AccountingEntryLineEditor } from './AccountingEntryLineEditor'
 import { formatInvoiceDate, formatInvoiceMoney } from './invoice-detail-utils'
 import { isInvoiceReadOnlyStatus } from './invoice-lifecycle'
@@ -204,17 +204,7 @@ export function InvoiceAccountingTab({
   const [editingLineId, setEditingLineId] = useState<number | null>(null)
 
   if (!entry) {
-    return (
-      <div className="flex min-h-80 flex-col items-center justify-center px-6 py-12 text-center">
-        <span className="flex size-12 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
-          <FileSpreadsheet aria-hidden="true" className="size-6" />
-        </span>
-        <h2 className="mt-4 text-sm font-semibold text-foreground">No accounting entry yet</h2>
-        <p className="mt-1 max-w-xs text-sm text-muted-foreground">
-          Accounting data will appear here once an entry has been generated for this invoice.
-        </p>
-      </div>
-    )
+    return <GenerateAccountingEntry invoice={invoice} onInvoiceUpdated={onInvoiceUpdated} />
   }
 
   const canEdit = entry.status === 'GENERATED'

@@ -1769,3 +1769,67 @@ test('keeps the invoice table contained on mobile', async ({ page }) => {
   }))
   expect(documentWidth.scroll).toBeLessThanOrEqual(documentWidth.client)
 })
+
+test('KAN-395 generates once and displays only the server confirmed entry', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, { ...invoiceDetails, status: 'VALIDEE' }))
+  let pending: Route | undefined
+  let calls = 0
+  await mockApiRoute(page, '/v1/invoices/42/accounting-entry', async (route) => {
+    calls += 1
+    expect(route.request().method()).toBe('POST')
+    expect(route.request().postData()).toBeNull()
+    expect(route.request().headers().authorization).toBe('Bearer e2e-token')
+    pending = route
+  })
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Accounting' }).click()
+  await page.getByRole('button', { name: 'Generate accounting entry' }).click()
+  await expect(page.getByRole('button', { name: 'Generating entry…' })).toBeDisabled()
+  await expect(page.getByRole('heading', { name: 'No accounting entry yet' })).toBeVisible()
+  await expect.poll(() => Boolean(pending)).toBe(true)
+  await fulfillJson(pending!, 200, { invoiceId: 42, status: 'EXPORTABLE', accountingEntry: balancedAccountingEntry })
+  await expect(page.getByText('ACC-2026-0421', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Generate accounting entry' })).toHaveCount(0)
+  expect(calls).toBe(1)
+  for (const width of [1440, 768, 390]) {
+    await page.setViewportSize({ width, height: 1000 })
+    await expect(page.getByLabel('Accounting balance summary')).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    await page.screenshot({ path: `/private/tmp/accounting-front-tools/kan395-${width}.png`, fullPage: true })
+  }
+})
+
+for (const status of [403, 404, 409, 500]) {
+  test(`KAN-395 preserves empty entry after generation error ${status}`, async ({ page }) => {
+    await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, { ...invoiceDetails, status: 'VALIDEE' }))
+    await mockApiRoute(page, '/v1/invoices/42/accounting-entry', (route) => fulfillJson(route, status, { message: 'Configure accounting rules first' }))
+    await page.goto('/invoices/42')
+    await page.getByRole('tab', { name: 'Accounting' }).click()
+    await page.getByRole('button', { name: 'Generate accounting entry' }).click()
+    await expect(page.getByText('Unable to generate accounting entry', { exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'No accounting entry yet' })).toBeVisible()
+  })
+}
+
+test('KAN-395 reloads a persisted unbalanced proposal after conflict', async ({ page }) => {
+  let generated = false
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200,
+    generated ? unbalancedInvoiceDetails : { ...invoiceDetails, status: 'VALIDEE' }))
+  await mockApiRoute(page, '/v1/invoices/42/accounting-entry', (route) => {
+    generated = true
+    return fulfillJson(route, 409, { code: 'ACCOUNTING_ENTRY_UNBALANCED', accountingEntryId: 15 })
+  })
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Accounting' }).click()
+  await page.getByRole('button', { name: 'Generate accounting entry' }).click()
+  await expect(page.getByText('ACC-2026-0421', { exact: true })).toBeVisible()
+  await expect(page.getByLabel('Accounting balance summary').getByText('Needs attention')).toBeVisible()
+})
+
+test('KAN-395 explains validation prerequisite', async ({ page }) => {
+  await mockApiRoute(page, '/v1/invoices/42', (route) => fulfillJson(route, 200, invoiceDetails))
+  await page.goto('/invoices/42')
+  await page.getByRole('tab', { name: 'Accounting' }).click()
+  await expect(page.getByRole('button', { name: 'Generate accounting entry' })).toBeDisabled()
+  await expect(page.getByText('Validate this invoice before generating its accounting entry.')).toBeVisible()
+})
