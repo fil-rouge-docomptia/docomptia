@@ -24,7 +24,7 @@ type Metric = {
 
 const allRoles: RoleCode[] = ['ADMIN', 'OPERATEUR_COMPTABLE', 'RESPONSABLE_COMPTABLE']
 const processingRoles: RoleCode[] = ['ADMIN', 'OPERATEUR_COMPTABLE']
-const validationRoles: RoleCode[] = ['RESPONSABLE_COMPTABLE']
+const validationRoles: RoleCode[] = ['ADMIN', 'RESPONSABLE_COMPTABLE']
 
 function MetricCard({ metric, role }: { metric: Metric; role?: RoleCode }) {
   const actionClassName =

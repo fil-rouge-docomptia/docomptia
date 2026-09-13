@@ -32,7 +32,7 @@ export function canProcessInvoice(role?: RoleCode) {
 }
 
 export function canValidateInvoice(role?: RoleCode) {
-  return role === 'RESPONSABLE_COMPTABLE'
+  return role === 'ADMIN' || role === 'RESPONSABLE_COMPTABLE'
 }
 
 export function isRetryableOcrError(error: InvoiceOcrError | null) {
