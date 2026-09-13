@@ -33,13 +33,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.regex.Pattern;
 
 @Service
 public class UserServiceImpl implements UserService {
 
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
+    private static final String INVITED_USER_DEFAULT_PASSWORD = "Docomptia2026!";
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -123,8 +123,8 @@ public class UserServiceImpl implements UserService {
         user.setFirstName(requireValue(request.getFirstName(), "firstName"));
         user.setLastName(requireValue(request.getLastName(), "lastName"));
         user.setEmail(email);
-        user.setPasswordHash(passwordEncoder.encode(UUID.randomUUID().toString()));
-        user.setActive(false);
+        user.setPasswordHash(passwordEncoder.encode(INVITED_USER_DEFAULT_PASSWORD));
+        user.setActive(true);
         user.setCreatedAt(now);
         user.setUpdatedAt(now);
 
