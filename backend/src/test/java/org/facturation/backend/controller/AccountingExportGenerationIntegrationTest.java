@@ -286,6 +286,103 @@ class AccountingExportGenerationIntegrationTest {
         });
     }
 
+    @Test
+    void retriesConcurrentLineAddsWithoutDuplicatingTheLineOrAudit() throws Exception {
+        Long entryId = tx.execute(ignored -> entries.findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(first)
+                .orElseThrow().getAccountingEntryId());
+        Long accountId = tx.execute(ignored -> lines.findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(entryId)
+                .getFirst().getAccount().getAccountId());
+        String payload = "{\"accountId\":" + accountId + ",\"lineLabel\":\"New line\",\"debitAmount\":5,\"creditAmount\":0}";
+        String key = UUID.randomUUID().toString();
+        synchronizeLineMutations();
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            java.util.concurrent.Callable<Integer> add = () -> mvc.perform(post("/api/v1/accounting-entries/{id}/lines", entryId)
+                    .header(HttpHeaders.AUTHORIZATION, token()).header("If-Match", "0").header("Idempotency-Key", key)
+                    .contentType(MediaType.APPLICATION_JSON).content(payload)).andReturn().getResponse().getStatus();
+            var a = executor.submit(add);
+            var b = executor.submit(add);
+            assertThat(List.of(a.get(20, TimeUnit.SECONDS), b.get(20, TimeUnit.SECONDS))).containsExactly(201, 201);
+        }
+        tx.executeWithoutResult(ignored -> {
+            assertThat(lines.findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(entryId)).hasSize(3);
+            assertThat(entries.findById(entryId).orElseThrow().getVersion()).isEqualTo(1);
+            assertThat(audits.findAll().stream().filter(log -> log.getOrganization().getOrganizationId()
+                    .equals(owner.getOrganization().getOrganizationId()) && "LINE_ADDED".equals(log.getAction())).count()).isEqualTo(9);
+        });
+    }
+
+    @Test
+    void rejectsConcurrentStaleLineEditsInsteadOfSilentlyOverwriting() throws Exception {
+        Long entryId = tx.execute(ignored -> entries.findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(first)
+                .orElseThrow().getAccountingEntryId());
+        Long lineId = tx.execute(ignored -> lines.findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(entryId)
+                .getFirst().getAccountingEntryLineId());
+        synchronizeLineMutations();
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var a = executor.submit(() -> editLine(entryId, lineId, "{\"lineLabel\":\"First change\"}").andReturn().getResponse().getStatus());
+            var b = executor.submit(() -> editLine(entryId, lineId, "{\"lineLabel\":\"Second change\"}").andReturn().getResponse().getStatus());
+            assertThat(List.of(a.get(20, TimeUnit.SECONDS), b.get(20, TimeUnit.SECONDS))).containsExactlyInAnyOrder(200, 409);
+        }
+        tx.executeWithoutResult(ignored -> assertThat(entries.findById(entryId).orElseThrow().getVersion()).isEqualTo(1));
+    }
+
+    @Test
+    void serializesLineCorrectionWithExportUsingTheSameOrganizationLock() throws Exception {
+        Long entryId = tx.execute(ignored -> entries.findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(first)
+                .orElseThrow().getAccountingEntryId());
+        Long lineId = tx.execute(ignored -> lines.findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(entryId)
+                .getFirst().getAccountingEntryLineId());
+        synchronizeLineMutations();
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var edit = executor.submit(() -> editLine(entryId, lineId, "{\"debitAmount\":119}").andReturn().getResponse().getStatus());
+            var export = executor.submit(() -> generate("CSV", first).andReturn().getResponse().getStatus());
+            assertThat(List.of(edit.get(20, TimeUnit.SECONDS), export.get(20, TimeUnit.SECONDS))).containsExactlyInAnyOrder(200, 409);
+        }
+        tx.executeWithoutResult(ignored -> {
+            var entry = entries.findById(entryId).orElseThrow();
+            var amount = lines.findById(lineId).orElseThrow().getDebitAmount();
+            if (entry.getExportBatch() != null) {
+                assertThat(amount).isEqualByComparingTo("120");
+                assertThat(state(first)).isEqualTo("EXPORTEE");
+            } else {
+                assertThat(amount).isEqualByComparingTo("119");
+                assertThat(state(first)).isEqualTo("VALIDEE");
+            }
+        });
+    }
+
+    @Test
+    void rollsBackLineAuditVersionAndReceiptWhenWorkflowFails() {
+        Long entryId = tx.execute(ignored -> entries.findByInvoiceInvoiceIdAndReversedAccountingEntryIsNull(first)
+                .orElseThrow().getAccountingEntryId());
+        Long lineId = tx.execute(ignored -> lines.findByAccountingEntryAccountingEntryIdOrderByLineNumberAsc(entryId)
+                .getFirst().getAccountingEntryLineId());
+        doThrow(new IllegalStateException("Workflow failure")).when(workflow).markAccountingEntryToCorrect(any(), any());
+        assertThatThrownBy(() -> editLine(entryId, lineId, "{\"debitAmount\":119}")).hasRootCauseInstanceOf(IllegalStateException.class);
+        tx.executeWithoutResult(ignored -> {
+            assertThat(lines.findById(lineId).orElseThrow().getDebitAmount()).isEqualByComparingTo("120");
+            assertThat(entries.findById(entryId).orElseThrow().getVersion()).isZero();
+            assertThat(state(first)).isEqualTo("EXPORTABLE");
+            assertThat(audits.findAll().stream().filter(log -> log.getOrganization().getOrganizationId()
+                    .equals(owner.getOrganization().getOrganizationId()) && "LINE_CORRECTION".equals(log.getAction()))).isEmpty();
+        });
+    }
+
+    private org.springframework.test.web.servlet.ResultActions editLine(Long entryId, Long lineId, String payload) throws Exception {
+        return mvc.perform(patch("/api/v1/accounting-entries/{entryId}/lines/{lineId}", entryId, lineId)
+                .header(HttpHeaders.AUTHORIZATION, token()).header("If-Match", "0").header("Idempotency-Key", UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON).content(payload));
+    }
+
+    private void synchronizeLineMutations() {
+        CountDownLatch bothArrived = new CountDownLatch(2);
+        doAnswer(invocation -> {
+            bothArrived.countDown();
+            assertThat(bothArrived.await(10, TimeUnit.SECONDS)).isTrue();
+            return invocation.callRealMethod();
+        }).when(numbering).lockSequence(owner.getOrganization().getOrganizationId());
+    }
+
     private void assertUnchanged(Long id) {
         tx.executeWithoutResult(ignored -> {
             Invoice invoice = invoices.findById(id).orElseThrow();
