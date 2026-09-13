@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { entryTypeLabels } from '@/components/accounting/accounting-utils'
+import { entryTypeLabels, entryExportLabel } from '@/components/accounting/accounting-utils'
 import { AccountingLoadError } from '@/components/accounting/AccountingLoadError'
 import { EntryBalanceBadge } from '@/components/accounting/AccountingEntryTable'
 import { formatInvoiceDate, formatInvoiceMoney } from '@/components/invoice/detail/invoice-detail-utils'
@@ -31,8 +31,9 @@ function EntryContent({ record, onReload }: { record: AccountingEntryRecord; onR
             {formatInvoiceDate(entry.entryDate)} · {entryTypeLabels[entry.status] ?? entry.status}
           </p>
         </div>
-        <EntryBalanceBadge balanced={entry.balanced} />
+        <EntryBalanceBadge balanced={entry.balanced} needsAttention={record.needsAttention} />
       </div>
+      <p className="text-sm text-muted-foreground">Journal: {record.journal ? `${record.journal.code} — ${record.journal.label}` : 'Not assigned'} · {entryExportLabel(record)}</p>
       {entry.reversedAccountingEntryId ? (
         <p className="text-sm text-muted-foreground">Reverses entry #{entry.reversedAccountingEntryId}.</p>
       ) : null}

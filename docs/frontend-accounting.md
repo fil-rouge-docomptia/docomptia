@@ -112,3 +112,21 @@ Aucun endpoint de masse n'est simulé. Une corrective non exportée reste édita
 sa facture est exportée ; l'originale exportée, l'extourne et la facture archivée sont protégées.
 Les diagnostics désignent les seules lignes surlignées. La facture est relue après sauvegarde :
 aucune transition de statut n'est calculée à partir du seul équilibre côté client.
+
+## Vues et filtres — KAN-398
+
+Le tableau exploite maintenant les champs KAN-386 : journal réel, nature, état d'export
+propre, éligibilité et diagnostics. Une extourne n'hérite pas de l'export de sa facture.
+Les vues All/Balanced/Needs attention/Ready to export/Exported utilisent ces valeurs.
+`needsAttention` et `exportEligible` n'étant pas des filtres d'API, les deux vues concernées
+chargent toutes les pages correspondant aux autres filtres, puis appliquent le prédicat
+serveur et paginent localement. Aucun résultat partiel n'est affiché si une page échoue.
+Ce choix MVP évite un changement backend ; un filtre dédié sera préférable pour de très
+volumineux ensembles de données.
+
+Période inclusive, journal (y compris inactif historique), équilibre, export, type et tri
+sont conservés dans l'URL, avec retour à la première page lors d'un changement. Les filtres
+sont supprimables individuellement. Le tri expose uniquement les champs pris en charge.
+Columns masque les colonnes facultatives ; identité et actions restent disponibles.
+Les préférences sont isolées par utilisateur et organisation. Review issue ouvre le détail
+exact et ses diagnostics ; les erreurs et états vides restent explicites.
