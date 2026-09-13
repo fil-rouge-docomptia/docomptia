@@ -157,6 +157,8 @@ public class SecurityConfig {
                         .hasAnyRole(BusinessPermission.PROCESS_INVOICES.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/suppliers", "/api/v1/suppliers/**")
                         .hasAnyRole(BusinessPermission.VIEW_SUPPLIERS.roleCodes())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/suppliers")
+                        .hasAnyRole(BusinessPermission.MANAGE_SUPPLIERS.roleCodes())
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/suppliers/*")
                         .hasAnyRole(BusinessPermission.MANAGE_SUPPLIERS.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/customers", "/api/v1/customers/**")

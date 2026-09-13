@@ -1,6 +1,7 @@
 package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
+import org.facturation.backend.dto.request.SupplierCreateRequest;
 import org.facturation.backend.dto.response.OcrFieldResponse;
 import org.facturation.backend.dto.request.SupplierUpdateRequest;
 import org.facturation.backend.dto.request.SupplierLegalIdentifierReplacementRequest;
@@ -14,6 +15,7 @@ import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.Organization;
 import org.facturation.backend.model.ProcessingAnomalyCode;
 import org.facturation.backend.model.Supplier;
+import org.facturation.backend.model.User;
 import org.facturation.backend.repository.SupplierRepository;
 import org.facturation.backend.repository.SupplierLegalIdentifierRepository;
 import org.facturation.backend.model.SupplierLegalIdentifier;
@@ -108,6 +110,46 @@ public class SupplierServiceImpl implements SupplierService {
         return supplierRepository.findBySupplierIdAndOrganizationOrganizationId(id, organizationId)
                 .map(supplierResponseMapper::toDetailsResponse)
                 .orElseThrow(() -> new SupplierNotFoundException(id));
+    }
+
+    @Override
+    @Transactional
+    public SupplierDetailsResponse create(SupplierCreateRequest request) {
+        if (request == null) {
+            throw new InvalidSupplierException("Supplier details are required");
+        }
+
+        String siret = normalizeSiret(request.getSiret());
+        String vatNumber = normalizeVatNumber(request.getVatNumber());
+        validateLegalIdentifierValues(siret, vatNumber, "vatNumber");
+
+        User currentUser = currentUserService.getCurrentUser();
+        Supplier supplier = new Supplier();
+        supplier.setOrganization(currentUser.getOrganization());
+        supplier.setName(requireNotBlank(request.getName(), "name"));
+        supplier.setLegalName(requireNotBlank(request.getLegalName(), "legalName"));
+        supplier.setSiret(siret);
+        supplier.setVatNumber(vatNumber);
+        supplier.setEmail(toNullableValue(request.getEmail()));
+        supplier.setPhone(toNullableValue(request.getPhone()));
+        supplier.setAddress(toNullableValue(request.getAddress()));
+        supplier.setCountryCode(siret != null ? "FR" : vatNumber == null ? null : extractVatCountryCode(vatNumber));
+        LocalDateTime now = LocalDateTime.now();
+        supplier.setCreatedAt(now);
+        supplier.setUpdatedAt(now);
+
+        Supplier savedSupplier = saveWithSiretConflictTranslation(supplier);
+        if (siret != null) {
+            createIdentifier(savedSupplier, SupplierLegalIdentifierType.ESTABLISHMENT, "FR_SIRET", "FR", siret,
+                    SupplierLegalIdentifierSource.MANUAL, true);
+            createIdentifier(savedSupplier, SupplierLegalIdentifierType.BUSINESS_REGISTRATION, "FR_SIREN", "FR",
+                    siret.substring(0, 9), SupplierLegalIdentifierSource.MANUAL, true);
+        }
+        if (vatNumber != null) {
+            createIdentifier(savedSupplier, SupplierLegalIdentifierType.VAT, "EU_VAT",
+                    extractVatCountryCode(vatNumber), vatNumber, SupplierLegalIdentifierSource.MANUAL, true);
+        }
+        return supplierResponseMapper.toDetailsResponse(savedSupplier);
     }
 
     @Override
@@ -580,6 +622,9 @@ public class SupplierServiceImpl implements SupplierService {
         identifier.setNormalizedValue(normalizedValue);
         identifier.setSource(source);
         identifier.setVerified(verified);
+        if (source == SupplierLegalIdentifierSource.MANUAL) {
+            identifier.setCreatedByUser(currentUserService.getCurrentUser());
+        }
         identifier.setCreatedAt(LocalDateTime.now());
         identifier.setUpdatedAt(LocalDateTime.now());
         return identifierRepository.save(identifier);

@@ -1,6 +1,7 @@
 package org.facturation.backend.service;
 
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
+import org.facturation.backend.dto.request.SupplierCreateRequest;
 import org.facturation.backend.dto.request.SupplierUpdateRequest;
 import org.facturation.backend.dto.response.SupplierDetailsResponse;
 import org.facturation.backend.dto.response.SupplierListItemResponse;
@@ -25,6 +26,8 @@ public interface SupplierService {
     Page<SupplierListItemResponse> findPage(String query, Pageable pageable);
 
     SupplierDetailsResponse findDetailsById(Long id);
+
+    SupplierDetailsResponse create(SupplierCreateRequest request);
 
     SupplierDetailsResponse update(Long id, SupplierUpdateRequest request);
 

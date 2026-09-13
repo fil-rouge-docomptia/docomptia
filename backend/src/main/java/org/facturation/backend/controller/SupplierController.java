@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.SupplierUpdateRequest;
+import org.facturation.backend.dto.request.SupplierCreateRequest;
 import org.facturation.backend.dto.request.SupplierLegalIdentifierReplacementRequest;
 import org.facturation.backend.dto.response.SupplierDetailsResponse;
 import org.facturation.backend.dto.response.SupplierListItemResponse;
@@ -14,9 +15,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -56,6 +59,17 @@ public class SupplierController {
     @ApiResponse(responseCode = "404", description = "Fournisseur introuvable dans l'organisation de l'utilisateur")
     public ResponseEntity<SupplierDetailsResponse> getSupplier(@PathVariable Long id) {
         return ResponseEntity.ok(supplierService.findDetailsById(id));
+    }
+
+    @PostMapping
+    @Operation(summary = "Creer un fournisseur")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Fournisseur cree"),
+            @ApiResponse(responseCode = "400", description = "Donnees invalides"),
+            @ApiResponse(responseCode = "409", description = "Identifiant legal deja utilise dans l'organisation")
+    })
+    public ResponseEntity<SupplierDetailsResponse> createSupplier(@RequestBody SupplierCreateRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(supplierService.create(request));
     }
 
     @PatchMapping("/{id}")

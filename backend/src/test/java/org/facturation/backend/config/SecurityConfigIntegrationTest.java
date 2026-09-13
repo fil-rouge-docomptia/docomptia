@@ -284,7 +284,10 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void accountingManagerCannotUpdateSuppliers() throws Exception {
+    void accountingManagerCannotCreateOrUpdateSuppliers() throws Exception {
+        assertForbidden(post("/api/v1/suppliers")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"), tokenFor("manager-security@facturation-demo.fr"));
         assertForbidden(patch("/api/v1/suppliers/1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"), tokenFor("manager-security@facturation-demo.fr"));
