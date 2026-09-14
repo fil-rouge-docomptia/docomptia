@@ -3,6 +3,10 @@ import { Navigate, createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth/RouteGuard'
 import { AppShell } from '@/components/layout/AppShell'
 import AccountingPage from '@/pages/AccountingPage'
+import AuditSettingsPage from '@/pages/AuditSettingsPage'
+import BillingSettingsPage from '@/pages/BillingSettingsPage'
+import UserProfilePage from '@/pages/UserProfilePage'
+import SecuritySettingsPage from '@/pages/SecuritySettingsPage'
 import AccountImportPage from '@/pages/AccountImportPage'
 import AccountingRulesPage from '@/pages/AccountingRulesPage'
 import AccountingOnboardingPage from '@/pages/AccountingOnboardingPage'
@@ -22,7 +26,8 @@ import EmailVerificationPage from '@/pages/EmailVerificationPage'
 import ExportsPage from '@/pages/ExportsPage'
 import CreateExportPage from '@/pages/CreateExportPage'
 import LoginRoutePage from '@/pages/LoginRoutePage'
-import ModulePlaceholderPage from '@/pages/ModulePlaceholderPage'
+import IntegrationsPage from '@/pages/IntegrationsPage'
+import IntegrationDetailsPage from '@/pages/IntegrationDetailsPage'
 import MemberSettingsPage from '@/pages/MemberSettingsPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import NotificationSettingsPage from '@/pages/NotificationSettingsPage'
@@ -56,6 +61,14 @@ export const publicRoutes = [
 ]
 
 export const privateRoutes = [
+  {
+    path: '/profile',
+    element: <UserProfilePage />,
+  },
+  {
+    path: '/settings/billing',
+    element: <BillingSettingsPage />,
+  },
   {
     path: '/dashboard',
     element: <DashboardPage />,
@@ -142,12 +155,11 @@ export const privateRoutes = [
   },
   {
     path: '/integrations',
-    element: (
-      <ModulePlaceholderPage
-        description="Connect Docomptia to the tools used by your organization."
-        title="Integrations"
-      />
-    ),
+    element: <IntegrationsPage />,
+  },
+  {
+    path: '/integrations/:integrationId',
+    element: <IntegrationDetailsPage />,
   },
   {
     path: '/settings',
@@ -176,6 +188,14 @@ export const privateRoutes = [
   {
     path: '/settings/accounting',
     element: <AccountingSettingsPage />,
+  },
+  {
+    path: '/settings/audit-logs',
+    element: <AuditSettingsPage />,
+  },
+  {
+    path: '/settings/security',
+    element: <SecuritySettingsPage />,
   },
   {
     path: '/settings/notifications',

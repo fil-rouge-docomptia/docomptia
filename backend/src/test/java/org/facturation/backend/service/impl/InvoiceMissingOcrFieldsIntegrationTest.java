@@ -8,6 +8,7 @@ import org.facturation.backend.dto.response.OcrFieldResponse;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.OcrExtraction;
 import org.facturation.backend.model.OcrExtractionField;
+import org.facturation.backend.model.ProcessingAnomalyCode;
 import org.facturation.backend.repository.InvoiceRepository;
 import org.facturation.backend.repository.OcrExtractionFieldRepository;
 import org.facturation.backend.repository.OcrExtractionRepository;
@@ -76,6 +77,10 @@ class InvoiceMissingOcrFieldsIntegrationTest {
         InvoiceDetailsResponse details = invoiceService.findDetailsById(invoice.getInvoiceId()).orElseThrow();
 
         assertEquals("EXTRAITE", uploadResponse.getStatus());
+        assertEquals(
+                List.of(ProcessingAnomalyCode.OCR_INCOMPLETE.getCode()),
+                uploadResponse.getWarnings().stream().map(warning -> warning.code()).toList()
+        );
         assertNull(uploadResponse.getInvoiceNumber());
         assertNull(invoice.getSupplier());
         assertNull(invoice.getInvoiceNumber());

@@ -1,4 +1,8 @@
 ALTER TABLE invoices ALTER COLUMN supplier_id DROP NOT NULL;
+ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS origin VARCHAR(30);
+UPDATE invoices SET origin = 'MANUAL_UPLOAD' WHERE origin IS NULL;
+ALTER TABLE invoices ALTER COLUMN origin SET DEFAULT 'MANUAL_UPLOAD';
+ALTER TABLE invoices ALTER COLUMN origin SET NOT NULL;
 CREATE TABLE IF NOT EXISTS subscription_plans (
     subscription_plan_id BIGSERIAL PRIMARY KEY,
     code VARCHAR(255) NOT NULL UNIQUE,
@@ -181,6 +185,9 @@ ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS payment_date DATE;
 ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(255);
 ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS paid_by_user_id BIGINT REFERENCES users(user_id);
 ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP;
+ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
+ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS deleted_by_user_id BIGINT REFERENCES users(user_id);
+ALTER TABLE IF EXISTS invoices ADD COLUMN IF NOT EXISTS deletion_reason VARCHAR(1000);
 ALTER TABLE IF EXISTS invoice_files ADD COLUMN IF NOT EXISTS sha256_checksum VARCHAR(64);
 ALTER TABLE IF EXISTS invoice_files ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP;
 ALTER TABLE IF EXISTS invoice_files ADD COLUMN IF NOT EXISTS retention_duration_years INTEGER;
@@ -277,3 +284,18 @@ CREATE TABLE IF NOT EXISTS notifications (
     email_body TEXT,
     created_at TIMESTAMP NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS processing_anomalies (
+    processing_anomaly_id BIGSERIAL PRIMARY KEY,
+    invoice_id BIGINT NOT NULL REFERENCES invoices(invoice_id),
+    organization_id BIGINT NOT NULL REFERENCES organizations(organization_id),
+    code VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    resolved_at TIMESTAMP,
+    resolved_by_user_id BIGINT REFERENCES users(user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_processing_anomalies_dashboard
+    ON processing_anomalies (organization_id, resolved_at, created_at DESC);
+
+ALTER TABLE IF EXISTS ocr_errors ADD COLUMN IF NOT EXISTS error_step VARCHAR(50);

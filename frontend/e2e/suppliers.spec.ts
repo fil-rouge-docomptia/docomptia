@@ -175,6 +175,63 @@ test('shows a useful empty search state', async ({ page }) => {
   await expect(page).not.toHaveURL(/query=/)
 })
 
+test('creates a supplier and opens its details', async ({ page }) => {
+  let payload: unknown
+
+  await mockApiRoute(page, '/v1/suppliers*', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback()
+      return
+    }
+    await fulfillJson(route, 200, supplierPage)
+  })
+  await mockApiRoute(page, '/v1/suppliers', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.fallback()
+      return
+    }
+    payload = route.request().postDataJSON()
+    await fulfillJson(route, 201, {
+      ...supplierPage.content[0],
+      legalName: 'New supplier SAS',
+      name: 'New supplier',
+      supplierId: 99,
+    })
+  })
+  await mockApiRoute(page, '/v1/suppliers/99', (route) => fulfillJson(route, 200, {
+    ...supplierPage.content[0],
+    address: null,
+    createdAt: '2026-09-13T10:00:00',
+    email: null,
+    legalIdentifierHistory: [],
+    legalName: 'New supplier SAS',
+    name: 'New supplier',
+    phone: null,
+    supplierId: 99,
+    updatedAt: '2026-09-13T10:00:00',
+  }))
+
+  await page.goto('/suppliers')
+  await page.getByRole('button', { name: 'Add supplier' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Add supplier' })
+  await dialog.getByLabel('Legal name').fill('New supplier SAS')
+  await dialog.getByLabel('Trade name').fill('New supplier')
+  await dialog.getByLabel('SIRET').fill('732 829 320 00074')
+  await dialog.getByRole('button', { name: 'Create supplier' }).click()
+
+  await expect(page).toHaveURL(/\/suppliers\/99$/)
+  expect(payload).toEqual({
+    address: '',
+    email: '',
+    legalName: 'New supplier SAS',
+    name: 'New supplier',
+    phone: '',
+    siret: '732 829 320 00074',
+    vatNumber: '',
+  })
+})
+
 test('keeps request errors inside the supplier list page and retries', async ({ page }) => {
   let attempts = 0
 

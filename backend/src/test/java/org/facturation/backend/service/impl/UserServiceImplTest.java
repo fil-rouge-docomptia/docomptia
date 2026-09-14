@@ -82,7 +82,7 @@ class UserServiceImplTest {
     }
 
     @Test
-    void invitesInactiveUserInAdministratorsOrganizationWithAllowedRole() {
+    void invitesActiveUserWithTheDefaultPasswordInAdministratorsOrganization() {
         Organization organization = new Organization();
         Role role = new Role();
         role.setRoleId(2L);
@@ -103,12 +103,12 @@ class UserServiceImplTest {
         assertEquals(10L, response.id());
         assertEquals("new.user@example.com", response.email());
         assertEquals("OPERATEUR_COMPTABLE", response.role().code());
-        assertFalse(response.active());
+        assertTrue(response.active());
         verify(userRepository).saveAndFlush(argThat(user ->
                 user.getOrganization() == organization
                         && user.getRole() == role
-                        && !user.isActive()
-                        && user.getPasswordHash().startsWith("$2")
+                        && user.isActive()
+                        && passwordEncoder.matches("Docomptia2026!", user.getPasswordHash())
         ));
     }
 

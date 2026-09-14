@@ -5,6 +5,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.facturation.backend.dto.request.AccountingEntryLineCorrectionRequest;
+import org.facturation.backend.dto.request.AccountingEntryCreationRequest;
+import org.facturation.backend.dto.response.AccountingEntryCreationCandidateResponse;
+import org.facturation.backend.service.AccountingEntryManualCreationService;
 import org.facturation.backend.dto.response.AccountingEntryResponse;
 import org.facturation.backend.service.AccountingEntryCorrectiveService;
 import org.facturation.backend.service.AccountingEntryCorrectionService;
@@ -16,9 +19,15 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.facturation.backend.dto.response.AccountingEntryReadResponse;
 import org.facturation.backend.model.AccountingEntryStatusCode;
+import org.facturation.backend.model.AccountingEntryExportStatus;
+import org.springframework.format.annotation.DateTimeFormat;
+import java.time.LocalDate;
+import java.util.Map;
 import org.facturation.backend.service.AccountingEntryReadService;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -32,7 +41,12 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Ecritures comptables", description = "Consultation et correction des ecritures comptables")
 public class AccountingEntryController {
 
+    private static final Map<String, String> SORT_FIELDS = Map.of(
+            "entryDate", "entryDate", "entryNumber", "entryNumber", "invoiceNumber", "invoice.invoiceNumber",
+            "supplierName", "invoice.supplier.legalName", "journalCode", "journal.code");
+
     private final AccountingEntryReadService accountingEntryReadService;
+    private final AccountingEntryManualCreationService manualCreationService;
     private final AccountingEntryCorrectionService accountingEntryCorrectionService;
     private final AccountingEntryReversalService accountingEntryReversalService;
     private final AccountingEntryCorrectiveService accountingEntryCorrectiveService;
@@ -41,30 +55,67 @@ public class AccountingEntryController {
             AccountingEntryReadService accountingEntryReadService,
             AccountingEntryCorrectionService accountingEntryCorrectionService,
             AccountingEntryReversalService accountingEntryReversalService,
-            AccountingEntryCorrectiveService accountingEntryCorrectiveService
+            AccountingEntryCorrectiveService accountingEntryCorrectiveService,
+            AccountingEntryManualCreationService manualCreationService
     ) {
         this.accountingEntryReadService = accountingEntryReadService;
+        this.manualCreationService = manualCreationService;
         this.accountingEntryCorrectionService = accountingEntryCorrectionService;
         this.accountingEntryReversalService = accountingEntryReversalService;
         this.accountingEntryCorrectiveService = accountingEntryCorrectiveService;
     }
 
     @GetMapping
-    @Operation(summary = "Lister les ecritures de l'organisation, de la plus recente a la plus ancienne")
+    @Operation(summary = "Lister les ecritures de l'organisation avec filtres et tri avant pagination",
+            description = "Periode inclusive sur entryDate. exportStatus concerne uniquement l'ecriture. "
+                    + "sortBy: entryDate (defaut), entryNumber, invoiceNumber, supplierName, journalCode. "
+                    + "direction: ASC ou DESC (defaut).")
     @ApiResponse(responseCode = "400", description = "Pagination ou filtre invalide")
     public ResponseEntity<Page<AccountingEntryReadResponse>> listEntries(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "") String query,
             @RequestParam(required = false) Boolean balanced,
-            @RequestParam(required = false) AccountingEntryStatusCode status
+            @RequestParam(required = false) AccountingEntryStatusCode status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) Long journalId,
+            @RequestParam(required = false) AccountingEntryExportStatus exportStatus,
+            @RequestParam(defaultValue = "entryDate") String sortBy,
+            @RequestParam(defaultValue = "DESC") Sort.Direction direction
     ) {
-        if (page < 0 || size < 1 || size > 100 || query.length() > 200) {
+        if (page < 0 || size < 1 || size > 100 || query.length() > 200 || !SORT_FIELDS.containsKey(sortBy)
+                || journalId != null && journalId <= 0
+                || startDate != null && endDate != null && startDate.isAfter(endDate)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid pagination or search query");
         }
         PageRequest pageable = PageRequest.of(page, size,
-                Sort.by(Sort.Direction.DESC, "entryDate", "accountingEntryId"));
-        return ResponseEntity.ok(accountingEntryReadService.findPage(query, balanced, status, pageable));
+                Sort.by(direction, SORT_FIELDS.get(sortBy), "accountingEntryId"));
+        return ResponseEntity.ok(accountingEntryReadService.findPage(query, balanced, status,
+                startDate, endDate, journalId, exportStatus, pageable));
+    }
+
+    @GetMapping("/creation-candidates")
+    @Operation(summary = "Rechercher les factures fournisseurs validees sans ecriture originale")
+    public Page<AccountingEntryCreationCandidateResponse> creationCandidates(
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "") String query) {
+        if (page < 0 || size < 1 || size > 100 || query.length() > 200) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid pagination or search query");
+        }
+        return manualCreationService.findCandidates(query,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "invoiceDate", "invoiceId")));
+    }
+
+    @PostMapping
+    @Operation(summary = "Saisir atomiquement une ecriture pour une facture fournisseur validee",
+            description = "Facture et journal actifs dans l'organisation, entete et lignes obligatoires. "
+                    + "Une proposition desequilibree reste enregistrable mais non exportable. "
+                    + "409 si une originale existe deja, avec accountingEntryId et entryUrl autorises.")
+    public ResponseEntity<AccountingEntryReadResponse> createEntry(@RequestBody AccountingEntryCreationRequest request) {
+        AccountingEntryReadResponse response = manualCreationService.create(request);
+        return ResponseEntity.created(java.net.URI.create("/api/v1/accounting-entries/" + response.entry().getAccountingEntryId()))
+                .body(response);
     }
 
     @GetMapping("/{id}")
@@ -88,9 +139,26 @@ public class AccountingEntryController {
     public ResponseEntity<AccountingEntryResponse> correctLine(
             @PathVariable Long entryId,
             @PathVariable Long lineId,
-            @RequestBody AccountingEntryLineCorrectionRequest request
+            @RequestBody AccountingEntryLineCorrectionRequest request,
+            @RequestHeader(value = "If-Match", required = false) String ifMatch,
+            @RequestHeader(value = "Idempotency-Key", required = false) String key
     ) {
-        return ResponseEntity.ok(accountingEntryCorrectionService.correctLine(entryId, lineId, request));
+        return ResponseEntity.ok(accountingEntryCorrectionService.correctLine(entryId, lineId, request, ifMatch, key));
+    }
+
+    @PostMapping("/{entryId}/lines")
+    @Operation(summary = "Ajouter une ligne comptable avec version et cle d'idempotence")
+    public ResponseEntity<AccountingEntryResponse> addLine(@PathVariable Long entryId,
+            @RequestBody AccountingEntryLineCorrectionRequest request,
+            @RequestHeader("If-Match") String ifMatch, @RequestHeader("Idempotency-Key") String key) {
+        return ResponseEntity.status(201).body(accountingEntryCorrectionService.addLine(entryId, request, ifMatch, key));
+    }
+
+    @DeleteMapping("/{entryId}/lines/{lineId}")
+    @Operation(summary = "Retirer une ligne comptable non exportee avec version et cle d'idempotence")
+    public ResponseEntity<AccountingEntryResponse> removeLine(@PathVariable Long entryId, @PathVariable Long lineId,
+            @RequestHeader("If-Match") String ifMatch, @RequestHeader("Idempotency-Key") String key) {
+        return ResponseEntity.ok(accountingEntryCorrectionService.removeLine(entryId, lineId, ifMatch, key));
     }
 
     @PostMapping("/{entryId}/reversal")

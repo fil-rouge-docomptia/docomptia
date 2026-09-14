@@ -84,13 +84,12 @@ class PendingValidationInvoiceControllerIntegrationTest {
     }
 
     @Test
-    void requiresTheInvoiceValidationPermission() throws Exception {
+    void administratorCanAccessPendingValidationInvoices() throws Exception {
         User admin = userRepository.findByEmailIgnoreCase("admin@facturation-demo.fr").orElseThrow();
 
         mockMvc.perform(get("/api/v1/invoices/pending-validation")
                         .header("Authorization", "Bearer " + tokenFor(admin)))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+                .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/v1/invoices/pending-validation"))
                 .andExpect(status().isUnauthorized())

@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 import java.time.Duration;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -199,6 +200,10 @@ class SecurityConfigIntegrationTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound());
 
+        mockMvc.perform(patch("/api/v1/invoices/999999/anomalies/999999/resolve")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+
         assertInvoiceValidationRoutesAreForbidden(token);
     }
 
@@ -226,10 +231,10 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void administratorCannotMakeInvoiceValidationDecisions() throws Exception {
+    void administratorCanMakeInvoiceValidationDecisions() throws Exception {
         String token = loginAndGetToken();
 
-        assertInvoiceValidationRoutesAreForbidden(token);
+        assertInvoiceValidationRoutesAreAccessible(token);
     }
 
     @Test
@@ -261,7 +266,28 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void accountingManagerCannotUpdateSuppliers() throws Exception {
+    void onlyAdministratorsCanAdministrativelyDeleteInvoices() throws Exception {
+        mockMvc.perform(delete("/api/v1/invoices/999999")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Created by mistake\"}")
+                        .header("Authorization", "Bearer " + loginAndGetToken()))
+                .andExpect(status().isNotFound());
+
+        for (String email : new String[]{
+                "operator-security@facturation-demo.fr",
+                "manager-security@facturation-demo.fr"
+        }) {
+            assertForbidden(delete("/api/v1/invoices/999999")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"reason\":\"Created by mistake\"}"), tokenFor(email));
+        }
+    }
+
+    @Test
+    void accountingManagerCannotCreateOrUpdateSuppliers() throws Exception {
+        assertForbidden(post("/api/v1/suppliers")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"), tokenFor("manager-security@facturation-demo.fr"));
         assertForbidden(patch("/api/v1/suppliers/1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"), tokenFor("manager-security@facturation-demo.fr"));
@@ -437,6 +463,7 @@ class SecurityConfigIntegrationTest {
         assertForbidden(post("/api/v1/invoices/999999/submit-for-validation"), token);
         assertForbidden(post("/api/v1/invoices/999999/duplicate-alerts/999999/decision")
                 .contentType(MediaType.APPLICATION_JSON).content("{}"), token);
+        assertForbidden(patch("/api/v1/invoices/999999/anomalies/999999/resolve"), token);
         assertForbidden(patch("/api/v1/invoices/999999")
                 .contentType(MediaType.APPLICATION_JSON).content("{}"), token);
     }
@@ -447,6 +474,22 @@ class SecurityConfigIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON).content("{}"), token);
         assertForbidden(post("/api/v1/invoices/999999/reject")
                 .contentType(MediaType.APPLICATION_JSON).content("{}"), token);
+    }
+
+    private void assertInvoiceValidationRoutesAreAccessible(String token) throws Exception {
+        mockMvc.perform(post("/api/v1/invoices/999999/validate")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/v1/invoices/999999/request-correction")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"The amount must be checked\"}")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/v1/invoices/999999/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"The invoice is invalid\"}")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
     }
 
     private void assertForbidden(

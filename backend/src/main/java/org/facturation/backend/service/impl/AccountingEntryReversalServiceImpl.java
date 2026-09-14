@@ -124,6 +124,9 @@ public class AccountingEntryReversalServiceImpl implements AccountingEntryRevers
         AccountingEntryLine reversalLine = new AccountingEntryLine();
         reversalLine.setAccountingEntry(reversal);
         reversalLine.setAccount(originalLine.getAccount());
+        reversalLine.setSupplierAccount(originalLine.getSupplierAccount());
+        reversalLine.setVatRate(originalLine.getVatRate());
+        reversalLine.setClassification(originalLine.getClassification());
         reversalLine.setLineNumber(originalLine.getLineNumber());
         reversalLine.setLineLabel(originalLine.getLineLabel());
         reversalLine.setDebitAmount(originalLine.getCreditAmount());

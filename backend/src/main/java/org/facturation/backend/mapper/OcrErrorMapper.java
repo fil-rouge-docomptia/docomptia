@@ -11,6 +11,7 @@ public class OcrErrorMapper {
         OcrErrorResponse response = new OcrErrorResponse();
         response.setCode(error.getErrorCode());
         response.setMessage(error.getErrorMessage());
+        response.setStep(error.getErrorStep());
         response.setOccurredAt(error.getOccurredAt().toString());
         return response;
     }

@@ -40,8 +40,8 @@ export async function register(details: RegistrationDetails): Promise<Registrati
   return (await response.json()) as RegistrationResponse
 }
 
-export async function getCurrentUser(): Promise<CurrentUser> {
-  const response = await authenticatedFetch(`${apiBaseUrl}/v1/users/me`)
+export async function getCurrentUser(signal?: AbortSignal): Promise<CurrentUser> {
+  const response = await authenticatedFetch(`${apiBaseUrl}/v1/users/me`, { signal })
 
   return (await response.json()) as CurrentUser
 }

@@ -1,6 +1,7 @@
 package org.facturation.backend.service.impl;
 
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
+import org.facturation.backend.dto.request.SupplierCreateRequest;
 import org.facturation.backend.dto.response.OcrFieldResponse;
 import org.facturation.backend.dto.request.SupplierUpdateRequest;
 import org.facturation.backend.dto.request.SupplierLegalIdentifierReplacementRequest;
@@ -12,7 +13,9 @@ import org.facturation.backend.exception.InvalidSupplierException;
 import org.facturation.backend.mapper.SupplierResponseMapper;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.Organization;
+import org.facturation.backend.model.ProcessingAnomalyCode;
 import org.facturation.backend.model.Supplier;
+import org.facturation.backend.model.User;
 import org.facturation.backend.repository.SupplierRepository;
 import org.facturation.backend.repository.SupplierLegalIdentifierRepository;
 import org.facturation.backend.model.SupplierLegalIdentifier;
@@ -20,6 +23,7 @@ import org.facturation.backend.model.SupplierLegalIdentifierSource;
 import org.facturation.backend.model.SupplierLegalIdentifierType;
 import org.facturation.backend.service.CurrentUserService;
 import org.facturation.backend.service.FrenchLegalIdentifierValidator;
+import org.facturation.backend.service.OcrSupplierResolution;
 import org.facturation.backend.service.SupplierService;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -30,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -105,6 +110,46 @@ public class SupplierServiceImpl implements SupplierService {
         return supplierRepository.findBySupplierIdAndOrganizationOrganizationId(id, organizationId)
                 .map(supplierResponseMapper::toDetailsResponse)
                 .orElseThrow(() -> new SupplierNotFoundException(id));
+    }
+
+    @Override
+    @Transactional
+    public SupplierDetailsResponse create(SupplierCreateRequest request) {
+        if (request == null) {
+            throw new InvalidSupplierException("Supplier details are required");
+        }
+
+        String siret = normalizeSiret(request.getSiret());
+        String vatNumber = normalizeVatNumber(request.getVatNumber());
+        validateLegalIdentifierValues(siret, vatNumber, "vatNumber");
+
+        User currentUser = currentUserService.getCurrentUser();
+        Supplier supplier = new Supplier();
+        supplier.setOrganization(currentUser.getOrganization());
+        supplier.setName(requireNotBlank(request.getName(), "name"));
+        supplier.setLegalName(requireNotBlank(request.getLegalName(), "legalName"));
+        supplier.setSiret(siret);
+        supplier.setVatNumber(vatNumber);
+        supplier.setEmail(toNullableValue(request.getEmail()));
+        supplier.setPhone(toNullableValue(request.getPhone()));
+        supplier.setAddress(toNullableValue(request.getAddress()));
+        supplier.setCountryCode(siret != null ? "FR" : vatNumber == null ? null : extractVatCountryCode(vatNumber));
+        LocalDateTime now = LocalDateTime.now();
+        supplier.setCreatedAt(now);
+        supplier.setUpdatedAt(now);
+
+        Supplier savedSupplier = saveWithSiretConflictTranslation(supplier);
+        if (siret != null) {
+            createIdentifier(savedSupplier, SupplierLegalIdentifierType.ESTABLISHMENT, "FR_SIRET", "FR", siret,
+                    SupplierLegalIdentifierSource.MANUAL, true);
+            createIdentifier(savedSupplier, SupplierLegalIdentifierType.BUSINESS_REGISTRATION, "FR_SIREN", "FR",
+                    siret.substring(0, 9), SupplierLegalIdentifierSource.MANUAL, true);
+        }
+        if (vatNumber != null) {
+            createIdentifier(savedSupplier, SupplierLegalIdentifierType.VAT, "EU_VAT",
+                    extractVatCountryCode(vatNumber), vatNumber, SupplierLegalIdentifierSource.MANUAL, true);
+        }
+        return supplierResponseMapper.toDetailsResponse(savedSupplier);
     }
 
     @Override
@@ -231,39 +276,59 @@ public class SupplierServiceImpl implements SupplierService {
 
     @Override
     @Transactional
-    public Supplier resolveForInvoiceUpload(Long supplierId, Organization organization, OcrAnalysisResponse ocrAnalysis) {
-        if (supplierId != null) {
-            return findRequiredByIdForOrganization(supplierId, organization);
+    public Supplier resolveForInvoiceUpload(
+            Long supplierId,
+            Organization organization,
+            OcrAnalysisResponse ocrAnalysis
+    ) {
+        Supplier selectedSupplier = supplierId == null
+                ? null
+                : findRequiredByIdForOrganization(supplierId, organization);
+        return resolveForInvoiceUploadWithWarnings(selectedSupplier, organization, ocrAnalysis).supplier();
+    }
+
+    @Override
+    @Transactional
+    public OcrSupplierResolution resolveForInvoiceUploadWithWarnings(
+            Supplier selectedSupplier,
+            Organization organization,
+            OcrAnalysisResponse ocrAnalysis
+    ) {
+        OcrLegalIdentifiers identifiers = extractTrustedOcrLegalIdentifiers(ocrAnalysis);
+        if (selectedSupplier != null) {
+            return new OcrSupplierResolution(selectedSupplier, identifiers.anomalies());
         }
 
-        Optional<String> siret = extractOptionalNormalizedValue(ocrAnalysis, "siret").map(this::normalizeSiret);
-        Optional<String> vatNumber = extractOptionalNormalizedValue(ocrAnalysis, "vatNumber")
-                .map(this::normalizeVatNumber);
-        validateLegalIdentifierValues(siret.orElse(null), vatNumber.orElse(null), "vatNumber");
         Optional<Supplier> supplierByLegalIdentifier = findByLegalIdentifiers(
                 organization,
-                siret.orElse(null),
-                vatNumber.orElse(null)
+                identifiers.siret(),
+                identifiers.vatNumber()
         );
         if (supplierByLegalIdentifier.isPresent()) {
-            return updateSupplierFromOcrIfNeeded(supplierByLegalIdentifier.get(), ocrAnalysis);
+            Supplier supplier = updateSupplierFromOcrIfNeeded(
+                    supplierByLegalIdentifier.get(),
+                    identifiers.siret(),
+                    identifiers.vatNumber()
+            );
+            return new OcrSupplierResolution(supplier, identifiers.anomalies());
         }
 
         Optional<String> supplierName = extractOptionalNormalizedValue(ocrAnalysis, "supplierName");
         if (supplierName.isEmpty()) {
-            return null;
+            return new OcrSupplierResolution(null, identifiers.anomalies());
         }
 
-        if (siret.isEmpty() && vatNumber.isEmpty()) {
-            return null;
+        if (identifiers.siret() == null && identifiers.vatNumber() == null) {
+            return new OcrSupplierResolution(null, identifiers.anomalies());
         }
 
-        return createSupplierToVerify(
+        Supplier supplier = createSupplierToVerify(
                 organization,
                 supplierName.get(),
-                siret.orElse(null),
-                vatNumber.orElse(null)
+                identifiers.siret(),
+                identifiers.vatNumber()
         );
+        return new OcrSupplierResolution(supplier, identifiers.anomalies());
     }
 
     private Supplier createSupplierToVerify(
@@ -295,20 +360,20 @@ public class SupplierServiceImpl implements SupplierService {
         return saved;
     }
 
-    private Supplier updateSupplierFromOcrIfNeeded(Supplier supplier, OcrAnalysisResponse ocrAnalysis) {
-        Optional<String> extractedSiret = extractOptionalNormalizedValue(ocrAnalysis, "siret")
-                .map(this::normalizeSiret);
-        Optional<String> extractedVatNumber = extractOptionalNormalizedValue(ocrAnalysis, "vatNumber")
-                .map(this::normalizeVatNumber);
-        boolean updateSiret = isBlank(supplier.getSiret()) && extractedSiret.isPresent();
-        boolean updateVatNumber = isBlank(supplier.getVatNumber()) && extractedVatNumber.isPresent();
+    private Supplier updateSupplierFromOcrIfNeeded(
+            Supplier supplier,
+            String extractedSiret,
+            String extractedVatNumber
+    ) {
+        boolean updateSiret = isBlank(supplier.getSiret()) && extractedSiret != null;
+        boolean updateVatNumber = isBlank(supplier.getVatNumber()) && extractedVatNumber != null;
         if (!updateSiret && !updateVatNumber) {
             return supplier;
         }
 
-        String siret = updateSiret ? extractedSiret.get() : supplier.getSiret();
-        String vatNumber = updateVatNumber ? extractedVatNumber.get() : supplier.getVatNumber();
-        String inconsistentField = extractedVatNumber.isPresent() ? "vatNumber" : "siret";
+        String siret = updateSiret ? extractedSiret : supplier.getSiret();
+        String vatNumber = updateVatNumber ? extractedVatNumber : supplier.getVatNumber();
+        String inconsistentField = extractedVatNumber != null ? "vatNumber" : "siret";
         validateLegalIdentifierValues(siret, vatNumber, inconsistentField);
 
         supplier.setSiret(siret);
@@ -363,6 +428,44 @@ public class SupplierServiceImpl implements SupplierService {
                 .map(OcrFieldResponse::getNormalizedValue)
                 .filter(value -> value != null && !value.isBlank())
                 .findFirst();
+    }
+
+    private OcrLegalIdentifiers extractTrustedOcrLegalIdentifiers(OcrAnalysisResponse ocrAnalysis) {
+        String extractedSiret = extractOptionalNormalizedValue(ocrAnalysis, "siret")
+                .map(this::normalizeIdentifierToNullableValue)
+                .orElse(null);
+        String extractedVatNumber = extractOptionalNormalizedValue(ocrAnalysis, "vatNumber")
+                .map(this::normalizeIdentifierToNullableValue)
+                .orElse(null);
+        List<ProcessingAnomalyCode> anomalies = new ArrayList<>();
+
+        String trustedSiret = extractedSiret;
+        if (trustedSiret != null && !legalIdentifierValidator.isValidSiret(trustedSiret)) {
+            trustedSiret = null;
+            anomalies.add(ProcessingAnomalyCode.INVALID_SIRET);
+        }
+
+        String trustedVatNumber = extractedVatNumber;
+        if (trustedVatNumber != null && !isValidOcrVatNumber(trustedVatNumber)) {
+            trustedVatNumber = null;
+            anomalies.add(ProcessingAnomalyCode.INVALID_VAT);
+        }
+
+        if (trustedSiret != null && trustedVatNumber != null
+                && isFrenchVatNumber(trustedVatNumber)
+                && !legalIdentifierValidator.referToSameCompany(trustedSiret, trustedVatNumber)) {
+            trustedVatNumber = null;
+            anomalies.add(ProcessingAnomalyCode.INVALID_VAT);
+        }
+
+        return new OcrLegalIdentifiers(trustedSiret, trustedVatNumber, anomalies);
+    }
+
+    private boolean isValidOcrVatNumber(String vatNumber) {
+        if (vatNumber.length() < 3 || !vatNumber.substring(0, 2).chars().allMatch(Character::isLetter)) {
+            return false;
+        }
+        return !isFrenchVatNumber(vatNumber) || legalIdentifierValidator.isValidVatNumber(vatNumber);
     }
 
     private boolean applyUpdates(Supplier supplier, SupplierUpdateRequest request) {
@@ -519,6 +622,9 @@ public class SupplierServiceImpl implements SupplierService {
         identifier.setNormalizedValue(normalizedValue);
         identifier.setSource(source);
         identifier.setVerified(verified);
+        if (source == SupplierLegalIdentifierSource.MANUAL) {
+            identifier.setCreatedByUser(currentUserService.getCurrentUser());
+        }
         identifier.setCreatedAt(LocalDateTime.now());
         identifier.setUpdatedAt(LocalDateTime.now());
         return identifierRepository.save(identifier);
@@ -645,5 +751,12 @@ public class SupplierServiceImpl implements SupplierService {
 
     private Long findCurrentOrganizationId() {
         return currentUserService.getCurrentUser().getOrganization().getOrganizationId();
+    }
+
+    private record OcrLegalIdentifiers(
+            String siret,
+            String vatNumber,
+            List<ProcessingAnomalyCode> anomalies
+    ) {
     }
 }

@@ -1,6 +1,7 @@
 package org.facturation.backend.service;
 
 import org.facturation.backend.dto.response.AccountingEntryResponse;
+import org.facturation.backend.dto.response.AccountingEntryDiagnosticResponse;
 import org.facturation.backend.dto.response.AccountingExportControlErrorResponse;
 import org.facturation.backend.dto.response.InvoiceExportErrorResponse;
 import org.facturation.backend.exception.AccountingExportValidationException;
@@ -10,6 +11,7 @@ import org.facturation.backend.model.AccountingEntryLine;
 import org.facturation.backend.model.ChartOfAccount;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceStatusCode;
+import org.facturation.backend.model.SupplierAccount;
 import org.facturation.backend.repository.AccountingEntryLineRepository;
 import org.facturation.backend.repository.AccountingEntryRepository;
 import org.springframework.stereotype.Service;
@@ -30,17 +32,20 @@ public class AccountingExportValidator {
     private final AccountingEntryLineRepository accountingEntryLineRepository;
     private final AccountingEntryMapper accountingEntryMapper;
     private final FrenchLegalIdentifierValidator frenchLegalIdentifierValidator;
+    private final InvoiceAmountConsistencyService invoiceAmountConsistencyService;
 
     public AccountingExportValidator(
             AccountingEntryRepository accountingEntryRepository,
             AccountingEntryLineRepository accountingEntryLineRepository,
             AccountingEntryMapper accountingEntryMapper,
-            FrenchLegalIdentifierValidator frenchLegalIdentifierValidator
+            FrenchLegalIdentifierValidator frenchLegalIdentifierValidator,
+            InvoiceAmountConsistencyService invoiceAmountConsistencyService
     ) {
         this.accountingEntryRepository = accountingEntryRepository;
         this.accountingEntryLineRepository = accountingEntryLineRepository;
         this.accountingEntryMapper = accountingEntryMapper;
         this.frenchLegalIdentifierValidator = frenchLegalIdentifierValidator;
+        this.invoiceAmountConsistencyService = invoiceAmountConsistencyService;
     }
 
     public List<ValidatedEntry> validate(List<Invoice> invoices) {
@@ -49,6 +54,29 @@ public class AccountingExportValidator {
 
     public List<ValidatedEntry> validateForFec(List<Invoice> invoices) {
         return validate(invoices, true);
+    }
+
+    public List<AccountingEntryDiagnosticResponse> inspectEntry(
+            AccountingEntry entry, List<AccountingEntryLine> lines) {
+        List<AccountingEntryDiagnosticResponse> diagnostics = new ArrayList<>();
+        List<AccountingExportControlErrorResponse> errors = new ArrayList<>();
+        validateVat(entry.getInvoice(), errors);
+        validateBalance(entry, lines, errors);
+        if (lines.isEmpty()) {
+            validateAccounts(entry.getInvoice(), lines, errors);
+        }
+        for (AccountingExportControlErrorResponse error : errors) {
+            diagnostics.add(new AccountingEntryDiagnosticResponse(error.code(), error.message(), true, null));
+        }
+        for (AccountingEntryLine line : lines) {
+            errors.clear();
+            validateAccounts(entry.getInvoice(), List.of(line), errors);
+            for (AccountingExportControlErrorResponse error : errors) {
+                diagnostics.add(new AccountingEntryDiagnosticResponse(
+                        error.code(), error.message(), true, line.getAccountingEntryLineId()));
+            }
+        }
+        return diagnostics;
     }
 
     private List<ValidatedEntry> validate(List<Invoice> invoices, boolean fec) {
@@ -136,6 +164,11 @@ public class AccountingExportValidator {
                         + " has no account label");
             }
             validateFecText(account == null ? null : account.getAccountLabel(), "account label", errors);
+            SupplierAccount supplierAccount = line.getSupplierAccount();
+            if (supplierAccount != null) {
+                validateFecText(supplierAccount.getCode(), "supplier account code", errors);
+                validateFecText(supplierAccount.getLabel(), "supplier account label", errors);
+            }
             validateFecAmounts(line, errors);
         }
     }
@@ -175,9 +208,12 @@ public class AccountingExportValidator {
         BigDecimal totalTva = normalize(invoice.getTotalTva());
         BigDecimal totalTtc = normalize(invoice.getTotalTtc());
         if (totalHt == null || totalTva == null || totalTtc == null
-                || totalHt.signum() < 0 || totalTva.signum() < 0 || totalTtc.signum() <= 0
-                || totalHt.add(totalTva).compareTo(totalTtc) != 0) {
-            addError(errors, "VAT_INCONSISTENT", "The invoice VAT totals are inconsistent");
+                || totalHt.signum() < 0 || totalTva.signum() < 0 || totalTtc.signum() <= 0) {
+            addError(errors, "VAT_INCONSISTENT", "HT, TVA and TTC must all be present and valid");
+        } else if (!invoiceAmountConsistencyService.isConsistent(invoice)) {
+            BigDecimal expectedTtc = invoiceAmountConsistencyService.expectedTtc(invoice);
+            addError(errors, "VAT_INCONSISTENT", "HT + TVA = " + expectedTtc + ", but TTC = " + totalTtc
+                    + " (accepted tolerance " + InvoiceAmountConsistencyService.ROUNDING_TOLERANCE + ")");
         }
     }
 
@@ -204,6 +240,59 @@ public class AccountingExportValidator {
                         "Account " + account.getAccountNumber() + " does not belong to the invoice organization"
                 );
             }
+            validateSupplierAccount(invoice, line, errors);
+            validateLineMetadata(invoice, line, errors);
+        }
+    }
+
+    private void validateLineMetadata(Invoice invoice, AccountingEntryLine line,
+            List<AccountingExportControlErrorResponse> errors) {
+        BigDecimal debit = line.getDebitAmount();
+        BigDecimal credit = line.getCreditAmount();
+        if (debit == null || credit == null || debit.signum() < 0 || credit.signum() < 0
+                || debit.signum() > 0 && credit.signum() > 0) {
+            addError(errors, "ACCOUNTING_LINE_AMOUNTS_INVALID", "A line requires non-negative amounts with only one positive side");
+        } else if (debit.signum() == 0 && credit.signum() == 0) {
+            addError(errors, "ACCOUNTING_LINE_AMOUNT_MISSING", "A draft line with zero debit and credit must be completed or removed");
+        }
+        if (line.getVatRate() != null && (line.getVatRate().signum() < 0
+                || line.getVatRate().compareTo(new BigDecimal("100")) > 0)) {
+            addError(errors, "ACCOUNTING_LINE_VAT_INVALID", "The explicitly recorded VAT rate must be between 0 and 100");
+        }
+        var classification = line.getClassification();
+        if (classification != null && (!classification.isActive() || !classification.getOrganization().getOrganizationId()
+                .equals(invoice.getOrganization().getOrganizationId()))) {
+            addError(errors, "ACCOUNTING_LINE_CLASSIFICATION_INVALID", "The classification must be active and belong to the organization");
+        }
+    }
+
+    private void validateSupplierAccount(
+            Invoice invoice,
+            AccountingEntryLine line,
+            List<AccountingExportControlErrorResponse> errors
+    ) {
+        SupplierAccount supplierAccount = line.getSupplierAccount();
+        if (supplierAccount == null) {
+            return;
+        }
+        if (!supplierAccount.isActive()) {
+            addError(errors, "SUPPLIER_ACCOUNT_INACTIVE",
+                    "Supplier account " + supplierAccount.getCode() + " is inactive");
+        } else if (!hasText(supplierAccount.getCode()) || !hasText(supplierAccount.getLabel())) {
+            addError(errors, "SUPPLIER_ACCOUNT_MISSING",
+                    "Accounting line " + line.getLineNumber() + " has an incomplete supplier account");
+        } else if (!invoice.getOrganization().getOrganizationId()
+                .equals(supplierAccount.getOrganization().getOrganizationId())) {
+            addError(errors, "SUPPLIER_ACCOUNT_OUTSIDE_ORGANIZATION",
+                    "Supplier account " + supplierAccount.getCode() + " does not belong to the invoice organization");
+        } else if (invoice.getSupplier() == null || supplierAccount.getSupplier() == null
+                || !invoice.getSupplier().getSupplierId().equals(supplierAccount.getSupplier().getSupplierId())) {
+            addError(errors, "SUPPLIER_ACCOUNT_MISMATCH",
+                    "Supplier account " + supplierAccount.getCode() + " does not belong to the invoice supplier");
+        } else if (line.getAccount() == null || !line.getAccount().getAccountId()
+                .equals(supplierAccount.getCollectiveAccount().getAccountId())) {
+            addError(errors, "SUPPLIER_COLLECTIVE_ACCOUNT_MISMATCH",
+                    "Supplier account " + supplierAccount.getCode() + " does not match the accounting line account");
         }
     }
 

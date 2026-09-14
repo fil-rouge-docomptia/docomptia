@@ -29,6 +29,10 @@ public class AccountingEntryLine {
     @JoinColumn(name = "account_id", nullable = false)
     private ChartOfAccount account;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "supplier_account_id")
+    private SupplierAccount supplierAccount;
+
     @Column(nullable = false)
     private Integer lineNumber;
 
@@ -41,6 +45,19 @@ public class AccountingEntryLine {
     private BigDecimal creditAmount;
 
     private LocalDateTime createdAt;
+
+    @Column(precision = 5, scale = 2)
+    private BigDecimal vatRate;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "classification_id")
+    private Classification classification;
+
+    public BigDecimal getVatRate() { return vatRate; }
+    public void setVatRate(BigDecimal vatRate) { this.vatRate = vatRate; }
+    public Classification getClassification() { return classification; }
+    public void setClassification(Classification classification) { this.classification = classification; }
+
 
     public Long getAccountingEntryLineId() {
         return accountingEntryLineId;
@@ -64,6 +81,14 @@ public class AccountingEntryLine {
 
     public void setAccount(ChartOfAccount account) {
         this.account = account;
+    }
+
+    public SupplierAccount getSupplierAccount() {
+        return supplierAccount;
+    }
+
+    public void setSupplierAccount(SupplierAccount supplierAccount) {
+        this.supplierAccount = supplierAccount;
     }
 
     public Integer getLineNumber() {

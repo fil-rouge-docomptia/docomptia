@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
 
 import type { ChartOfAccount } from '../src/types/onboarding'
@@ -235,3 +236,41 @@ for (const [role, width] of [['ADMIN', 1440], ['ADMIN', 768], ['ADMIN', 390], ['
     }
   })
 }
+
+test('KAN-405 exports all filtered API pages with safe CSV cells and current sorting', async ({ page }) => {
+  const loaded = Array.from({ length: 101 }, (_, index) => ({ ...accounts[0], accountId: index + 1, accountNumber: String(400000 + index), accountLabel: index === 100 ? ' =SUM(1,2) "quoted"\ntext' : `Supplier ${index}` }))
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => { release = resolve })
+  const calls: number[] = []
+  await mockApiRoute(page, '/v1/chart-of-accounts?*', async (route) => {
+    const number = Number(new URL(route.request().url()).searchParams.get('page'))
+    calls.push(number)
+    if (number === 1) await gate
+    await fulfillJson(route, 200, { content: number === 0 ? loaded.slice(0, 100) : loaded.slice(100), number, size: 100, totalElements: 101, totalPages: 2 })
+  })
+  await page.goto('/accounting/accounts?query=400&direction=desc')
+  await expect(page.getByRole('button', { name: 'Export CSV', exact: true })).toBeDisabled()
+  release()
+  await expect(page.getByText('CSV export includes all 101 matching accounts across every page, in the current sort order.')).toBeVisible()
+  const downloading = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Export CSV', exact: true }).click()
+  const download = await downloading
+  expect(download.suggestedFilename()).toMatch(/^chart-of-accounts-\d{4}-\d{2}-\d{2}\.csv$/)
+  const csv = await readFile((await download.path())!, 'utf8')
+  expect(csv.startsWith('\uFEFF"Account number","Label","Type","Active"\r\n')).toBe(true)
+  expect(csv).toContain('"400100","\' =SUM(1,2) ""quoted""\ntext","PASSIF","true"')
+  expect(csv).toContain('"400000","Supplier 0","PASSIF","true"')
+  expect(csv.match(/"PASSIF","true"/g)).toHaveLength(101)
+  expect(csv.indexOf('400100')).toBeLessThan(csv.indexOf('400000'))
+  expect(calls).toEqual([0, 1])
+  await page.getByRole('searchbox').fill('not-found')
+  await expect(page.getByRole('button', { name: 'Export CSV', exact: true })).toBeDisabled()
+})
+
+test('KAN-405 blocks CSV export when a later API page fails', async ({ page }) => {
+  await mockApiRoute(page, '/v1/chart-of-accounts?*', (route) => new URL(route.request().url()).searchParams.get('page') === '0'
+    ? fulfillJson(route, 200, { ...accountPage(), totalPages: 2 }) : fulfillJson(route, 503, {}))
+  await page.goto('/accounting/accounts')
+  await expect(page.getByText('Unable to load chart of accounts', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Export CSV', exact: true })).toBeDisabled()
+})

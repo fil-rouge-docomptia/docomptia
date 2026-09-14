@@ -19,7 +19,6 @@ const validator = {
 }
 
 const nonValidatorRoles = [
-  { code: 'ADMIN', id: 1, label: 'Administrator' },
   { code: 'OPERATEUR_COMPTABLE', id: 2, label: 'Accounting operator' },
 ] as const
 
@@ -217,7 +216,7 @@ for (const role of nonValidatorRoles) {
 
     await page.goto('/approvals/42')
 
-    await expect(page.getByRole('alert')).toContainText('An accounting manager role is required.')
+    await expect(page.getByRole('alert')).toContainText('A validation role is required.')
     await expect(page.getByRole('button', { name: 'Approve invoice' })).toBeDisabled()
     await expect(page.getByRole('button', { name: 'Reject invoice' })).toBeDisabled()
     await expect(page.getByRole('button', { name: 'Request changes' })).toBeDisabled()

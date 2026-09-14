@@ -50,7 +50,7 @@ export function isInvoiceOcrFailureResponse(
   const response = value as Partial<InvoiceOcrFailureResponse>
   return (
     typeof response.invoiceId === 'number' &&
-    response.status === 'ERREUR_OCR' &&
+    (response.status === 'ERREUR_OCR' || response.status === 'ERREUR_TRAITEMENT') &&
     Boolean(response.ocrError)
   )
 }
@@ -332,4 +332,13 @@ export async function requestInvoiceCorrection(
   )
 
   return response.json() as Promise<InvoiceStatusResponse>
+}
+
+export async function generateInvoiceAccountingEntry(invoiceId: number, signal?: AbortSignal): Promise<{
+  invoiceId: number; status: string; accountingEntry: AccountingEntry
+}> {
+  const response = await authenticatedFetch(`${apiBaseUrl}/v1/invoices/${invoiceId}/accounting-entry`, {
+    method: 'POST', signal,
+  })
+  return response.json()
 }

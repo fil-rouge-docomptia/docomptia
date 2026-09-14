@@ -1,322 +1,97 @@
-import { useEffect, useId, useState } from 'react'
-import { LoaderCircle } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-
-import { SearchableCombobox } from '@/components/onboarding/SearchableCombobox'
-import type { ComboboxOption } from '@/components/onboarding/SearchableCombobox'
+import { LoaderCircle } from 'lucide-react'
+import { AccountingLineFields } from '@/components/accounting/AccountingLineFields'
+import { lineDraft, lineDraftError, linePayload } from '@/components/accounting/accounting-line-draft'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { useAccountingReferences } from '@/hooks/use-accounting-references'
 import { ApiError } from '@/services/api'
-import { correctAccountingEntryLine } from '@/services/invoice'
-import { getChartOfAccounts } from '@/services/onboarding'
-import type {
-  AccountingEntry,
-  AccountingEntryLine,
-  AccountingEntryLineCorrectionRequest,
-} from '@/types/invoice'
-import type { ChartOfAccount } from '@/types/onboarding'
+import { mutateAccountingLine } from '@/services/accounting'
+import type { AccountingEntry, AccountingEntryLine } from '@/types/invoice'
 
-type LineDraft = {
-  accountId: string
-  creditAmount: string
-  debitAmount: string
-  lineLabel: string
-}
-
-type AccountingEntryLineEditorProps = {
-  entryId: number
-  line: AccountingEntryLine
-  onCancel: () => void
-  onEntryUpdated: (entry: AccountingEntry) => void
-}
-
-const amountPattern = /^\d{1,10}(?:\.\d{1,2})?$/
-
-function amountsMatch(first: string, second: string) {
-  return Number(first) === Number(second)
-}
-
-function getDraft(line: AccountingEntryLine): LineDraft {
-  return {
-    accountId: '',
-    creditAmount: line.creditAmount,
-    debitAmount: line.debitAmount,
-    lineLabel: line.lineLabel,
-  }
-}
-
-function getDraftError(draft: LineDraft) {
-  if (!draft.lineLabel.trim()) {
-    return 'The line label is required.'
-  }
-
-  if (!amountPattern.test(draft.debitAmount.trim())) {
-    return 'Debit must be a non-negative amount with up to 10 digits and 2 decimals.'
-  }
-
-  if (!amountPattern.test(draft.creditAmount.trim())) {
-    return 'Credit must be a non-negative amount with up to 10 digits and 2 decimals.'
-  }
-
-  return null
-}
-
-function getCorrection(
-  accounts: ChartOfAccount[],
-  draft: LineDraft,
-  line: AccountingEntryLine,
-): AccountingEntryLineCorrectionRequest {
-  const correction: AccountingEntryLineCorrectionRequest = {}
-  const selectedAccount = accounts.find(
-    (account) => String(account.accountId) === draft.accountId,
-  )
-  const lineLabel = draft.lineLabel.trim()
-  const debitAmount = draft.debitAmount.trim()
-  const creditAmount = draft.creditAmount.trim()
-
-  if (selectedAccount && selectedAccount.accountNumber !== line.accountNumber) {
-    correction.accountId = selectedAccount.accountId
-  }
-  if (lineLabel !== line.lineLabel) {
-    correction.lineLabel = lineLabel
-  }
-  if (!amountsMatch(debitAmount, line.debitAmount)) {
-    correction.debitAmount = debitAmount
-  }
-  if (!amountsMatch(creditAmount, line.creditAmount)) {
-    correction.creditAmount = creditAmount
-  }
-
-  return correction
-}
-
-function getCorrectionErrorMessage(error: unknown) {
-  if (!(error instanceof ApiError)) {
-    return 'Your changes are still available. Please try again.'
-  }
-
-  if (error.status === 409) {
-    return error.message || 'This accounting entry can no longer be modified.'
-  }
-
-  if (error.status === 400) {
-    return error.message || 'Check the line values and try again.'
-  }
-
-  if (error.status === 404) {
-    return 'This accounting line no longer exists. Reload the invoice and try again.'
-  }
-
-  if (error.status === 403) {
-    return 'You do not have permission to correct accounting entries.'
-  }
-
-  return 'Your changes are still available. Please try again.'
-}
-
-export function AccountingEntryLineEditor({
-  entryId,
-  line,
-  onCancel,
-  onEntryUpdated,
-}: AccountingEntryLineEditorProps) {
-  const accountInputId = useId()
-  const [accounts, setAccounts] = useState<ChartOfAccount[]>([])
-  const [accountsError, setAccountsError] = useState(false)
-  const [accountsLoading, setAccountsLoading] = useState(true)
-  const [accountsRetryCount, setAccountsRetryCount] = useState(0)
-  const [draft, setDraft] = useState(() => getDraft(line))
-  const [saveState, setSaveState] = useState<{
-    message: string
-    status: 'idle' | 'saving' | 'error'
-  }>({ message: '', status: 'idle' })
-
+export function AccountingEntryLineEditor({ entryId, version, line, onCancel, onEntryUpdated, onReload, onCloseGuardChange }: {
+  onCloseGuardChange?: (guard: (() => boolean) | null) => void
+  entryId: number; version?: number; line?: AccountingEntryLine
+  onCancel: () => void; onEntryUpdated: (entry: AccountingEntry) => Promise<void>; onReload: () => Promise<void>
+}) {
+  const references = useAccountingReferences()
+  const [draft, setDraft] = useState(() => lineDraft(line))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<unknown>(null)
+  const request = useRef<AbortController | null>(null)
+  const retry = useRef<{ payload: string; key: string } | null>(null)
+  const effectiveDraft = { ...draft, accountId: draft.accountId || String(references.accounts.find((account) => account.accountNumber === line?.accountNumber)?.accountId ?? '') }
+  const validation = lineDraftError(effectiveDraft)
+  const dirty = JSON.stringify(draft) !== JSON.stringify(lineDraft(line))
+  const blocked = error instanceof ApiError && [403, 404, 409].includes(error.status)
+  useEffect(() => () => request.current?.abort(), [])
   useEffect(() => {
-    let active = true
-
-    getChartOfAccounts()
-      .then((chartOfAccounts) => {
-        if (!active) {
-          return
-        }
-
-        const activeAccounts = chartOfAccounts.filter((account) => account.active)
-        const currentAccount = activeAccounts.find(
-          (account) => account.accountNumber === line.accountNumber,
-        )
-        setAccounts(activeAccounts)
-        setDraft((currentDraft) => ({
-          ...currentDraft,
-          accountId: currentDraft.accountId || (
-            currentAccount ? String(currentAccount.accountId) : ''
-          ),
-        }))
-      })
-      .catch(() => {
-        if (active) {
-          setAccountsError(true)
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setAccountsLoading(false)
-        }
-      })
-
-    return () => {
-      active = false
+    onCloseGuardChange?.(() => !saving && (!dirty || window.confirm('Discard unsaved changes?')))
+    return () => onCloseGuardChange?.(null)
+  }, [dirty, saving, onCloseGuardChange])
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => { if (dirty || saving) event.preventDefault() }
+    const guardNavigation = (event: MouseEvent) => {
+      if (!(event.target instanceof Element) || !event.target.closest('a[href], [role="tab"]')) return
+      if (saving || dirty && !window.confirm('Discard unsaved changes?')) {
+        event.preventDefault()
+        event.stopPropagation()
+      }
     }
-  }, [accountsRetryCount, line.accountNumber])
+    document.addEventListener('click', guardNavigation, true)
+    window.addEventListener('beforeunload', warn)
+    return () => { window.removeEventListener('beforeunload', warn); document.removeEventListener('click', guardNavigation, true) }
+  }, [dirty, saving])
 
-  const accountOptions: ComboboxOption[] = accounts.map((account) => ({
-    label: `${account.accountNumber} — ${account.accountLabel}`,
-    value: String(account.accountId),
-  }))
-  const draftError = getDraftError(draft)
-  const correction = getCorrection(accounts, draft, line)
-  const hasChanges = Object.keys(correction).length > 0
-  const saving = saveState.status === 'saving'
-
-  const updateDraft = (update: Partial<LineDraft>) => {
-    setDraft((currentDraft) => ({ ...currentDraft, ...update }))
-    setSaveState({ message: '', status: 'idle' })
-  }
-
-  const handleSave = async () => {
-    if (draftError || !hasChanges) {
-      setSaveState({
-        message: draftError ?? 'Change at least one field before saving.',
-        status: 'error',
-      })
-      return
-    }
-
-    setSaveState({ message: '', status: 'saving' })
-
+  async function save() {
+    if (request.current || validation || references.loading || references.error || blocked || version === undefined) return
+    const payload = linePayload(effectiveDraft)
+    const original = linePayload({ ...lineDraft(line), accountId: effectiveDraft.accountId })
+    const body = line ? Object.fromEntries(Object.entries(payload).filter(([key, value]) => {
+      if (key === 'accountId') return line.accountId ? value !== line.accountId : !references.accounts.some((account) => account.accountId === value && account.accountNumber === line.accountNumber)
+      const previous = original[key as keyof typeof original]
+      return ['debitAmount', 'creditAmount', 'vatRate'].includes(key) && value !== null && previous !== null
+        ? Number(value) !== Number(previous) : value !== previous
+    })) : payload
+    const fingerprint = JSON.stringify([version, body])
+    if (retry.current?.payload !== fingerprint) retry.current = { payload: fingerprint, key: crypto.randomUUID() }
+    const controller = new AbortController()
+    request.current = controller
+    setSaving(true)
+    setError(null)
     try {
-      const updatedEntry = await correctAccountingEntryLine(
-        entryId,
-        line.accountingEntryLineId,
-        correction,
-      )
-      toast.success('Accounting line saved', {
-        description: `Line ${line.lineNumber} was updated and the balance was recalculated.`,
-      })
-      onEntryUpdated(updatedEntry)
-    } catch (saveError) {
-      setSaveState({ message: getCorrectionErrorMessage(saveError), status: 'error' })
+      const saved = await mutateAccountingLine(entryId, line?.accountingEntryLineId ?? null, line ? 'PATCH' : 'POST', body, version, retry.current.key, controller.signal)
+      if (!controller.signal.aborted) {
+        await onEntryUpdated(saved)
+        toast.success(line ? 'Accounting line saved' : 'Accounting line added', {
+          description: line ? `Line ${line.lineNumber} was updated and the balance was recalculated.` : 'The entry was saved and its checks were recalculated.',
+        })
+      }
+    } catch (error) {
+      if (!controller.signal.aborted) setError(error)
+    } finally {
+      if (!controller.signal.aborted) { setSaving(false); request.current = null }
     }
   }
-
-  return (
-    <>
-      <tr className="border-t border-border bg-info-muted/30 align-top">
-        <td className="px-3 py-3">
-          <SearchableCombobox
-            ariaLabel="Account"
-            disabled={accountsLoading || accountsError || saving}
-            emptyMessage="No active accounts found."
-            id={accountInputId}
-            onValueChange={(accountId) => updateDraft({ accountId })}
-            options={accountOptions}
-            placeholder={accountsLoading ? 'Loading accounts…' : 'Select an account'}
-            searchPlaceholder="Search account number or label…"
-            value={draft.accountId}
-          />
-          {accountsError ? (
-            <div className="mt-2 flex items-center gap-2">
-              <p className="text-xs text-destructive">Unable to load accounts.</p>
-              <Button
-                className="h-auto px-1 py-0 text-xs"
-                onClick={() => {
-                  setAccountsError(false)
-                  setAccountsLoading(true)
-                  setAccountsRetryCount((count) => count + 1)
-                }}
-                type="button"
-                variant="link"
-              >
-                Try again
-              </Button>
-            </div>
-          ) : (
-            <p className="mt-1 text-xs text-muted-foreground">
-              Current: {line.accountNumber} — {line.accountLabel}
-            </p>
-          )}
-        </td>
-        <td className="px-3 py-3">
-          <Input
-            aria-label="Line label"
-            aria-invalid={!draft.lineLabel.trim()}
-            disabled={saving}
-            onChange={(event) => updateDraft({ lineLabel: event.target.value })}
-            value={draft.lineLabel}
-          />
-        </td>
-        <td className="px-3 py-3">
-          <Input
-            aria-label="Debit amount"
-            aria-invalid={!amountPattern.test(draft.debitAmount.trim())}
-            className="text-right tabular-nums"
-            disabled={saving}
-            inputMode="decimal"
-            onChange={(event) => updateDraft({ debitAmount: event.target.value })}
-            value={draft.debitAmount}
-          />
-        </td>
-        <td className="px-3 py-3">
-          <Input
-            aria-label="Credit amount"
-            aria-invalid={!amountPattern.test(draft.creditAmount.trim())}
-            className="text-right tabular-nums"
-            disabled={saving}
-            inputMode="decimal"
-            onChange={(event) => updateDraft({ creditAmount: event.target.value })}
-            value={draft.creditAmount}
-          />
-        </td>
-        <td className="px-3 py-3">
-          <div className="flex justify-end gap-2">
-            <Button
-              disabled={!hasChanges || saving}
-              onClick={() => void handleSave()}
-              size="sm"
-              type="button"
-            >
-              {saving ? (
-                <LoaderCircle aria-hidden="true" className="animate-spin" />
-              ) : null}
-              Save
-            </Button>
-            <Button
-              disabled={saving}
-              onClick={onCancel}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Cancel
-            </Button>
-          </div>
-          {draftError ? (
-            <p className="mt-2 max-w-48 text-right text-xs text-destructive">
-              {draftError}
-            </p>
-          ) : null}
-        </td>
-      </tr>
-      {saveState.status === 'error' ? (
-        <tr className="border-t border-border">
-          <td className="p-3" colSpan={5}>
-            <Alert variant="destructive">
-              <AlertTitle>Unable to save accounting line</AlertTitle>
-              <AlertDescription>{saveState.message}</AlertDescription>
-            </Alert>
-          </td>
-        </tr>
-      ) : null}
-    </>
-  )
+  return <div className="rounded-lg border border-border bg-info-muted/30 p-4">
+    <form aria-label={line ? 'Edit accounting line' : 'Add accounting line'} className="space-y-4" onSubmit={(event) => { event.preventDefault(); void save() }}>
+      <AccountingLineFields draft={effectiveDraft} onChange={setDraft} accounts={references.accounts} classifications={references.classifications} disabled={saving || references.loading || Boolean(references.error) || blocked} />
+      {line ? <p className="text-xs text-muted-foreground">Current: {line.accountNumber} — {line.accountLabel}</p> : null}
+      {references.loading ? <p role="status">Loading accounts and allocations…</p> : null}
+      {references.error ? <div role="alert">Unable to load accounts and allocations. <Button onClick={references.reload} variant="link" type="button">Try again</Button></div> : null}
+      {validation ? <p role="status" className="text-sm text-destructive">{validation}</p> : null}
+      {version === undefined ? <p role="alert">Reload the entry to obtain its current version.</p> : null}
+      {error ? <Alert variant="destructive"><AlertTitle>Unable to save accounting line</AlertTitle>
+        <AlertDescription>{error instanceof ApiError ? error.message : 'Your changes are still available. Please try again.'}
+          {blocked ? <Button onClick={() => { if (!dirty || window.confirm('Discard unsaved changes and reload the entry?')) void onReload() }} variant="outline" type="button">Reload entry</Button> : null}
+        </AlertDescription></Alert> : null}
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button disabled={saving || !dirty || Boolean(validation) || references.loading || Boolean(references.error) || blocked || version === undefined} type="submit">
+          {saving ? <LoaderCircle aria-hidden="true" className="animate-spin" /> : null}Save
+        </Button>
+        <Button disabled={saving} onClick={() => { if (!dirty || window.confirm('Discard unsaved changes?')) onCancel() }} variant="outline" type="button">Cancel</Button>
+      </div>
+    </form>
+  </div>
 }

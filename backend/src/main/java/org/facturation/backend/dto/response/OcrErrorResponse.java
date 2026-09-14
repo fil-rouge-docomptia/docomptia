@@ -4,6 +4,7 @@ public class OcrErrorResponse {
 
     private String code;
     private String message;
+    private String step;
     private String occurredAt;
 
     public String getCode() {
@@ -20,6 +21,14 @@ public class OcrErrorResponse {
 
     public void setMessage(String message) {
         this.message = message;
+    }
+
+    public String getStep() {
+        return step;
+    }
+
+    public void setStep(String step) {
+        this.step = step;
     }
 
     public String getOccurredAt() {

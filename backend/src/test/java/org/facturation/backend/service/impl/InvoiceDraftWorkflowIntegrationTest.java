@@ -6,6 +6,7 @@ import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.exception.OcrClientException;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceFile;
+import org.facturation.backend.model.InvoiceOrigin;
 import org.facturation.backend.model.Notification;
 import org.facturation.backend.model.OcrError;
 import org.facturation.backend.model.OcrErrorCode;
@@ -90,6 +91,7 @@ class InvoiceDraftWorkflowIntegrationTest {
         Invoice draft = invoiceRepository.findAll().stream()
                 .max((first, second) -> first.getInvoiceId().compareTo(second.getInvoiceId()))
                 .orElseThrow();
+        assertEquals(InvoiceOrigin.MANUAL_UPLOAD, draft.getOrigin());
         assertNull(draft.getSupplier());
         assertNull(draft.getInvoiceNumber());
         assertNull(draft.getInvoiceDate());
@@ -124,12 +126,14 @@ class InvoiceDraftWorkflowIntegrationTest {
                 .findFirst()
                 .orElseThrow();
         assertEquals("ERREUR_OCR", draftResponse.getStatus());
+        assertEquals("MANUAL_UPLOAD", draftResponse.getOrigin());
         assertNull(draftResponse.getSupplierName());
         assertNull(draftResponse.getInvoiceNumber());
         assertNull(draftResponse.getInvoiceDate());
         assertNull(draftResponse.getTotalTtc());
 
         InvoiceDetailsResponse draftDetails = invoiceService.findDetailsById(draft.getInvoiceId()).orElseThrow();
+        assertEquals("MANUAL_UPLOAD", draftDetails.getOrigin());
         assertNull(draftDetails.getSupplierName());
         assertNull(draftDetails.getInvoiceNumber());
         assertNull(draftDetails.getInvoiceDate());

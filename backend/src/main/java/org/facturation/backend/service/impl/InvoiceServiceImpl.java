@@ -12,8 +12,12 @@ import org.facturation.backend.dto.response.InvoiceListItemResponse;
 import org.facturation.backend.dto.response.InvoiceStatusResponse;
 import org.facturation.backend.dto.response.InvoiceUploadResponse;
 import org.facturation.backend.dto.response.OcrAnalysisResponse;
+import org.facturation.backend.dto.response.ProcessingAnomalyResponse;
+import org.facturation.backend.exception.InvoiceDeletionNotAllowedException;
 import org.facturation.backend.exception.InvoiceFileNotPreviewableException;
+import org.facturation.backend.exception.InvoiceNotFoundException;
 import org.facturation.backend.exception.InvoiceOcrFailureException;
+import org.facturation.backend.exception.InvoicePostOcrFailureException;
 import org.facturation.backend.exception.InvalidUserException;
 import org.facturation.backend.exception.UnbalancedAccountingEntryException;
 import org.facturation.backend.exception.UserNotFoundException;
@@ -24,10 +28,13 @@ import org.facturation.backend.model.DuplicateAlertDecision;
 import org.facturation.backend.model.Invoice;
 import org.facturation.backend.model.InvoiceFile;
 import org.facturation.backend.model.InvoiceFileFormat;
+import org.facturation.backend.model.InvoiceOrigin;
 import org.facturation.backend.model.InvoiceStatus;
 import org.facturation.backend.model.InvoiceStatusCode;
 import org.facturation.backend.model.OcrError;
+import org.facturation.backend.model.OcrErrorStep;
 import org.facturation.backend.model.Organization;
+import org.facturation.backend.model.ProcessingAnomalyCode;
 import org.facturation.backend.model.Supplier;
 import org.facturation.backend.model.User;
 import org.facturation.backend.repository.InvoiceFileRepository;
@@ -40,11 +47,15 @@ import org.facturation.backend.service.ClassificationService;
 import org.facturation.backend.service.InvoiceDuplicateAlertService;
 import org.facturation.backend.service.InvoiceFileIntegrityService;
 import org.facturation.backend.service.InvoiceFileValidator;
+import org.facturation.backend.service.InvoiceAmountConsistencyService;
 import org.facturation.backend.service.InvoiceOcrService;
+import org.facturation.backend.service.InvoicePostOcrFailureService;
 import org.facturation.backend.service.InvoiceService;
 import org.facturation.backend.service.InvoiceStatusWorkflowService;
 import org.facturation.backend.service.NotificationService;
+import org.facturation.backend.service.OcrSupplierResolution;
 import org.facturation.backend.service.OcrErrorService;
+import org.facturation.backend.service.ProcessingAnomalyService;
 import org.facturation.backend.service.LegalRetentionService;
 import org.facturation.backend.service.SupplierService;
 import org.facturation.backend.service.SubscriptionQuotaService;
@@ -65,6 +76,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -79,6 +91,17 @@ public class InvoiceServiceImpl implements InvoiceService {
     private static final BigDecimal MAX_PERSISTED_AMOUNT = new BigDecimal("9999999999.99");
     private static final int AMOUNT_SCALE = 2;
     private static final String ASSIGNEE_CHANGED_ACTION = "ASSIGNEE_CHANGED";
+    private static final String ADMINISTRATIVELY_DELETED_ACTION = "ADMINISTRATIVELY_DELETED";
+    private static final Set<InvoiceStatusCode> ADMINISTRATIVELY_DELETABLE_STATUSES = EnumSet.of(
+            InvoiceStatusCode.DEPOSEE,
+            InvoiceStatusCode.OCR_EN_COURS,
+            InvoiceStatusCode.ERREUR_OCR,
+            InvoiceStatusCode.ERREUR_TRAITEMENT,
+            InvoiceStatusCode.EXTRAITE,
+            InvoiceStatusCode.A_VERIFIER,
+            InvoiceStatusCode.REJETEE,
+            InvoiceStatusCode.BROUILLON
+    );
     private static final Set<String> KNOWN_STATUS_CODES = Stream.of(InvoiceStatusCode.values())
             .map(InvoiceStatusCode::getCode)
             .collect(Collectors.toUnmodifiableSet());
@@ -107,6 +130,9 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final ClassificationService classificationService;
     private final UserRepository userRepository;
     private final SubscriptionQuotaService subscriptionQuotaService;
+    private final InvoiceAmountConsistencyService invoiceAmountConsistencyService;
+    private final ProcessingAnomalyService processingAnomalyService;
+    private final InvoicePostOcrFailureService invoicePostOcrFailureService;
 
     public InvoiceServiceImpl(
             InvoiceRepository invoiceRepository,
@@ -127,7 +153,10 @@ public class InvoiceServiceImpl implements InvoiceService {
             InvoiceDuplicateAlertService duplicateAlertService,
             ClassificationService classificationService,
             UserRepository userRepository,
-            SubscriptionQuotaService subscriptionQuotaService
+            SubscriptionQuotaService subscriptionQuotaService,
+            InvoiceAmountConsistencyService invoiceAmountConsistencyService,
+            ProcessingAnomalyService processingAnomalyService,
+            InvoicePostOcrFailureService invoicePostOcrFailureService
     ) {
         this.invoiceRepository = invoiceRepository;
         this.accountingEntryService = accountingEntryService;
@@ -148,6 +177,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.classificationService = classificationService;
         this.userRepository = userRepository;
         this.subscriptionQuotaService = subscriptionQuotaService;
+        this.invoiceAmountConsistencyService = invoiceAmountConsistencyService;
+        this.processingAnomalyService = processingAnomalyService;
+        this.invoicePostOcrFailureService = invoicePostOcrFailureService;
     }
 
     @Override
@@ -183,12 +215,15 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoiceStatusWorkflowService.startOcrAnalysis(invoice, user);
 
         OcrAnalysisResponse ocrAnalysis = analyzeInvoice(invoice, user, file);
-        Supplier supplier = selectedSupplier == null
-                ? supplierService.resolveForInvoiceUpload(null, organization, ocrAnalysis)
-                : selectedSupplier;
-        invoice = completeOcrAnalysis(invoice, supplier, user, ocrAnalysis);
+        PostOcrProcessingResult processingResult = processValidOcrResponse(
+                invoice, selectedSupplier, organization, user, ocrAnalysis
+        );
+        invoice = processingResult.invoice();
+        duplicateAlertService.detectDuplicates(invoice);
 
-        return invoiceResponseMapper.toUploadResponse(invoice, ocrAnalysis);
+        InvoiceUploadResponse response = invoiceResponseMapper.toUploadResponse(invoice, ocrAnalysis);
+        response.setWarnings(processingResult.warnings());
+        return response;
     }
 
     @Override
@@ -205,10 +240,10 @@ public class InvoiceServiceImpl implements InvoiceService {
             invoiceStatusWorkflowService.restartOcrAnalysis(invoice, user);
 
             OcrAnalysisResponse ocrAnalysis = analyzeInvoice(invoice, user, file);
-            Supplier supplier = invoice.getSupplier() == null
-                    ? supplierService.resolveForInvoiceUpload(null, invoice.getOrganization(), ocrAnalysis)
-                    : invoice.getSupplier();
-            completeOcrAnalysis(invoice, supplier, user, ocrAnalysis);
+            PostOcrProcessingResult processingResult = processValidOcrResponse(
+                    invoice, invoice.getSupplier(), invoice.getOrganization(), user, ocrAnalysis
+            );
+            duplicateAlertService.detectDuplicates(processingResult.invoice());
             Invoice responseInvoice = invoiceRepository
                     .findForOcrRetryByInvoiceIdAndOrganizationOrganizationId(invoiceId, organizationId)
                     .orElseThrow();
@@ -227,19 +262,66 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
     }
 
-    private Invoice completeOcrAnalysis(
+    private PostOcrProcessingResult processValidOcrResponse(
             Invoice invoice,
-            Supplier supplier,
+            Supplier selectedSupplier,
+            Organization organization,
             User user,
             OcrAnalysisResponse ocrAnalysis
     ) {
-        applyOcrAnalysis(invoice, supplier, ocrAnalysis);
-        Invoice savedInvoice = invoiceRepository.save(invoice);
-        invoiceOcrService.saveExtraction(savedInvoice, ocrAnalysis);
+        OcrErrorStep step = OcrErrorStep.SUPPLIER_RESOLUTION;
+        try {
+            OcrSupplierResolution supplierResolution = supplierService.resolveForInvoiceUploadWithWarnings(
+                    selectedSupplier, organization, ocrAnalysis
+            );
 
-        invoiceStatusWorkflowService.completeOcrAnalysis(savedInvoice, user);
-        duplicateAlertService.detectDuplicates(savedInvoice);
-        return savedInvoice;
+            step = OcrErrorStep.EXTRACTION_PERSISTENCE;
+            applyOcrAnalysis(invoice, supplierResolution.supplier(), ocrAnalysis);
+            Invoice savedInvoice = invoiceRepository.save(invoice);
+            invoiceOcrService.saveExtraction(savedInvoice, ocrAnalysis);
+            EnumSet<ProcessingAnomalyCode> anomalyCodes = EnumSet.noneOf(ProcessingAnomalyCode.class);
+            anomalyCodes.addAll(supplierResolution.anomalies());
+            if (hasMissingRequiredFields(savedInvoice)) {
+                anomalyCodes.add(ProcessingAnomalyCode.OCR_INCOMPLETE);
+            }
+            if (hasInconsistentAmounts(savedInvoice)) {
+                anomalyCodes.add(ProcessingAnomalyCode.INCONSISTENT_AMOUNTS);
+            }
+            var warnings = anomalyCodes.stream()
+                    .map(code -> processingAnomalyService.create(savedInvoice.getInvoiceId(), code))
+                    .toList();
+
+            step = OcrErrorStep.STATUS_UPDATE;
+            invoiceStatusWorkflowService.completeOcrAnalysis(savedInvoice, user);
+            return new PostOcrProcessingResult(savedInvoice, warnings);
+        } catch (RuntimeException exception) {
+            OcrError error = invoicePostOcrFailureService.recordFailure(
+                    invoice.getInvoiceId(), user, exception, step
+            );
+            throw new InvoicePostOcrFailureException(invoice.getInvoiceId(), error, exception);
+        }
+    }
+
+    private boolean hasMissingRequiredFields(Invoice invoice) {
+        return invoice.getSupplier() == null
+                || isBlank(invoice.getInvoiceNumber())
+                || invoice.getInvoiceDate() == null
+                || invoice.getTotalHt() == null
+                || invoice.getTotalTva() == null
+                || invoice.getTotalTtc() == null;
+    }
+
+    private boolean hasInconsistentAmounts(Invoice invoice) {
+        return invoice.getTotalHt() != null
+                && invoice.getTotalTva() != null
+                && invoice.getTotalTtc() != null
+                && !invoiceAmountConsistencyService.isConsistent(invoice);
+    }
+
+    private record PostOcrProcessingResult(
+            Invoice invoice,
+            List<ProcessingAnomalyResponse> warnings
+    ) {
     }
 
     @Override
@@ -565,6 +647,56 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional
+    public void administrativelyDelete(Long id, String reason) {
+        String normalizedReason = normalizeDeletionReason(reason);
+        User author = currentUserService.getCurrentUser();
+        Invoice invoice = findInvoiceForCurrentOrganization(id, author)
+                .orElseThrow(() -> new InvoiceNotFoundException(id));
+        InvoiceStatusCode status = InvoiceStatusCode.fromCode(invoice.getInvoiceStatus().getCode());
+        if (!ADMINISTRATIVELY_DELETABLE_STATUSES.contains(status)) {
+            throw new InvoiceDeletionNotAllowedException(status.getCode());
+        }
+
+        LocalDateTime deletedAt = LocalDateTime.now();
+        invoice.setDeletedAt(deletedAt);
+        invoice.setDeletedByUser(author);
+        invoice.setDeletionReason(normalizedReason);
+        invoice.setUpdatedAt(deletedAt);
+        invoiceRepository.save(invoice);
+        auditLogService.save(createAdministrativeDeletionAuditLog(invoice, author, normalizedReason, deletedAt));
+    }
+
+    private String normalizeDeletionReason(String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("Administrative deletion reason is required");
+        }
+        String normalizedReason = reason.trim();
+        if (normalizedReason.length() > 1000) {
+            throw new IllegalArgumentException("Administrative deletion reason must not exceed 1000 characters");
+        }
+        return normalizedReason;
+    }
+
+    private AuditLog createAdministrativeDeletionAuditLog(
+            Invoice invoice,
+            User author,
+            String reason,
+            LocalDateTime deletedAt
+    ) {
+        AuditLog auditLog = new AuditLog();
+        auditLog.setOrganization(invoice.getOrganization());
+        auditLog.setUser(author);
+        auditLog.setEntityName(Invoice.class.getSimpleName());
+        auditLog.setEntityId(invoice.getInvoiceId());
+        auditLog.setAction(ADMINISTRATIVELY_DELETED_ACTION);
+        auditLog.setOldValue("status=" + invoice.getInvoiceStatus().getCode());
+        auditLog.setNewValue("reason=" + reason);
+        auditLog.setCreatedAt(deletedAt);
+        return auditLog;
+    }
+
+    @Override
+    @Transactional
     public Optional<InvoiceDetailsResponse> decideDuplicateAlert(
             Long invoiceId,
             Long alertId,
@@ -642,6 +774,7 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     private List<AppliedCorrection> applyInvoiceCorrections(Invoice invoice, InvoiceCorrectionRequest request) {
         List<AppliedCorrection> appliedCorrections = new ArrayList<>();
+        BigDecimal previousTotalTtc = invoice.getTotalTtc();
 
         if (request.getInvoiceNumber() != null) {
             String invoiceNumber = requireNotBlank(request.getInvoiceNumber(), "invoiceNumber");
@@ -702,6 +835,17 @@ public class InvoiceServiceImpl implements InvoiceService {
                     totalTva.toString()
             );
             invoice.setTotalTva(totalTva);
+        }
+
+        if (request.getTotalTtc() == null
+                && (request.getTotalHt() != null || request.getTotalTva() != null)) {
+            invoiceAmountConsistencyService.recalculateTtcAfterComponentCorrection(invoice);
+            registerCorrection(
+                    appliedCorrections,
+                    "totalTtc",
+                    toStringOrNull(previousTotalTtc),
+                    toStringOrNull(invoice.getTotalTtc())
+            );
         }
 
         if (request.getTotalTtc() != null) {
@@ -786,6 +930,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice.setOrganization(organization);
         invoice.setCreatedByUser(user);
         invoice.setInvoiceStatus(invoiceStatus);
+        invoice.setOrigin(InvoiceOrigin.MANUAL_UPLOAD);
         invoice.setCurrencyCode(organization.getDefaultCurrencyCode());
         invoice.setDescription("Invoice uploaded for OCR analysis");
         invoice.setCreatedAt(LocalDateTime.now());
@@ -813,6 +958,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice.setTotalHt(invoiceOcrService.extractOptionalAmount(ocrAnalysis, "totalHt").orElse(null));
         invoice.setTotalTva(invoiceOcrService.extractOptionalAmount(ocrAnalysis, "totalTva").orElse(null));
         invoice.setTotalTtc(invoiceOcrService.extractOptionalAmount(ocrAnalysis, "totalTtc").orElse(null));
+        invoiceAmountConsistencyService.recalculateTtcWhenMissingOrWithinTolerance(invoice);
         invoice.setUpdatedAt(LocalDateTime.now());
     }
 

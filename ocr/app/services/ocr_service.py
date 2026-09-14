@@ -46,16 +46,14 @@ def analyze_document(filename: str, content: bytes) -> dict:
         build_field("siret", extract_siret(raw_text)),
         build_field("vatNumber", extract_vat_number(raw_text)),
         build_field("invoiceNumber", extract_invoice_number(raw_text)),
-        build_date_field(raw_text, "invoiceDate", [
-            "date de facture", "date d'emission", "date d'émission", "invoice date", "issue date",
-        ]),
+        build_invoice_date_field(raw_text),
         build_date_field(raw_text, "dueDate", [
             "date d'echeance", "date d'échéance", "echeance", "échéance", "due date", "payment due",
         ]),
         build_field("commandReference", extract_command_reference(raw_text)),
         build_field("totalHt", extract_amount(raw_text, ["HT", "hors taxe"])),
         build_field("totalTva", extract_amount(raw_text, ["TVA", "taxe"])),
-        build_field("totalTtc", extract_amount(raw_text, ["TTC", "total"])),
+        build_field("totalTtc", extract_total_ttc(raw_text)),
     ]
 
     return {
@@ -102,12 +100,47 @@ def build_date_field(raw_text: str, field_name: str, labels: list[str]) -> dict[
     }
 
 
+def build_invoice_date_field(raw_text: str) -> dict[str, str | None]:
+    field = build_date_field(raw_text, "invoiceDate", [
+        "date de facture", "date d'emission", "date d'émission", "invoice date", "issue date",
+    ])
+    if field["normalizedValue"] is not None:
+        return field
+
+    match = re.search(r"\bfacture\b[^\n\r]{0,80}?\bdu\b([^\n\r]{0,40})", raw_text, flags=re.IGNORECASE)
+    if not match:
+        return field
+
+    context = match.group(1)
+    date_match = DATE_CANDIDATE_PATTERN.search(normalize_accents(context))
+    if not date_match:
+        return field
+
+    raw_value = context[date_match.start():date_match.end()]
+    normalized_value = normalize_date(raw_value)
+    if normalized_value is None:
+        return field
+
+    return {
+        "fieldName": "invoiceDate",
+        "rawValue": raw_value,
+        "normalizedValue": normalized_value,
+        "confidenceScore": None,
+    }
+
+
 def extract_supplier(raw_text: str) -> str | None:
     lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
     for line in lines[:15]:
         candidate = clean_supplier_candidate(line)
         if candidate and looks_like_supplier_name(candidate):
             return candidate
+
+    if looks_like_receipt(raw_text):
+        for line in lines[:15]:
+            candidate = clean_supplier_candidate(line)
+            if candidate and looks_like_receipt_supplier_name(candidate):
+                return candidate
 
     return None
 
@@ -128,8 +161,30 @@ def looks_like_supplier_name(value: str) -> bool:
     return bool(re.search(r"\b(?:SA|SAS|SARL|EURL|SNC|SCA|ASSOCIATION)\b", value, flags=re.IGNORECASE))
 
 
+def looks_like_receipt(raw_text: str) -> bool:
+    return bool(re.search(
+        r"(?:^\s*ticket(?:\s+(?:de\s+caisse|restaurant|client))?\s*$"
+        r"|\breçu\s+client\b|\breceipt\b|\bmerci\s+de\s+votre\s+(?:visite|achat)\b)",
+        raw_text,
+        flags=re.IGNORECASE | re.MULTILINE,
+    ))
+
+
+def looks_like_receipt_supplier_name(value: str) -> bool:
+    if len(value) > 60 or re.search(r"\d", value):
+        return False
+    if re.search(
+        r"\b(?:ticket|reçu|receipt|merci|facture|date|total|caisse|siret|tva)\b",
+        value,
+        flags=re.IGNORECASE,
+    ):
+        return False
+    return bool(re.search(r"[A-ZÀ-ÖØ-öø-ÿ]{2}", value, flags=re.IGNORECASE))
+
+
 def extract_invoice_number(raw_text: str) -> str | None:
     patterns = [
+        r"(?:référence\s+de\s+la\s+facture(?:\s+acquittée)?|facture\s*n[°o.]?)[ \t]*[:#-]?[ \t]*([A-Z0-9][A-Z0-9._/-]{2,})",
         r"(?:n[°o.]?\s*de\s*facture|numero\s*de\s*facture|numéro\s*de\s*facture|invoice\s*(?:number|no.?))[ \t]*[:#-]?[ \t]*([A-Z0-9][A-Z0-9._/-]{2,})",
         r"\b(?:INV|FAC)[-_]?[0-9][A-Z0-9._/-]*\b",
     ]
@@ -162,7 +217,7 @@ def find_labeled_date(raw_text: str, labels: list[str]) -> str | None:
 
 def extract_command_reference(raw_text: str) -> str | None:
     patterns = [
-        r"(?:commande|reference|référence)[^\n\r]{0,40}?([A-Z]{2,5}[-_/]?\d{4}[-_/]?\d{2,})",
+        r"(?:commande|r[ée]f[ée]rence\s+(?:de\s+)?commande)[^\n\r]{0,40}?([A-Z]{2,5}[-_/]?\d{4}[-_/]?\d{2,})",
         r"\bCMD[-_/]?\d{4}[-_/]?\d{2,}\b",
     ]
 
@@ -185,14 +240,14 @@ def extract_siret(raw_text: str) -> str | None:
 
 def extract_vat_number(raw_text: str) -> str | None:
     match = re.search(
-        r"(?:TVA\s+intracommunautaire|N[°o.]?\s*TVA|VAT)[^\n\r:]*:?[ \t]*([A-Z]{2}[A-Z0-9\s]{8,})",
+        r"(?:TVA[ \t]+intracommunautaire|N[°o.]?[ \t]*TVA|VAT)[^\n\r:]*:?[ \t]*([A-Z]{2}[A-Z0-9 \t]{8,})",
         raw_text,
         flags=re.IGNORECASE,
     )
     if not match:
         return None
 
-    return re.sub(r"\s", "", match.group(1)).upper()
+    return re.sub(r"[ \t]", "", match.group(1)).upper()
 
 
 def extract_amount(raw_text: str, labels: list[str]) -> str | None:
@@ -205,6 +260,21 @@ def extract_amount(raw_text: str, labels: list[str]) -> str | None:
         match = re.search(pattern, raw_text, flags=re.IGNORECASE)
         if match:
             return normalize_amount(match.group(1) or match.group(2))
+
+    return None
+
+
+def extract_total_ttc(raw_text: str) -> str | None:
+    explicit_total = extract_amount(raw_text, ["TTC"])
+    if explicit_total:
+        return explicit_total
+
+    for line in raw_text.splitlines():
+        if re.search(r"\b(?:HT|TVA|taxe)\b", line, flags=re.IGNORECASE):
+            continue
+        generic_total = extract_amount(line, ["total"])
+        if generic_total:
+            return generic_total
 
     return None
 

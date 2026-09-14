@@ -81,7 +81,7 @@ http://ocr:8000/ocr/analyze
 | `POST` | `/api/v1/invoices/upload` | Upload, OCR et sauvegarde de la facture |
 | `PATCH` | `/api/v1/invoices/{id}` | Corrige les donnees extraites, conserve les valeurs OCR brutes, marque les champs OCR corriges manuellement et journalise chaque valeur avant/apres. Une facture `REJETEE` redevient `EXTRAITE` et doit etre soumise explicitement. |
 | `PATCH` | `/api/v1/invoices/{id}/assignee` | Affecte ou reaffecte la facture a un utilisateur actif de l'organisation courante, ou retire l'affectation avec `userId: null`, puis journalise l'ancien affectataire, le nouveau et l'auteur. |
-| `POST` | `/api/v1/invoices/{id}/submit-for-validation` | Controle la completude, soumet une facture `EXTRAITE` a validation et historise l'action |
+| `POST` | `/api/v1/invoices/{id}/submit-for-validation` | Controle la completude et la coherence `HT + TVA = TTC`, soumet une facture `EXTRAITE` a validation et historise l'action. Un ecart superieur a `0,01` retourne `409 INVOICE_AMOUNTS_INCONSISTENT` avec le TTC attendu, le TTC recu, l'ecart et la tolerance. |
 | `POST` | `/api/v1/invoices/{id}/validate` | Valide une facture `A_VERIFIER` et historise la decision, son auteur et sa date |
 | `POST` | `/api/v1/invoices/{id}/request-correction` | Demande une correction motivee sur une facture `A_VERIFIER`, la replace en `EXTRAITE` et historise la decision |
 | `POST` | `/api/v1/invoices/{id}/reject` | Refuse une facture eligible avec un motif obligatoire et historise la decision, son auteur et sa date |
@@ -98,10 +98,13 @@ http://ocr:8000/ocr/analyze
 | `POST` | `/api/v1/accounting-exports/generate` | Meme corps que `/preflight`. Sous verrou de sequence de l'organisation, revalide exactement les identifiants choisis et les controles CSV/FEC, genere et stocke le fichier puis passe les factures a `EXPORTEE`. Succes `200` apres commit : `{exportBatchId, organizationId, format, status: "GENERE", fileName, fileSize, generatedAt, createdByName, invoiceIds}` ; aucun chemin de stockage expose. Telechargement via `GET /{id}/file`. `400` requete invalide ; `409` selection perimee/deja exportee ou controles en echec ; `401/403` acces refuse. Les soumissions concurrentes sont serialisees : une selection deja exportee ne cree pas de nouveau lot. Rollback des statuts, liens et numeros en cas d'echec ; suppression compensatoire du fichier nouvellement stocke (erreur de suppression journalisee) et audit d'echec. Aucun pourcentage d'avancement ni rapport annexe ; une reponse reseau perdue doit etre reconciliee avec l'historique avant une nouvelle tentative. Permission `EXPORT_ACCOUNTING`. |
 | `POST` | `/api/v1/invoices/{id}/mark-paid` | Confirme le reglement d'une facture `EXPORTEE` avec une `paymentDate` obligatoire et une `paymentReference` facultative, enregistre l'utilisateur connecte, passe la facture au statut `PAYEE` et historise l'action. Une nouvelle demande sur une facture deja `PAYEE` reste sans effet et ne duplique pas l'historique. |
 | `POST` | `/api/v1/invoices/{id}/archive` | Archive une facture au statut `EXPORTEE`, enregistre `archivedAt`, passe la facture au statut `ARCHIVEE` et historise l'action. |
+| `DELETE` | `/api/v1/invoices/{id}` | Suppression administrative reservee au role `ADMIN`, avec un corps `{\"reason\": \"...\"}` obligatoire. Seuls les statuts anterieurs a la validation (`DEPOSEE`, `OCR_EN_COURS`, `ERREUR_OCR`, `EXTRAITE`, `A_VERIFIER`, `REJETEE`, `BROUILLON`) sont acceptes. |
 | `GET` | `/api/v1/invoices?status=EXTRAITE&status=VALIDEE&invoiceNumber=FAC-2026&supplier=Orange&client=Docomptia&dueDate=2026-08-31&startDate=2026-08-01&endDate=2026-08-31&minAmount=100.00&maxAmount=500.00&page=0&size=20&sortBy=invoiceDate&direction=DESC` | Recherche les factures de l'organisation courante, filtre par un ou plusieurs statuts connus (parametre repete ou codes separes par des virgules), le numero exact ou partiel, le fournisseur ou client par nom ou identifiant, la date de facture, la date d'echeance, une periode inclusive de dates de facture ou une plage inclusive de montants TTC, puis retourne une page triable par date, montant TTC ou statut. Un statut inconnu retourne `400`. Les bornes de periode et de montant peuvent etre omises individuellement; une borne minimum posterieure a la borne maximum correspondante retourne `400`. |
 | `GET` | `/api/v1/invoices/pending-validation?page=0&size=20&sortBy=invoiceDate&direction=DESC` | Retourne au responsable comptable une page triable des seules factures `A_VERIFIER` de son organisation. |
 | `GET` | `/api/v1/invoices/assigned-to-me?status=EXTRAITE&status=A_VERIFIER&page=0&size=20&sortBy=invoiceDate&direction=DESC` | Retourne une page triable des factures affectees a l'utilisateur connecte dans son organisation, avec un filtre optionnel sur un ou plusieurs statuts connus. |
 | `GET` | `/api/v1/invoices/{id}` | Retourne la facture, l'OCR, l'ecriture d'origine si elle existe, toutes les ecritures liees dans l'ordre chronologique et l'historique des actions utiles a la fiche. Les identifiants `reversedAccountingEntryId` relient l'extourne a l'originale puis l'ecriture corrective a l'extourne. |
+| `GET` | `/api/v1/dashboard/anomalies?includeResolved=false` | Liste les anomalies metier de l'organisation courante avec leur code stable, libelle, description et etat bloquant. Par defaut, seules les anomalies non resolues sont retournees. |
+| `PATCH` | `/api/v1/invoices/{invoiceId}/anomalies/{anomalyId}/resolve` | Resout une anomalie de la facture dans l'organisation courante. L'operation est idempotente et l'anomalie ne reste plus bloquante. |
 | `GET` | `/api/v1/invoices/{id}/file` | Telecharge le fichier original si la facture appartient a l'organisation courante |
 | `GET` | `/api/v1/invoices/{id}/preview` | Retourne le PDF ou l'image originale avec une disposition `inline` et son type MIME si la facture appartient a l'organisation courante. Un format non previsualisable retourne `415`. |
 | `GET` | `/api/v1/invoices/{id}/history` | Retourne chronologiquement les changements de statut, corrections, affectations et decisions de l'organisation courante |
@@ -119,6 +122,12 @@ adresse. Cette preparation ne realise aucun envoi: la notification interne est c
 si les donnees email ne peuvent pas etre preparees.
 
 Les reponses d'ecriture exposent `totalDebit`, `totalCredit`, `balanceDifference` et `balanced`.
+La [lecture des écritures et journaux](accounting-entry-read-api.md) documente les filtres,
+le tri, les diagnostics structurés et la preuve d'export propre à chaque écriture (KAN-386).
+La [saisie des lignes comptables](accounting-entry-line-api.md) décrit les ajouts/retraits,
+la TVA, les affectations analytiques et les protections de concurrence (KAN-387).
+La [création manuelle d’une écriture](accounting-entry-create-api.md) décrit les factures
+éligibles, l’enregistrement atomique et les conflits avec une originale existante (KAN-388).
 Une correction desequilibree retire le statut `EXPORTABLE`; le statut est retabli lorsque
 l'equilibre est corrige.
 
@@ -285,6 +294,13 @@ permettre l'import avant rapprochement; lorsqu'il existe, le fournisseur apparti
 organisation. Les comptes de tiers desactives restent persistés pour l'historique mais sont exclus
 des recherches de comptes actifs utilisees pour proposer de nouvelles ecritures.
 
+Lors de la generation d'une ecriture fournisseur, la ligne de dette utilise le compte de tiers actif
+rattache au fournisseur et son compte collectif. En l'absence de compte de tiers actif, y compris si
+le compte rattache est desactive, le compte fournisseur de la regle comptable est utilise sans compte
+auxiliaire. Si ce compte de fallback est absent, inactif ou hors de l'organisation, la generation est
+bloquee avec le prerequis `supplierAccount`. Le CSV conserve ses colonnes existantes et le FEC renseigne
+`CompAuxNum` et `CompAuxLib` seulement lorsqu'un compte de tiers a ete retenu.
+
 L'[import CSV du plan comptable](account-import-api.md) propose trois POST multipart
 `/api/v1/chart-of-accounts/import/inspect`, `/preview` et `/confirm`, réservés à
 l'administrateur. L'inspection et la prévisualisation n'écrivent aucun compte ;
@@ -354,6 +370,12 @@ email utilisateur ou un SIRET d'organisation deja utilise retourne `409`; une er
 de l'administrateur annule egalement la creation de l'organisation.
 
 ## Stockage Des Fichiers
+
+La suppression administrative est logique : la facture est exclue des lectures de factures,
+mais sa ligne, son fichier original et ses relations restent conserves. La date, l'administrateur
+et le motif sont enregistres sur la facture et dans le journal d'audit avec l'action
+`ADMINISTRATIVELY_DELETED`. Cette strategie evite toute rupture des pieces, ecritures et historiques
+associes ; une facture validee, comptabilisee, exportable, exportee, payee ou archivee est refusee.
 
 Deux implementations existent:
 

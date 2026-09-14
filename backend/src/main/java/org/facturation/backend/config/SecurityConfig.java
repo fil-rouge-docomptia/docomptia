@@ -69,6 +69,8 @@ public class SecurityConfig {
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/users/me")
                         .hasAnyRole(BusinessPermission.VIEW_OWN_PROFILE.roleCodes())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/audit-logs", "/api/v1/audit-logs/*")
+                        .hasAnyRole(BusinessPermission.VIEW_AUDIT_LOGS.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/reference-data")
                         .hasAnyRole(BusinessPermission.VIEW_REFERENCE_DATA.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/subscription-plans")
@@ -87,7 +89,7 @@ public class SecurityConfig {
                         .hasAnyRole(BusinessPermission.MANAGE_ORGANIZATION.roleCodes())
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/organizations/current")
                         .hasAnyRole(BusinessPermission.MANAGE_ORGANIZATION.roleCodes())
-                        .requestMatchers(HttpMethod.GET, "/api/v1/dashboard/summary")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/dashboard/summary", "/api/v1/dashboard/anomalies")
                         .hasAnyRole(BusinessPermission.VIEW_DASHBOARD.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/notifications")
                         .hasAnyRole(BusinessPermission.VIEW_NOTIFICATIONS.roleCodes())
@@ -97,6 +99,8 @@ public class SecurityConfig {
                         .hasAnyRole(BusinessPermission.VALIDATE_INVOICES.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/invoices", "/api/v1/invoices/**")
                         .hasAnyRole(BusinessPermission.VIEW_INVOICES.roleCodes())
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/invoices/*")
+                        .hasAnyRole(BusinessPermission.DELETE_INVOICES.roleCodes())
                         .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/comments")
                         .hasAnyRole(BusinessPermission.COMMENT_INVOICES.roleCodes())
                         .requestMatchers(HttpMethod.POST,
@@ -105,11 +109,16 @@ public class SecurityConfig {
                                 "/api/v1/invoices/*/reject"
                         )
                         .hasAnyRole(BusinessPermission.VALIDATE_INVOICES.roleCodes())
-                        .requestMatchers(HttpMethod.GET, "/api/v1/accounting-entries", "/api/v1/accounting-entries/*")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/accounting-entries", "/api/v1/accounting-entries/*",
+                                "/api/v1/accounting-journals")
+                        .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/accounting-entries/*/lines/*")
                         .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())
                         .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/accounting-entry")
                         .hasAnyRole(BusinessPermission.MANAGE_ACCOUNTING_ENTRIES.roleCodes())
                         .requestMatchers(HttpMethod.POST,
+                                "/api/v1/accounting-entries",
+                                "/api/v1/accounting-entries/*/lines",
                                 "/api/v1/accounting-entries/*/reversal",
                                 "/api/v1/accounting-entries/*/corrective-entry"
                         )
@@ -149,8 +158,12 @@ public class SecurityConfig {
                         .hasAnyRole(BusinessPermission.PROCESS_INVOICES.roleCodes())
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/invoices/*/assignee")
                         .hasAnyRole(BusinessPermission.PROCESS_INVOICES.roleCodes())
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/invoices/*/anomalies/*/resolve")
+                        .hasAnyRole(BusinessPermission.PROCESS_INVOICES.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/suppliers", "/api/v1/suppliers/**")
                         .hasAnyRole(BusinessPermission.VIEW_SUPPLIERS.roleCodes())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/suppliers")
+                        .hasAnyRole(BusinessPermission.MANAGE_SUPPLIERS.roleCodes())
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/suppliers/*")
                         .hasAnyRole(BusinessPermission.MANAGE_SUPPLIERS.roleCodes())
                         .requestMatchers(HttpMethod.GET, "/api/v1/customers", "/api/v1/customers/**")

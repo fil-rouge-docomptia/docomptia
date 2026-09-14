@@ -389,7 +389,7 @@ export function InvoiceDetailsTab({
     >
       {duplicateAlert || invoice.status === 'ARCHIVEE' ? null : <InvoiceLifecycleNotice invoice={invoice} />}
 
-      {invoice.status === 'ERREUR_OCR' ? (
+      {invoice.status === 'ERREUR_OCR' || invoice.status === 'ERREUR_TRAITEMENT' ? (
         <InvoiceOcrFailureAlert
           canCorrect={canEdit}
           error={invoice.ocrError}

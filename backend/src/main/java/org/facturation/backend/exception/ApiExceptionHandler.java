@@ -4,6 +4,7 @@ import org.facturation.backend.dto.response.AccountingEntryPrerequisitesResponse
 import org.facturation.backend.dto.response.AccountingExportValidationResponse;
 import org.facturation.backend.dto.response.ApiErrorResponse;
 import org.facturation.backend.dto.response.InvoiceMissingRequiredFieldsResponse;
+import org.facturation.backend.dto.response.InvoiceAmountsInconsistentResponse;
 import org.facturation.backend.dto.response.InvoiceOcrFailureResponse;
 import org.facturation.backend.dto.response.SubscriptionLimitExceededResponse;
 import org.facturation.backend.dto.response.UnbalancedAccountingEntryResponse;
@@ -35,10 +36,13 @@ public class ApiExceptionHandler {
     private static final String CHART_OF_ACCOUNT_VALIDATION_ERROR_CODE = "CHART_OF_ACCOUNT_VALIDATION_ERROR";
     private static final String CHART_OF_ACCOUNT_CONFLICT_CODE = "CHART_OF_ACCOUNT_CONFLICT";
     private static final String INVOICE_ACTION_NOT_ALLOWED_CODE = "INVOICE_ACTION_NOT_ALLOWED";
+    private static final String INVOICE_DELETION_NOT_ALLOWED_CODE = "INVOICE_DELETION_NOT_ALLOWED";
     private static final String ARCHIVED_INVOICE_NOT_MODIFIABLE_CODE = "ARCHIVED_INVOICE_NOT_MODIFIABLE";
     private static final String EXPORTED_INVOICE_NOT_MODIFIABLE_CODE = "EXPORTED_INVOICE_NOT_MODIFIABLE";
     private static final String INVOICE_REQUIRED_FIELDS_MISSING_CODE = "INVOICE_REQUIRED_FIELDS_MISSING";
+    private static final String INVOICE_AMOUNTS_INCONSISTENT_CODE = "INVOICE_AMOUNTS_INCONSISTENT";
     private static final String DUPLICATE_ALERT_NOT_FOUND_CODE = "DUPLICATE_ALERT_NOT_FOUND";
+    private static final String PROCESSING_ANOMALY_NOT_FOUND_CODE = "PROCESSING_ANOMALY_NOT_FOUND";
     private static final String DUPLICATE_ALERT_ACTION_NOT_ALLOWED_CODE = "DUPLICATE_ALERT_ACTION_NOT_ALLOWED";
     private static final String ACCOUNTING_RULE_NOT_FOUND_CODE = "ACCOUNTING_RULE_NOT_FOUND";
     private static final String ACCOUNTING_RULE_VALIDATION_ERROR_CODE = "ACCOUNTING_RULE_VALIDATION_ERROR";
@@ -310,6 +314,17 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(response);
     }
 
+    @ExceptionHandler(InvoicePostOcrFailureException.class)
+    public ResponseEntity<InvoiceOcrFailureResponse> handleInvoicePostOcrFailure(
+            InvoicePostOcrFailureException exception
+    ) {
+        InvoiceOcrFailureResponse response = new InvoiceOcrFailureResponse();
+        response.setInvoiceId(exception.getInvoiceId());
+        response.setStatus(InvoiceStatusCode.ERREUR_TRAITEMENT.getCode());
+        response.setOcrError(ocrErrorMapper.toResponse(exception.getOcrError()));
+        return ResponseEntity.unprocessableEntity().body(response);
+    }
+
     @ExceptionHandler(OcrRetryNotAllowedException.class)
     public ResponseEntity<ApiErrorResponse> handleOcrRetryNotAllowed(OcrRetryNotAllowedException exception) {
         return errorResponse(HttpStatus.CONFLICT, INVOICE_ACTION_NOT_ALLOWED_CODE, exception.getMessage());
@@ -320,6 +335,13 @@ public class ApiExceptionHandler {
             InvoiceStatusTransitionException exception
     ) {
         return errorResponse(HttpStatus.CONFLICT, INVOICE_ACTION_NOT_ALLOWED_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvoiceDeletionNotAllowedException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvoiceDeletionNotAllowed(
+            InvoiceDeletionNotAllowedException exception
+    ) {
+        return errorResponse(HttpStatus.CONFLICT, INVOICE_DELETION_NOT_ALLOWED_CODE, exception.getMessage());
     }
 
     @ExceptionHandler(ArchivedInvoiceNotModifiableException.class)
@@ -348,9 +370,31 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
+    @ExceptionHandler(InvoiceAmountsInconsistentException.class)
+    public ResponseEntity<InvoiceAmountsInconsistentResponse> handleInvoiceAmountsInconsistent(
+            InvoiceAmountsInconsistentException exception
+    ) {
+        InvoiceAmountsInconsistentResponse response = new InvoiceAmountsInconsistentResponse(
+                INVOICE_AMOUNTS_INCONSISTENT_CODE,
+                exception.getMessage(),
+                exception.getExpectedTtc(),
+                exception.getActualTtc(),
+                exception.getDifference(),
+                exception.getTolerance()
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
     @ExceptionHandler(DuplicateAlertNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleDuplicateAlertNotFound(DuplicateAlertNotFoundException exception) {
         return errorResponse(HttpStatus.NOT_FOUND, DUPLICATE_ALERT_NOT_FOUND_CODE, exception.getMessage());
+    }
+
+    @ExceptionHandler(ProcessingAnomalyNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleProcessingAnomalyNotFound(
+            ProcessingAnomalyNotFoundException exception
+    ) {
+        return errorResponse(HttpStatus.NOT_FOUND, PROCESSING_ANOMALY_NOT_FOUND_CODE, exception.getMessage());
     }
 
     @ExceptionHandler(DuplicateAlertDecisionException.class)
@@ -419,6 +463,27 @@ public class ApiExceptionHandler {
                 ACCOUNTING_ENTRY_LINE_VALIDATION_ERROR_CODE,
                 exception.getMessage()
         );
+    }
+
+    @ExceptionHandler({AccountingEntryMutationConflictException.class,
+            org.springframework.dao.OptimisticLockingFailureException.class,
+            jakarta.persistence.OptimisticLockException.class})
+    public ResponseEntity<ApiErrorResponse> handleAccountingEntryMutationConflict(RuntimeException exception) {
+        return errorResponse(HttpStatus.CONFLICT, "ACCOUNTING_ENTRY_MUTATION_CONFLICT",
+                "The entry changed or the idempotency key was reused with another request; reload the entry");
+    }
+
+    @ExceptionHandler(AccountingEntryAlreadyExistsException.class)
+    public ResponseEntity<java.util.Map<String, Object>> handleAccountingEntryAlreadyExists(AccountingEntryAlreadyExistsException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(java.util.Map.of(
+                "code", "ACCOUNTING_ENTRY_ALREADY_EXISTS", "message", exception.getMessage(),
+                "accountingEntryId", exception.getAccountingEntryId(),
+                "entryUrl", "/api/v1/accounting-entries/" + exception.getAccountingEntryId()));
+    }
+
+    @ExceptionHandler(AccountingEntryCreationNotAllowedException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccountingEntryCreationNotAllowed(AccountingEntryCreationNotAllowedException exception) {
+        return errorResponse(HttpStatus.CONFLICT, "ACCOUNTING_ENTRY_CREATION_NOT_ALLOWED", exception.getMessage());
     }
 
     @ExceptionHandler(AccountingEntryNotModifiableException.class)

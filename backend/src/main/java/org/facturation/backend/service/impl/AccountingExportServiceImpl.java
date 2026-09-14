@@ -249,8 +249,8 @@ public class AccountingExportServiceImpl implements AccountingExportService {
                         .append(formatFecDate(entry.getEntryDate())).append('\t')
                         .append(line.getAccount().getAccountNumber()).append('\t')
                         .append(line.getAccount().getAccountLabel()).append('\t')
-                        .append('\t')
-                        .append('\t')
+                        .append(line.getSupplierAccount() == null ? "" : line.getSupplierAccount().getCode()).append('\t')
+                        .append(line.getSupplierAccount() == null ? "" : line.getSupplierAccount().getLabel()).append('\t')
                         .append(invoice.getInvoiceNumber()).append('\t')
                         .append(formatFecDate(invoice.getInvoiceDate())).append('\t')
                         .append(entry.getLabel()).append('\t')
@@ -320,6 +320,7 @@ public class AccountingExportServiceImpl implements AccountingExportService {
         exportBatch.setCreatedAt(LocalDateTime.now());
         for (ValidatedEntry exportedEntry : exportedEntries) {
             exportBatch.addInvoice(exportedEntry.entry().getInvoice());
+            exportedEntry.entry().setExportBatch(exportBatch);
         }
         return exportBatchRepository.save(exportBatch);
     }

@@ -72,6 +72,8 @@ public interface InvoiceService {
 
     Optional<InvoiceStatusResponse> archiveInvoice(Long id);
 
+    void administrativelyDelete(Long id, String reason);
+
     Optional<InvoiceDetailsResponse> decideDuplicateAlert(
             Long invoiceId,
             Long alertId,

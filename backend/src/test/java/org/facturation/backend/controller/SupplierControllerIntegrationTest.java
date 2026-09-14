@@ -24,6 +24,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -149,6 +150,48 @@ class SupplierControllerIntegrationTest {
                 .andExpect(jsonPath("$.address").isNotEmpty())
                 .andExpect(jsonPath("$.createdAt").isNotEmpty())
                 .andExpect(jsonPath("$.updatedAt").isNotEmpty());
+    }
+
+    @Test
+    void createsSupplierForCurrentOrganizationWithManualLegalIdentifiers() throws Exception {
+        mockMvc.perform(post("/api/v1/suppliers")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "name": "New supplier",
+                                  "legalName": "New supplier SAS",
+                                  "siret": "732 829 320 00074",
+                                  "email": " invoices@new-supplier.example ",
+                                  "phone": " 01 02 03 04 05 ",
+                                  "address": " 1 rue de Paris "
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value("New supplier"))
+                .andExpect(jsonPath("$.legalName").value("New supplier SAS"))
+                .andExpect(jsonPath("$.siret").value("73282932000074"))
+                .andExpect(jsonPath("$.countryCode").value("FR"))
+                .andExpect(jsonPath("$.email").value("invoices@new-supplier.example"))
+                .andExpect(jsonPath("$.currentLegalIdentifiers.length()").value(2))
+                .andExpect(jsonPath("$.currentLegalIdentifiers[?(@.scheme=='FR_SIRET')].source")
+                        .value("MANUAL"))
+                .andExpect(jsonPath("$.currentLegalIdentifiers[?(@.scheme=='FR_SIRET')].verified")
+                        .value(true));
+    }
+
+    @Test
+    void rejectsDuplicateSupplierLegalIdentifierInCurrentOrganization() throws Exception {
+        mockMvc.perform(post("/api/v1/suppliers")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "name": "Duplicate supplier",
+                                  "legalName": "Duplicate supplier SAS",
+                                  "siret": "38012986600014"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SUPPLIER_LEGAL_IDENTIFIER_CONFLICT"));
     }
 
     @Test

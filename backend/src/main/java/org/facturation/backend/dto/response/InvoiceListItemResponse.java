@@ -7,6 +7,7 @@ public class InvoiceListItemResponse {
     private String invoiceDate;
     private String dueDate;
     private String status;
+    private String origin;
     private String supplierName;
     private String currencyCode;
     private String totalTtc;
@@ -49,6 +50,14 @@ public class InvoiceListItemResponse {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getOrigin() {
+        return origin;
+    }
+
+    public void setOrigin(String origin) {
+        this.origin = origin;
     }
 
     public String getSupplierName() {

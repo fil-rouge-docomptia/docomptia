@@ -74,6 +74,7 @@ public class InvoiceResponseMapper {
         response.setInvoiceDate(invoice.getInvoiceDate() == null ? null : invoice.getInvoiceDate().toString());
         response.setDueDate(invoice.getDueDate() == null ? null : invoice.getDueDate().toString());
         response.setStatus(invoice.getInvoiceStatus().getCode());
+        response.setOrigin(invoice.getOrigin().getCode());
         response.setSupplierName(extractSupplierName(invoice));
         response.setCurrencyCode(invoice.getCurrencyCode());
         response.setTotalTtc(toStringOrNull(invoice.getTotalTtc()));
@@ -115,6 +116,7 @@ public class InvoiceResponseMapper {
         }
         response.setArchivedAt(invoice.getArchivedAt() == null ? null : invoice.getArchivedAt().toString());
         response.setStatus(invoice.getInvoiceStatus().getCode());
+        response.setOrigin(invoice.getOrigin().getCode());
         response.setSupplierName(extractSupplierName(invoice));
         if (invoice.getSupplier() != null) {
             response.setSupplier(new InvoiceSupplierResponse(
@@ -157,7 +159,9 @@ public class InvoiceResponseMapper {
         invoiceOcrService.findLatestAnalysisResponse(invoice.getInvoiceId())
                 .ifPresent(response::setOcrAnalysis);
 
-        if (InvoiceStatusCode.ERREUR_OCR.getCode().equals(invoice.getInvoiceStatus().getCode())) {
+        String status = invoice.getInvoiceStatus().getCode();
+        if (InvoiceStatusCode.ERREUR_OCR.getCode().equals(status)
+                || InvoiceStatusCode.ERREUR_TRAITEMENT.getCode().equals(status)) {
             ocrErrorService.findLatestByInvoiceId(invoice.getInvoiceId())
                     .map(ocrErrorMapper::toResponse)
                     .ifPresent(response::setOcrError);

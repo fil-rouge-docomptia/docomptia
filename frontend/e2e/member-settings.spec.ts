@@ -347,7 +347,10 @@ test('member settings updates the current identity in the app shell', async ({ p
   await dialog.getByRole('button', { name: 'Save changes' }).click()
   await expect(dialog).toHaveCount(0)
   await expect(actions(page, { ...admin, firstName: 'Updated' })).toBeVisible()
-  await expect(page.getByRole('button', { name: /^UM Updated Martin/ })).toBeVisible()
+  const profileLink = page.getByRole('link', { name: 'User profile', exact: true })
+  await expect(profileLink).toBeVisible()
+  await expect(profileLink).toContainText('Updated Martin')
+  await expect(profileLink).toContainText('UM')
 })
 
 test('member settings removes administration immediately after changing its own role', async ({ page }) => {

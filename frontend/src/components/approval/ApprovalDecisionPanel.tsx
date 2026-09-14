@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowRight, BadgeCheck, CircleAlert, MessageSquareText, X } from 'lucide-react';
 
 import { InvoiceCorrectionRequestDialog } from '@/components/approval/InvoiceCorrectionRequestDialog';
+import { canValidateInvoice } from '@/components/invoice/detail/invoice-detail-utils';
 import { InvoiceRejectionDialog } from '@/components/approval/InvoiceRejectionDialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -13,8 +14,8 @@ import type { InvoiceDetails } from '@/types/invoice';
 function getBlockingReasons(invoice: InvoiceDetails, role?: RoleCode) {
     const reasons: string[] = [];
 
-    if (role !== 'RESPONSABLE_COMPTABLE') {
-        reasons.push('An accounting manager role is required.');
+    if (!canValidateInvoice(role)) {
+        reasons.push('A validation role is required.');
     }
     if (invoice.status !== 'A_VERIFIER') {
         reasons.push('The invoice is not waiting for approval.');

@@ -3,6 +3,7 @@ import { AlertCircle, BookOpen, Download, Plus, Search, Upload } from 'lucide-re
 import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { downloadChartOfAccounts } from '@/components/accounting/account-export'
 import { AccountEditorSheet } from '@/components/accounting/AccountEditorSheet'
 import { DeactivateAccountDialog } from '@/components/accounting/DeactivateAccountDialog'
 import type { AccountActionHandler } from '@/components/accounting/AccountActionsMenu'
@@ -23,7 +24,7 @@ import type { ChartOfAccount } from '@/types/onboarding'
 
 const pageSize = 8
 
-type AccountAction = { key: string, kind: 'create' } | { key: string, kind: 'edit' | 'deactivate', account: ChartOfAccount }
+type AccountAction = { key: string, kind: 'create' } | { key: string, kind: 'edit' | 'deactivate' | 'duplicate', account: ChartOfAccount }
 
 export default function ChartOfAccountsPage() {
   const { user } = useAuth()
@@ -102,8 +103,8 @@ export default function ChartOfAccountsPage() {
     setResult((current) => current?.key === requestKey && current.accounts
       ? { ...current, accounts: [...current.accounts.filter((account) => account.accountId !== saved.accountId), saved] }
       : current)
-    if (currentAction.kind === 'create') update({ query: saved.accountNumber, type: null, status: null })
-    toast.success(currentAction.kind === 'create' ? 'Account created' : currentAction.kind === 'deactivate' ? 'Account deactivated' : 'Account updated')
+    if (currentAction.kind === 'create' || currentAction.kind === 'duplicate') update({ query: saved.accountNumber, type: null, status: null })
+    toast.success(currentAction.kind === 'duplicate' ? 'Account duplicated' : currentAction.kind === 'create' ? 'Account created' : currentAction.kind === 'deactivate' ? 'Account deactivated' : 'Account updated')
     setAction(null)
   }
 
@@ -156,7 +157,7 @@ export default function ChartOfAccountsPage() {
       <PageHeader
         actions={(
           <div className="flex flex-wrap gap-2">
-            <Button className="hidden lg:inline-flex" disabled variant="outline"><Download aria-hidden="true" />Export</Button>
+            <Button disabled={!accounts || filtered.length === 0} aria-describedby="account-export-scope" onClick={() => downloadChartOfAccounts(filtered)} variant="outline"><Download aria-hidden="true" />Export CSV</Button>
             {canManage ? <>
               <Button asChild variant="secondary"><Link to="/accounting/accounts/import"><Upload aria-hidden="true" />Import CSV</Link></Button>
               <Button disabled={!accounts} id="add-account" onClick={(event) => { focusOrigin.current = event.currentTarget; setAction({ key: requestKey, kind: 'create' }) }}><Plus aria-hidden="true" />Add account</Button>
@@ -183,12 +184,13 @@ export default function ChartOfAccountsPage() {
           </Select>
           {hasFilters ? <Button onClick={() => update({ query: null, type: null, status: null })} variant="ghost">Clear filters</Button> : null}
         </div>
+        <p id="account-export-scope" className="text-xs text-muted-foreground">{accounts ? `CSV export includes all ${filtered.length} matching accounts across every page, in the current sort order.` : 'CSV export is available after the complete chart of accounts loads.'}</p>
         {content}
       </section>
       {currentAction?.kind === 'deactivate' ? (
         <DeactivateAccountDialog account={currentAction.account} key={`${requestKey}:deactivate:${currentAction.account.accountId}`} onClose={() => setAction(null)} onRestoreFocus={restoreFocus} onSaved={accountSaved} />
       ) : currentAction ? (
-        <AccountEditorSheet account={currentAction.kind === 'edit' ? currentAction.account : undefined} accountTypes={types} key={`${requestKey}:${currentAction.kind}:${currentAction.kind === 'edit' ? currentAction.account.accountId : 'new'}`} onClose={() => setAction(null)} onRestoreFocus={restoreFocus} onSaved={accountSaved} />
+        <AccountEditorSheet duplicateOf={currentAction.kind === 'duplicate' ? currentAction.account : undefined} account={currentAction.kind === 'edit' ? currentAction.account : undefined} accountTypes={types} key={`${requestKey}:${currentAction.kind}:${currentAction.kind === 'edit' ? currentAction.account.accountId : 'new'}`} onClose={() => setAction(null)} onRestoreFocus={restoreFocus} onSaved={accountSaved} />
       ) : null}
     </div>
   )

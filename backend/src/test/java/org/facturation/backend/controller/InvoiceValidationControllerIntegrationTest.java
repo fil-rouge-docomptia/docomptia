@@ -84,6 +84,28 @@ class InvoiceValidationControllerIntegrationTest {
                 ));
     }
 
+    @Test
+    void returnsExplicitAmountsWhenSubmissionTotalsAreInconsistent() throws Exception {
+        InvoiceUploadResponse uploadResponse = uploadInvoice();
+        InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
+        correctionRequest.setInvoiceDate("2026-08-07");
+        correctionRequest.setTotalTtc("120.02");
+        invoiceService.correctInvoice(uploadResponse.getInvoiceId(), correctionRequest).orElseThrow();
+
+        mockMvc.perform(post("/api/v1/invoices/{id}/submit-for-validation", uploadResponse.getInvoiceId()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVOICE_AMOUNTS_INCONSISTENT"))
+                .andExpect(jsonPath("$.expectedTtc").value(120.00))
+                .andExpect(jsonPath("$.actualTtc").value(120.02))
+                .andExpect(jsonPath("$.difference").value(0.02))
+                .andExpect(jsonPath("$.tolerance").value(0.01));
+
+        assertEquals(
+                "EXTRAITE",
+                invoiceRepository.findById(uploadResponse.getInvoiceId()).orElseThrow().getInvoiceStatus().getCode()
+        );
+    }
+
     private void submitForValidation(Long invoiceId) {
         InvoiceCorrectionRequest correctionRequest = new InvoiceCorrectionRequest();
         correctionRequest.setInvoiceDate("2026-08-07");
